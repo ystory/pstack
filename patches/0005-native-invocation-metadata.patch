@@ -1,5 +1,5 @@
 diff --git a/.cursor-plugin/plugin.json b/.cursor-plugin/plugin.json
-index 7754f38..0695ece 100644
+index 1295f46..0695ece 100644
 --- a/.cursor-plugin/plugin.json
 +++ b/.cursor-plugin/plugin.json
 @@ -1,7 +1,7 @@
@@ -7,7 +7,7 @@ index 7754f38..0695ece 100644
 -	"name": "pstack",
 +	"name": "pstack-for-codex",
  	"displayName": "pstack",
--	"version": "0.15.28",
+-	"version": "0.15.36",
 +	"version": "0.1.0-dev.0",
  	"description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
  	"author": {
@@ -146,13 +146,13 @@ index 0000000..638b318
 +  allow_implicit_invocation: false
 diff --git a/skills/interrogate/agents/openai.yaml b/skills/interrogate/agents/openai.yaml
 new file mode 100644
-index 0000000..0edb75b
+index 0000000..1a82497
 --- /dev/null
 +++ b/skills/interrogate/agents/openai.yaml
 @@ -0,0 +1,5 @@
 +interface:
 +  display_name: "interrogate"
-+  short_description: "Use for \"interrogate\", \"adversarial review\", \"multi-model review\", \"challenge this\", \"stress test this code\", \"find blind spots\", or \"tear this apart\". Multiple LLM reviewers challenge changes from independent angles."
++  short_description: "Use for \"interrogate\", \"adversarial review\", \"multi-model review\", \"challenge this\", \"stress test this code\", \"find blind spots\", or \"tear this apart\". Adversaries try to break a change or design, and only findings proven by a run survive."
 +policy:
 +  allow_implicit_invocation: false
 diff --git a/skills/ketchup/agents/openai.yaml b/skills/ketchup/agents/openai.yaml
@@ -300,13 +300,13 @@ index 0000000..11f8695
 +  allow_implicit_invocation: false
 diff --git a/skills/principle-explain-the-number/agents/openai.yaml b/skills/principle-explain-the-number/agents/openai.yaml
 new file mode 100644
-index 0000000..14a0d68
+index 0000000..1612e7f
 --- /dev/null
 +++ b/skills/principle-explain-the-number/agents/openai.yaml
 @@ -0,0 +1,5 @@
 +interface:
 +  display_name: "principle-explain-the-number"
-+  short_description: "Apply before you trust, report, or act on a number you measured: a speedup, a regression, a throughput, a latency, or an eval result. Find what limits it, and rule out that it measured something other than the work you think."
++  short_description: "Apply before you measure, and before you trust, report, or act on a number you measured: a speedup, a regression, a throughput, a latency, or an eval result. Find what limits it, and rule out that it measured something other than the work you think."
 +policy:
 +  allow_implicit_invocation: false
 diff --git a/skills/principle-fix-root-causes/agents/openai.yaml b/skills/principle-fix-root-causes/agents/openai.yaml
@@ -520,13 +520,13 @@ index 0000000..d05c370
 +  allow_implicit_invocation: false
 diff --git a/skills/sharpen/agents/openai.yaml b/skills/sharpen/agents/openai.yaml
 new file mode 100644
-index 0000000..ff18704
+index 0000000..36e4761
 --- /dev/null
 +++ b/skills/sharpen/agents/openai.yaml
 @@ -0,0 +1,5 @@
 +interface:
 +  display_name: "sharpen"
-+  short_description: "Sharpen a task before starting: the expert approach, what the user is really after, and the right level of specification. Use for /sharpen."
++  short_description: "Make a task deeper, not bigger, then rewrite the prompt. Use for /sharpen."
 +policy:
 +  allow_implicit_invocation: false
 diff --git a/skills/show-me-your-work/agents/openai.yaml b/skills/show-me-your-work/agents/openai.yaml
@@ -615,5 +615,27 @@ index 0000000..a3364b9
 +interface:
 +  display_name: "why"
 +  short_description: "Use for 'why does X work this way', 'why we picked Y', design rationale, regressions, postmortems, or data-backed thresholds. Discovers available MCPs and queries each evidence category (source control, issue tracker, long-form docs, real-time chat, infrastructure observability, error tracking, product analytics warehouse) in parallel, then returns a cited read on decisions and tradeoffs. Use how for runtime behavior."
++policy:
++  allow_implicit_invocation: false
+diff --git a/skills/ketchup-video/agents/openai.yaml b/skills/ketchup-video/agents/openai.yaml
+new file mode 100644
+index 0000000..c9b8515
+--- /dev/null
++++ b/skills/ketchup-video/agents/openai.yaml
+@@ -0,0 +1,5 @@
++interface:
++  display_name: "ketchup-video"
++  short_description: "Catch the user up like /ketchup, with a short subtitled video of slides for what happened and the waiting calls as text under it. Use for /ketchup-video."
++policy:
++  allow_implicit_invocation: false
+diff --git a/skills/statechart/agents/openai.yaml b/skills/statechart/agents/openai.yaml
+new file mode 100644
+index 0000000..77e2199
+--- /dev/null
++++ b/skills/statechart/agents/openai.yaml
+@@ -0,0 +1,5 @@
++interface:
++  display_name: "statechart"
++  short_description: "Check a TLA+ model of a system that moves between states, such as a product flow, a protocol, or a service, and draw it as a Mermaid statechart. The report gives the shortest path to each state that breaks a rule. Use for /statechart, or to show a bug as a path through states."
 +policy:
 +  allow_implicit_invocation: false

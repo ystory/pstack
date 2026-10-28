@@ -4,7 +4,7 @@ An unofficial Codex adaptation of [Lauren Tan's pstack](https://github.com/curso
 
 Ordinary roles default to Sol 6.1 through Codex. The hardest tasks use Opus 5.5 through an existing Claude Code CLI, and candidate and review panels use both models. The default configuration requires an installed, authenticated Claude Code CLI with Opus 5.5 access.
 
-Setup can save an all-Sol configuration, but that configuration cannot satisfy upstream steps requiring a different model or model family, such as the final audit in `show-me-your-work` and the eval playbook. See the [plugin manifest](plugin/plugin.json) for the current version and the [compatibility notes](docs/spec.md) for verified workflows and limitations.
+Setup can save an all-Sol configuration, but that configuration cannot satisfy upstream steps requiring a different model or model family, such as Orchestrate's per-PR verifier, the final audit in `show-me-your-work`, and the eval playbook. Arena instead reports when it cannot run a judge from another family and continues without that judge. See the [plugin manifest](plugin/plugin.json) for the current version and the [compatibility notes](docs/spec.md) for verified workflows and limitations.
 
 ![pstack for Codex workflow: route a task through a playbook and situational skills, prove the result, and return the appropriate outcome.](docs/assets/pstack-for-codex-workflow.png)
 
@@ -17,7 +17,8 @@ The playbook determines which skills and agents to use; the result can be an ans
 - Node.js 24.12+ for setup and the bundled runtime helpers.
 - Python 3.11+ for agent registration, using its standard-library TOML parser. Setup uses `python3` by default and can select another existing interpreter.
 - An installed, authenticated Claude Code CLI 2.1.280+ with Opus 5.5 access for the default Claude roles. Setup checks CLI capabilities; detection alone does not establish model access.
-- Bun 1.2+ for the orchestration and PR watcher helpers. Their first use installs locked dependencies in a cache outside the plugin and may need network access. GitHub PR workflows also need an authenticated GitHub CLI (`gh`).
+- Bun 1.2+ for the PR watcher helper. Its first use installs locked dependencies in a cache outside the plugin and may need network access. GitHub PR workflows also need an authenticated GitHub CLI (`gh`).
+- Optional TLA+ statechart checks need Java and TLC. The first real check uses mise to install pinned tools unless existing tools are supplied. SVG rendering uses Pele separately. See the [statechart skill](plugin/skills/statechart/SKILL.md) for its commands and limits.
 
 ## Install
 

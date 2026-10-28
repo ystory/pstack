@@ -1,0 +1,15 @@
+diff --git a/skills/poteto-mode/references/codex-execution.md b/skills/poteto-mode/references/codex-execution.md
+index 8ed84b0..58c6810 100644
+--- a/skills/poteto-mode/references/codex-execution.md
++++ b/skills/poteto-mode/references/codex-execution.md
+@@ -60,7 +60,9 @@ node "<poteto-mode>/scripts/run-claude.mjs" run \
+   < "/absolute/task-prompt.txt"
+ ```
+ 
+-Use the resolved task effort. Repeat `--instruction` for the applicable project instructions and selected source references, templates, and rubrics, and `--skill` for the relevant skill bodies. The runner reads these absolute files, sends their contents with the task to Claude Code, and grants standard exact-file `Read` access to each supplied context file. The caller also supplies `--allowed-tool` rules for required linked source files and already-authorized task operations, including edits and verification commands. Use exact files or the required source subtree for `Read`, the owned output paths for `Edit` or `Write`, and the task's command for `Bash`. Claude Code absolute file rules begin with two slashes, as in `Read(//absolute/project/file.md)`. Keep task edits in the assigned cwd/worktree. Gather these rules from the task and its source references before launching.
++Use the resolved task effort. Repeat `--instruction` for the applicable project instructions and selected source references, templates, and rubrics, and `--skill` for the relevant skill bodies. The runner reads these absolute files, sends their contents with the task to Claude Code, and grants standard exact-file `Read` access to each supplied context file. The caller also supplies `--allowed-tool` rules for required linked source files and already-authorized task operations, including edits and verification commands. Use exact files or the required source subtree for `Read`, scoped `Edit` rules for owned files whether the delegate uses Edit or Write, and the task's command for `Bash`. Claude Code absolute file rules begin with two slashes, as in `Edit(//absolute/project/new-file.md)`. Keep task edits in the assigned cwd/worktree. Gather these rules from the task and its source references before launching.
++
++Claude Code's [file permission rules](https://code.claude.com/docs/en/permissions#writepath-notebookeditpath-and-globpath-rules-never-match) match file creation and editing through `Edit(path)`. A path-scoped `Write(path)` rule is accepted but never matches. `--allowedTools` preapproves matching calls; it does not restrict the available tool set or create a filesystem boundary. An allowed shell or interpreter can perform operations beyond another tool's rule, so retain the host's OS permissions and the task's ownership scope.
+ 
+ The brief carries the original task, later directives, owned scope, cwd and branch, exact input SHAs, required tools and constraints, verification, artifact locations including this runner's run directory, and output contract. Filled template fields belong in that brief. Preserve judge blinding by using sanitized candidate labels and paths in the judge's files and brief.
+ 

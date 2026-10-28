@@ -1,5 +1,5 @@
 diff --git a/README.md b/README.md
-index 60a6f20..034138e 100644
+index 6654721..2d48fa5 100644
 --- a/README.md
 +++ b/README.md
 @@ -1,4 +1,6 @@
@@ -10,7 +10,7 @@ index 60a6f20..034138e 100644
  
  i'm [poteto](https://x.com/poteto). i'm not a president or ceo, but i've worked with millions of lines of code at Meta, Netflix, and Cursor. i'm also on the react core team where i help build and maintain react compiler.
  
-@@ -14,49 +16,45 @@ fork it. improve it. make it yours. PRs are welcome!
+@@ -14,51 +16,45 @@ fork it. improve it. make it yours. PRs are welcome!
  
  ## install
  
@@ -29,6 +29,8 @@ index 60a6f20..034138e 100644
 +codex plugin add pstack-for-codex@pstack-for-codex-local
  ```
  
+-claude code leaves auto-update off for third-party marketplaces, so pstack stays on the version you installed. to turn it on, run `/plugin`, open the **marketplaces** tab, select `cursor-plugins`, and choose **enable auto-update**. to update once by hand, run `claude plugin update pstack@cursor-plugins`.
+-
 -claude code prefixes plugin commands and agents, so `/poteto-mode` is `/pstack:poteto-mode`. the [claude code adapter](./docs/harness/claude-code.md) maps every other cursor name. in claude code, `/pstack:setup-pstack` writes your model choices to `~/.claude/rules/pstack-models.md`, and a step that needs a cursor-only feature, such as bugbot or automations, is skipped with a one-line note.
 +Setup needs an existing Node.js 24.12+ and Python 3.11+ interpreter; it uses only Python's standard-library TOML parser. Codex presents setup onboarding after installation. Setup registers the two bundled custom-agent definitions and their native config references, plus a description-only `pstack-general-purpose` role that leaves your existing default role intact. It stores your role choices in `$CODEX_HOME/pstack-for-codex/models.json`, defaulting to `~/.codex`. Re-run setup after an update or a prior-version restore to synchronize its owned agent files. Existing user edits stop replacement; role preferences are retained.
  
@@ -75,7 +77,7 @@ index 60a6f20..034138e 100644
  morning.
  ```
  
-@@ -101,20 +99,20 @@ when invoked it:
+@@ -103,20 +99,20 @@ when invoked it:
  
  the full rules and playbooks live in [`skills/poteto-mode/SKILL.md`](./skills/poteto-mode/SKILL.md).
  
@@ -101,23 +103,24 @@ index 60a6f20..034138e 100644
  ```
  
  <details>
-@@ -122,38 +120,38 @@ to keep [`/poteto-mode`](./skills/poteto-mode/SKILL.md) on across turns, pick it
+@@ -124,40 +120,40 @@ to keep [`/poteto-mode`](./skills/poteto-mode/SKILL.md) on across turns, pick it
  
  | skill | use it when |
  |---|---|
 -| [`/poteto-mode`](./skills/poteto-mode/SKILL.md) | default entry point for any non-trivial task. |
 -| [`/poteto-help`](./skills/poteto-help/SKILL.md) | you're new to pstack, or unsure which skill, playbook, or principle fits. finds out what you're trying to do, answers that part, and hands you a prompt to type. runs only when you type `/poteto-help`. |
 -| [`/in-your-own-words`](./skills/in-your-own-words/SKILL.md) | you want the agent to play back your goal and the problem before it starts. runs only when you type `/in-your-own-words`. |
--| [`/sharpen`](./skills/sharpen/SKILL.md) | you want a task approached the way a top expert would, aimed at what you're really after, without overspecifying it or deciding your choices for you. |
+-| [`/sharpen`](./skills/sharpen/SKILL.md) | you want a prompt made deeper, not bigger, before you send it: what a top professional would do that you didn't ask for, the raw material they'd start from, their methods and tools, and an outside check that the result is right. hands back the rewritten prompt and leaves your choices open. doesn't do the task. runs only when you type `/sharpen`. |
 -| [`/how`](./skills/how/SKILL.md) | you want a walkthrough of how a subsystem works. |
 -| [`/why`](./skills/why/SKILL.md) | you want to know why something was built this way. discovers available MCPs at run time and queries each evidence category in parallel (source control, issue tracker, long-form docs, real-time chat, infra observability, error tracking, analytics warehouse). |
 -| [`/recall`](./skills/recall/SKILL.md) | you're starting or resuming work and want your recent context on a topic rebuilt from your own chat history and the shared record, handed back as a tight current-state brief. |
 -| [`/ketchup`](./skills/ketchup/SKILL.md) | you want what changed in this chat since your last message, in plain words and small visuals, with every item waiting on you listed and decidable from the reply alone, even when that makes the reply long. |
+-| [`/ketchup-video`](./skills/ketchup-video/SKILL.md) | you want the `/ketchup` catch-up as a short subtitled video of slides, with the calls waiting on you as text under it. |
 -| [`/blast-radius`](./skills/blast-radius/SKILL.md) | you have a small-looking change and want to know what else it could break, with the one fact it's safe because of proven by running code, not asserted. |
 -| [`/architect`](./skills/architect/SKILL.md) | you're about to write code that crosses a function boundary and want the caller's usage, types, and module shape settled first. |
 -| [`/arena`](./skills/arena/SKILL.md) | you want N parallel attempts at the same thing, then to grab the best parts of each. |
 -| [`/swarm`](./skills/swarm/SKILL.md) | you want N parallel workers across different slices or races, then one aggregated report. |
--| [`/interrogate`](./skills/interrogate/SKILL.md) | you have a diff and want different models to try to break it, including a strict code-quality lens. |
+-| [`/interrogate`](./skills/interrogate/SKILL.md) | you have a diff and want different models to try to break it, keeping only findings a run proves. |
 -| [`/automate-me`](./skills/automate-me/SKILL.md) | you want your own `-mode` skill, drafted from how you've actually worked. |
 -| [`/make-bot-ui`](./skills/make-bot-ui/SKILL.md) | you want a page or dashboard whose buttons wake a Grok Bot over a webhook, including the sender-key handoff and Tailscale. |
 -| [`/setup-pstack`](./skills/setup-pstack/SKILL.md) | you want to pick which models pstack uses per role. detects your models and writes a config rule. |
@@ -134,22 +137,24 @@ index 60a6f20..034138e 100644
 -| [`/maintain-verification-skill`](./skills/maintain-verification-skill/SKILL.md) | your verify skill's feature map has drifted from the app. source wave + one live pass, at most one PR of proven corrections. |
 -| [`/create-formal-verification-skill`](./skills/create-formal-verification-skill/SKILL.md) | tests can't reach the case that breaks a race, retry, state machine, parser, or unsafe code. verifies one property with the tool that fits and generates a project-local skill to recheck it on every change. |
 -| [`/maintain-formal-verification-skill`](./skills/maintain-formal-verification-skill/SKILL.md) | code your formal verification covers has changed since it was last checked. updates the model, harness, or properties to match the code, reruns, and says whether each failure is drift in the verification or a bug in the code. |
+-| [`/statechart`](./skills/statechart/SKILL.md) | someone who owns the behavior needs to see it, not read a spec. checks a tla+ model, draws what the user sees as a mermaid statechart, marks each state that breaks a rule, and gives the shortest path to each one. |
 -| [`/unslop`](./skills/unslop/SKILL.md) | you're cleaning up writing. removes AI tells. |
 -| [`/bro`](./skills/bro/SKILL.md) | you want the last message restated in plain human language, no jargon. |
 -| [`/technical-writing`](./skills/technical-writing/SKILL.md) | layered doc standard (Diátaxis + Google developer style + STE + Global English) for docs, RFCs, readmes, PR descriptions, commit messages. |
 +| [`$pstack-for-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) | default entry point for any non-trivial task. |
 +| [`$pstack-for-codex:poteto-help`](./skills/poteto-help/SKILL.md) | you're new to pstack, or unsure which skill, playbook, or principle fits. finds out what you're trying to do, answers that part, and hands you a prompt to type. runs only when you type `$pstack-for-codex:poteto-help`. |
 +| [`$pstack-for-codex:in-your-own-words`](./skills/in-your-own-words/SKILL.md) | you want the agent to play back your goal and the problem before it starts. runs only when you type `$pstack-for-codex:in-your-own-words`. |
-+| [`$pstack-for-codex:sharpen`](./skills/sharpen/SKILL.md) | you want a task approached the way a top expert would, aimed at what you're really after, without overspecifying it or deciding your choices for you. |
++| [`$pstack-for-codex:sharpen`](./skills/sharpen/SKILL.md) | you want a prompt made deeper, not bigger, before you send it: what a top professional would do that you didn't ask for, the raw material they'd start from, their methods and tools, and an outside check that the result is right. hands back the rewritten prompt and leaves your choices open. doesn't do the task. runs only when you type `$pstack-for-codex:sharpen`. |
 +| [`$pstack-for-codex:how`](./skills/how/SKILL.md) | you want a walkthrough of how a subsystem works. |
 +| [`$pstack-for-codex:why`](./skills/why/SKILL.md) | you want to know why something was built this way. discovers available MCPs at run time and queries each evidence category in parallel (source control, issue tracker, long-form docs, real-time chat, infra observability, error tracking, analytics warehouse). |
 +| [`$pstack-for-codex:recall`](./skills/recall/SKILL.md) | you're starting or resuming work and want your recent context on a topic rebuilt from your own chat history and the shared record, handed back as a tight current-state brief. |
 +| [`$pstack-for-codex:ketchup`](./skills/ketchup/SKILL.md) | you want what changed in this chat since your last message, in plain words and small visuals, with every item waiting on you listed and decidable from the reply alone, even when that makes the reply long. |
++| [`$pstack-for-codex:ketchup-video`](./skills/ketchup-video/SKILL.md) | you want the `$pstack-for-codex:ketchup` catch-up as a short subtitled video of slides, with the calls waiting on you as text under it. |
 +| [`$pstack-for-codex:blast-radius`](./skills/blast-radius/SKILL.md) | you have a small-looking change and want to know what else it could break, with the one fact it's safe because of proven by running code, not asserted. |
 +| [`$pstack-for-codex:architect`](./skills/architect/SKILL.md) | you're about to write code that crosses a function boundary and want the caller's usage, types, and module shape settled first. |
 +| [`$pstack-for-codex:arena`](./skills/arena/SKILL.md) | you want N parallel attempts at the same thing, then to grab the best parts of each. |
 +| [`$pstack-for-codex:swarm`](./skills/swarm/SKILL.md) | you want N parallel workers across different slices or races, then one aggregated report. |
-+| [`$pstack-for-codex:interrogate`](./skills/interrogate/SKILL.md) | you have a diff and want different models to try to break it, including a strict code-quality lens. |
++| [`$pstack-for-codex:interrogate`](./skills/interrogate/SKILL.md) | you have a diff and want different models to try to break it, keeping only findings a run proves. |
 +| [`$pstack-for-codex:automate-me`](./skills/automate-me/SKILL.md) | you want your own `-mode` skill, drafted from how you've actually worked. |
 +| [`$pstack-for-codex:make-bot-ui`](./skills/make-bot-ui/SKILL.md) | you want a page or dashboard whose buttons wake a Grok Bot over a webhook, including the sender-key handoff and Tailscale. |
 +| [`$pstack-for-codex:setup-pstack`](./skills/setup-pstack/SKILL.md) | you want to pick which models pstack uses per role. detects your models and writes a config rule. |
@@ -166,13 +171,14 @@ index 60a6f20..034138e 100644
 +| [`$pstack-for-codex:maintain-verification-skill`](./skills/maintain-verification-skill/SKILL.md) | your verify skill's feature map has drifted from the app. source wave + one live pass, at most one PR of proven corrections. |
 +| [`$pstack-for-codex:create-formal-verification-skill`](./skills/create-formal-verification-skill/SKILL.md) | tests can't reach the case that breaks a race, retry, state machine, parser, or unsafe code. verifies one property with the tool that fits and generates a project-local skill to recheck it on every change. |
 +| [`$pstack-for-codex:maintain-formal-verification-skill`](./skills/maintain-formal-verification-skill/SKILL.md) | code your formal verification covers has changed since it was last checked. updates the model, harness, or properties to match the code, reruns, and says whether each failure is drift in the verification or a bug in the code. |
++| [`$pstack-for-codex:statechart`](./skills/statechart/SKILL.md) | someone who owns the behavior needs to see it, not read a spec. checks a tla+ model, draws what the user sees as a mermaid statechart, marks each state that breaks a rule, and gives the shortest path to each one. |
 +| [`$pstack-for-codex:unslop`](./skills/unslop/SKILL.md) | you're cleaning up writing. removes AI tells. |
 +| [`$pstack-for-codex:bro`](./skills/bro/SKILL.md) | you want the last message restated in plain human language, no jargon. |
 +| [`$pstack-for-codex:technical-writing`](./skills/technical-writing/SKILL.md) | layered doc standard (Diátaxis + Google developer style + STE + Global English) for docs, RFCs, readmes, PR descriptions, commit messages. |
  
  </details>
  
-@@ -161,60 +159,60 @@ to keep [`/poteto-mode`](./skills/poteto-mode/SKILL.md) on across turns, pick it
+@@ -165,60 +161,60 @@ to keep [`/poteto-mode`](./skills/poteto-mode/SKILL.md) on across turns, pick it
  
  ### examples
  
@@ -259,7 +265,7 @@ index 60a6f20..034138e 100644
  
  ## principles
  
-@@ -252,35 +250,27 @@ twenty-four short skills, one principle each. `poteto-mode` indexes them inline
+@@ -256,35 +252,27 @@ twenty-four short skills, one principle each. `poteto-mode` indexes them inline
  
  </details>
  
@@ -392,7 +398,7 @@ index d789eed..510aa7a 100644
 -Next: [Route work through `/poteto-mode`](./02-poteto-mode.md).
 +Next: [Route work through `$pstack-for-codex:poteto-mode`](./02-poteto-mode.md).
 diff --git a/docs/guide/02-poteto-mode.md b/docs/guide/02-poteto-mode.md
-index db16b5e..60a4de2 100644
+index 89c594b..07a9050 100644
 --- a/docs/guide/02-poteto-mode.md
 +++ b/docs/guide/02-poteto-mode.md
 @@ -1,6 +1,6 @@
@@ -422,7 +428,7 @@ index db16b5e..60a4de2 100644
  ```
  
  Two things are worth leaving out:
-@@ -61,15 +61,15 @@ Two things are worth leaving out:
+@@ -61,25 +61,25 @@ Two things are worth leaving out:
  For a noisy report, such as a long thread or a vague bug, make the restatement the first step:
  
  ```text
@@ -433,16 +439,19 @@ index db16b5e..60a4de2 100644
 -A misreading shows up in the restatement, before any code exists. Correct it there, and it costs you one message instead of one wrong fix. For the restatement alone, with no playbook, run [`/in-your-own-words`](../../skills/in-your-own-words/SKILL.md). It restates what the agent thinks your goals are and what problem you're trying to solve.
 +A misreading shows up in the restatement, before any code exists. Correct it there, and it costs you one message instead of one wrong fix. For the restatement alone, with no playbook, run [`$pstack-for-codex:in-your-own-words`](../../skills/in-your-own-words/SKILL.md). It restates what the agent thinks your goals are and what problem you're trying to solve.
  
--When you're unsure whether a task is aimed right, put [`/sharpen`](../../skills/sharpen/SKILL.md) in front of it:
-+When you're unsure whether a task is aimed right, put [`$pstack-for-codex:sharpen`](../../skills/sharpen/SKILL.md) in front of it:
+-When you're unsure whether a prompt is aimed right, run [`/sharpen`](../../skills/sharpen/SKILL.md) on it before you send it:
++When you're unsure whether a prompt is aimed right, run [`$pstack-for-codex:sharpen`](../../skills/sharpen/SKILL.md) on it before you send it:
  
  ```text
 -/sharpen write a migration guide for the v2 config format.
 +$pstack-for-codex:sharpen write a migration guide for the v2 config format.
  ```
  
- Before it starts, the agent asks how a top expert would do the task, what you're really after, and whether the ask is over- or underspecified. It drops constraints that don't serve the goal as readily as it adds ones that do, leaves your choices open, and keeps one outside check that the result is right. Then it does the work.
-@@ -79,7 +79,7 @@ Before it starts, the agent asks how a top expert would do the task, what you're
+-The agent says what a top professional would do that you didn't ask for, the rawest material they would start from, the methods and tools they would use, and what other than you or the agent would show the result is right. Then it rewrites your prompt to ask for exactly that, deeper but not bigger, and leaves your choices open. It doesn't do the task. Read the rewrite, then send it, for example with `/poteto-mode`.
++The agent says what a top professional would do that you didn't ask for, the rawest material they would start from, the methods and tools they would use, and what other than you or the agent would show the result is right. Then it rewrites your prompt to ask for exactly that, deeper but not bigger, and leaves your choices open. It doesn't do the task. Read the rewrite, then send it, for example with `$pstack-for-codex:poteto-mode`.
+ 
+ ## Follow up short
+ 
  When the conversation already carries the context, the prompt shrinks to almost nothing. All of these are enough:
  
  ```text
@@ -613,7 +622,7 @@ index e26661f..6c550ee 100644
  
  Next: [Design the change](./04-design.md).
 diff --git a/docs/guide/04-design.md b/docs/guide/04-design.md
-index 6586208..44526e1 100644
+index 9da6470..82ab2a0 100644
 --- a/docs/guide/04-design.md
 +++ b/docs/guide/04-design.md
 @@ -1,34 +1,34 @@
@@ -655,8 +664,8 @@ index 6586208..44526e1 100644
 +$pstack-for-codex:arena take my prompt to the arena verbatim. i want to compare their proposals with yours.
  ```
  
--[`/arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A read-only judge, on a different model family when your configuration allows one, scores every candidate against a rubric. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
-+[`$pstack-for-codex:arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A judge, on a different model family when your configuration allows one, scores every candidate against a rubric. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
+-[`/arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A read-only judge from a different model family scores every candidate against a rubric. When no model from another family can run, the coordinator skips the judge and picks the base itself. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
++[`$pstack-for-codex:arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A judge from a different model family scores every candidate against a rubric. When no model from another family can run, the coordinator skips the judge and picks the base itself. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
  
  ```mermaid
  flowchart LR
@@ -694,12 +703,12 @@ index 6586208..44526e1 100644
 +$pstack-for-codex:interrogate the whole branch, but skeptically. no nitpicks unless it's an actual bug or regression.
  ```
  
--[`/interrogate`](../../skills/interrogate/SKILL.md) sends the same diff, intent, and rubric to reviewers on different model families. Model diversity is the point. Different models have different blind spots, so a finding two models raise independently is high-confidence signal. The lead sorts everything into `Act on`, `Consider`, `Noted`, and `Dismissed`, with a reason for each dismissal, and applies nothing automatically.
-+[`$pstack-for-codex:interrogate`](../../skills/interrogate/SKILL.md) sends the same diff, intent, and rubric to reviewers on different model families. Model diversity is the point. Different models have different blind spots, so a finding two models raise independently is high-confidence signal. The lead sorts everything into `Act on`, `Consider`, `Noted`, and `Dismissed`, with a reason for each dismissal, and applies nothing automatically.
+-[`/interrogate`](../../skills/interrogate/SKILL.md) gives the change and its intent to adversaries on the configured models, and each tries to break it with a run against the real code. Adversaries find different failures. A finding survives only when rerunning its command shows a failure that breaks the intent. The report lists every verified finding with the adversaries that found it, then what each adversary dropped and why, and applies nothing.
++[`$pstack-for-codex:interrogate`](../../skills/interrogate/SKILL.md) gives the change and its intent to adversaries on the configured models, and each tries to break it with a run against the real code. Adversaries find different failures. A finding survives only when rerunning its command shows a failure that breaks the intent. The report lists every verified finding with the adversaries that found it, then what each adversary dropped and why, and applies nothing.
  
- Read the dismissals too. The lead is a pragmatic senior engineer, not an oracle, and you can override it.
+ Read the Dropped list too. You can override the verdict.
  
-@@ -75,35 +75,35 @@ Read the dismissals too. The lead is a pragmatic senior engineer, not an oracle,
+@@ -75,35 +75,35 @@ Read the Dropped list too. You can override the verdict.
  Never take the first design. Ask for a few, and pick from evidence you can see:
  
  ```text
@@ -717,8 +726,8 @@ index 6586208..44526e1 100644
 +$pstack-for-codex:poteto-mode we need rate limiting for external webhooks. $pstack-for-codex:architect it first, and answer open questions with prototypes. let me review before proceeding.
  ```
  
--Don't spend reviewers on an abstract plan. `/interrogate` belongs on a diff. Point adversarial review at a plan with no code behind it and the reviewers invent theoretical risks and edge cases that will never happen. Let prototypes settle the questions, then review what got built.
-+Don't spend reviewers on an abstract plan. `$pstack-for-codex:interrogate` belongs on a diff. Point adversarial review at a plan with no code behind it and the reviewers invent theoretical risks and edge cases that will never happen. Let prototypes settle the questions, then review what got built.
+-Don't spend adversaries on an abstract plan. `/interrogate` drops every finding a run does not prove, so a plan with no code behind it gives them little to break. Let prototypes settle the questions, then review what got built.
++Don't spend adversaries on an abstract plan. `$pstack-for-codex:interrogate` drops every finding a run does not prove, so a plan with no code behind it gives them little to break. Let prototypes settle the questions, then review what got built.
  
  ## Write the README first for shared code
  
@@ -871,7 +880,7 @@ index dbadc3d..0ed7778 100644
  **Pitfall:** cleanup is not optional polish. A diff with narrating comments and defensive dead weight reads as unfinished to reviewers, and the extra code is where the next bug hides. If the diff feels padded, say `deslop it` before you commit, not after review calls it out.
  
 diff --git a/docs/guide/06-verify-and-ship.md b/docs/guide/06-verify-and-ship.md
-index 3c7b3c4..7730231 100644
+index ffcdc0d..dec5793 100644
 --- a/docs/guide/06-verify-and-ship.md
 +++ b/docs/guide/06-verify-and-ship.md
 @@ -11,7 +11,7 @@ Verification is the slowest step in most agent work, because it's the step that
@@ -973,12 +982,24 @@ index 3c7b3c4..7730231 100644
  ```
  
  The question picks the tool. Whether events can happen in a bad order suits a model checker over a small model of the design, and TLA+ is the default for that in any language. Whether the code behaves for every input suits a verifier that runs on the code. If no verifier runs on your language, the agent says so and tests the real code with generated inputs, not a hand-written model of the function. A property that must hold at every size can need a proof. The agent tells you which tool it chose and why.
-@@ -113,12 +113,12 @@ It verifies one property and shows that property failing on a broken variant of
+@@ -113,22 +113,22 @@ It verifies one property and shows that property failing on a broken variant of
  
  It writes a project-local skill that tells the next agent whether a change touches the verified code, how to run the check with one command, and how to tell a real bug from a modeling error. Before handing it over, the generator follows that skill once on a scratch change that breaks the property, and the check must catch it. The handoff says what was verified, with which tool and bounds, what the check found, and what it doesn't cover. A pass covers the model or the bound, not the whole system.
  
 -The skill also records which code each check covers and the commit where the check last matched it. Merges and refactors that skip the skill can leave the check passing on a description of code that's gone. After them, run [`/maintain-formal-verification-skill`](../../skills/maintain-formal-verification-skill/SKILL.md). It updates the verification from the code, reruns it, shows that each updated check can still fail, and tells you whether each failure is drift in the verification or a bug in the code.
 +The skill also records which code each check covers and the commit where the check last matched it. Merges and refactors that skip the skill can leave the check passing on a description of code that's gone. After them, run [`$pstack-for-codex:maintain-formal-verification-skill`](../../skills/maintain-formal-verification-skill/SKILL.md). It updates the verification from the code, reruns it, shows that each updated check can still fail, and tells you whether each failure is drift in the verification or a bug in the code.
+ 
+ ## Show the behavior as a statechart
+ 
+ A counterexample in model terms convinces you. The PM or designer who owns the behavior needs to see it in their terms. Run:
+ 
+ ```text
+-/statechart what the user sees when they edit a note offline
++$pstack-for-codex:statechart what the user sees when they edit a note offline
+ ```
+ 
+-[`/statechart`](../../skills/statechart/SKILL.md) draws a Mermaid statechart of what the user sees, generated from a TLA+ model, so the picture and the checked model can't drift apart. The reader's rules ("you never see Synced while you're offline") become invariants. The chart marks each state that breaks a rule, and the report gives the shortest path to it in the reader's words. Before the hand-off, the agent reproduces each bug path in the real code, so a modeling error doesn't reach the reader as a bug.
++[`$pstack-for-codex:statechart`](../../skills/statechart/SKILL.md) draws a Mermaid statechart of what the user sees, generated from a TLA+ model, so the picture and the checked model can't drift apart. The reader's rules ("you never see Synced while you're offline") become invariants. The chart marks each state that breaks a rule, and the report gives the shortest path to it in the reader's words. Before the hand-off, the agent reproduces each bug path in the real code, so a modeling error doesn't reach the reader as a bug.
  
  ## Open the PR
  
@@ -988,7 +1009,7 @@ index 3c7b3c4..7730231 100644
  ```
  
  The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md) works from a worktree, rebases the work into small ordered commits, cleans the diff, unslops the prose, and returns the PR link. Five narrow PRs beat one fat one, and stacked follow-ups beat a growing branch.
-@@ -128,13 +128,13 @@ The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md)
+@@ -138,13 +138,13 @@ The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md)
  An open PR starts collecting blockers immediately. Checks fail, reviewers comment, trunk moves. Hand that churn to the [Babysit playbook](../../skills/poteto-mode/playbooks/babysit.md):
  
  ```text
@@ -1004,7 +1025,7 @@ index 3c7b3c4..7730231 100644
  ```
  
  Babysit stops at merge-ready. It never merges, even with everything green, because merging is a different decision.
-@@ -144,7 +144,7 @@ Babysit stops at merge-ready. It never merges, even with everything green, becau
+@@ -154,7 +154,7 @@ Babysit stops at merge-ready. It never merges, even with everything green, becau
  Green is not the same as safe. When you're ready to land, say so:
  
  ```text
@@ -1014,7 +1035,7 @@ index 3c7b3c4..7730231 100644
  
  The [Shipping playbook](../../skills/poteto-mode/playbooks/shipping.md) verifies each PR independently before it arms anything. One fresh agent per PR proves the behavior live, and the agent that judges a change is never the one that wrote it. Then Shipping lands only the contiguous verified run from the bottom, one PR at a time through GitHub by default or Origin when its CLI is available, and reports the first PR that breaks the chain. A verified PR sitting above an unverified one waits, because merging it would pull the gap in underneath.
 diff --git a/docs/guide/07-overnight.md b/docs/guide/07-overnight.md
-index dd4230d..6cc6f35 100644
+index 17bae40..fd7a654 100644
 --- a/docs/guide/07-overnight.md
 +++ b/docs/guide/07-overnight.md
 @@ -1,6 +1,6 @@
@@ -1083,14 +1104,14 @@ index dd4230d..6cc6f35 100644
 +$pstack-for-codex:poteto-mode full autopilot on this queue. each item is independent. i want them merged by morning.
  ```
  
- [Autopilot-stack](../../skills/poteto-mode/playbooks/autopilot-stack.md) runs the same owner loop but ships nothing. You wake up to one linear base-branch stack with a verifier's verdict on every link, and you review and land it yourself. Pick it over Autopilot-full when the changes are coupled, or when you want your own eyes on the work before anything merges:
+ [Autopilot-stack](../../skills/poteto-mode/playbooks/autopilot-stack.md) is Autopilot-full without the merge. You wake up to verified PRs, each with its verdict, and you review and land them yourself. A PR stacks only on a PR it builds on. Pick it over Autopilot-full when you want your own eyes on the work before anything merges:
  
  ```text
--/poteto-mode autopilot these five changes but stack them, don't ship. i'll land the stack in the morning.
-+$pstack-for-codex:poteto-mode autopilot these five changes but stack them, don't ship. i'll land the stack in the morning.
+-/poteto-mode autopilot these five changes, but don't merge. i'll land them in the morning.
++$pstack-for-codex:poteto-mode autopilot these five changes, but don't merge. i'll land them in the morning.
  ```
  
- [Orchestrate](../../skills/poteto-mode/playbooks/orchestrate.md) is for a program that outlives any single agent: multi-day, many stacked PRs, fleets of subagents under one standing coordinator chat. The coordinator authors briefs, collects what its subagents finish, keeps the lowest unmerged PR green, and never writes code itself. It's deliberately heavy machinery. If one agent could finish the work in a session, the playbook itself routes you back to the overnight contract above:
+ [Orchestrate](../../skills/poteto-mode/playbooks/orchestrate.md) is for a program that outlives any single agent: multi-day, many stacked PRs, fleets of subagents under one standing coordinator chat. The coordinator decides which agent does each piece of work, checks what each one produces, and never writes code itself. If one agent could finish the work in a session, the playbook itself routes you back to the overnight contract above:
  
  ```text
 -/poteto-mode orchestrate the store migration. own it until every package is converted and merged. i'll check in twice a day.
@@ -1281,7 +1302,7 @@ index 8d1c4b4..c7523e6 100644
  **Pitfall:** don't edit a skill mid-task because it's misbehaving. Fix it in its own PR and keep the task moving. A skill edit that ships tangled into feature work is invisible to review and impossible to evaluate.
  
 diff --git a/docs/guide/10-recipes-and-pitfalls.md b/docs/guide/10-recipes-and-pitfalls.md
-index fb4743c..1d02107 100644
+index 782394f..472fd0a 100644
 --- a/docs/guide/10-recipes-and-pitfalls.md
 +++ b/docs/guide/10-recipes-and-pitfalls.md
 @@ -7,7 +7,7 @@ Prompts worth copying, then the mistakes everyone makes once. Swap in your own p
@@ -1304,15 +1325,15 @@ index fb4743c..1d02107 100644
 -A misreading shows up in the restatement, where it costs one message to correct. Keep your own theory to yourself until the agent has stated its own. `/in-your-own-words` asks for the restatement alone, with no playbook.
 +A misreading shows up in the restatement, where it costs one message to correct. Keep your own theory to yourself until the agent has stated its own. `$pstack-for-codex:in-your-own-words` asks for the restatement alone, with no playbook.
  
- ## Aim a task before it starts
+ ## Sharpen a prompt before you send it
  
  ```text
 -/sharpen write the onboarding doc for the new billing service.
 +$pstack-for-codex:sharpen write the onboarding doc for the new billing service.
  ```
  
- The agent asks how an expert would do the task, what you're really after, and whether the ask says too much or too little. It keeps one outside check that the result is right, then does the work.
-@@ -31,7 +31,7 @@ The agent asks how an expert would do the task, what you're really after, and wh
+ The agent names what an expert would do that you didn't ask for, the raw material they'd start from, their methods and tools, and an outside check that the result is right. It hands back your prompt rewritten to ask for that and doesn't do the task. Send the rewrite when it reads right.
+@@ -31,7 +31,7 @@ The agent names what an expert would do that you didn't ask for, the raw materia
  ## Prototype before you pick
  
  ```text
@@ -1356,7 +1377,7 @@ index fb4743c..1d02107 100644
 +$pstack-for-codex:interrogate the whole branch, but skeptically. don't change anything yet. no nitpicks unless it's an actual bug or regression in behavior.
  ```
  
- The qualifiers do real work. "don't change anything yet" keeps it read-only, and the nitpick rule pre-filters the noise so `Act on` findings are worth your time.
+ The qualifiers do real work. "don't change anything yet" keeps it read-only, and the nitpick rule pre-filters the noise so the verified findings are worth your time.
 @@ -71,7 +71,7 @@ The qualifiers do real work. "don't change anything yet" keeps it read-only, and
  ## Fix a bug through a failing test
  
@@ -1420,7 +1441,7 @@ index fb4743c..1d02107 100644
  ```
  
  You rarely need more words. You need the right name, and [the principles page](./08-principles.md) is the vocabulary.
-@@ -145,33 +145,33 @@ You rarely need more words. You need the right name, and [the principles page](.
+@@ -145,35 +145,35 @@ You rarely need more words. You need the right name, and [the principles page](.
  ## Get the reply in plain words
  
  ```text
@@ -1441,6 +1462,9 @@ index fb4743c..1d02107 100644
 -[`/ketchup`](../../skills/ketchup/SKILL.md) tells you in plain words what changed since your last message, then lists each call waiting on you with its pick, evidence, and risk. It changes nothing while it reports.
 +[`$pstack-for-codex:ketchup`](../../skills/ketchup/SKILL.md) tells you in plain words what changed since your last message, then lists each call waiting on you with its pick, evidence, and risk. It changes nothing while it reports.
  
+-To watch the catch-up instead, run [`/ketchup-video`](../../skills/ketchup-video/SKILL.md). It shows what happened in a short subtitled video of slides, and lists the calls waiting on you as text under it.
++To watch the catch-up instead, run [`$pstack-for-codex:ketchup-video`](../../skills/ketchup-video/SKILL.md). It shows what happened in a short subtitled video of slides, and lists the calls waiting on you as text under it.
+ 
  ## The pitfalls
  
 -- **Enumerating skills in the prompt.** "use /how then /architect then /arena" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
@@ -1457,12 +1481,12 @@ index fb4743c..1d02107 100644
 -- **Trusting an unvetted number.** A warm cache or a skipped code path can fake a speedup. Run `/benchmark-checklist` before the number goes anywhere.
 -- **Correcting the same mistake by hand.** A correction in chat helps one run. `/correct` fixes the repo so no later run repeats it.
 -- **Using `/arena` for coverage.** `/arena` repeats one design or code brief, then picks a base and grafts the best parts. `/swarm` partitions slices or declared race arms and aggregates one report.
--- **Accepting every review comment.** Bots and humans both file real catches and noise in one list. `/interrogate` sorts findings into act-on and dismissed buckets with reasons, and you can override either way.
+-- **Accepting every review comment.** Bots and humans both file real catches and noise in one list. `/interrogate` keeps only the findings a rerun proves and lists what it dropped and why, and you can override either way.
 -- **Treating `auto` as a model slug.** `auto` and `inherit-parent` mean "omit the model field so the subagent inherits the parent chat model." [Setup](./01-setup.md) covers the roles.
 +- **Trusting an unvetted number.** A warm cache or a skipped code path can fake a speedup. Run `$pstack-for-codex:benchmark-checklist` before the number goes anywhere.
 +- **Correcting the same mistake by hand.** A correction in chat helps one run. `$pstack-for-codex:correct` fixes the repo so no later run repeats it.
 +- **Using `$pstack-for-codex:arena` for coverage.** `$pstack-for-codex:arena` repeats one design or code brief, then picks a base and grafts the best parts. `$pstack-for-codex:swarm` partitions slices or declared race arms and aggregates one report.
-+- **Accepting every review comment.** Bots and humans both file real catches and noise in one list. `$pstack-for-codex:interrogate` sorts findings into act-on and dismissed buckets with reasons, and you can override either way.
++- **Accepting every review comment.** Bots and humans both file real catches and noise in one list. `$pstack-for-codex:interrogate` keeps only the findings a rerun proves and lists what it dropped and why, and you can override either way.
 +- **Treating `auto` as a model slug.** `auto` and `inherit-parent` select the current parent chat's model and reasoning settings. The [Codex execution binding](../../skills/poteto-mode/references/codex-execution.md#roles-models-and-effort) preserves that selection through confirmed inheritance or observed explicit settings, and reports it unresolved when neither can be established. [Setup](./01-setup.md) covers the roles.
  - **Reporting success off a green build.** A build proves it compiles. Ask for the real command, flow, stored value, or profile, and expect the evidence in the reply.
  - **Writing a `SKILL.md` freehand.** Route it through the [Authoring or modifying a skill playbook](../../skills/poteto-mode/playbooks/authoring-a-skill.md) so validation and review happen.

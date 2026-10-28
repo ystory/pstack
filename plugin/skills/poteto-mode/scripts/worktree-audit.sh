@@ -109,8 +109,6 @@ git -c core.quotePath=false worktree list --porcelain | sed -n 's/^worktree //p'
 		'.[] | select(.head==$b) | "#\(.number)/\(.state)"' "$prs" 2>/dev/null | head -1)
 	[ -z "$pr" ] && pr="-"
 
-	# Most recent chat whose transcript operated in this worktree. Match path
-	# followed by "/" or a quote so glint-482 does not match glint-482-r37.
 	last="-"; last_ts=0
 	history_failed=no
 	if f=$(node "$history_helper" list --project "$main_wt" --touching "$wt" "${history_args[@]}" \

@@ -1,5 +1,5 @@
 diff --git a/skills/poteto-mode/references/codex-execution.md b/skills/poteto-mode/references/codex-execution.md
-index 26e899b..525c394 100644
+index b8fae21..eb1b7e1 100644
 --- a/skills/poteto-mode/references/codex-execution.md
 +++ b/skills/poteto-mode/references/codex-execution.md
 @@ -1,6 +1,6 @@
@@ -10,7 +10,7 @@ index 26e899b..525c394 100644
  
  ## Roles, models, and effort
  
-@@ -10,21 +10,23 @@ Run the sibling setup helper with its absolute path:
+@@ -10,24 +10,25 @@ Run the sibling setup helper with its absolute path:
  node <skills>/setup-pstack/scripts/models.mjs resolve --role "<role>"
  ```
  
@@ -26,13 +26,16 @@ index 26e899b..525c394 100644
 -`auto` and `inherit-parent` both select the current parent model. Budget changes preserve these aliases. Check the active native subagent defaults and selected role before binding them: an omitted model or effort can select `[agents]` defaults, and an omitted agent type can apply the configured `default` role. Omit model and effort only when they will preserve the parent selection. Otherwise pass the observed parent model and effort explicitly through supported fields, using a fresh-context brief when the host requires it. If the parent settings or effective inheritance cannot be established, report the alias as unresolved. An alias is not a refused model and does not use a fallback model.
 +`auto` and `inherit-parent` both select the current native Codex parent model. Budget changes preserve these aliases. Check the active native subagent defaults and selected role before binding them: an omitted model or effort can select `[agents]` defaults, and an omitted agent type can apply the configured `default` role. Omit model and effort only when they will preserve the parent selection. Otherwise pass the observed parent model and effort explicitly through supported fields, using a fresh-context brief when the host requires it. If the parent settings or effective inheritance cannot be established, report the alias as unresolved. An alias is not a refused model and does not use a fallback model.
  
--Speed uses a separate host control when one is exposed. Native subagents inherit the root session's service tier when no per-agent speed control is available. Report an urgent fast request that the host cannot express independently.
+-Keep a native-host record of rejected model IDs during the run. A model is rejected when the native host reports it invalid or omits it from an explicit list of valid models. Never submit an already rejected model to that native host again, including through a fallback. After a rejected adjusted effort or speed, try the role's supported starting setting unless its model is already rejected, then follow the calling skill's fallback. When the caller has no fallback, use the closest valid model of the role's family from the error's list. If that list has none, or the caller exhausts its fallbacks without another outcome, bind a native execution to the actual parent selection and disclose the loss of the requested model. An unresolved parent selection remains unresolved. Explicit different-model or different-family gates still apply, as do Arena's judge skip rules. An unavailable native host is a capability gap, not evidence that a model was rejected.
++Keep a per-executor record of rejected model IDs during the run. A model is rejected when the executor reports it invalid or omits it from an explicit list of valid models. Never submit an already rejected model to that executor again, including through a fallback. After a rejected adjusted effort or speed, try the role's supported starting setting unless its model is already rejected, then follow the calling skill's fallback. When the caller has no fallback, use the closest valid model of the role's family from the error's list. If that list has none, or the caller exhausts its fallbacks without another outcome, bind a native execution to the actual parent selection and disclose the loss of the requested model. An unresolved parent selection remains unresolved. Explicit different-model or different-family gates still apply, as do Arena's judge skip rules. An unavailable executor is a capability gap, not evidence that a model was rejected.
+ 
+-Speed uses a separate native host control when one is exposed. Native subagents inherit the root session's service tier when no per-agent speed control is available. Report an urgent fast request that the selected native host cannot express independently.
 +Speed uses a separate executor control when one is exposed. Native subagents inherit the root session's service tier when no per-agent speed control is available. Report an urgent fast request that the selected executor cannot express independently.
  
--Record the actual model and effort for each execution when the host exposes them; otherwise distinguish requested settings from unknown effective settings. Validate required distinct models or families before launching the affected step; report a configuration error when the selected entries cannot satisfy it. A distinct-model or distinct-family requirement remains a requirement. Repeated seats on one model do not satisfy it. Keep a source preference distinct from a requirement and report an unmet preference accurately.
-+Record the actual model and effort for each execution when the executor exposes them; otherwise distinguish requested settings from unknown effective settings. Validate required distinct models or families before launching the affected step; report a configuration error when the selected entries cannot satisfy it. A distinct-model or distinct-family requirement remains a requirement. Repeated seats on one model do not satisfy it. Keep a source preference distinct from a requirement and report an unmet preference accurately.
-+
-+For the default pair, Sol's counterpart is Opus through Claude Code, and Opus's counterpart is Sol through native Codex. Use that selection for a required different-family trail review or verifier. The Arena judge preference compares the judge with the parent, not every candidate. The orchestrate tool-error retry requires a different model; it does not add a different-family requirement. Preserve each caller's existing selection, dropout, and retry rules.
+-Record the actual model and effort for each execution when the native host exposes them; otherwise distinguish requested settings from unknown effective settings. Validate required distinct models or families before launching the affected step; report a configuration error when the selected entries cannot satisfy it. A distinct-model or distinct-family requirement remains a requirement. Repeated seats on one model do not satisfy it. Keep a source preference distinct from a requirement and report an unmet preference accurately. Arena has its own different-family-or-skip rule for its judge, rather than a stop on an unavailable judge.
++Record the actual model and effort for each execution when the executor exposes them; otherwise distinguish requested settings from unknown effective settings. Validate required distinct models or families before launching the affected step; report a configuration error when the selected entries cannot satisfy it. A distinct-model or distinct-family requirement remains a requirement. Repeated seats on one model do not satisfy it. Keep a source preference distinct from a requirement and report an unmet preference accurately. Arena has its own different-family-or-skip rule for its judge, rather than a stop on an unavailable judge.
+ 
++For the default pair, Sol's counterpart is Opus through Claude Code, and Opus's counterpart is Sol through native Codex. Use that selection for a required different-family trail review or verifier. The Arena judge family check compares the judge with the parent, not every candidate. Apply Arena's ordered pool, default-pool retry, disclosed skip, and unknown-parent rules. Its skip does not waive another workflow's required verifier. The orchestrate tool-error retry requires a different model; it does not add a different-family requirement. Preserve each caller's existing selection, dropout, and retry rules.
  
  ## Native delegation
  
@@ -41,13 +44,10 @@ index 26e899b..525c394 100644
  
  - Spawn with `spawn_agent`, a unique `task_name`, and a complete `message`.
  - The message includes the goal, owned files or slice, boundaries, exact verification, required report, and absolute skill/reference/artifact paths. For writers, say they are not alone and must accommodate others' edits.
-@@ -33,11 +35,33 @@ Inspect the tools exposed by the current runtime and use their actual schemas. U
- - Resolve custom roles through native discovery after setup. Confirm both the loaded role and a role-selector field in the actual spawn schema. If either is unavailable, inspect registration, enabled config layers and project trust, and the host's tool capabilities; report the specific gap. Use the authorized setup path for missing registration and start a new Codex session before retrying, as setup requires. Preserve the requested custom role's instructions.
- - Explicit `model` and `reasoning_effort` overrides use `fork_turns: "none"` on schemas that require it. Supply all task context in the message. Inherited aliases use the parent-selection binding above; a fresh brief can still use `fork_turns: "none"`.
+@@ -40,10 +41,31 @@ Inspect the tools exposed by the current runtime and use their actual schemas. U
  
--Spawn independent seats consecutively without waiting between them. Spawning returns an identity while the agent runs asynchronously, so background execution does not require a `run_in_background` argument. A concurrency limit affects how many run at once, not how many seats the workflow requires. Queue remaining seats and drain them; preserve every required result.
-+Launch independent seats consecutively without waiting between them. A concurrency limit affects how many run at once, not how many seats the workflow requires. Queue remaining seats and drain them; preserve every required result.
-+
+ Launch independent seats consecutively without waiting between them. A concurrency limit affects how many run at once, not how many seats the workflow requires. Queue remaining seats and drain them; preserve every required result.
+ 
 +## Claude Code delegation
 +
 +For an entry with `executor: "claude-code"`, resolve `scripts/run-claude.mjs` from the installed `poteto-mode` directory. Write the consolidated task brief to an absolute local file, then launch the runner through the host's command tool:
@@ -77,7 +77,7 @@ index 26e899b..525c394 100644
  
  For workflows that previously started from the repository's default branch, resolve the actual default ref and SHA before creating the worker checkouts. A caller-supplied non-default ref replaces that base. Measurements and verification pin the exact SHAs required by their brief. Local uncommitted changes enter a worker's input only when the brief explicitly includes them.
  
-@@ -47,17 +71,19 @@ After collecting and verifying artifacts, integrate accepted work deliberately.
+@@ -61,19 +83,21 @@ For new work that needs a completed worker's built state, give a fresh worker th
  
  ## Wait, results, and continuation
  
@@ -88,7 +88,10 @@ index 26e899b..525c394 100644
  
  Wait for every required terminal result before synthesis. Record failures and missing reports as gaps under the calling workflow's dropout rule. Review changed artifacts and verification evidence yourself.
  
--Fresh agents take new rounds with the consolidated brief. Reuse an existing agent only for the stateful exceptions in poteto-mode. Use `send_message` to steer a running agent, `followup_task` to continue an idle agent, and `interrupt_agent` for a stop/hold on runtimes exposing those controls. Use a native resume control only when present. Keep a stop order separate from a new work brief.
+-Spawns, steering, and continuation remain asynchronous. Use the exposed native controls without inventing a `run_in_background` field.
++Spawns, steering, and continuation remain asynchronous. Use the exposed native controls without inventing a `run_in_background` field, and keep a long-running external command under the host's asynchronous process controls. Collect its terminal receipt later while other independent work proceeds.
+ 
+-Fresh agents take new rounds with the consolidated brief. Reuse an existing agent only for the stateful exceptions in poteto-mode. For native delegates, use `send_message` to steer a running agent, `followup_task` to continue an idle agent, and `interrupt_agent` for a stop/hold on runtimes exposing those controls. Use a native resume control only when present. Keep a stop order separate from a new work brief.
 +Fresh agents take new rounds with the consolidated brief. Reuse an existing agent only for the stateful exceptions in poteto-mode. For native delegates, use `send_message` to steer a running agent, `followup_task` to continue an idle agent, and `interrupt_agent` for a stop/hold on runtimes exposing those controls. Use a native resume control only when present. Claude Code's stateful continuation uses its recorded session ID with the runner's `--resume`. Keep a stop order separate from a new work brief.
  
  For a repeated watcher or work that must resume after the active turn, read [Codex loops](codex-loops.md) and use its native event or heartbeat controls.

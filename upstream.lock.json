@@ -4,15 +4,15 @@
     "repository": "https://github.com/cursor/plugins",
     "ref": "main",
     "path": "pstack",
-    "revision": "d457567332aa6989e753ea289f30ea2bfbc80bc0",
-    "pathRevision": "d457567332aa6989e753ea289f30ea2bfbc80bc0",
-    "version": "0.15.28",
-    "snapshotSha256": "ddc177c945e5e7b0c220ca5663a03240a97fa3e91a1e8768a96c651a104ba417"
+    "revision": "b1695c2019b650ca5d4a66a6a6d805233c806d6d",
+    "pathRevision": "c742dd61706fbacc1b95f1a20b7b988cf096ce6c",
+    "version": "0.15.36",
+    "snapshotSha256": "d066365fd37cbb3c4d6a528673c44ce29a75b32d9c1774974835f60d8fd548e5"
   },
   "codex": {
     "repository": "https://github.com/openai/codex",
     "ref": "main",
-    "sourceRevision": "76ed3b484d62ccceb9fa512ff4dd139f421814c3",
+    "sourceRevision": "6fbfc352cafb50332d62dbdc8720cb5d7fe3b7c7",
     "testedVersions": []
   }
 }

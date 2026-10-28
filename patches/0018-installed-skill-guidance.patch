@@ -10,7 +10,7 @@ index ee1b92c..7340a64 100644
  policy:
    allow_implicit_invocation: false
 diff --git a/skills/poteto-help/SKILL.md b/skills/poteto-help/SKILL.md
-index 4d6771b..010b339 100644
+index 6b71c52..54023ae 100644
 --- a/skills/poteto-help/SKILL.md
 +++ b/skills/poteto-help/SKILL.md
 @@ -1,6 +1,6 @@
@@ -30,7 +30,7 @@ index 4d6771b..010b339 100644
  - Pick a skill for a situation
  - Fix a run that went wrong
  - Make pstack my own
-@@ -25,95 +25,95 @@ Infer the need from the message and the conversation. A named situation, such as
+@@ -25,97 +25,97 @@ Infer the need from the message and the conversation. A named situation, such as
  Check the state that changes the answer, and mention it only when it does:
  
  - Read the setup helper's model configuration with its absolute `scripts/models.mjs read` command. `source: default` means no saved Codex role configuration, so every role uses its bundled default.
@@ -85,12 +85,13 @@ index 4d6771b..010b339 100644
  |---|---|
 -| Do any non-trivial task with rigor | [`$poteto-mode`](../poteto-mode/SKILL.md) |
 -| Check that the agent understood their goal and the problem before it starts | [`$in-your-own-words`](../in-your-own-words/SKILL.md) |
--| Aim a task higher before starting: more expert, more outcome-focused, not overspecified | [`$sharpen`](../sharpen/SKILL.md) |
+-| Get a prompt rewritten deeper, not bigger, before sending it: what a top professional would add, their raw material and methods, and an outside check. It returns the prompt and doesn't do the task | [`$sharpen`](../sharpen/SKILL.md) |
 -| Know how code works now, or where new code should live | [`$how`](../how/SKILL.md) |
 -| Know why code is shaped this way, or where a number came from | [`$why`](../why/SKILL.md) |
 -| Understand a change or subsystem, explained plainly | [`$teach`](../teach/SKILL.md) |
 -| Catch up on their own recent work on a topic | [`$recall`](../recall/SKILL.md) |
 -| Catch up on what changed in this chat since their last message, in plain words and small visuals, with every item waiting on them listed and decidable from the reply alone | [`$ketchup`](../ketchup/SKILL.md) |
+-| Catch up like `$ketchup`, in a short subtitled video of slides, with the waiting calls as text under it | [`$ketchup-video`](../ketchup-video/SKILL.md) |
 -| Know what a small diff could break outside itself | [`$blast-radius`](../blast-radius/SKILL.md) |
 -| Settle types and module shape before code that crosses a function boundary | [`$architect`](../architect/SKILL.md) |
 -| Get several attempts at one brief, merged into the best one | [`$arena`](../arena/SKILL.md) |
@@ -106,6 +107,7 @@ index 4d6771b..010b339 100644
 -| Bring a verification skill and its feature map back in line with the app | [`$maintain-verification-skill`](../maintain-verification-skill/SKILL.md) |
 -| Formally verify a race, invariant, or other property that tests rarely reach | [`$create-formal-verification-skill`](../create-formal-verification-skill/SKILL.md) |
 -| Bring a formal verification back in line after the code it covers changed, and learn whether a failure is drift or a bug | [`$maintain-formal-verification-skill`](../maintain-formal-verification-skill/SKILL.md) |
+-| Show a PM or designer what the user sees as a chart checked by a TLA+ model, with the shortest path to each state that breaks a rule | [`$statechart`](../statechart/SKILL.md) |
 -| Vet a performance number before reporting or acting on it | [`$benchmark-checklist`](../benchmark-checklist/SKILL.md) |
 -| Run a large or cross-cutting change, or one to review after stepping away | [`$figure-it-out`](../figure-it-out/SKILL.md) |
 -| Keep a decision log during a run, and review it afterward | [`$show-me-your-work`](../show-me-your-work/SKILL.md) |
@@ -117,12 +119,13 @@ index 4d6771b..010b339 100644
 -| Find their way around pstack | `$poteto-help` |
 +| Do any non-trivial task with rigor | [`$pstack-for-codex:poteto-mode`](../poteto-mode/SKILL.md) |
 +| Check that the agent understood their goal and the problem before it starts | [`$pstack-for-codex:in-your-own-words`](../in-your-own-words/SKILL.md) |
-+| Aim a task higher before starting: more expert, more outcome-focused, not overspecified | [`$pstack-for-codex:sharpen`](../sharpen/SKILL.md) |
++| Get a prompt rewritten deeper, not bigger, before sending it: what a top professional would add, their raw material and methods, and an outside check. It returns the prompt and doesn't do the task | [`$pstack-for-codex:sharpen`](../sharpen/SKILL.md) |
 +| Know how code works now, or where new code should live | [`$pstack-for-codex:how`](../how/SKILL.md) |
 +| Know why code is shaped this way, or where a number came from | [`$pstack-for-codex:why`](../why/SKILL.md) |
 +| Understand a change or subsystem, explained plainly | [`$pstack-for-codex:teach`](../teach/SKILL.md) |
 +| Catch up on their own recent work on a topic | [`$pstack-for-codex:recall`](../recall/SKILL.md) |
 +| Catch up on what changed in this chat since their last message, in plain words and small visuals, with every item waiting on them listed and decidable from the reply alone | [`$pstack-for-codex:ketchup`](../ketchup/SKILL.md) |
++| Catch up like `$pstack-for-codex:ketchup`, in a short subtitled video of slides, with the waiting calls as text under it | [`$pstack-for-codex:ketchup-video`](../ketchup-video/SKILL.md) |
 +| Know what a small diff could break outside itself | [`$pstack-for-codex:blast-radius`](../blast-radius/SKILL.md) |
 +| Settle types and module shape before code that crosses a function boundary | [`$pstack-for-codex:architect`](../architect/SKILL.md) |
 +| Get several attempts at one brief, merged into the best one | [`$pstack-for-codex:arena`](../arena/SKILL.md) |
@@ -138,6 +141,7 @@ index 4d6771b..010b339 100644
 +| Bring a verification skill and its feature map back in line with the app | [`$pstack-for-codex:maintain-verification-skill`](../maintain-verification-skill/SKILL.md) |
 +| Formally verify a race, invariant, or other property that tests rarely reach | [`$pstack-for-codex:create-formal-verification-skill`](../create-formal-verification-skill/SKILL.md) |
 +| Bring a formal verification back in line after the code it covers changed, and learn whether a failure is drift or a bug | [`$pstack-for-codex:maintain-formal-verification-skill`](../maintain-formal-verification-skill/SKILL.md) |
++| Show a PM or designer what the user sees as a chart checked by a TLA+ model, with the shortest path to each state that breaks a rule | [`$pstack-for-codex:statechart`](../statechart/SKILL.md) |
 +| Vet a performance number before reporting or acting on it | [`$pstack-for-codex:benchmark-checklist`](../benchmark-checklist/SKILL.md) |
 +| Run a large or cross-cutting change, or one to review after stepping away | [`$pstack-for-codex:figure-it-out`](../figure-it-out/SKILL.md) |
 +| Keep a decision log during a run, and review it afterward | [`$pstack-for-codex:show-me-your-work`](../show-me-your-work/SKILL.md) |
@@ -180,8 +184,8 @@ index 4d6771b..010b339 100644
  
  - "babysit this pr" or "check on pr 123" runs Babysit. It drives the PR to merge-ready and stops there. It doesn't merge unless the user asks to merge, land, or ship.
  - "land the stack" runs Shipping.
-@@ -122,21 +122,21 @@ Playbooks are step lists inside `$poteto-mode`, not skills, so they have no stan
- - "full autopilot on this queue" runs Autopilot-full. "stack them, don't ship" runs Autopilot-stack.
+@@ -124,21 +124,21 @@ Playbooks are step lists inside `$poteto-mode`, not skills, so they have no stan
+ - "full autopilot on this queue" runs Autopilot-full. "autopilot, don't merge" runs Autopilot-stack.
  - "run the eval playbook" runs Eval.
  
 -Without an explicit invocation of `$poteto-mode`, a phrase such as "babysit this pr" may select another available skill for the same job. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) lists every playbook and when it applies. [Guide page 6](../../docs/guide/06-verify-and-ship.md) covers opening, babysitting, and landing a PR.
@@ -208,7 +212,7 @@ index 4d6771b..010b339 100644
  | Parallel agents overwrote each other | Give each agent its own worktree and independent app ports/data/session resources. Serialize resources the host cannot isolate. |
  | An overnight run moved but finished nothing | Codex continuation needs a check that can pass or fail, an event watcher or heartbeat, and a saved resume point. See [guide page 7](../../docs/guide/07-overnight.md). |
  | The reply claims success from a green build | Ask for the real command, flow, stored value, or profile. That's the prove-it-works principle. |
-@@ -145,9 +145,9 @@ For a run that drifts, [`references/prompting.md`](references/prompting.md) has
+@@ -147,9 +147,9 @@ For a run that drifts, [`references/prompting.md`](references/prompting.md) has
  
  ## Make pstack my own
  
@@ -250,7 +254,7 @@ index 3c7efa0..abd45ae 100644
  ## Design before the plan
  
 diff --git a/skills/poteto-help/references/recipes.md b/skills/poteto-help/references/recipes.md
-index b9a5148..16c4642 100644
+index 863d410..96fc677 100644
 --- a/skills/poteto-help/references/recipes.md
 +++ b/skills/poteto-help/references/recipes.md
 @@ -4,48 +4,48 @@ Swap in the real paths, skills, and done checks. Informal wording works.
@@ -259,7 +263,7 @@ index b9a5148..16c4642 100644
  
 -- `$poteto-mode read <thread>. restate the underlying issue in your own words, in plain english.`
 -- `$in-your-own-words <long or messy ask>`
--- `$sharpen <your task>`
+-- `$sharpen <the prompt you're about to send>`
 -- `$poteto-mode investigate why <symptom>. give me what we know, what data you used, and your best hypotheses. don't change any code yet.`
 -- `use $how to understand <subsystem>. then use $why to find out why it broke recently.`
 -- `$recall my work on <topic> from last week, then read <issue>.`
@@ -267,7 +271,7 @@ index b9a5148..16c4642 100644
 -- `$poteto-mode take over this branch. read the decision log, find what's done, and continue. don't redo finished work.`
 +- `$pstack-for-codex:poteto-mode read <thread>. restate the underlying issue in your own words, in plain english.`
 +- `$pstack-for-codex:in-your-own-words <long or messy ask>`
-+- `$pstack-for-codex:sharpen <your task>`
++- `$pstack-for-codex:sharpen <the prompt you're about to send>`
 +- `$pstack-for-codex:poteto-mode investigate why <symptom>. give me what we know, what data you used, and your best hypotheses. don't change any code yet.`
 +- `use $pstack-for-codex:how to understand <subsystem>. then use $pstack-for-codex:why to find out why it broke recently.`
 +- `$pstack-for-codex:recall my work on <topic> from last week, then read <issue>.`
@@ -306,13 +310,13 @@ index b9a5148..16c4642 100644
  
  ## Review and ship
  
--- `$interrogate the whole branch, but skeptically. don't change anything yet. no nitpicks unless it's a real bug or regression.` Read the dismissals too.
+-- `$interrogate the whole branch, but skeptically. don't change anything yet. no nitpicks unless it's a real bug or regression.` Read the Dropped list too.
 -- `$create-formal-verification-skill prove <property> holds in <module>, even when <steps> interleave or retry.` After merges or refactors in that code: `$maintain-formal-verification-skill`.
 -- `$swarm check every package under <dir> against its check script. one worker per package. one report.`
 -- `$poteto-mode open the pr. small ordered commits, evidence in the description.`
 -- `$poteto-mode babysit this pr. get it green.` For status only: `$poteto-mode check on pr <number>. anything outstanding?`
 -- `$poteto-mode land the stack.`
-+- `$pstack-for-codex:interrogate the whole branch, but skeptically. don't change anything yet. no nitpicks unless it's a real bug or regression.` Read the dismissals too.
++- `$pstack-for-codex:interrogate the whole branch, but skeptically. don't change anything yet. no nitpicks unless it's a real bug or regression.` Read the Dropped list too.
 +- `$pstack-for-codex:create-formal-verification-skill prove <property> holds in <module>, even when <steps> interleave or retry.` After merges or refactors in that code: `$pstack-for-codex:maintain-formal-verification-skill`.
 +- `$pstack-for-codex:swarm check every package under <dir> against its check script. one worker per package. one report.`
 +- `$pstack-for-codex:poteto-mode open the pr. small ordered commits, evidence in the description.`
@@ -325,14 +329,14 @@ index b9a5148..16c4642 100644
 -- `$show-me-your-work catch me up on what you did last night.` Read its Attention section first.
 -- `$ketchup` catches you up on this chat since your last message and lists every call that waits on you.
 -- `$poteto-mode full autopilot on this queue. each item is independent.`
--- `$poteto-mode autopilot these changes but stack them, don't ship. i'll land the stack.`
+-- `$poteto-mode autopilot these changes, but don't merge. i'll land them.`
 -- `$reflect capture what we learned so the next run doesn't repeat it.` Approve only edits that change a future decision.
 -- `$bro` restates the last reply in plain words.
 +- `$pstack-for-codex:poteto-mode im going to bed. <goal> in a fresh worktree off <base>. done means <checks>. keep a decision log. don't ask me before committing. use the Codex event-watch and heartbeat binding until done. if you're truly stuck after a few hours, stop and write up why.`
 +- `$pstack-for-codex:show-me-your-work catch me up on what you did last night.` Read its Attention section first.
 +- `$pstack-for-codex:ketchup` catches you up on this chat since your last message and lists every call that waits on you.
 +- `$pstack-for-codex:poteto-mode full autopilot on this queue. each item is independent.`
-+- `$pstack-for-codex:poteto-mode autopilot these changes but stack them, don't ship. i'll land the stack.`
++- `$pstack-for-codex:poteto-mode autopilot these changes, but don't merge. i'll land them.`
 +- `$pstack-for-codex:reflect capture what we learned so the next run doesn't repeat it.` Approve only edits that change a future decision.
 +- `$pstack-for-codex:bro` restates the last reply in plain words.
 diff --git a/skills/teach/SKILL.md b/skills/teach/SKILL.md

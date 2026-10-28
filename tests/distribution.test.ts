@@ -454,12 +454,12 @@ test('candidate source-policy conflicts remain reviewable and never silently rei
   );
 });
 
-test('Codex invocation metadata mirrors all 55 upstream explicit-only flags without removing frontmatter', async () => {
+test('Codex invocation metadata mirrors all 57 upstream explicit-only flags without removing frontmatter', async () => {
   const project = path.resolve(import.meta.dirname, '..');
   const entries = (
     await inspectTree(path.join(project, 'upstream', 'pstack', 'skills'))
   ).filter((entry) => /^[^/]+\/SKILL\.md$/.test(entry.path));
-  assert.equal(entries.length, 56);
+  assert.equal(entries.length, 58);
   let explicit = 0;
   for (const entry of entries) {
     const upstream = await readFile(
@@ -501,5 +501,5 @@ test('Codex invocation metadata mirrors all 55 upstream explicit-only flags with
       );
     }
   }
-  assert.equal(explicit, 55);
+  assert.equal(explicit, 57);
 });

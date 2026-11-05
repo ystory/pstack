@@ -31,7 +31,11 @@
     "patches",
     "upstream/cursor-team-kit",
     "dependencies.lock.json",
-    "distribution-policy.json"
+    "distribution-policy.json",
+    "plugin-claude",
+    ".claude-plugin",
+    "upstream/codex-runtime",
+    "codex-runtime.lock.json"
   ],
   "scripts": {
     "format": "prettier --write .",
@@ -42,7 +46,7 @@
     "package:test": "node scripts/check-package.ts",
     "upstream:verify": "node src/cli.ts verify-upstream",
     "upstream:check": "node src/cli.ts check-upstream",
-    "patches:verify": "node src/cli.ts verify-patches",
+    "patches:verify": "node src/cli.ts verify-patches --target all",
     "plugin:build": "node src/cli.ts build-plugin",
     "verify": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm package:test && pnpm upstream:verify && pnpm patches:verify"
   },

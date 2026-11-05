@@ -1,0 +1,17 @@
+{
+  "name": "pstack-cc",
+  "version": "0.1.0-dev.0",
+  "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+  "author": {
+    "name": "pstack-for-codex contributors"
+  },
+  "homepage": "https://github.com/ystory/pstack-for-codex",
+  "repository": "https://github.com/ystory/pstack-for-codex",
+  "license": "MIT",
+  "keywords": [
+    "pstack",
+    "poteto-mode",
+    "workflow",
+    "subagents"
+  ]
+}

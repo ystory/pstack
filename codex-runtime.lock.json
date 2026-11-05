@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "codexRuntime": {
+    "repository": "https://github.com/openai/codex-plugin-cc",
+    "revision": "db52e28f4d9ded852ab3942cea316258ae4ef346",
+    "version": "1.0.6",
+    "snapshotSha256": "eff6f94435c8d82e420fafbe9dc22c24d41270b4c804bd76e592ec5f28878370",
+    "files": [
+      {
+        "source": "LICENSE",
+        "target": "vendor/codex-plugin-cc/LICENSE"
+      },
+      {
+        "source": "NOTICE",
+        "target": "vendor/codex-plugin-cc/NOTICE"
+      },
+      {
+        "source": "plugins/codex/.claude-plugin/plugin.json",
+        "target": "vendor/codex-plugin-cc/plugins/codex/.claude-plugin/plugin.json"
+      },
+      {
+        "source": "plugins/codex/LICENSE",
+        "target": "vendor/codex-plugin-cc/plugins/codex/LICENSE"
+      },
+      {
+        "source": "plugins/codex/NOTICE",
+        "target": "vendor/codex-plugin-cc/plugins/codex/NOTICE"
+      },
+      {
+        "source": "plugins/codex/scripts/app-server-broker.mjs",
+        "target": "vendor/codex-plugin-cc/plugins/codex/scripts/app-server-broker.mjs"
+      },
+      {
+        "source": "plugins/codex/scripts/lib/app-server-protocol.d.ts",
+        "target": "vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server-protocol.d.ts"
+      },
+      {
+        "source": "plugins/codex/scripts/lib/app-server.mjs",
+        "target": "vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs"
+      },
+      {
+        "source": "plugins/codex/scripts/lib/args.mjs",
+        "target": "vendor/codex-plugin-cc/plugins/codex/scripts/lib/args.mjs"
+      },
+      {
+        "source": "plugins/codex/scripts/lib/broker-endpoint.mjs",
+        "target": "vendor/codex-plugin-cc/plugins/codex/scripts/lib/broker-endpoint.mjs"
+      },
+      {
+        "source": "plugins/codex/scripts/lib/broker-lifecycle.mjs",
+        "target": "vendor/codex-plugin-cc/plugins/codex/scripts/lib/broker-lifecycle.mjs"
+      },
+      {
+        "source": "plugins/codex/scripts/lib/codex.mjs",
+        "target": "vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs"
+      },
+      {
+        "source": "plugins/codex/scripts/lib/fs.mjs",
+        "target": "vendor/codex-plugin-cc/plugins/codex/scripts/lib/fs.mjs"
+      },
+      {
+        "source": "plugins/codex/scripts/lib/git.mjs",
+        "target": "vendor/codex-plugin-cc/plugins/codex/scripts/lib/git.mjs"
+      },
+      {
+        "source": "plugins/codex/scripts/lib/process.mjs",
+        "target": "vendor/codex-plugin-cc/plugins/codex/scripts/lib/process.mjs"
+      },
+      {
+        "source": "plugins/codex/scripts/lib/state.mjs",
+        "target": "vendor/codex-plugin-cc/plugins/codex/scripts/lib/state.mjs"
+      },
+      {
+        "source": "plugins/codex/scripts/lib/workspace.mjs",
+        "target": "vendor/codex-plugin-cc/plugins/codex/scripts/lib/workspace.mjs"
+      }
+    ]
+  }
+}

@@ -140,7 +140,7 @@ try {
   }
   run(
     process.execPath,
-    [path.join(packageRoot, cliPath), 'verify-patches'],
+    [path.join(packageRoot, cliPath), 'verify-patches', '--target', 'all'],
     temporaryRoot,
   );
   const artifactRoot = path.join(temporaryRoot, 'artifact');
@@ -355,8 +355,408 @@ try {
     ],
     temporaryRoot,
   );
+  const repositoryClaudeMarketplace = JSON.parse(
+    await readFile(
+      path.join(packageRoot, '.claude-plugin/marketplace.json'),
+      'utf8',
+    ),
+  );
+  const repositoryClaudeManifest = JSON.parse(
+    await readFile(
+      path.join(
+        packageRoot,
+        repositoryClaudeMarketplace.plugins[0].source,
+        '.claude-plugin/plugin.json',
+      ),
+      'utf8',
+    ),
+  );
+  if (
+    repositoryClaudeMarketplace.name !== 'pstack-cc' ||
+    repositoryClaudeManifest.name !== 'pstack-cc'
+  )
+    throw new Error(
+      'Packed repository marketplace did not resolve its committed Claude tree.',
+    );
+  const claudeArtifact = path.join(temporaryRoot, 'claude-artifact');
+  run(
+    process.execPath,
+    [
+      path.join(packageRoot, cliPath),
+      'build-plugin',
+      '--target',
+      'claude-code',
+      '--output',
+      claudeArtifact,
+    ],
+    temporaryRoot,
+  );
+  run(
+    process.execPath,
+    [
+      path.join(packageRoot, cliPath),
+      'verify-plugin',
+      '--artifact',
+      claudeArtifact,
+    ],
+    temporaryRoot,
+  );
+  const claudeMarketplace = JSON.parse(
+    await readFile(
+      path.join(claudeArtifact, '.claude-plugin/marketplace.json'),
+      'utf8',
+    ),
+  );
+  const claudeManifest = JSON.parse(
+    await readFile(
+      path.join(
+        claudeArtifact,
+        claudeMarketplace.plugins[0].source,
+        '.claude-plugin/plugin.json',
+      ),
+      'utf8',
+    ),
+  );
+  if (claudeManifest.name !== 'pstack-cc')
+    throw new Error(
+      'Packed Claude marketplace did not resolve its native plugin.',
+    );
+  const packagedRuntime = JSON.parse(
+    await readFile(path.join(claudeArtifact, 'artifact.json'), 'utf8'),
+  ).codexRuntime;
+  const sourceRuntime = JSON.parse(
+    await readFile(path.join(packageRoot, 'codex-runtime.lock.json'), 'utf8'),
+  );
+  if (JSON.stringify(packagedRuntime) !== JSON.stringify(sourceRuntime))
+    throw new Error('Packed Claude artifact lost the independent runtime pin.');
+  const claudeHome = path.join(temporaryRoot, 'isolated-claude-home');
+  await mkdir(path.join(claudeHome, 'agents'), { recursive: true });
+  const claudeSettings = '{ "model": "user-choice", "unknown": true }\n';
+  await writeFile(path.join(claudeHome, 'settings.json'), claudeSettings);
+  await writeFile(
+    path.join(claudeHome, 'agents', 'user-agent.md'),
+    'Unrelated Claude agent.\n',
+  );
+  const claudeModels = path.join(
+    claudeArtifact,
+    'plugin/skills/setup-pstack/scripts/models.mjs',
+  );
+  const claudeModelCall = (args: string[]) =>
+    JSON.parse(
+      run(
+        process.execPath,
+        [claudeModels, ...args, '--claude-home', claudeHome],
+        temporaryRoot,
+      ),
+    );
+  const initialClaude = claudeModelCall(['read']);
+  if (
+    initialClaude.exists ||
+    Object.keys(initialClaude.proposal.roles).length !== 17
+  )
+    throw new Error(
+      'Packaged Claude helper did not expose the original role proposal.',
+    );
+  const nativeWorkerKinds = [
+    'general-purpose',
+    'poteto-agent',
+    'comment-sicko',
+    'read-only',
+  ];
+  for (const kind of nativeWorkerKinds) {
+    const fallback = claudeModelCall([
+      'resolve',
+      '--role',
+      'how explorer',
+      '--kind',
+      kind,
+    ]);
+    const definition = await readFile(
+      path.join(claudeArtifact, 'plugin/agents', `${kind}.md`),
+      'utf8',
+    );
+    const frontmatter = /^---\n([\s\S]*?)\n---\n\s*\S/.exec(definition)?.[1];
+    if (
+      fallback.source !== 'upstream-default' ||
+      fallback.entries.length !== 1 ||
+      fallback.entries[0].executor !== 'claude-code' ||
+      fallback.entries[0].model !== 'inherit-parent' ||
+      fallback.entries[0].agentType !== `pstack-cc:${kind}` ||
+      !frontmatter ||
+      !frontmatter.split('\n').includes(`name: ${kind}`) ||
+      !/^description: \S.+$/m.test(frontmatter) ||
+      !/^model: inherit$/m.test(frontmatter) ||
+      (kind === 'read-only' &&
+        !/^disallowedTools: Write, Edit, NotebookEdit$/m.test(frontmatter))
+    )
+      throw new Error(`Packaged Claude static fallback is unusable: ${kind}`);
+  }
+  const nativeFallback = claudeModelCall([
+    'resolve',
+    '--role',
+    'how explainer',
+    '--kind',
+    'general-purpose',
+  ]);
+  if (
+    nativeFallback.source !== 'upstream-default' ||
+    nativeFallback.entries.length !== 1 ||
+    nativeFallback.entries[0].executor !== 'claude-code' ||
+    nativeFallback.entries[0].model !== 'opus' ||
+    nativeFallback.entries[0].modelKind !== 'native-alias' ||
+    nativeFallback.entries[0].agentType !== 'pstack-cc:general-purpose' ||
+    claudeModelCall(['read']).exists
+  )
+    throw new Error(
+      'Packaged Claude native execution default was lost or saved as a fixed choice.',
+    );
+  const nativeModel = 'claude-package-exact-20300101';
+  const catalogFile = path.join(temporaryRoot, 'claude-package-catalog.json');
+  await writeFile(
+    catalogFile,
+    JSON.stringify({
+      models: [
+        {
+          executor: 'claude-code',
+          model: nativeModel,
+          supportedReasoningEfforts: ['xhigh'],
+          source: {
+            kind: 'manual-confirmation',
+            description:
+              'Synthetic package fixture only, not an actual account catalog.',
+          },
+        },
+        {
+          executor: 'codex',
+          model: 'package-model',
+          supportedReasoningEfforts: ['xhigh'],
+        },
+      ],
+    }),
+  );
+  const nativeChoice = {
+    executor: 'claude-code',
+    model: nativeModel,
+    reasoningEffort: 'xhigh',
+  };
+  const codexChoice = {
+    executor: 'codex',
+    model: 'package-model',
+    reasoningEffort: 'xhigh',
+  };
+  const claudeConfig = {
+    schemaVersion: 1,
+    host: 'claude-code',
+    budget: 'large',
+    roles: Object.fromEntries(
+      Object.entries(initialClaude.proposal.roles).map(([role, value]) => [
+        role,
+        Array.isArray(value)
+          ? [nativeChoice, codexChoice, nativeChoice]
+          : nativeChoice,
+      ]),
+    ),
+  };
+  const choicesFile = path.join(temporaryRoot, 'claude-package-choices.json');
+  await writeFile(choicesFile, JSON.stringify(claudeConfig));
+  claudeModelCall([
+    'write',
+    '--input',
+    choicesFile,
+    '--catalog',
+    catalogFile,
+    '--expected-hash',
+    'absent',
+    '--dry-run',
+  ]);
+  const savedClaude = claudeModelCall([
+    'write',
+    '--input',
+    choicesFile,
+    '--catalog',
+    catalogFile,
+    '--expected-hash',
+    'absent',
+  ]);
+  const savedClaudeBytes = await readFile(savedClaude.file);
+  const claudeRegistrar = path.join(
+    claudeArtifact,
+    'plugin/skills/setup-pstack/scripts/register-agents.mjs',
+  );
+  const claudeRegister = (args: string[] = []) =>
+    JSON.parse(
+      run(
+        process.execPath,
+        [claudeRegistrar, '--claude-home', claudeHome, ...args],
+        temporaryRoot,
+      ),
+    );
+  claudeRegister(['--dry-run']);
+  const claudeRegistration = claudeRegister();
+  if (
+    JSON.stringify(
+      claudeRegistration.agents
+        .map((agent: { kind: string }) => agent.kind)
+        .sort(),
+    ) !== JSON.stringify([...nativeWorkerKinds].sort())
+  )
+    throw new Error(
+      'Packaged Claude registration must expose every native worker kind exactly once.',
+    );
+  for (const agent of claudeRegistration.agents) {
+    const definition = await readFile(agent.file, 'utf8');
+    const frontmatter = /^---\n([\s\S]*?)\n---\n\s*\S/.exec(definition)?.[1];
+    if (
+      !frontmatter ||
+      !/^description: \S.+$/m.test(frontmatter) ||
+      !frontmatter.includes(`name: ${JSON.stringify(agent.agentType)}\n`) ||
+      !frontmatter
+        .split('\n')
+        .includes(`model: ${JSON.stringify(nativeModel)}`) ||
+      agent.model !== nativeModel ||
+      (agent.kind === 'read-only'
+        ? !/^disallowedTools: Write, Edit, NotebookEdit$/m.test(frontmatter)
+        : /^disallowedTools:/m.test(frontmatter))
+    )
+      throw new Error(
+        `Packaged Claude registered definition is unusable: ${agent.kind}`,
+      );
+  }
+  const registeredBytes = await readFile(claudeRegistration.registry);
+  claudeRegister();
+  if (!(await readFile(claudeRegistration.registry)).equals(registeredBytes))
+    throw new Error('Packaged Claude registration was not idempotent.');
+  const resolvedClaude = claudeModelCall([
+    'resolve',
+    '--role',
+    'arena runners',
+    '--kind',
+    'poteto-agent',
+  ]);
+  if (
+    resolvedClaude.entries.length !== 3 ||
+    resolvedClaude.entries[0].executor !== 'claude-code' ||
+    !resolvedClaude.entries[0].agentType ||
+    resolvedClaude.entries[1].executor !== 'codex' ||
+    resolvedClaude.entries[2].agentType !== resolvedClaude.entries[0].agentType
+  )
+    throw new Error(
+      'Packaged Claude role resolution lost executor routing or duplicate panel seats.',
+    );
+  claudeRegister(['--unregister']);
+  if (
+    !(await readFile(savedClaude.file)).equals(savedClaudeBytes) ||
+    (await readFile(path.join(claudeHome, 'settings.json'), 'utf8')) !==
+      claudeSettings ||
+    (await readFile(path.join(claudeHome, 'agents/user-agent.md'), 'utf8')) !==
+      'Unrelated Claude agent.\n' ||
+    (await readFile(
+      path.join(codexHome, 'pstack-for-codex/models.json'),
+      'utf8',
+    )) !== preservedSettings
+  )
+    throw new Error('Packaged Claude setup changed unrelated host settings.');
+  const codexStub = path.join(temporaryRoot, 'existing-codex-stub');
+  await writeFile(
+    codexStub,
+    `#!${process.execPath}\n` +
+      String.raw`
+import readline from 'node:readline';
+if (process.argv[2] === '--version') { console.log('codex-cli 0.fixture'); process.exit(0); }
+if (process.argv[2] === 'app-server' && process.argv[3] === '--help') { console.log('Usage: codex app-server'); process.exit(0); }
+if (process.argv[2] !== 'app-server') process.exit(3);
+const send = (value) => console.log(JSON.stringify(value));
+const respond = (request, result) => send({id: request.id, result});
+const lines = readline.createInterface({input: process.stdin});
+lines.on('line', (line) => {
+  const request = JSON.parse(line);
+  switch (request.method) {
+    case 'initialize': respond(request, {userAgent: 'package-fixture'}); break;
+    case 'initialized': break;
+    case 'config/read': respond(request, {config:{model_provider:'openai'}}); break;
+    case 'account/read': respond(request, {account:{type:'chatgpt'},requiresOpenaiAuth:true}); break;
+    case 'model/list': respond(request, {data:[{id:'package-model',model:'package-model',supportedReasoningEfforts:[{reasoningEffort:'xhigh'}]}],nextCursor:null}); break;
+    case 'thread/start': respond(request, {thread:{id:'package-thread'},model:'package-model',reasoningEffort:'xhigh'}); break;
+    case 'turn/start':
+      respond(request, {turn:{id:'package-turn',status:'inProgress'}});
+      send({method:'item/completed',params:{threadId:'package-thread',turnId:'package-turn',item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'packaged Codex transport stub'}}});
+      setTimeout(() => send({method:'turn/completed',params:{threadId:'package-thread',turn:{id:'package-turn',status:'completed'}}}), 20);
+      break;
+    default: send({id:request.id,error:{code:-32601,message:'unexpected '+request.method}});
+  }
+});
+lines.on('close', () => process.exit(0));
+`,
+  );
+  await chmod(codexStub, 0o755);
+  const codexRunner = path.join(
+    claudeArtifact,
+    'plugin/skills/poteto-mode/scripts/run-codex.mjs',
+  );
+  const codexRunDirectory = path.join(temporaryRoot, 'packaged-codex-evidence');
+  const codexReceipt = JSON.parse(
+    run(
+      process.execPath,
+      [
+        codexRunner,
+        'run',
+        '--cwd',
+        temporaryRoot,
+        '--run-dir',
+        codexRunDirectory,
+        '--model',
+        'package-model',
+        '--effort',
+        'xhigh',
+        '--instruction',
+        instruction,
+        '--skill',
+        path.join(claudeArtifact, 'plugin/skills/how/SKILL.md'),
+        '--executable',
+        codexStub,
+      ],
+      temporaryRoot,
+      'Check the packaged Codex transport fixture.\n',
+    ),
+  );
+  if (
+    codexReceipt.status !== 'completed' ||
+    codexReceipt.threadId !== 'package-thread' ||
+    codexReceipt.turnId !== 'package-turn' ||
+    codexReceipt.finalText !== 'packaged Codex transport stub' ||
+    codexReceipt.requested.model !== 'package-model'
+  )
+    throw new Error(
+      'Packaged Codex runner did not complete its owned app-server turn.',
+    );
+  const savedCodexReceipt = JSON.parse(
+    await readFile(path.join(codexRunDirectory, 'result.json'), 'utf8'),
+  );
+  if (JSON.stringify(savedCodexReceipt) !== JSON.stringify(codexReceipt))
+    throw new Error(
+      'Packaged Codex worker returned a different terminal receipt.',
+    );
+  const packagedPrompt = await readFile(
+    path.join(codexRunDirectory, 'prompt.txt'),
+    'utf8',
+  );
+  if (
+    !packagedPrompt.includes('Apply only the assigned package fixture task.') ||
+    !packagedPrompt.includes('Check the packaged Codex transport fixture.')
+  )
+    throw new Error('Packaged Codex worker lost assigned instructions.');
+  run(
+    process.execPath,
+    [
+      path.join(packageRoot, cliPath),
+      'verify-plugin',
+      '--artifact',
+      claudeArtifact,
+    ],
+    temporaryRoot,
+  );
   console.log(
-    'Packed artifact verified: standalone plugin, native marketplace manifest, patch replay, isolated setup lifecycle, mixed model defaults, and external CLI stub transport without source files or development dependencies. User settings are preserved. The stub does not prove Claude authentication or model execution. Native global install was not run.',
+    'Packed artifact verified: both standalone host plugins, native marketplace manifests, independent patch replay and pinned runtime, isolated setup lifecycle, mixed model defaults, and both external CLI stub transports without source files or development dependencies. User settings are preserved. The stubs do not prove authentication or live model execution. Native global install was not run.',
   );
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });

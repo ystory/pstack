@@ -1,0 +1,5 @@
+{
+  "name": "pstack-cc",
+  "owner": { "name": "ystory" },
+  "plugins": [{ "name": "pstack-cc", "source": "./plugin-claude" }]
+}

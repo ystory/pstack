@@ -1,10 +1,13 @@
+import { validateCodexRuntimeLock } from './runtime.ts';
+import type { CodexRuntimeLock } from './runtime.ts';
 import { validateLock } from './lock.ts';
 import type { UpstreamLock } from './lock.ts';
 import { errorMessage } from './errors.ts';
 import { validateDependencyLock } from './dependencies.ts';
 import type { DependencyLock } from './dependencies.ts';
 
-export type UpstreamSource = 'pstack' | 'codex' | 'cursor-team-kit';
+export type UpstreamSource =
+  'pstack' | 'codex' | 'cursor-team-kit' | 'codex-runtime';
 
 export interface RevisionComparison {
   name: UpstreamSource;
@@ -32,6 +35,7 @@ export interface CheckOptions {
   fetchImpl?: FetchUpstream;
   timeoutMs?: number;
   dependencies?: DependencyLock;
+  codexRuntime?: CodexRuntimeLock;
 }
 
 const revisionPattern = /^[0-9a-f]{40}$/;
@@ -66,6 +70,7 @@ export async function checkUpstream(
     fetchImpl = globalThis.fetch,
     timeoutMs = 15000,
     dependencies,
+    codexRuntime,
   }: CheckOptions = {},
 ): Promise<UpstreamCheckOutcome[]> {
   const validatedLock = validateLock(lock);
@@ -97,6 +102,15 @@ export async function checkUpstream(
       url: 'https://api.github.com/repos/cursor/plugins/commits?sha=main&path=cursor-team-kit&per_page=1',
       revision: (payload) =>
         Array.isArray(payload) ? readRemoteRevision(payload[0]) : undefined,
+    });
+  }
+  if (codexRuntime) {
+    const runtime = validateCodexRuntimeLock(codexRuntime).codexRuntime;
+    targets.push({
+      name: 'codex-runtime',
+      pinned: runtime.revision,
+      url: 'https://api.github.com/repos/openai/codex-plugin-cc/commits/main',
+      revision: readRemoteRevision,
     });
   }
   return Promise.all(

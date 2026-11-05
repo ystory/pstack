@@ -5,14 +5,19 @@ import { errorMessage } from './upstream/errors.ts';
 import { readLock } from './upstream/lock.ts';
 import { verifySnapshot } from './upstream/verify.ts';
 import {
-  buildPluginArtifact,
-  verifyPluginArtifact,
-} from './distribution/artifact.ts';
+  buildDistributionArtifact,
+  verifyDistributionArtifact,
+} from './distribution/products.ts';
 import { generatePatch, verifyPatches } from './distribution/patches.ts';
 import { createUpstreamCandidate } from './upstream/candidate.ts';
 import { readDependencyLock } from './upstream/dependencies.ts';
 import path from 'node:path';
 import { regenerateCandidatePatches } from './distribution/regenerate.ts';
+import { parseTarget, projectTargets } from './distribution/targets.ts';
+import {
+  readCodexRuntimeLock,
+  verifyCodexRuntime,
+} from './upstream/runtime.ts';
 import { promotePluginArtifact } from './distribution/marketplace.ts';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
@@ -59,22 +64,33 @@ try {
   switch (command) {
     case '--help':
       console.log(
-        'pstack-for-codex maintainer CLI\n\nCommands:\n  verify-upstream  Verify pinned source integrity and manifest version\n  verify-patches [--project ABSOLUTE_DIRECTORY]\n                  Replay every patch and compare plugin bytes and modes\n  check-upstream   Read public GitHub revisions and report changes\n  build-plugin --output ABSOLUTE_NEW_DIRECTORY [--project ABSOLUTE_DIRECTORY] [--marketplace ABSOLUTE_DIRECTORY]\n                  Build and verify; --marketplace then selects the verified child artifact\n  promote-plugin --artifact ABSOLUTE_DIRECTORY --marketplace ABSOLUTE_DIRECTORY\n                  Verify an existing child artifact and select it for the fixed native marketplace\n  verify-plugin --artifact ABSOLUTE_DIRECTORY\n  generate-patch --name NNNN-lowercase-name.patch [--paths FILE_OR_DIRECTORY[,..]] [--project ABSOLUTE_DIRECTORY]\n  regenerate-patches --candidate ABSOLUTE_DIRECTORY --output ABSOLUTE_NEW_DIRECTORY\n  upstream-candidate --source ABSOLUTE_GIT_CHECKOUT --revision FULL_SHA --output ABSOLUTE_NEW_DIRECTORY\n  --help           Show this usage\n\nThese commands do not install or activate Codex plugins, skills, or agents. Marketplace selection verifies artifact integrity, not Codex runtime compatibility or release approval. Candidates never replace the pinned source.',
+        'pstack-for-codex maintainer CLI\n\nCommands:\n  verify-upstream  Verify pinned source integrity and manifest version\n  verify-patches [--project ABSOLUTE_DIRECTORY] [--target codex|claude-code|all]\n                  Replay every patch and compare plugin bytes and modes\n  check-upstream   Read public GitHub revisions and report changes\n  build-plugin --output ABSOLUTE_NEW_DIRECTORY [--target codex|claude-code] [--project ABSOLUTE_DIRECTORY] [--marketplace ABSOLUTE_DIRECTORY]\n                  Build and verify; --marketplace then selects the verified child artifact\n  promote-plugin --artifact ABSOLUTE_DIRECTORY --marketplace ABSOLUTE_DIRECTORY\n                  Verify an existing child artifact and select it for the fixed native marketplace\n  verify-plugin --artifact ABSOLUTE_DIRECTORY\n  generate-patch --name NNNN-lowercase-name.patch [--target codex|claude-code] [--paths FILE_OR_DIRECTORY[,..]] [--project ABSOLUTE_DIRECTORY]\n  regenerate-patches --candidate ABSOLUTE_DIRECTORY --output ABSOLUTE_NEW_DIRECTORY\n  upstream-candidate --source ABSOLUTE_GIT_CHECKOUT --revision FULL_SHA --output ABSOLUTE_NEW_DIRECTORY\n  --help           Show this usage\n\nThese commands do not install or activate plugins, skills, or agents. An omitted target selects Codex; all is accepted only for patch verification. Marketplace selection verifies artifact integrity, not Codex runtime compatibility or release approval. Candidates never replace the pinned source.',
       );
       break;
     case 'verify-patches': {
-      const options = optionsFor([], ['--project']);
-      const result = await verifyPatches(selectedProject(options));
-      console.log(
-        `Verified ${result.patches.length} patches: ${result.files} plugin files match replayed bytes and modes (${result.digest}).`,
-      );
+      const options = optionsFor([], ['--project', '--target']);
+      const project = selectedProject(options);
+      const targets =
+        options['--target'] === 'all'
+          ? await projectTargets(project)
+          : [parseTarget(options['--target'])];
+      for (const target of targets) {
+        const result = await verifyPatches(project, target);
+        console.log(
+          `Verified ${target} ${result.patches.length} patches: ${result.files} plugin files match replayed bytes and modes (${result.digest}).`,
+        );
+      }
       break;
     }
     case 'build-plugin': {
-      const options = optionsFor(['--output'], ['--project', '--marketplace']);
-      const artifact = await buildPluginArtifact(
+      const options = optionsFor(
+        ['--output'],
+        ['--project', '--marketplace', '--target'],
+      );
+      const artifact = await buildDistributionArtifact(
         selectedProject(options),
         options['--output']!,
+        parseTarget(options['--target']),
       );
       console.log(
         `Built ${artifact.name} ${artifact.version}: ${options['--output']} (${artifact.treeSha256}).`,
@@ -103,16 +119,19 @@ try {
     }
     case 'verify-plugin': {
       const options = optionsFor(['--artifact']);
-      const artifact = await verifyPluginArtifact(options['--artifact']!);
+      const artifact = await verifyDistributionArtifact(options['--artifact']!);
       console.log(
         `Verified ${artifact.name} ${artifact.version}: plugin bytes, modes, identity, and attribution match artifact.json.`,
       );
       break;
     }
     case 'generate-patch': {
-      const options = optionsFor(['--name'], ['--paths', '--project']);
+      const options = optionsFor(
+        ['--name'],
+        ['--paths', '--project', '--target'],
+      );
       console.log(
-        `Recorded ${await generatePatch(selectedProject(options), options['--name']!, options['--paths']?.split(','))}. Run verify-patches before building.`,
+        `Recorded ${await generatePatch(selectedProject(options), options['--name']!, options['--paths']?.split(','), parseTarget(options['--target']))}. Run verify-patches before building.`,
       );
       break;
     }
@@ -151,17 +170,23 @@ try {
         console.log(
           `Verified cursor-team-kit selected sources and license: ${dependencies.cursorTeamKit.revision}.`,
         );
+      const runtime = await verifyCodexRuntime(projectRoot);
+      if (runtime)
+        console.log(
+          `Verified pinned Codex runtime sources and Apache license: ${runtime.codexRuntime.revision}.`,
+        );
       console.log(
-        'This verifies source integrity only; Codex runtime compatibility is not established.',
+        'This verifies source integrity only; runtime compatibility is not established.',
       );
       break;
     }
     case 'check-upstream': {
       const dependencies = await readDependencyLock(projectRoot);
-      const results = await checkUpstream(
-        await readLock(projectRoot),
-        dependencies ? { dependencies } : {},
-      );
+      const runtime = await readCodexRuntimeLock(projectRoot);
+      const results = await checkUpstream(await readLock(projectRoot), {
+        ...(dependencies ? { dependencies } : {}),
+        ...(runtime ? { codexRuntime: runtime } : {}),
+      });
       for (const result of results) {
         console.log(`${result.name}\n  pinned: ${result.pinned}`);
         if (result.status === 'failed') {

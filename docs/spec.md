@@ -2,20 +2,22 @@
 
 ## Purpose
 
-pstack-for-codex distributes pstack skills and agents as one versioned Codex plugin while retaining a reproducible relationship to the upstream sources. Users install through a native Codex marketplace and run setup to register agents and select models. Development and artifact commands are documented in [Maintenance](stack.md); installation and usage are in the [README](../README.md).
+This repository distributes pstack skills and agents as separate Codex and Claude Code plugins while retaining a reproducible relationship to the same upstream sources. The Codex product remains `pstack-for-codex`; the Claude Code product is `pstack-cc`. Users install through their host's native marketplace and run setup to register agents and select worker executors and models. Development and artifact commands are documented in [Maintenance](stack.md); installation and usage are in the [README](../README.md).
 
 ## Sources and reproducibility
 
 - [upstream.lock.json](../upstream.lock.json) pins the complete pstack snapshot and the Codex source revision used for inspection.
 - [dependencies.lock.json](../dependencies.lock.json) pins the selected cursor-team-kit skills (`control-ui`, `control-cli`, and `deslop`) and their license.
 - [distribution-policy.json](../distribution-policy.json) excludes Benny Slack reporting automation from the distribution. The reference snapshot remains intact; general Slack research is retained. New Benny entry points or references require review rather than silent reintroduction.
+- [codex-runtime.lock.json](../codex-runtime.lock.json) pins the official Codex worker snapshot, selected file mappings, and digest. Its locked source lives under `upstream/codex-runtime/`.
+- [patches/claude/series](../patches/claude/series) orders the Claude adaptations over the policy-filtered pristine source, selected cursor-team-kit files, and pinned official runtime. It does not replay the Codex adaptation series.
 - [patches/series](../patches/series) orders the Codex adaptations. The patch baseline combines the policy-filtered pstack snapshot with the selected cursor-team-kit source files, so new upstream content is applied before the adaptations.
 
-Source snapshots are reference material, not instructions for agents working on this repository. Adaptations live in `plugin/` and retain upstream attribution and licenses. Source lock hashes cover sorted relative paths and file bytes; patch replay and artifact verification additionally compare file types and permissions. Symlinks are rejected.
+Source snapshots are reference material, not instructions for agents working on this repository. Codex adaptations live in `plugin/`; Claude Code adaptations live in `plugin-claude/`. Both retain upstream attribution and licenses. Source lock hashes cover sorted relative paths and file bytes; patch replay and artifact verification additionally compare file types and permissions. Symlinks are rejected.
 
 The repository's `.agents/plugins/marketplace.json` exposes the committed `plugin/` tree through Codex's Git marketplace support. Consumers can install from the GitHub URL without building the maintainer CLI. The Git and generated local marketplaces share the `pstack-for-codex` identity.
 
-A generated artifact contains the entire `plugin/` tree, native marketplace metadata, and `artifact.json` with source, patch, integrity, and recorded compatibility metadata. A fixed local marketplace can select a verified child artifact without rewriting older artifacts. Local artifact selection, installation into Codex's cache, setup, and runtime execution are separate operations.
+The root `.claude-plugin/marketplace.json` exposes committed `plugin-claude/` as `pstack-cc`. A generated artifact for either target contains its selected tree under `plugin/`, native marketplace metadata, and `artifact.json` with source, patch, integrity, and recorded compatibility metadata. Codex keeps artifact schema 1. Claude Code uses separate schema 2 with target `claude-code` and its runtime lock. A fixed local marketplace can select a verified child artifact without rewriting older artifacts. Local artifact selection, installation into Codex's cache, setup, and runtime execution are separate operations.
 
 ## Codex adaptations
 
@@ -51,11 +53,35 @@ Preferences containing a Claude executor use schema 2. Native-only preferences u
 
 Updates and prior-version restores require installing the selected bundle and rerunning its setup. Before plugin removal, setup must unregister its owned agents while the bundle is still available; native plugin removal does not invoke an agent-cleanup hook. Model preferences are retained.
 
+## Claude Code adaptations
+
+### Target and role selection
+
+The [accepted host design](claude-host-design.md) and [separate-distribution decision](adr/0001-separate-host-distributions.md) define the product. Claude uses the original 17 role keys and scalar/list shapes. Setup saves its own host preferences under `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/`. It leaves Codex preferences unchanged. Every real entry preserves executor, exact model, and reasoning effort. Parent aliases bind to the actual native Claude parent.
+
+Setup shows the upstream defaults, marks unavailable Grok suggestions as needing a supported choice, and guides CLI installation and human login. It assigns no fixed Sol replacement and changes no orchestrator model. Native generated agent variants preserve each original worker body and exact selected Claude model. User edits and ownership conflicts remain explicit rather than being overwritten. Updates and restores require rerunning setup. Removal first unregisters owned agents while the bundle exists and retains preferences.
+
+Execution before setup remains available. Unsaved roles use the upstream Claude adapter's native parent or disclosed Opus-alias mapping through static agents. Setup suggestions remain separate from those execution fallbacks. Readonly source sites use native definitions that exclude Write, Edit, and NotebookEdit. Why and Reflect retain full tool access. A Bash-capable agent is not an OS-level readonly boundary.
+
+Registration retains owned model variants until explicit unregister, so staging another model cannot delete definitions referenced by saved preferences. Unselected variants retain their previous bodies until selected again or removed through unregister.
+
+### Workflow and execution binding
+
+[Claude Code execution](../plugin-claude/skills/poteto-mode/references/claude-execution.md) is the shared delegation reference. Native Claude selections use Agent with setup's exact-model definition. Codex selections use a foreground task command in native background Bash. The task remains attached until its real terminal outcome. The bundled [official runtime decision](adr/0002-bundle-codex-worker-runtime.md) defines the source dependency. No universal worker scheduler or relay agent is added.
+
+The [delegation inventory](../plugin-claude/skills/poteto-mode/references/delegation-sites.json) accounts for role consumers and host-specific sites. Panels keep duplicate seats and cardinality. The Arena judge pool retains its ordering, parent-family comparison, default retry, and disclosed skip. Required different-model and different-family verifiers still require eligible selections. Retry, dropout, fresh-worker, worktree, and parent-review rules remain the calling workflow's rules.
+
+Upstream cloud workers map to exclusive local worktrees with separately assigned machine resources. A history fork copies no files or processes. Interrogate transfers scoped tracked and untracked input into each worktree and the parent reruns findings. A native poteto-agent receives the actual skill path and reads its full body before work. Actual transcript evidence is required when chain-following is assessed.
+
+[Claude history](../plugin-claude/skills/recall/references/claude-history.md) scopes transcripts to a repository and its registered worktrees. [Native wakeups](../plugin-claude/skills/poteto-mode/references/claude-wakeups.md) map session schedules, persistent schedulers, and configured webhook channels to their actual capabilities. Native child completion is not a PR subscription. Orchestrate preserves its prohibition on orchestration scripts and polling loops. A missing remote VM, scheduler, or inbound channel is reported at that specific step rather than silently disabling a workflow with an available local mapping.
+
+Claude Code's [subagent reference](https://code.claude.com/docs/en/sub-agents), [plugin manifest reference](https://code.claude.com/docs/en/plugins-reference), [scheduled tasks](https://code.claude.com/docs/en/scheduled-tasks), and [channels reference](https://code.claude.com/docs/en/channels-reference) support the host mapping. Source documentation establishes supported controls, not execution on this bundle or account. The runtime's tool schema and observed results determine the actual behavior.
+
 ## Verified scope
 
 Verification has several layers: source inspection, automated fixtures, live execution, and release approval. Passing one layer does not establish the others. `codex.testedVersions` records binaries used for particular checks rather than promising every workflow on those versions.
 
-Automated checks cover source integrity, patch replay, artifact bytes and permissions, independent packaged CLI execution, isolated setup lifecycle and ownership, model preference schemas, and executor contracts. Package checks use temporary consumer directories and Codex homes. They do not establish live model access or complete native installation behavior.
+Automated checks cover source integrity, patch replay, artifact bytes and permissions, independent packaged CLI execution, isolated setup lifecycle and ownership, model preference schemas, and executor contracts. Package checks use temporary consumer directories and isolated Codex or Claude homes. They do not establish live model access or complete native installation behavior.
 
 The following runtime checks were performed through 2026-10-15. Some checks used earlier bundle revisions; they are evidence for the named paths rather than a complete test of every final workflow.
 
@@ -74,3 +100,21 @@ On 2026-10-29, the 0.15.36 candidate's Interrogate instructions were exercised o
 The update also ran source-level watcher and plan-checker regressions, isolated setup/model/runner/history checks, and statechart parser/compiler fixtures. A broader statechart CLI attempt had failed and cancelled checks under sandbox process-inspection restrictions and a temporary-path alias. A bounded launcher rerun using a physical temporary directory passed. These fixtures do not establish real TLC checking, Pele rendering, video output, native cache installation, or a multi-day Orchestrate program. The inspected Codex source revision records source evidence separately from the running host's exposed controls; it adds no tested Codex version.
 
 The first setup invocation through app UI onboarding, native cache version update/restore/removal, actual recurring automation and PR merging, and end-to-end execution of every playbook remain unverified. These records do not establish compatibility across platforms or accounts.
+
+### Claude Code target checks on 2026-11-05
+
+The final integrated check passed 168 Node tests, TypeScript, formatting, both source and patch validations, and standalone packaged-consumer execution for both host targets. Original Codex patches 0001 through 0026 retain their bytes and order. Codex patch 0027 adds the approved CLI and login guidance. Three independent Claude patches reproduce the new target, including its official runtime adaptations, with byte, file-type, and permission equality.
+
+On Claude Code 2.1.317 and Codex CLI 0.165.0, session-only plugin loading and synthetic repositories exercised these paths:
+
+- Exact-model native definitions were discovered. Executed poteto and general-purpose children exposed `claude-opus-5-5`. The poteto worker read the complete installed skill through an actual tool call.
+- Two selected Codex workers read independent fixture inputs, completed concurrently, and returned separate exact thread identities. Native task notifications resumed the parent, which collected the real terminal results.
+- Exact-thread continuation retained only the selected worker's context. A deliberately nonexistent thread returned a genuine failed transport result.
+- Actual TaskStop and actual parent-process termination stopped the known app-server and heartbeat processes. Independent PID and file-byte checks confirmed cessation.
+- A representative mixed Interrogate used native Opus and Codex Sol reviewers in separate worktrees with matching tracked and untracked inputs. Both reproduced the zero-quantity defect. The parent reran it and merged the common finding.
+- A fresh session without fixture preferences or generated variants completed the simple How path through the static readonly kind and a disclosed `opus` alias. Source bytes stayed unchanged. The definition excludes mutation tools and the child reported them absent, but its complete raw tool schema was not independently exposed.
+- Workspace-write allowed a fixture source edit but denied Git metadata writes. A separately authorized explicit danger-full-access task made one local fixture commit. No push or global Git change occurred. The runner records its explicit sandbox selection and never changes it automatically.
+
+Requested model and effort, thread defaults, and observed turn settings are separate fields. Effective turn effort was not exposed. A saved thread default of `ultra` is not evidence that a requested `low` turn used ultra, nor does sending low prove its effective application. The terminal-order failure check uses a deterministic protocol fixture, not a live provider fault.
+
+Receipts and the retained scope report are in the maintainer's ignored `.local/claude-host-implementation-20261105/validation/` directory. These checks establish the named paths, not every playbook, profile-configured descendant, platform, cache lifecycle, first human login, or release approval. No active-profile installation or publication was performed.

@@ -8,11 +8,15 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import path from 'node:path';
-import { localMarketplace, verifyPluginArtifact } from './artifact.ts';
-import type { PluginArtifact } from './artifact.ts';
+import { localMarketplace } from './artifact.ts';
+import { claudeMarketplace } from './claude-artifact.ts';
+import { artifactTarget, verifyDistributionArtifact } from './products.ts';
+import { distributionTarget } from './targets.ts';
+import { assertPhysicalDirectory } from './tree.ts';
+import type { DistributionArtifact } from './products.ts';
 
 export interface MarketplaceSelection {
-  artifact: PluginArtifact;
+  artifact: DistributionArtifact;
   artifactRoot: string;
   marketplaceRoot: string;
 }
@@ -24,6 +28,7 @@ export async function promotePluginArtifact(
   if (!path.isAbsolute(artifactRoot) || !path.isAbsolute(marketplaceRoot))
     throw new Error('Artifact and marketplace must be absolute paths.');
   for (const directory of [artifactRoot, marketplaceRoot]) {
+    await assertPhysicalDirectory(directory);
     const stat = await lstat(path.resolve(directory));
     if (stat.isSymbolicLink() || !stat.isDirectory())
       throw new Error(
@@ -49,25 +54,30 @@ export async function promotePluginArtifact(
     throw new Error(
       'Artifact must be an immutable child of the marketplace root.',
     );
-  if (relative.split(path.sep)[0] === '.agents')
+  if (['.agents', '.claude-plugin'].includes(relative.split(path.sep)[0]!))
     throw new Error(
       'The marketplace native metadata directory is reserved and cannot contain artifacts.',
     );
-  const artifact = await verifyPluginArtifact(sourceRoot);
-  const manifest = {
-    ...localMarketplace,
-    plugins: [
-      {
-        name: artifact.name,
-        source: {
-          source: 'local',
-          path: `./${relative.split(path.sep).join('/')}/plugin`,
-        },
-      },
-    ],
-  };
+  const artifact = await verifyDistributionArtifact(sourceRoot);
+  const target = distributionTarget(artifactTarget(artifact));
+  const pluginPath = `./${relative.split(path.sep).join('/')}/plugin`;
+  const manifest =
+    target.id === 'codex'
+      ? {
+          ...localMarketplace,
+          plugins: [
+            {
+              name: artifact.name,
+              source: { source: 'local', path: pluginPath },
+            },
+          ],
+        }
+      : {
+          ...claudeMarketplace,
+          plugins: [{ name: artifact.name, source: pluginPath }],
+        };
   let directory = targetRoot;
-  for (const component of ['.agents', 'plugins']) {
+  for (const component of target.marketplaceDirectory.split('/')) {
     directory = path.join(directory, component);
     try {
       await mkdir(directory);

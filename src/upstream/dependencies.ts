@@ -2,6 +2,8 @@ import { chmod, copyFile, lstat, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { computeSnapshotDigest } from './snapshot.ts';
 import { copyTree } from '../distribution/tree.ts';
+import type { TargetId } from '../distribution/targets.ts';
+import { copyCodexRuntime } from './runtime.ts';
 import { applyDistributionPolicy } from '../distribution/policy.ts';
 
 export const dependencyFiles = [
@@ -86,6 +88,7 @@ export async function verifyDependencies(
 export async function copyPristinePlugin(
   projectRoot: string,
   destination: string,
+  target: TargetId = 'codex',
 ): Promise<void> {
   await copyTree(path.join(projectRoot, 'upstream', 'pstack'), destination);
   const lock = await verifyDependencies(projectRoot);
@@ -102,4 +105,6 @@ export async function copyPristinePlugin(
     await chmod(target, (await lstat(source)).mode & 0o777);
   }
   await applyDistributionPolicy(projectRoot, destination);
+  if (target === 'claude-code')
+    await copyCodexRuntime(projectRoot, destination);
 }

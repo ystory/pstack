@@ -1,0 +1,91 @@
+diff --git a/README.md b/README.md
+index d1040cc..406db99 100644
+--- a/README.md
++++ b/README.md
+@@ -262,7 +262,7 @@ twenty-four short skills, one principle each. `poteto-mode` indexes them inline
+ 
+ [`$pstack-codex:deslop`](./skills/deslop/SKILL.md), [`control-cli`](./skills/control-cli/SKILL.md), and [`control-ui`](./skills/control-ui/SKILL.md) are bundled from cursor-team-kit with its [MIT license](./licenses/cursor-team-kit/LICENSE). Their original sources are tracked and updated with this distribution.
+ 
+-The [upstream Claude Code guide](./docs/harness/claude-code.md) describes running pstack with Claude Code as the parent agent. This Codex distribution keeps its [Claude CLI bridge](./skills/poteto-mode/references/codex-execution.md) and does not require the upstream Claude plugin.
++The [Claude Code worker guide](./docs/harness/claude-code.md) describes running selected Claude workers from a Codex parent. This distribution uses its [Claude CLI bridge](./skills/poteto-mode/references/codex-execution.md). The separate `pstack-cc` distribution supports Claude Code as the parent.
+ 
+ Use the installed `$skill-creator` for skill authoring. Inside `poteto-mode`, the [babysit playbook](./skills/poteto-mode/playbooks/babysit.md) handles PR status requests.
+ 
+diff --git a/plugin.json b/plugin.json
+index 23ef57d..6340246 100644
+--- a/plugin.json
++++ b/plugin.json
+@@ -1,7 +1,7 @@
+ {
+   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+   "name": "pstack-codex",
+-  "version": "0.1.0-dev.2",
++  "version": "0.1.0-dev.3",
+   "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
+   "author": {
+     "name": "Lauren Tan"
+diff --git a/skills/poteto-help/SKILL.md b/skills/poteto-help/SKILL.md
+index 11d0750..f692ce3 100644
+--- a/skills/poteto-help/SKILL.md
++++ b/skills/poteto-help/SKILL.md
+@@ -24,19 +24,19 @@ Infer the need from the message and the conversation. A named situation, such as
+ 
+ Check the state that changes the answer, and mention it only when it does:
+ 
+-- Read the setup helper's model configuration with its absolute `scripts/models.mjs read` command. `source: unconfigured` means that role has no saved choice and uses the actual native parent with its original cardinality.
++- Read the setup helper's model configuration with its absolute `scripts/models.mjs read` command. `exists: false` means no preferences file exists. A role absent from `config.roles` has no saved choice and uses the actual native parent with its original cardinality. The `resolve --role "<role>"` command reports that role's `source: unconfigured`.
+ - No `verify-*` skill or other app harness in the project means agents have no scripted way to drive the app. Mention `$pstack-codex:create-verification-skill` when the question is about proving a change works.
+ - No formal verification skill in the project means no property is checked past what tests reach. Mention `$pstack-codex:create-formal-verification-skill` when the question is about a race, an invariant, or another case tests rarely hit. When one exists and the code it covers changed after the commit it records as last in sync, mention `$pstack-codex:maintain-formal-verification-skill` if the question touches that code.
+ 
+ When the model rule is missing and it matters, ask whether the user wants to pick a model for each role and a reasoning budget now. It matters when the user is new, the question is about setup or cost, or the answer depends on which models run. Ask at most once per chat. If the need is also unclear, ask both questions together. Offer two choices:
+ 
+ - Now: give them `$pstack-codex:setup-pstack` to type, and answer their question too.
+-- Later: answer their question, and add one line saying every role keeps its default model until they run `$pstack-codex:setup-pstack`.
++- Later: answer their question, and add one line saying unconfigured roles inherit the native parent, while saved choices remain authoritative.
+ 
+ ## Get set up
+ 
+ 1. Install this Codex plugin using the path described in the bundled [README](../../README.md) and setup guide. Distinguish source packaging from runtime discovery and activation.
+-2. Run [`$pstack-codex:setup-pstack`](../setup-pstack/SKILL.md). It asks for a reasoning budget, maps a model to each role, and saves user-global Codex role configuration and registers the bundled custom agents. Start a new chat after registration so native agent discovery can reload them. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
++2. Run [`$pstack-codex:setup-pstack`](../setup-pstack/SKILL.md). Choose worker executors first. Setup checks installation and authentication only for selected CLIs and guides any needed installation and human login. Then choose supported models, role assignments, and a reasoning budget. Review and save the preferences and register the bundled custom agents. Start a new chat after registration so native agent discovery can reload them. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
+ 3. Start a real task with `$pstack-codex:poteto-mode`, a goal, and a check that can pass or fail.
+ 
+ `$pstack-codex:setup-pstack`, `$pstack-codex:control-ui`, `$pstack-codex:control-cli`, and `$pstack-codex:deslop` allow implicit invocation from the user's words. The other bundled skills load when the user invokes them explicitly or when `$pstack-codex:poteto-mode` reads them for a task. The [README](../../README.md) and [guide page 1](../../docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).
+diff --git a/skills/poteto-mode/references/codex-execution.md b/skills/poteto-mode/references/codex-execution.md
+index f9b88e1..d39a300 100644
+--- a/skills/poteto-mode/references/codex-execution.md
++++ b/skills/poteto-mode/references/codex-execution.md
+@@ -32,9 +32,9 @@ Inspect the tools exposed by the current runtime and use their actual schemas. U
+ 
+ - Spawn with `spawn_agent`, a unique `task_name`, and a complete `message`.
+ - The message includes the goal, owned files or slice, boundaries, exact verification, required report, and absolute skill/reference/artifact paths. For writers, say they are not alone and must accommodate others' edits.
+-- General-purpose workflow seats explicitly select `agent_type: "pstack-general-purpose"`. Setup registers this pstack routing role with a description only, without a config file or instruction body. It preserves the parent-derived instructions and selected model/effort instead of applying the user's configured `default` role. Inspect the actual schema and role precedence. Check effective settings when the host exposes them; otherwise record them as unknown instead of inferring missing response fields.
++- General-purpose workflow seats select `agent_type: "pstack-general-purpose"` when that registered role is available. Setup registers this pstack routing role with a description only, without a config file or instruction body. It preserves the parent-derived instructions and selected model/effort instead of applying the user's configured `default` role. If the role is unavailable and the resolved seat has `source: "unconfigured"`, use the host-supported native general-purpose or default path instead, including for callers that name `pstack-general-purpose`. Bind the actual native parent model and effort through supported controls under the parent-selection rules above, and supply the complete task brief and workflow instructions. Disclose the unconfigured seat, native role path, and requested parent settings. Do not infer parent inheritance from an omitted role, model, or effort. If the host cannot express that binding, report that specific capability gap. Saved selections retain the registered-role path. Inspect the actual schema and role precedence. Check effective settings when the host exposes them; otherwise record them as unknown instead of inferring missing response fields.
+ - Playbook delegates select the registered `poteto-agent` custom role through `agent_type`. Comment cleanup selects `comment-sicko`. Pass the absolute `poteto-mode/SKILL.md` path to every `poteto-agent`; its preserved instruction body uses that path to find the bundled principles.
+-- Resolve custom roles through native discovery after setup. Confirm both the loaded role and a role-selector field in the actual spawn schema. If either is unavailable, inspect registration, enabled config layers and project trust, and the host's tool capabilities; report the specific gap. Use the authorized setup path for missing registration and start a new Codex session before retrying, as setup requires. Preserve the requested custom role's instructions.
++- Resolve custom roles through native discovery after setup. Confirm both the loaded role and a role-selector field in the actual spawn schema. If either is unavailable, inspect registration, enabled config layers and project trust, and the host's tool capabilities; report the specific gap. For an unconfigured general-purpose seat, use the native path above when it can preserve the parent selection. Otherwise use the authorized setup path for missing registration and start a new Codex session before retrying, as setup requires. Preserve the requested custom role's instructions.
+ - Explicit `model` and `reasoning_effort` overrides use `fork_turns: "none"` on schemas that require it. Supply all task context in the message. Inherited aliases use the parent-selection binding above; a fresh brief can still use `fork_turns: "none"`.
+ 
+ `fork_turns: "all"` copies conversation history into a subagent. It does not create an independent checkout, copy uncommitted files, or clone running processes. `fork_turns: "none"` starts from the complete brief. Neither field supplies worktree isolation. Use the local-worktree and working-tree transfer rules below for filesystem state. These collaboration schemas have no worker-fork operation that copies a live environment. Use the stateful reuse exception below when the required state cannot be moved, rather than creating a separate user task to simulate a worker fork.
+diff --git a/skills/show-me-your-work/SKILL.md b/skills/show-me-your-work/SKILL.md
+index 82b83e4..675f356 100644
+--- a/skills/show-me-your-work/SKILL.md
++++ b/skills/show-me-your-work/SKILL.md
+@@ -6,7 +6,7 @@ disable-model-invocation: true
+ 
+ # Show me your work
+ 
+-Read [Codex execution](../poteto-mode/references/codex-execution.md) before dispatching the trail reviewer.
++Read [Codex execution](../poteto-mode/references/codex-execution.md) and resolve `judgment and prose` through the sibling setup helper before dispatching the trail reviewer. Select an eligible exact different-family entry already resolved by this workflow or an explicit task counterpart under that binding. Parent aliases and unknown families do not satisfy the required review.
+ 
+ Keep one canonical log.
+ 
+@@ -73,7 +73,7 @@ Before handing back, launch a general-purpose delegate on a different model fami
+ - Choices that look risky in hindsight (premature, scope-creeping, papering over a symptom).
+ - Gaps the user would otherwise miss on a casual skim.
+ 
+-Every reply for a run that produced a trail ends with an "Attention" section. Lead with the reviewer's model on its own line (`reviewed by <model>`), then list each flag pointing to specific rows or moments. "No flags" is a valid value. The model name is not.
++Every reply for a run that produced a trail ends with an "Attention" section. After a completed review, lead with the reviewer's model on its own line (`reviewed by <model>`), then list each flag pointing to specific rows or moments. "No flags" is a valid value. The model name is not. If no eligible reviewer can run, lead with `review not completed`, state the specific configuration or capability gap, and keep the required review unmet. Do not claim a completed review or "No flags" for an unrun review.
+ 
+ ## Reviewing the trail
+ 

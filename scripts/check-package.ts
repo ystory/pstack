@@ -293,6 +293,33 @@ try {
     throw new Error(
       'Packaged model helper did not preserve fresh unconfigured choices.',
     );
+  const unconfiguredPanel = JSON.parse(
+    run(
+      process.execPath,
+      [
+        path.join(
+          artifactRoot,
+          'plugin/skills/setup-pstack/scripts/models.mjs',
+        ),
+        'resolve',
+        '--role',
+        'arena runners',
+        '--codex-home',
+        isolatedModelsHome,
+      ],
+      temporaryRoot,
+    ),
+  );
+  if (
+    unconfiguredPanel.source !== 'unconfigured' ||
+    unconfiguredPanel.entries.length !== 2 ||
+    !unconfiguredPanel.entries.every(
+      (entry: { model: string; executor?: string }) =>
+        entry.model === 'inherit-parent' &&
+        (entry.executor === undefined || entry.executor === 'codex'),
+    )
+  )
+    throw new Error('Packaged Codex panel lost its two native-parent seats.');
   try {
     await access(isolatedModelsHome);
     throw new Error('Reading packaged choices wrote a model configuration.');
@@ -640,6 +667,24 @@ try {
     throw new Error(
       'Packaged Claude helper did not expose the original role proposal.',
     );
+  const unconfiguredClaudePanel = claudeModelCall([
+    'resolve',
+    '--role',
+    'arena runners',
+    '--kind',
+    'general-purpose',
+  ]);
+  if (
+    unconfiguredClaudePanel.source !== 'unconfigured' ||
+    unconfiguredClaudePanel.entries.length !== 2 ||
+    !unconfiguredClaudePanel.entries.every(
+      (entry: { model: string; executor: string; agentType: string }) =>
+        entry.model === 'inherit-parent' &&
+        entry.executor === 'claude-code' &&
+        entry.agentType === 'pstack-cc:general-purpose',
+    )
+  )
+    throw new Error('Packaged Claude panel lost its two native-parent seats.');
   const nativeWorkerKinds = [
     'general-purpose',
     'poteto-agent',

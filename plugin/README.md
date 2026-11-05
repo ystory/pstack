@@ -262,7 +262,7 @@ twenty-four short skills, one principle each. `poteto-mode` indexes them inline 
 
 [`$pstack-codex:deslop`](./skills/deslop/SKILL.md), [`control-cli`](./skills/control-cli/SKILL.md), and [`control-ui`](./skills/control-ui/SKILL.md) are bundled from cursor-team-kit with its [MIT license](./licenses/cursor-team-kit/LICENSE). Their original sources are tracked and updated with this distribution.
 
-The [upstream Claude Code guide](./docs/harness/claude-code.md) describes running pstack with Claude Code as the parent agent. This Codex distribution keeps its [Claude CLI bridge](./skills/poteto-mode/references/codex-execution.md) and does not require the upstream Claude plugin.
+The [Claude Code worker guide](./docs/harness/claude-code.md) describes running selected Claude workers from a Codex parent. This distribution uses its [Claude CLI bridge](./skills/poteto-mode/references/codex-execution.md). The separate `pstack-cc` distribution supports Claude Code as the parent.
 
 Use the installed `$skill-creator` for skill authoring. Inside `poteto-mode`, the [babysit playbook](./skills/poteto-mode/playbooks/babysit.md) handles PR status requests.
 

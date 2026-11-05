@@ -24,19 +24,19 @@ Infer the need from the message and the conversation. A named situation, such as
 
 Check the state that changes the answer, and mention it only when it does:
 
-- Read the setup helper's model configuration with its absolute `scripts/models.mjs read` command. `source: unconfigured` means that role has no saved choice and uses the actual native parent with its original cardinality.
+- Read the setup helper's model configuration with its absolute `scripts/models.mjs read` command. `exists: false` means no preferences file exists. A role absent from `config.roles` has no saved choice and uses the actual native parent with its original cardinality. The `resolve --role "<role>"` command reports that role's `source: unconfigured`.
 - No `verify-*` skill or other app harness in the project means agents have no scripted way to drive the app. Mention `$pstack-codex:create-verification-skill` when the question is about proving a change works.
 - No formal verification skill in the project means no property is checked past what tests reach. Mention `$pstack-codex:create-formal-verification-skill` when the question is about a race, an invariant, or another case tests rarely hit. When one exists and the code it covers changed after the commit it records as last in sync, mention `$pstack-codex:maintain-formal-verification-skill` if the question touches that code.
 
 When the model rule is missing and it matters, ask whether the user wants to pick a model for each role and a reasoning budget now. It matters when the user is new, the question is about setup or cost, or the answer depends on which models run. Ask at most once per chat. If the need is also unclear, ask both questions together. Offer two choices:
 
 - Now: give them `$pstack-codex:setup-pstack` to type, and answer their question too.
-- Later: answer their question, and add one line saying every role keeps its default model until they run `$pstack-codex:setup-pstack`.
+- Later: answer their question, and add one line saying unconfigured roles inherit the native parent, while saved choices remain authoritative.
 
 ## Get set up
 
 1. Install this Codex plugin using the path described in the bundled [README](../../README.md) and setup guide. Distinguish source packaging from runtime discovery and activation.
-2. Run [`$pstack-codex:setup-pstack`](../setup-pstack/SKILL.md). It asks for a reasoning budget, maps a model to each role, and saves user-global Codex role configuration and registers the bundled custom agents. Start a new chat after registration so native agent discovery can reload them. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
+2. Run [`$pstack-codex:setup-pstack`](../setup-pstack/SKILL.md). Choose worker executors first. Setup checks installation and authentication only for selected CLIs and guides any needed installation and human login. Then choose supported models, role assignments, and a reasoning budget. Review and save the preferences and register the bundled custom agents. Start a new chat after registration so native agent discovery can reload them. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
 3. Start a real task with `$pstack-codex:poteto-mode`, a goal, and a check that can pass or fail.
 
 `$pstack-codex:setup-pstack`, `$pstack-codex:control-ui`, `$pstack-codex:control-cli`, and `$pstack-codex:deslop` allow implicit invocation from the user's words. The other bundled skills load when the user invokes them explicitly or when `$pstack-codex:poteto-mode` reads them for a task. The [README](../../README.md) and [guide page 1](../../docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).

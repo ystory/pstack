@@ -129,7 +129,14 @@ Run `$pstack-codex:setup-pstack` again to synchronize its managed registrations,
 
 To switch an existing local `pstack-codex` marketplace to GitHub, run the two [install commands](#install) above, then rerun setup and start a new chat. Adding the Git URL selects that source for the same marketplace identity; `marketplace upgrade` alone does not turn a local source into a Git source. For building, selecting, or restoring local artifacts, see [Development and maintenance](docs/stack.md#build-and-select-an-artifact).
 
-The new `pstack-codex` identity has one current preference schema and no automatic migration from the old plugin. For a fresh replacement of an existing `pstack-for-codex` installation, invoke its old `$pstack-for-codex:setup-pstack` while still installed and ask it to unregister owned agents. Then run `codex plugin remove pstack-for-codex@pstack-for-codex` before the new install commands. Preserve unrelated settings. Old preferences are not imported or read by the new plugin.
+The new `pstack-codex` identity has one current preference schema and no automatic migration from the old plugin. For a fresh replacement of an existing `pstack-for-codex` installation, invoke its old `$pstack-for-codex:setup-pstack` while still installed and ask it to unregister owned agents. Then remove the old plugin and marketplace before the new install commands:
+
+```sh
+codex plugin remove pstack-for-codex@pstack-for-codex
+codex plugin marketplace remove pstack-for-codex
+```
+
+If the old plugin was already removed, run `node /absolute/old-checkout/plugin/skills/setup-pstack/scripts/register-agents.mjs --unregister` from its old checkout before installing the new plugin. Preserve unrelated settings. Old preferences are not imported or read by the new plugin.
 
 ### Remove
 

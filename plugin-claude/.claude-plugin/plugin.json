@@ -1,6 +1,6 @@
 {
   "name": "pstack-cc",
-  "version": "0.1.0-dev.6",
+  "version": "0.1.0-dev.7",
   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
   "author": {
     "name": "pstack contributors"

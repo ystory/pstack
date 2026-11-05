@@ -36,7 +36,7 @@ When the model preferences is missing and it matters, ask whether the user wants
 ## Get set up
 
 1. Add `ystory/pstack` through `/plugin marketplace add`, then install `pstack-cc@pstack-cc`.
-2. Run [`/pstack-cc:setup-pstack`](../setup-pstack/SKILL.md). It asks for a reasoning budget, maps a model to each role, and saves independent role preferences and registers exact-model agents. Start a new session afterward. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
+2. Run [`/pstack-cc:setup-pstack`](../setup-pstack/SKILL.md). Choose worker executors first. Setup checks installation and authentication only for selected CLIs and guides any needed installation and human login. Then choose supported models, role assignments, and a reasoning budget. Review and save the independent preferences and register exact-model agents. Start a new session afterward. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
 3. Start a real task with `/pstack-cc:poteto-mode`, a goal, and a check that can pass or fail.
 
 Installing changes nothing until the user invokes a skill. Only `/pstack-cc:setup-pstack` loads from the user's words. The [README](../../README.md) and [guide page 1](../../docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).

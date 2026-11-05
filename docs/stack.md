@@ -123,14 +123,11 @@ Keep candidates, artifacts, and verification receipts in ignored `.local/` stora
    node dist/cli.js verify-patches --target all --project "$PWD/.local/candidates/update"
    node dist/cli.js build-plugin --project "$PWD/.local/candidates/update" --output "$PWD/.local/artifacts/update-candidate"
    node dist/cli.js verify-plugin --artifact "$PWD/.local/artifacts/update-candidate"
+   node dist/cli.js build-plugin --target claude-code --project "$PWD/.local/candidates/update" --output "$PWD/.local/claude-artifacts/update-candidate"
+   node dist/cli.js verify-plugin --artifact "$PWD/.local/claude-artifacts/update-candidate"
    ```
 
-node dist/cli.js build-plugin --target claude-code --project "$PWD/.local/candidates/update" --output "$PWD/.local/claude-artifacts/update-candidate"
-node dist/cli.js verify-plugin --artifact "$PWD/.local/claude-artifacts/update-candidate"
-
-```
-
-Require equality of actual bytes, file types, and permissions. An applied-patch count alone proves neither equality nor preservation of workflow meaning. Run applicable isolated or live workflow checks and record their scope separately.
+   Require equality of actual bytes, file types, and permissions. An applied-patch count alone proves neither equality nor preservation of workflow meaning. Run applicable isolated or live workflow checks and record their scope separately.
 
 7. Integrate the reviewed snapshots, locks, both target trees, and their separate patch series as one coherent change. Copy reviewed exports rather than editing locked snapshots by hand. Run `corepack pnpm verify` after integration, then build and verify a fresh artifact from the repository. Omit `--marketplace` when verifying an artifact. For later changes confined to maintainer documentation, use the formatting and link checks described in [Development checks](#development-checks).
 
@@ -141,4 +138,3 @@ Require equality of actual bytes, file types, and permissions. An applied-patch 
 `codex-runtime.lock.json` records the official repository revision, version, selected source-to-target mappings, and snapshot digest. Its source snapshot preserves repo-relative paths under `upstream/codex-runtime/`. The Claude baseline maps those files into `vendor/codex-plugin-cc/` before replaying its adaptations. Preserve upstream licenses and notices.
 
 `check-upstream` reports the runtime repository's current revision separately from the pstack source. `verify-upstream` checks every pinned snapshot. The pstack candidate workflow carries the current runtime pin unchanged; it does not silently update the runtime. To refresh it, export reviewed files from the selected official revision, update the lock and mapped target together, inspect the source and adaptation diff, then verify both series and artifacts. No runtime-sync command is provided. Record source evidence, fixture lifecycle checks, and bounded live execution separately.
-```

@@ -3,3 +3,4 @@
 0003-native-defaults-and-readonly.patch
 0004-native-background-lifetime.patch
 0005-preserve-host-auth-environment.patch
+0006-preview-git-install-docs.patch

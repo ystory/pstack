@@ -6,11 +6,26 @@ Install the plugin, select workers for its roles, and run a first workflow. The 
 
 You need a Claude Code host with native plugin, Agent, effort, and background Bash support. Setup uses Node.js 24.12 or later. Codex worker choices also need an authenticated Codex CLI with the app-server capabilities checked by setup. GitHub workflows need Git and authenticated `gh`. The bundled PR watcher needs Bun 1.2 or later and installs locked dependencies in an external cache on first use.
 
-In Claude Code:
+The Claude preview is on the `codex/claude-workflows` branch. The repository's default branch does not yet contain `pstack-cc`.
+
+In Claude desktop, use a local Code session. Open **Customize**, then **Plugins**, **Add plugin**, **Add marketplace**, and **Add from a repository**. Enter this Git source and select **Sync**:
 
 ```text
-/plugin marketplace add ystory/pstack-for-codex
-/plugin install pstack-cc@pstack-cc
+https://github.com/ystory/pstack-for-codex.git#codex/claude-workflows
+```
+
+Install the marketplace's `pstack-cc` entry for your user account. Some Desktop versions open the plugin browser through **+**, then **Add plugins**. See [Desktop plugin installation](https://code.claude.com/docs/en/desktop#install-plugins).
+
+For terminal installation, run these commands outside a Claude chat:
+
+```sh
+claude plugin marketplace add 'https://github.com/ystory/pstack-for-codex.git#codex/claude-workflows'
+claude plugin install pstack-cc@pstack-cc
+```
+
+Both routes install the committed `plugin-claude/` directory. You do not need a local clone or build. Start a new local Code session in your project, or enter `/reload-plugins` in the current session. Then run:
+
+```text
 /pstack-cc:setup-pstack
 ```
 
@@ -40,8 +55,15 @@ For implementation, start each new task with `/pstack-cc:poteto-mode` and name t
 
 ## Update or remove
 
-Refresh the marketplace and installed plugin with the [native plugin commands](https://code.claude.com/docs/en/discover-plugins), then rerun `/pstack-cc:setup-pstack` and start a new session. Setup refreshes its owned agent definitions while retaining model preferences. Restore a prior bundle through the same installation path and rerun that bundle's setup.
+Refresh the marketplace and installed plugin from your terminal:
 
-Before uninstalling, run setup and ask it to unregister its managed agents while the bundle is still available. Then run `/plugin uninstall pstack-cc@pstack-cc`. Native plugin removal does not invoke agent cleanup. Preferences remain available for later installation.
+```sh
+claude plugin marketplace update pstack-cc
+claude plugin update pstack-cc@pstack-cc
+```
+
+Rerun `/pstack-cc:setup-pstack` and start a new session. Updates follow the selected Git branch. Setup refreshes its owned agent definitions while retaining model preferences. Restore a prior bundle through the same installation path and rerun that bundle's setup.
+
+Before uninstalling, run setup and ask it to unregister its managed agents while the bundle is still available. Then uninstall through Desktop's plugin browser or run `claude plugin uninstall pstack-cc@pstack-cc` in your terminal. Native plugin removal does not invoke agent cleanup. Preferences remain available for later installation.
 
 Next, [Route work through poteto-mode](02-poteto-mode.md).

@@ -35,6 +35,8 @@ node dist/cli.js verify-patches --target all
 
 Replace `NNNN` with the next unused four-digit number in the selected target's series. Codex uses `patches/series`; Claude uses `patches/claude/series`. Omitting `--target` retains the Codex command behavior. `--paths` accepts comma-separated files or directories relative to the selected target tree; omitting it includes all unrecorded changes. Existing patches are not overwritten. Replay applies the ordered series to a temporary copy of the combined upstream baseline and must reproduce every plugin byte, file type, and permission.
 
+Before publishing changes to `plugin-claude/`, increment the version in `plugin-claude/.claude-plugin/plugin.json`. Claude's native updater can retain cached plugin bytes when only the Git revision changes. Record the version bump in a new Claude patch. The Codex manifest and maintainer package have independent versions.
+
 ## Build and select an artifact
 
 Build the maintainer CLI before using the artifact commands:

@@ -1,0 +1,12 @@
+diff --git a/.claude-plugin/plugin.json b/.claude-plugin/plugin.json
+index dd54f22..f70e330 100644
+--- a/.claude-plugin/plugin.json
++++ b/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pstack-cc",
+-  "version": "0.1.0-dev.0",
++  "version": "0.1.0-dev.1",
+   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+   "author": {
+     "name": "pstack-for-codex contributors"

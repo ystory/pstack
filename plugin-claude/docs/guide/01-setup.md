@@ -11,7 +11,7 @@ The Claude preview is on the `codex/claude-workflows` branch. The repository's d
 In Claude desktop, use a local Code session. Open **Customize**, then **Plugins**, **Add plugin**, **Add marketplace**, and **Add from a repository**. Enter this Git source and select **Sync**:
 
 ```text
-ystory/pstack-for-codex#codex/claude-workflows
+ystory/pstack#codex/claude-workflows
 ```
 
 Install the marketplace's `pstack-cc` entry for your user account. Some Desktop versions open the plugin browser through **+**, then **Add plugins**. See [Desktop plugin installation](https://code.claude.com/docs/en/desktop#install-plugins).
@@ -19,7 +19,7 @@ Install the marketplace's `pstack-cc` entry for your user account. Some Desktop 
 For terminal installation, run these commands outside a Claude chat:
 
 ```sh
-claude plugin marketplace add 'https://github.com/ystory/pstack-for-codex.git#codex/claude-workflows'
+claude plugin marketplace add 'https://github.com/ystory/pstack.git#codex/claude-workflows'
 claude plugin install pstack-cc@pstack-cc
 ```
 

@@ -119,7 +119,7 @@ export async function checkUpstream(
         const response = await fetchImpl(target.url, {
           headers: {
             Accept: 'application/vnd.github+json',
-            'User-Agent': 'pstack-for-codex',
+            'User-Agent': 'pstack',
           },
           signal: AbortSignal.timeout(timeoutMs),
         });

@@ -1,12 +1,12 @@
 {
   "name": "pstack-cc",
-  "version": "0.1.0-dev.1",
+  "version": "0.1.0-dev.2",
   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
   "author": {
     "name": "pstack-for-codex contributors"
   },
-  "homepage": "https://github.com/ystory/pstack-for-codex",
-  "repository": "https://github.com/ystory/pstack-for-codex",
+  "homepage": "https://github.com/ystory/pstack",
+  "repository": "https://github.com/ystory/pstack",
   "license": "MIT",
   "keywords": [
     "pstack",

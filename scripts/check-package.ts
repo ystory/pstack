@@ -76,7 +76,7 @@ try {
     'tar',
     [
       '-czf',
-      path.join(temporaryRoot, 'pstack-for-codex.tgz'),
+      path.join(temporaryRoot, 'pstack.tgz'),
       '-C',
       path.dirname(staging),
       'package',
@@ -89,11 +89,7 @@ try {
   const archive = archives[0];
   if (archives.length !== 1 || !archive)
     throw new Error('Expected exactly one packed archive.');
-  const packageRoot = path.join(
-    temporaryRoot,
-    'node_modules',
-    'pstack-for-codex',
-  );
+  const packageRoot = path.join(temporaryRoot, 'node_modules', 'pstack');
   await mkdir(packageRoot, { recursive: true });
   run(
     'tar',
@@ -120,13 +116,23 @@ try {
   const metadata: unknown = JSON.parse(
     await readFile(path.join(packageRoot, 'package.json'), 'utf8'),
   );
+  if (
+    typeof metadata !== 'object' ||
+    metadata === null ||
+    !('name' in metadata) ||
+    metadata.name !== 'pstack'
+  )
+    throw new Error('Packed artifact must use the pstack package name.');
   const bin =
     typeof metadata === 'object' && metadata !== null && 'bin' in metadata
       ? metadata.bin
       : undefined;
   const cliPath =
-    typeof bin === 'object' && bin !== null && 'pstack-for-codex' in bin
-      ? bin['pstack-for-codex']
+    typeof bin === 'object' &&
+    bin !== null &&
+    Object.keys(bin).length === 1 &&
+    'pstack' in bin
+      ? bin['pstack']
       : undefined;
   if (cliPath !== 'dist/cli.js')
     throw new Error('Packed artifact must expose its built maintainer CLI.');

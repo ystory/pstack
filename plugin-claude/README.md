@@ -7,7 +7,7 @@ An unofficial Claude Code adaptation of [Lauren Tan's pstack](https://github.com
 This preview is on the `codex/claude-workflows` branch. The repository's default branch does not yet contain `pstack-cc`. Run these commands in your terminal:
 
 ```sh
-claude plugin marketplace add 'https://github.com/ystory/pstack-for-codex.git#codex/claude-workflows'
+claude plugin marketplace add 'https://github.com/ystory/pstack.git#codex/claude-workflows'
 claude plugin install pstack-cc@pstack-cc
 ```
 
@@ -34,10 +34,10 @@ Read [Set up pstack](docs/guide/01-setup.md) for requirements, updates, removal,
 
 The [Claude Code binding](docs/harness/claude-code.md) maps the original workflow to native Agent, background Bash, worktrees, scoped transcripts, schedules, and channels. The parent still owns review. A worktree isolates files on this machine. It does not supply a cloud VM. External Codex workers use Codex's configured tools and MCPs, which can differ from the Claude parent.
 
-Source inspection, fixture checks, live runtime checks, and release approval are separate. The repository's [compatibility record](https://github.com/ystory/pstack-for-codex/blob/codex/claude-workflows/docs/spec.md) states what actually ran. A successful artifact build does not establish that every workflow or selected model works on your account.
+Source inspection, fixture checks, live runtime checks, and release approval are separate. The repository's [compatibility record](https://github.com/ystory/pstack/blob/codex/claude-workflows/docs/spec.md) states what actually ran. A successful artifact build does not establish that every workflow or selected model works on your account.
 
 ## Sources and licenses
 
-The maintainer repository owns source locks, host adaptations, ordered patch replay, and artifact verification. The [maintenance guide](https://github.com/ystory/pstack-for-codex/blob/codex/claude-workflows/docs/stack.md) documents those commands. Updating this installed bundle does not run its workflows.
+The maintainer repository owns source locks, host adaptations, ordered patch replay, and artifact verification. The [maintenance guide](https://github.com/ystory/pstack/blob/codex/claude-workflows/docs/stack.md) documents those commands. Updating this installed bundle does not run its workflows.
 
 pstack is by Lauren Tan and retains its [MIT license](LICENSE). The bundled cursor-team-kit skills retain their [MIT license](licenses/cursor-team-kit/LICENSE). Adaptation code retains its [MIT license](licenses/pstack-cc/LICENSE). The official Codex worker files retain their bundled upstream notices under `vendor/codex-plugin-cc/`. Original copyright and license notices remain.

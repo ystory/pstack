@@ -10,7 +10,7 @@ Answer the user's question about pstack, hand them a prompt they can send, and l
 
 A message that asks for work, such as "use pstack to fix this bug", is not a help question. Read [`poteto-mode`](../poteto-mode/SKILL.md), do the work under it, and apply the selected playbook.
 
-This file maps questions to the skills and guide pages that hold the answers. Those files own the details. Read the file you route to before you quote it, and trust it when it disagrees with this map. The links here point into the installed plugin, which the user may not be able to open, so give the user the file's public copy: `https://github.com/ystory/pstack-for-codex/blob/main/plugin-claude/` followed by its path.
+This file maps questions to the skills and guide pages that hold the answers. Those files own the details. Read the file you route to before you quote it, and trust it when it disagrees with this map. The links here point into the installed plugin, which the user may not be able to open, so give the user the file's public copy: `https://github.com/ystory/pstack/blob/main/plugin-claude/` followed by its path.
 
 ## Find out what they need
 
@@ -35,7 +35,7 @@ When the model preferences is missing and it matters, ask whether the user wants
 
 ## Get set up
 
-1. Add `ystory/pstack-for-codex` through `/plugin marketplace add`, then install `pstack-cc@pstack-cc`.
+1. Add `ystory/pstack` through `/plugin marketplace add`, then install `pstack-cc@pstack-cc`.
 2. Run [`/pstack-cc:setup-pstack`](../setup-pstack/SKILL.md). It asks for a reasoning budget, maps a model to each role, and saves independent role preferences and registers exact-model agents. Start a new session afterward. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
 3. Start a real task with `/pstack-cc:poteto-mode`, a goal, and a check that can pass or fail.
 

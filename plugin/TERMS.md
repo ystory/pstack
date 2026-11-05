@@ -22,4 +22,4 @@ The plugin uses the tasks, context, and tool permissions supplied in your enviro
 
 ## Privacy and support
 
-See the [privacy notice](PRIVACY.md) for information handling and user controls. Questions and support reports can be posted to [GitHub issues](https://github.com/ystory/pstack-for-codex/issues).
+See the [privacy notice](PRIVACY.md) for information handling and user controls. Questions and support reports can be posted to [GitHub issues](https://github.com/ystory/pstack/issues).

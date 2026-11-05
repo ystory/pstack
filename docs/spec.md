@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This repository distributes pstack skills and agents as separate Codex and Claude Code plugins while retaining a reproducible relationship to the same upstream sources. The Codex product remains `pstack-for-codex`; the Claude Code product is `pstack-cc`. Users install through their host's native marketplace and run setup to register agents and select worker executors and models. Development and artifact commands are documented in [Maintenance](stack.md); installation and usage are in the [README](../README.md).
+The pstack project distributes skills and agents as separate Codex and Claude Code plugins while retaining a reproducible relationship to the same upstream sources. The Codex product remains `pstack-for-codex`; the Claude Code product is `pstack-cc`. Users install through their host's native marketplace and run setup to register agents and select worker executors and models. Development and artifact commands are documented in [Maintenance](stack.md); installation and usage are in the [README](../README.md).
 
 ## Sources and reproducibility
 

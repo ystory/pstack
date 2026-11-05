@@ -6,8 +6,8 @@
   "author": {
     "name": "Lauren Tan"
   },
-  "homepage": "https://github.com/ystory/pstack-for-codex",
-  "repository": "https://github.com/ystory/pstack-for-codex",
+  "homepage": "https://github.com/ystory/pstack",
+  "repository": "https://github.com/ystory/pstack",
   "license": "MIT",
   "keywords": [
     "pstack",
@@ -30,10 +30,10 @@
         "category": "Developer Tools",
         "logo": "./assets/ystory-icon.svg",
         "composerIcon": "./assets/ystory-icon.svg",
-        "websiteURL": "https://github.com/ystory/pstack-for-codex",
-        "supportURL": "https://github.com/ystory/pstack-for-codex/issues",
-        "privacyPolicyURL": "https://github.com/ystory/pstack-for-codex/blob/main/plugin/PRIVACY.md",
-        "termsOfServiceURL": "https://github.com/ystory/pstack-for-codex/blob/main/plugin/TERMS.md"
+        "websiteURL": "https://github.com/ystory/pstack",
+        "supportURL": "https://github.com/ystory/pstack/issues",
+        "privacyPolicyURL": "https://github.com/ystory/pstack/blob/main/plugin/PRIVACY.md",
+        "termsOfServiceURL": "https://github.com/ystory/pstack/blob/main/plugin/TERMS.md"
       }
     }
   }

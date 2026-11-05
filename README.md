@@ -1,4 +1,4 @@
-# pstack for Codex and Claude Code
+# pstack
 
 An unofficial adaptation of [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack) workflows, skills, and agents. It also bundles the `control-ui`, `control-cli`, and `deslop` skills from [cursor-team-kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit). Each host has a separate plugin and reproducible adaptation series over pinned sources.
 
@@ -57,7 +57,7 @@ If setup cannot find `node`, `claude`, or `codex`, check the command's installat
 3. Paste this source in the URL field and select **Sync**:
 
    ```text
-   ystory/pstack-for-codex#codex/claude-workflows
+   ystory/pstack#codex/claude-workflows
    ```
 
 4. Open the `pstack-cc` entry from that marketplace and install it for your user account. Confirm that the plugin appears as installed and enabled.
@@ -72,7 +72,7 @@ You do not need to clone this repository, install its development dependencies, 
 Run these commands in your terminal, outside a Claude chat:
 
 ```sh
-claude plugin marketplace add 'https://github.com/ystory/pstack-for-codex.git#codex/claude-workflows'
+claude plugin marketplace add 'https://github.com/ystory/pstack.git#codex/claude-workflows'
 claude plugin install pstack-cc@pstack-cc
 ```
 
@@ -152,7 +152,7 @@ Setup can save an all-Sol configuration, but that configuration cannot satisfy u
 Add the GitHub marketplace, then install the plugin:
 
 ```sh
-codex plugin marketplace add https://github.com/ystory/pstack-for-codex.git
+codex plugin marketplace add https://github.com/ystory/pstack.git
 codex plugin add pstack-for-codex@pstack-for-codex
 ```
 

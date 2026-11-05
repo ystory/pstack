@@ -55,7 +55,9 @@ async function projectDirectories(project) {
       .split('\0')
       .filter((line) => line.startsWith('worktree '))
       .map((line) => line.slice(9));
-    return [...new Set(await Promise.all(worktrees.map(physical)))];
+    return [
+      ...new Set([resolved, ...(await Promise.all(worktrees.map(physical)))]),
+    ];
   } catch {
     return [resolved];
   }

@@ -425,9 +425,17 @@ test('Claude history groups registered Git worktrees and supports a worktree-spe
     'fixture',
   );
   git('worktree', 'add', '--detach', worktree, 'HEAD');
+  const nestedProject = path.join(project, 'packages', 'api');
+  const nestedWorktree = path.join(worktree, 'packages', 'api');
+  await Promise.all([
+    mkdir(nestedProject, { recursive: true }),
+    mkdir(nestedWorktree, { recursive: true }),
+  ]);
   for (const [id, cwd] of [
     ['root-session', project],
     ['worker-session', worktree],
+    ['nested-project-session', nestedProject],
+    ['nested-worker-session', nestedWorktree],
   ] as const) {
     const directory = path.join(home, 'projects', slug(cwd));
     await mkdir(directory, { recursive: true });
@@ -443,4 +451,36 @@ test('Claude history groups registered Git worktrees and supports a worktree-spe
   const narrowed = history(['list', ...args, '--touching', worktree]);
   assert.equal(narrowed.status, 0, narrowed.stderr);
   assert.equal(JSON.parse(narrowed.stdout).id, 'worker-session');
+  for (const [id, directory] of [
+    ['nested-project-session', nestedProject],
+    ['nested-worker-session', nestedWorktree],
+  ] as const) {
+    await t.test(`recalls an explicitly requested ${id}`, () => {
+      const nestedArgs = ['--project', directory, '--claude-home', home];
+      const listed = history(['list', ...nestedArgs]);
+      assert.equal(listed.status, 0, listed.stderr);
+      assert.deepEqual(
+        listed.stdout
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line).id)
+          .sort(),
+        [id, 'root-session', 'worker-session'].sort(),
+      );
+      const read = history(['read', ...nestedArgs, '--id', id]);
+      assert.equal(read.status, 0, read.stderr);
+      assert.equal(
+        JSON.parse(read.stdout).records[0].message.content,
+        `worked in ${directory}`,
+      );
+      const narrowed = history([
+        'list',
+        ...nestedArgs,
+        '--touching',
+        directory,
+      ]);
+      assert.equal(narrowed.status, 0, narrowed.stderr);
+      assert.equal(JSON.parse(narrowed.stdout).id, id);
+    });
+  }
 });

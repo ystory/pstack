@@ -1,0 +1,253 @@
+diff --git a/agents/read-only.md b/agents/read-only.md
+new file mode 100644
+index 0000000..5f902be
+--- /dev/null
++++ b/agents/read-only.md
+@@ -0,0 +1,8 @@
++---
++name: read-only
++description: Read-only worker for pstack exploration, judging, and source inspection.
++model: inherit
++disallowedTools: Write, Edit, NotebookEdit
++---
++
++Follow the supplied pstack workflow, task brief, scope, and verification contract. Read the supplied skill and reference paths. Return the requested artifact and evidence to the parent.
+diff --git a/docs/harness/claude-code.md b/docs/harness/claude-code.md
+index 81345f7..d63633c 100644
+--- a/docs/harness/claude-code.md
++++ b/docs/harness/claude-code.md
+@@ -2,6 +2,8 @@
+ 
+ This target uses native Claude Code skills and agents, with setup-selected Claude or Codex workers. Read [Claude Code execution](../../skills/poteto-mode/references/claude-execution.md) for the binding shared by every workflow. It preserves exact selected models, ordered panels, worker instructions, stateful continuation, and caller-specific review and failure rules.
+ 
+-Run `/pstack-cc:setup-pstack`, then start a new session. User commands use `/pstack-cc:<skill>`. Internally, read installed skill files by their actual path. The [setup guide](../guide/01-setup.md) covers independent preferences and CLI authentication. The [delegation inventory](../../skills/poteto-mode/references/delegation-sites.json) records the affected source sites.
++Workflows run before setup using the original Claude adapter's native defaults. Grok defaults inherit the parent and Opus defaults use the native `opus` alias with disclosure. Run `/pstack-cc:setup-pstack` to select exact models and executors, then start a new session. User commands use `/pstack-cc:<skill>`. Internally, read installed skill files by their actual path. The [setup guide](../guide/01-setup.md) covers independent preferences and CLI authentication. The [delegation inventory](../../skills/poteto-mode/references/delegation-sites.json) records the affected source sites.
++
++Readonly callers use the native `read-only` kind with the selected model, a no-edits brief, and a before/after `git status --short` check. The kind disallows `Write`, `Edit`, and `NotebookEdit`. Bash remains available, so this is a file-tool restriction rather than OS write isolation. Why and Reflect retain their full-access kind and MCP access.
+ 
+ Claude Agent workers and foreground Codex commands in native background Bash share the workflow contract. A local worktree is not a cloud VM. Native child completion is not a CI subscription. See [Claude Code wakeups](../../skills/poteto-mode/references/claude-wakeups.md) for schedules and channels and [Claude history](../../skills/recall/references/claude-history.md) for project-scoped transcripts.
+diff --git a/skills/arena/SKILL.md b/skills/arena/SKILL.md
+index d02416f..d559b58 100644
+--- a/skills/arena/SKILL.md
++++ b/skills/arena/SKILL.md
+@@ -25,7 +25,7 @@ If a candidate produces no output, proceed with N-1 and note the dropout.
+ 
+ ## Phase C: Cross-judge
+ 
+-After all Phase B candidates complete, resolve `arena cross-judge pool` with worker kind `general-purpose`. Select one read-only judge from a family other than the actual parent's, in pool order. Parent aliases never judge. Compare the judge with the parent, not with every candidate. If the executor rejects an entry, try a supported setting of the same model, or move to the next eligible entry. Never resubmit a rejected model. If the configured pool fails, try the bundled default pool's other-family entries in order. If none runs, skip the judge, pick the base alone in Phase D, and say so. If the parent's model is unknown, try real model entries in order and disclose that the family check did not run. The judge sees the rubric and candidates by sanitized path label. It scores each criterion and recommends a base with rationale. Run it in parallel with your Phase D reading, after candidates stop writing.
++After all Phase B candidates complete, resolve `arena cross-judge pool` with worker kind `read-only`. Select one read-only judge from a family other than the actual parent's, in pool order. Parent aliases never judge. Compare the judge with the parent, not with every candidate. If the executor rejects an entry, try a supported setting of the same model, or move to the next eligible entry. Never resubmit a rejected model. If the configured pool fails, try the bundled default pool's other-family entries in order. If none runs, skip the judge, pick the base alone in Phase D, and say so. If the parent's model is unknown, try real model entries in order and disclose that the family check did not run. The judge sees the rubric and candidates by sanitized path label. It scores each criterion and recommends a base with rationale. Run it in parallel with your Phase D reading, after candidates stop writing.
+ 
+ ## Phase D: Pick a base
+ 
+diff --git a/skills/how/SKILL.md b/skills/how/SKILL.md
+index aa0edbb..ebbfb2a 100644
+--- a/skills/how/SKILL.md
++++ b/skills/how/SKILL.md
+@@ -8,7 +8,7 @@ disable-model-invocation: true
+ 
+ Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
+ 
+-Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Every seat uses worker kind `general-purpose` and a no-edits brief. Explorers resolve `how explorer`; every explainer resolves `how explainer`. Use the selected executor, exact model, supported task effort, and its returned `agentType` for native Claude seats. A rejected model follows this skill's bundled default, then the closest valid model of the same family from the error. Disclose each fallback. Parent aliases bind the actual native parent. Pass absolute paths to this skill and the selected templates.
++Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Every seat uses worker kind `read-only` and a no-edits brief. Explorers resolve `how explorer`; every explainer resolves `how explainer`. Use the selected executor, exact model, supported task effort, and its returned `agentType` for native Claude seats. A rejected model follows this skill's bundled default, then the closest valid model of the same family from the error. Disclose each fallback. Parent aliases bind the actual native parent. Pass absolute paths to this skill and the selected templates.
+ 
+ ## 1. Assess complexity
+ 
+diff --git a/skills/maintain-verification-skill/SKILL.md b/skills/maintain-verification-skill/SKILL.md
+index fc22fa6..530ab58 100644
+--- a/skills/maintain-verification-skill/SKILL.md
++++ b/skills/maintain-verification-skill/SKILL.md
+@@ -26,7 +26,7 @@ Only edit the verification skill's own directory (its SKILL.md, features/, and a
+ 
+ 1. **Index hygiene.** Read the feature map README and glob its sibling files. Fix missing, extra, duplicate, or dead entries. Lightweight; no generated inventory.
+ 
+-2. **Source wave.** One read-only subagent per feature file, launched concurrently. Each explains "how does this user-facing feature work?" from source, flags likely doc drift with citations, and returns one concise live-verification recipe. Children never drive the app and never edit files. Return shape: feature summary / source entry points / likely drift or none / one recipe.
++2. **Source wave.** Read [Claude Code execution](../poteto-mode/references/claude-execution.md). Launch one read-only subagent per feature file concurrently, using the caller-selected role and worker kind `read-only`. Each explains "how does this user-facing feature work?" from source, flags likely doc drift with citations, and returns one concise live-verification recipe. Children never drive the app and never edit files. Return shape: feature summary / source entry points / likely drift or none / one recipe.
+ 
+ 3. **Reconcile.** Every feature file has a returned summary. Merge overlapping recipes into as few app states as practical. Spot-check cited drift; don't re-prove clean claims. Sweep recent churn for user-facing surfaces missing from the map — require a concrete source path before calling one missing.
+ 
+diff --git a/skills/poteto-mode/references/claude-execution.md b/skills/poteto-mode/references/claude-execution.md
+index 974a4a4..c8ab506 100644
+--- a/skills/poteto-mode/references/claude-execution.md
++++ b/skills/poteto-mode/references/claude-execution.md
+@@ -10,11 +10,11 @@ Run the sibling setup helper by absolute path:
+ node "<skills>/setup-pstack/scripts/models.mjs" resolve --role "<role>" --kind general-purpose
+ ```
+ 
+-The worker kinds are `general-purpose`, `poteto-agent`, and `comment-sicko`. Use `poteto-agent` inside playbook steps, `comment-sicko` for no-comments, and `general-purpose` for the routed investigation, candidate, review, and synthesis seats. Pass the relevant skill, template, rubric, and project instructions in every brief.
++The worker kinds are `general-purpose`, `poteto-agent`, `comment-sicko`, and `read-only`. Use `poteto-agent` inside playbook steps, `comment-sicko` for no-comments, and `general-purpose` for routed investigation, candidate, review, and synthesis seats. Use `read-only` where the caller requires `readonly: true`, including How, Arena judges, and maintain-verification source-wave children. Why and Reflect retain `general-purpose` and their MCP access. Pass the relevant skill, template, rubric, and project instructions in every brief.
+ 
+ The helper reads `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`. Explicit entries preserve their executor, exact model, and reasoning effort. Scalar roles stay scalar. `arena runners`, `architect runners`, and `interrogate reviewers` are ordered panels. Run every seat, including duplicate selections and parent aliases. `arena cross-judge pool` is an ordered selection pool, so it launches one eligible judge rather than the whole list. `swarm workers` is scalar unless an explicit race assigns models per arm.
+ 
+-A missing role returns its upstream defaults. A Grok suggestion has no Claude or Codex executor and needs a supported setup choice. Do not silently replace it with Sol, the parent, or another family. Run `resolve --defaults --role "<role>" --kind general-purpose` when a caller requires its original default fallback or Arena's default-pool retry. Saved choices remain intact. `needsChoice` is an unavailable selection, not a model-rejection response.
++A missing role returns the original Claude adapter's native execution fallback without requiring setup or generated definitions. A Grok default binds to the actual native parent. An Opus default returns `model: "opus"` and `modelKind: "native-alias"` with the configured budget effort. Both disclose their original `upstreamModel` and use a static plugin agent type. Report this mapping when dispatching. The Opus alias is a moving native default, not an exact model ID. Run `resolve --defaults --role "<role>" --kind general-purpose` when a caller requires its original default fallback or Arena's default-pool retry. Saved choices remain intact. Setup's `read` and `budget` proposals still require explicit supported choices before saving.
+ 
+ For a real model, use the caller's explicit task effort when given. Otherwise adjust its saved starting effort through poteto-mode's Subagents guidance. Keep the exact model ID and send effort and speed as separate supported controls. Report unavailable independent speed controls. Do not append effort or `-fast` to model IDs. Keep a rejected-model record per executor and never resubmit a rejected ID. Follow the caller's fallback and dropout rules, with disclosure. An unavailable executor is a capability gap, not a rejected model.
+ 
+@@ -24,11 +24,11 @@ Validate required different-model or different-family relationships before the a
+ 
+ ## Native Claude workers
+ 
+-For `executor: "claude-code"`, use the native `Agent` tool with the returned `agentType` as `subagent_type`. Setup owns generated definitions for each exact Claude model and worker kind. Do not pass an Agent model alias over that definition, since it can change the exact saved selection. Pass the supported per-invocation `effort` for a real model. Inherited aliases omit both overrides. Preserve the returned identity and inspect actual settings when the host exposes them.
++For `executor: "claude-code"`, use the native `Agent` tool with the returned `agentType` as `subagent_type`. Setup owns generated definitions for each exact Claude model and worker kind. Saved exact selections omit invocation model overrides. A default with `modelKind: "native-alias"` uses the static definition and passes its alias through Agent's `model` parameter only when the actual schema accepts it. Report a capability gap if the schema cannot select it. Pass the supported per-invocation `effort` for a real model or the native Opus default. Inherited aliases omit both overrides. Preserve the returned identity and inspect actual settings when the host exposes them.
+ 
+ The [Claude subagent reference](https://code.claude.com/docs/en/sub-agents) documents exact model IDs in definitions, invocation effort, completion, and stateful messaging. Host policy can substitute models. Requested settings are not observed settings.
+ 
+-The brief names the goal, owned files or slice, forbidden changes, assigned checkout and branch, resolved starting SHA, exact verification, output contract, and absolute skill and artifact paths. Writers are not alone in the repository and must accommodate others' changes. A no-edits task uses the selected custom worker with that explicit scope. Do not substitute Explore, since it changes the model, role body, and capabilities.
++The brief names the goal, owned files or slice, forbidden changes, assigned checkout and branch, resolved starting SHA, exact verification, output contract, and absolute skill and artifact paths. Writers are not alone in the repository and must accommodate others' changes. A readonly caller uses kind `read-only` and an explicit "do not edit files" brief. Its native definition disallows `Write`, `Edit`, and `NotebookEdit`, while retaining Bash and the selected model. Check `git status --short` before dispatch and after completion for unexpected changes. This restricts file tools, not OS writes through Bash or interpreters. Other no-edits tasks keep their caller's kind. Do not substitute Explore, since it can change the selected model and role body.
+ 
+ Pass the absolute `poteto-mode/SKILL.md` path to every poteto-agent. Its first action is an actual full Read of that file, including the Principles index. Copying the body into a prompt does not establish that read. Require reads of applied principle leaves as upstream specifies, and inspect the worker transcript when chain-following matters.
+ 
+diff --git a/skills/poteto-mode/references/delegation-sites.json b/skills/poteto-mode/references/delegation-sites.json
+index 164e707..9e09277 100644
+--- a/skills/poteto-mode/references/delegation-sites.json
++++ b/skills/poteto-mode/references/delegation-sites.json
+@@ -33,7 +33,7 @@
+       "path": "skills/arena/SKILL.md",
+       "classification": "configured",
+       "roles": ["arena runners", "arena cross-judge pool"],
+-      "workerKind": "general-purpose",
++      "workerKind": ["general-purpose", "read-only"],
+       "binding": "skills/poteto-mode/references/claude-execution.md"
+     },
+     {
+@@ -54,7 +54,7 @@
+       "path": "skills/how/SKILL.md",
+       "classification": "configured",
+       "roles": ["how explorer", "how explainer"],
+-      "workerKind": "general-purpose",
++      "workerKind": "read-only",
+       "binding": "skills/poteto-mode/references/claude-execution.md"
+     },
+     {
+@@ -89,7 +89,7 @@
+       "path": "skills/maintain-verification-skill/SKILL.md",
+       "classification": "inherits-caller",
+       "roles": [],
+-      "workerKind": "general-purpose",
++      "workerKind": "read-only",
+       "binding": "skills/poteto-mode/references/claude-execution.md"
+     },
+     {
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 02a20d1..02e833e 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -35,7 +35,7 @@ Normalize both routes with `scripts/models.mjs catalog --input ABSOLUTE_CODEX_RE
+ 
+ Run `scripts/models.mjs read`. Retain its `sha256`, `config`, `proposal`, and `needsChoice`.
+ 
+-`config` contains valid saved selections. `proposal` fills missing roles with the original upstream suggestions. Upstream code roles suggest Grok, which neither bundled executor supplies as an assumed route. Those suggestions remain visibly unresolved until the user chooses an available executor and model. Setup does not replace them with a permanent Sol default. The original Claude judgment preference and original panel order remain in the proposal.
++`config` contains valid saved selections. `proposal` fills missing roles with the original upstream suggestions. Upstream code roles suggest Grok, which neither bundled executor supplies as an assumed route. Those suggestions remain visibly unresolved until the user chooses an available executor and model. Setup does not replace them with a permanent Sol default. The original Claude judgment preference and original panel order remain in the proposal. Execution is separate. Missing roles use the original Claude adapter's native parent or Opus alias fallback without setup, with disclosure. These execution fallbacks are not saved exact choices.
+ 
+ On a rerun, retain independently chosen models, executors, aliases, efforts, list order, and duplicates. Report retired keys from `droppedRoles` before saving.
+ 
+@@ -58,7 +58,7 @@ Scalar roles hold one entry or parent alias. `arena runners`, `architect runners
+ 
+ Write the complete accepted proposal to an absolute temporary JSON file. Validate it with `scripts/models.mjs write --input ABSOLUTE_JSON --catalog ABSOLUTE_CATALOG --expected-hash HASH --dry-run`. Use the read hash, or `absent` if no file exists. All 17 roles need resolved choices for a first save.
+ 
+-Run `scripts/register-agents.mjs --input ABSOLUTE_JSON`. It derives three native agent kinds from this plugin's original bodies for each distinct exact Claude model. It writes owned definitions under the Claude home, without editing the installed plugin cache, unrelated agents, `settings.json`, or Codex configuration. `general-purpose`, `poteto-agent`, and `comment-sicko` retain their supplied bodies. Task-specific effort uses the native invocation parameter.
++Run `scripts/register-agents.mjs --input ABSOLUTE_JSON`. It derives four native agent kinds from this plugin's original bodies for each distinct exact Claude model. It writes owned definitions under the Claude home, without editing the installed plugin cache, unrelated agents, `settings.json`, or Codex configuration. `general-purpose`, `poteto-agent`, and `comment-sicko` retain their supplied bodies. `read-only` retains the general-purpose body and disallows `Write`, `Edit`, and `NotebookEdit` for actual readonly callers. Bash remains available. Task-specific effort uses the native invocation parameter.
+ 
+ Registration retains earlier owned variants so interruption or a rejected preference save leaves the saved selection usable. The receipt lists these unused files in `retained`. Registration never prunes them, including on later reruns, because another setup may still save a staged choice. Explicit unregister removes all owned variants.
+ 
+diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
+index b029e50..444ac2c 100644
+--- a/skills/setup-pstack/references/models-contract.md
++++ b/skills/setup-pstack/references/models-contract.md
+@@ -70,14 +70,14 @@ Normalized entries have `executor`, `model`, and `supportedReasoningEfforts`. Na
+ ## Commands
+ 
+ - `models.mjs read` returns `file`, `exists`, `sha256`, valid saved `config`, full `proposal`, `droppedRoles`, and `needsChoice`. The proposal's unresolved upstream Grok suggestions use `upstreamModel` and `upstreamSpeed`. They cannot be persisted as selected entries.
+-- `models.mjs resolve --role ROLE [--kind KIND] [--defaults]` returns an `entries` array for dispatch, plus the original `cardinality`, source, budget, and unresolved `needsChoice`. Scalars still yield one dispatch entry. `--defaults` reads the original upstream suggestions even when that role has a saved choice.
++- `models.mjs resolve --role ROLE [--kind KIND] [--defaults]` returns an `entries` array for dispatch, plus the original `cardinality`, source, budget, and an empty `needsChoice`. Scalars still yield one dispatch entry. `--defaults` returns the native execution fallbacks even when that role has a saved choice. Missing roles use the same fallbacks. Grok maps to `model: "inherit-parent"`; Opus maps to `model: "opus"` with `modelKind: "native-alias"` and the budget effort. Both carry `upstreamModel` for disclosure and select static plugin definitions. These mappings require no setup, generated variants, or Codex CLI. Saved exact entries remain exact.
+ - `models.mjs budget --budget LABEL --catalog ABS` returns a preview `config` and `needsChoice`. It never writes. A role with no supported effort at or below the target requires a choice.
+ - `models.mjs write --input ABS --catalog ABS --expected-hash HASH_OR_ABSENT [--dry-run]` validates all choices and saves atomically. The input is a config, or a result object containing `config`. Unresolved `needsChoice` results are rejected. A dry run creates no destination.
+ - `register-agents.mjs [--input ABS] [--dry-run] [--unregister]` manages owned native definitions. With no input, it uses saved preferences. Removal retains preferences.
+ - `detect.mjs detect` reports Node, Claude, Codex, capability and auth evidence, configured native candidates, and applicable install or login guidance.
+ - `detect.mjs catalog --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` and `--codex-executable ABS` select existing CLI executables for either detection command.
+ 
+-`KIND` is `general-purpose`, `poteto-agent`, or `comment-sicko`. An explicit Claude selection resolves to `pstack-cc-KIND-HASH`, where `HASH` is the first 16 hexadecimal characters of the exact model ID's SHA-256. Definitions are in `agents/pstack-cc/` under the Claude home. Parent aliases resolve to `pstack-cc:KIND`. Codex entries do not receive a native agent type.
++`KIND` is `general-purpose`, `poteto-agent`, `comment-sicko`, or `read-only`. An explicit Claude selection resolves to `pstack-cc-KIND-HASH`, where `HASH` is the first 16 hexadecimal characters of the exact model ID's SHA-256. Definitions are in `agents/pstack-cc/` under the Claude home. Parent aliases and unsaved native defaults resolve to `pstack-cc:KIND`. The readonly kind disallows `Write`, `Edit`, and `NotebookEdit` and retains the general-purpose body. Codex entries do not receive a native agent type.
+ 
+ ## Registration ownership
+ 
+diff --git a/skills/setup-pstack/scripts/models.mjs b/skills/setup-pstack/scripts/models.mjs
+index d3432f0..770ba2f 100644
+--- a/skills/setup-pstack/scripts/models.mjs
++++ b/skills/setup-pstack/scripts/models.mjs
+@@ -149,6 +149,18 @@ function suggestions(config) {
+   );
+ }
+ 
++function executionDefault(entry, kind) {
++  const inherited = Boolean(entry.upstreamModel);
++  return {
++    executor: 'claude-code',
++    model: inherited ? 'inherit-parent' : 'opus',
++    ...(inherited ? {} : { modelKind: 'native-alias' }),
++    upstreamModel: entry.upstreamModel ?? entry.model,
++    ...(inherited ? {} : { reasoningEffort: entry.reasoningEffort }),
++    ...(kind ? { agentType: agentType(kind, 'inherit-parent') } : {}),
++  };
++}
++
+ export function normalizeCatalog(input, native) {
+   const response = input?.codex?.models
+     ? input.codex
+@@ -326,8 +338,10 @@ async function main(options) {
+       throw new Error(
+         `Unknown pstack role: ${options.role ?? '(missing --role)'}`,
+       );
++    const saved =
++      !options.defaults && Object.hasOwn(loaded.config.roles, options.role);
+     const entries = entriesFor(proposal[options.role]).map((entry) => {
+-      if (entry?.upstreamModel) return entry;
++      if (!saved) return executionDefault(entry, options.kind);
+       const normalized =
+         typeof entry === 'string'
+           ? { executor: 'claude-code', model: entry }
+@@ -343,11 +357,8 @@ async function main(options) {
+       role: options.role,
+       cardinality: roles[options.role],
+       entries,
+-      needsChoice: choicesFor({ [options.role]: proposal[options.role] }),
+-      source:
+-        !options.defaults && Object.hasOwn(loaded.config.roles, options.role)
+-          ? 'saved'
+-          : 'upstream-default',
++      needsChoice: [],
++      source: saved ? 'saved' : 'upstream-default',
+       file: loaded.file,
+       budget: loaded.config.budget,
+       targetReasoningEffort: budgets[loaded.config.budget],
+diff --git a/skills/setup-pstack/scripts/register-agents.mjs b/skills/setup-pstack/scripts/register-agents.mjs
+index 7bb2b2f..2e0b4fa 100644
+--- a/skills/setup-pstack/scripts/register-agents.mjs
++++ b/skills/setup-pstack/scripts/register-agents.mjs
+@@ -21,7 +21,7 @@ const pluginRoot = fileURLToPath(new URL('../../../', import.meta.url));
+ const registryName = 'pstack-cc/agent-registration.json';
+ const agentPrefix = 'agents/pstack-cc/';
+ const validAgentPath = (relative) =>
+-  /^agents\/pstack-cc\/pstack-cc-(general-purpose|poteto-agent|comment-sicko)-[a-f0-9]{16}\.md$/.test(
++  /^agents\/pstack-cc\/pstack-cc-(general-purpose|poteto-agent|comment-sicko|read-only)-[a-f0-9]{16}\.md$/.test(
+     relative,
+   );
+ const encoded = (state) =>
+diff --git a/skills/setup-pstack/scripts/roles.mjs b/skills/setup-pstack/scripts/roles.mjs
+index ae11e6a..c5471a5 100644
+--- a/skills/setup-pstack/scripts/roles.mjs
++++ b/skills/setup-pstack/scripts/roles.mjs
+@@ -36,7 +36,12 @@ export const efforts = [
+   'ultra',
+ ];
+ export const aliases = new Set(['auto', 'inherit-parent']);
+-export const kinds = ['general-purpose', 'poteto-agent', 'comment-sicko'];
++export const kinds = [
++  'general-purpose',
++  'poteto-agent',
++  'comment-sicko',
++  'read-only',
++];
+ export const entriesFor = (value) => (Array.isArray(value) ? value : [value]);
+ export const modelFor = (entry) =>
+   typeof entry === 'string' ? entry : entry.model;

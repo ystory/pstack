@@ -1,0 +1,10 @@
+0001-claude-host.patch
+0002-preserve-distribution-policy.patch
+0003-native-defaults-and-readonly.patch
+0004-native-background-lifetime.patch
+0005-preserve-host-auth-environment.patch
+0006-preview-git-install-docs.patch
+0007-desktop-marketplace-source.patch
+0008-preview-version.patch
+0009-project-repository-rename.patch
+0010-recall-requested-project.patch

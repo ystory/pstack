@@ -1,0 +1,90 @@
+diff --git a/.claude-plugin/plugin.json b/.claude-plugin/plugin.json
+index f70e330..6cc526f 100644
+--- a/.claude-plugin/plugin.json
++++ b/.claude-plugin/plugin.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "pstack-cc",
+-  "version": "0.1.0-dev.1",
++  "version": "0.1.0-dev.2",
+   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+   "author": {
+     "name": "pstack-for-codex contributors"
+   },
+-  "homepage": "https://github.com/ystory/pstack-for-codex",
+-  "repository": "https://github.com/ystory/pstack-for-codex",
++  "homepage": "https://github.com/ystory/pstack",
++  "repository": "https://github.com/ystory/pstack",
+   "license": "MIT",
+   "keywords": [
+     "pstack",
+diff --git a/README.md b/README.md
+index 4cd5658..6033eb5 100644
+--- a/README.md
++++ b/README.md
+@@ -7,7 +7,7 @@ An unofficial Claude Code adaptation of [Lauren Tan's pstack](https://github.com
+ This preview is on the `codex/claude-workflows` branch. The repository's default branch does not yet contain `pstack-cc`. Run these commands in your terminal:
+ 
+ ```sh
+-claude plugin marketplace add 'https://github.com/ystory/pstack-for-codex.git#codex/claude-workflows'
++claude plugin marketplace add 'https://github.com/ystory/pstack.git#codex/claude-workflows'
+ claude plugin install pstack-cc@pstack-cc
+ ```
+ 
+@@ -34,10 +34,10 @@ Read [Set up pstack](docs/guide/01-setup.md) for requirements, updates, removal,
+ 
+ The [Claude Code binding](docs/harness/claude-code.md) maps the original workflow to native Agent, background Bash, worktrees, scoped transcripts, schedules, and channels. The parent still owns review. A worktree isolates files on this machine. It does not supply a cloud VM. External Codex workers use Codex's configured tools and MCPs, which can differ from the Claude parent.
+ 
+-Source inspection, fixture checks, live runtime checks, and release approval are separate. The repository's [compatibility record](https://github.com/ystory/pstack-for-codex/blob/codex/claude-workflows/docs/spec.md) states what actually ran. A successful artifact build does not establish that every workflow or selected model works on your account.
++Source inspection, fixture checks, live runtime checks, and release approval are separate. The repository's [compatibility record](https://github.com/ystory/pstack/blob/codex/claude-workflows/docs/spec.md) states what actually ran. A successful artifact build does not establish that every workflow or selected model works on your account.
+ 
+ ## Sources and licenses
+ 
+-The maintainer repository owns source locks, host adaptations, ordered patch replay, and artifact verification. The [maintenance guide](https://github.com/ystory/pstack-for-codex/blob/codex/claude-workflows/docs/stack.md) documents those commands. Updating this installed bundle does not run its workflows.
++The maintainer repository owns source locks, host adaptations, ordered patch replay, and artifact verification. The [maintenance guide](https://github.com/ystory/pstack/blob/codex/claude-workflows/docs/stack.md) documents those commands. Updating this installed bundle does not run its workflows.
+ 
+ pstack is by Lauren Tan and retains its [MIT license](LICENSE). The bundled cursor-team-kit skills retain their [MIT license](licenses/cursor-team-kit/LICENSE). Adaptation code retains its [MIT license](licenses/pstack-cc/LICENSE). The official Codex worker files retain their bundled upstream notices under `vendor/codex-plugin-cc/`. Original copyright and license notices remain.
+diff --git a/docs/guide/01-setup.md b/docs/guide/01-setup.md
+index af6f426..26506f2 100644
+--- a/docs/guide/01-setup.md
++++ b/docs/guide/01-setup.md
+@@ -11,7 +11,7 @@ The Claude preview is on the `codex/claude-workflows` branch. The repository's d
+ In Claude desktop, use a local Code session. Open **Customize**, then **Plugins**, **Add plugin**, **Add marketplace**, and **Add from a repository**. Enter this Git source and select **Sync**:
+ 
+ ```text
+-ystory/pstack-for-codex#codex/claude-workflows
++ystory/pstack#codex/claude-workflows
+ ```
+ 
+ Install the marketplace's `pstack-cc` entry for your user account. Some Desktop versions open the plugin browser through **+**, then **Add plugins**. See [Desktop plugin installation](https://code.claude.com/docs/en/desktop#install-plugins).
+@@ -19,7 +19,7 @@ Install the marketplace's `pstack-cc` entry for your user account. Some Desktop
+ For terminal installation, run these commands outside a Claude chat:
+ 
+ ```sh
+-claude plugin marketplace add 'https://github.com/ystory/pstack-for-codex.git#codex/claude-workflows'
++claude plugin marketplace add 'https://github.com/ystory/pstack.git#codex/claude-workflows'
+ claude plugin install pstack-cc@pstack-cc
+ ```
+ 
+diff --git a/skills/poteto-help/SKILL.md b/skills/poteto-help/SKILL.md
+index 59b9f8f..962e4b2 100644
+--- a/skills/poteto-help/SKILL.md
++++ b/skills/poteto-help/SKILL.md
+@@ -10,7 +10,7 @@ Answer the user's question about pstack, hand them a prompt they can send, and l
+ 
+ A message that asks for work, such as "use pstack to fix this bug", is not a help question. Read [`poteto-mode`](../poteto-mode/SKILL.md), do the work under it, and apply the selected playbook.
+ 
+-This file maps questions to the skills and guide pages that hold the answers. Those files own the details. Read the file you route to before you quote it, and trust it when it disagrees with this map. The links here point into the installed plugin, which the user may not be able to open, so give the user the file's public copy: `https://github.com/ystory/pstack-for-codex/blob/main/plugin-claude/` followed by its path.
++This file maps questions to the skills and guide pages that hold the answers. Those files own the details. Read the file you route to before you quote it, and trust it when it disagrees with this map. The links here point into the installed plugin, which the user may not be able to open, so give the user the file's public copy: `https://github.com/ystory/pstack/blob/main/plugin-claude/` followed by its path.
+ 
+ ## Find out what they need
+ 
+@@ -35,7 +35,7 @@ When the model preferences is missing and it matters, ask whether the user wants
+ 
+ ## Get set up
+ 
+-1. Add `ystory/pstack-for-codex` through `/plugin marketplace add`, then install `pstack-cc@pstack-cc`.
++1. Add `ystory/pstack` through `/plugin marketplace add`, then install `pstack-cc@pstack-cc`.
+ 2. Run [`/pstack-cc:setup-pstack`](../setup-pstack/SKILL.md). It asks for a reasoning budget, maps a model to each role, and saves independent role preferences and registers exact-model agents. Start a new session afterward. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
+ 3. Start a real task with `/pstack-cc:poteto-mode`, a goal, and a check that can pass or fail.
+ 

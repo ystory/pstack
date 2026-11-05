@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   applyPatchSeries,
@@ -12,6 +12,9 @@ import {
   inspectTree,
   treeDigest,
 } from '../distribution/tree.ts';
+import { projectTargets, distributionTarget } from '../distribution/targets.ts';
+import { verifySnapshot } from './verify.ts';
+import { readCodexRuntimeLock, verifyCodexRuntime } from './runtime.ts';
 import { readLock } from './lock.ts';
 import { computeSnapshotDigest } from './snapshot.ts';
 import { copyPristinePlugin, readDependencyLock } from './dependencies.ts';
@@ -110,6 +113,9 @@ export async function createUpstreamCandidate(
     ].includes(origin)
   )
     throw new Error('Candidate source origin must be cursor/plugins.');
+  await verifySnapshot(projectRoot);
+  await verifyCodexRuntime(projectRoot);
+  const targets = await projectTargets(projectRoot);
   await createOutputDirectory(output);
   const snapshotRoot = path.join(output, 'upstream', 'pstack');
   await exportSnapshot(source, revision, 'pstack', snapshotRoot);
@@ -192,43 +198,82 @@ export async function createUpstreamCandidate(
     path.join(output, 'upstream.lock.json'),
     `${JSON.stringify(candidateLock, null, 2)}\n`,
   );
-  const pluginRoot = path.join(output, 'plugin');
+  const runtime = await readCodexRuntimeLock(projectRoot);
+  if (runtime) {
+    await copyTree(
+      path.join(projectRoot, 'upstream', 'codex-runtime'),
+      path.join(output, 'upstream', 'codex-runtime'),
+    );
+    await copyFile(
+      path.join(projectRoot, 'codex-runtime.lock.json'),
+      path.join(output, 'codex-runtime.lock.json'),
+    );
+  }
   await copyTree(
     path.join(projectRoot, 'patches'),
     path.join(output, 'patches'),
   );
-  let status: 'ready-for-review' | 'patch-conflict' | 'source-policy-conflict' =
-    'ready-for-review';
-  let conflict: string | undefined;
-  try {
-    await copyPristinePlugin(output, pluginRoot);
-    await applyPatchSeries(projectRoot, pluginRoot);
-  } catch (error) {
-    status =
-      error instanceof DistributionPolicyConflict
-        ? 'source-policy-conflict'
-        : 'patch-conflict';
-    conflict = error instanceof Error ? error.message : String(error);
+  const targetReports = [];
+  for (const target of targets) {
+    const pluginRoot = path.join(
+      output,
+      distributionTarget(target).pluginDirectory,
+    );
+    let status:
+      'ready-for-review' | 'patch-conflict' | 'source-policy-conflict' =
+      'ready-for-review';
+    let conflict: string | undefined;
+    try {
+      await copyPristinePlugin(output, pluginRoot, target);
+      await applyPatchSeries(projectRoot, pluginRoot, target);
+    } catch (error) {
+      status =
+        error instanceof DistributionPolicyConflict
+          ? 'source-policy-conflict'
+          : 'patch-conflict';
+      conflict = error instanceof Error ? error.message : String(error);
+    }
+    const patches = await readPatchSeries(projectRoot, target);
+    const failedIndex = conflict
+      ? patches.findIndex((patch) => conflict?.includes(patch.name))
+      : -1;
+    targetReports.push({
+      target,
+      status,
+      patches,
+      appliedPatches:
+        status === 'ready-for-review'
+          ? patches.map((patch) => patch.name)
+          : patches
+              .slice(0, Math.max(0, failedIndex))
+              .map((patch) => patch.name),
+      ...(failedIndex >= 0 ? { failedPatch: patches[failedIndex]!.name } : {}),
+      unappliedPatches:
+        status === 'ready-for-review'
+          ? []
+          : patches.slice(Math.max(0, failedIndex)).map((patch) => patch.name),
+      pluginTreeSha256: treeDigest(await inspectTree(pluginRoot)),
+      ...(conflict ? { conflict } : {}),
+    });
   }
-  const patches = await readPatchSeries(projectRoot);
-  const failedIndex = conflict
-    ? patches.findIndex((patch) => conflict?.includes(patch.name))
-    : -1;
+  const codex = targetReports[0]!;
+  const failure = targetReports.find(
+    (report) => report.status !== 'ready-for-review',
+  );
+  const status = failure?.status ?? 'ready-for-review';
+  const conflict = failure?.conflict;
   const report = {
     schemaVersion: 1,
     status,
     previous: lock.pstack,
     candidate: candidateLock.pstack,
-    patches,
-    appliedPatches:
-      status === 'ready-for-review'
-        ? patches.map((patch) => patch.name)
-        : patches.slice(0, Math.max(0, failedIndex)).map((patch) => patch.name),
-    ...(failedIndex >= 0 ? { failedPatch: patches[failedIndex]!.name } : {}),
-    unappliedPatches:
-      status === 'ready-for-review'
-        ? []
-        : patches.slice(Math.max(0, failedIndex)).map((patch) => patch.name),
+    patches: codex.patches,
+    appliedPatches: codex.appliedPatches,
+    ...(codex.failedPatch ? { failedPatch: codex.failedPatch } : {}),
+    unappliedPatches: codex.unappliedPatches,
+    targets: targetReports,
+    ...(failure ? { failedTarget: failure.target } : {}),
+    ...(runtime ? { codexRuntime: runtime } : {}),
     upstreamChanges: 'upstream-changes.diff',
     ...(distributionPolicy ? { distributionPolicy } : {}),
     ...(candidateDependencies
@@ -238,12 +283,12 @@ export async function createUpstreamCandidate(
           dependencyChanges: 'dependency-changes.diff',
         }
       : {}),
-    pluginTreeSha256: treeDigest(await inspectTree(pluginRoot)),
+    pluginTreeSha256: codex.pluginTreeSha256,
     ...(conflict ? { conflict } : {}),
     review: [
       'Review upstream changes and adaptation semantics.',
       'Resolve reported patch conflicts and regenerate new adaptation patches.',
-      'Run offline validation and isolated Codex workflows for this candidate.',
+      'Run offline validation and isolated workflows for every candidate target.',
       'Obtain approval before replacing the pinned source or distributing the candidate.',
     ],
   };

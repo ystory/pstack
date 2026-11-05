@@ -21,11 +21,11 @@ fork it. improve it. make it yours. PRs are welcome!
 Add the GitHub marketplace, then install the plugin. No repository build is needed:
 
 ```sh
-codex plugin marketplace add https://github.com/ystory/pstack-for-codex.git
+codex plugin marketplace add https://github.com/ystory/pstack.git
 codex plugin add pstack-for-codex@pstack-for-codex
 ```
 
-An extracted distribution artifact can also be added with `codex plugin marketplace add /absolute/path/to/artifact`. Both routes use the same marketplace identity. See the [repository installation guide](https://github.com/ystory/pstack-for-codex#install) for requirements and update instructions.
+An extracted distribution artifact can also be added with `codex plugin marketplace add /absolute/path/to/artifact`. Both routes use the same marketplace identity. See the [repository installation guide](https://github.com/ystory/pstack#install) for requirements and update instructions.
 
 Setup needs an existing Node.js 24.12+ and Python 3.11+ interpreter; it uses only Python's standard-library TOML parser. Opus execution also needs an installed, authenticated Claude Code CLI. Setup checks its existing path, version, and options; runs reuse its existing authentication. It does not install Claude Code or rewrite its global settings. Codex presents setup onboarding after installation. Setup registers the two bundled custom-agent definitions and their native config references, plus a description-only `pstack-general-purpose` role that leaves your existing default role intact. It stores your role choices in `$CODEX_HOME/pstack-for-codex/models.json`, defaulting to `~/.codex`. Re-run setup after an update or a prior-version restore to synchronize its owned agent files. Existing user edits stop replacement; role preferences are retained.
 

@@ -1,0 +1,119 @@
+diff --git a/.cursor-plugin/plugin.json b/.cursor-plugin/plugin.json
+index 1f76091..17e1de7 100644
+--- a/.cursor-plugin/plugin.json
++++ b/.cursor-plugin/plugin.json
+@@ -6,8 +6,8 @@
+ 	"author": {
+ 		"name": "Lauren Tan"
+ 	},
+-	"homepage": "https://github.com/ystory/pstack-for-codex",
+-	"repository": "https://github.com/ystory/pstack-for-codex",
++	"homepage": "https://github.com/ystory/pstack",
++	"repository": "https://github.com/ystory/pstack",
+ 	"license": "MIT",
+ 	"logo": "assets/logo.png",
+ 	"keywords": [
+diff --git a/PRIVACY.md b/PRIVACY.md
+index f309604..f3e2d83 100644
+--- a/PRIVACY.md
++++ b/PRIVACY.md
+@@ -2,7 +2,7 @@
+ 
+ Last updated: 2026-10-15
+ 
+-This notice covers the unofficial pstack-for-codex distribution maintained at [ystory/pstack-for-codex](https://github.com/ystory/pstack-for-codex). Codex, Claude Code, GitHub, and other services have their own privacy policies and account settings.
++This notice covers the unofficial pstack-for-codex distribution maintained at [ystory/pstack](https://github.com/ystory/pstack). Codex, Claude Code, GitHub, and other services have their own privacy policies and account settings.
+ 
+ ## Information used and where it goes
+ 
+@@ -10,7 +10,7 @@ This notice covers the unofficial pstack-for-codex distribution maintained at [y
+ - Tasks may use your prompts, source code, selected instructions, context files, and relevant conversation history. Codex and the selected model executor process this information to perform the requested work. The Claude runner supplies task text and selected context to your existing Claude Code CLI, which uses its configured provider and authentication. Running a local executor does not mean model processing stays on your device.
+ - Workflows can use configured tools, MCP connections, and connected services. For example, a GitHub workflow can read or publish repository and PR content. Dependency installation can contact package registries. Information sent to these services depends on the workflow and your tool permissions and configuration.
+ - Local run output and receipts can include prompts, instructions, file paths, model responses, and tool results. They are stored in the selected output directories for execution, review, and resumption.
+-- If you open a public [support issue](https://github.com/ystory/pstack-for-codex/issues), GitHub, the maintainers, and other visitors can read the information you post. It is used to investigate and respond to the report.
++- If you open a public [support issue](https://github.com/ystory/pstack/issues), GitHub, the maintainers, and other visitors can read the information you post. It is used to investigate and respond to the report.
+ 
+ ## Retention and your controls
+ 
+@@ -18,4 +18,4 @@ Local configuration and run files remain until you delete them or the relevant t
+ 
+ Model providers, connected services, registries, and GitHub apply their own retention policies and account controls. The distribution's maintainers do not control their retention periods.
+ 
+-You can choose model roles and connected tools, limit the context supplied to a task, change tool permissions, remove local run files, and uninstall the plugin. Use the relevant provider's controls for information already sent to that service. For questions about this notice, contact the maintainers through [GitHub issues](https://github.com/ystory/pstack-for-codex/issues); keep private task data and credentials out of public reports.
++You can choose model roles and connected tools, limit the context supplied to a task, change tool permissions, remove local run files, and uninstall the plugin. Use the relevant provider's controls for information already sent to that service. For questions about this notice, contact the maintainers through [GitHub issues](https://github.com/ystory/pstack/issues); keep private task data and credentials out of public reports.
+diff --git a/README.md b/README.md
+index 8b86cec..5afe52b 100644
+--- a/README.md
++++ b/README.md
+@@ -21,11 +21,11 @@ fork it. improve it. make it yours. PRs are welcome!
+ Add the GitHub marketplace, then install the plugin. No repository build is needed:
+ 
+ ```sh
+-codex plugin marketplace add https://github.com/ystory/pstack-for-codex.git
++codex plugin marketplace add https://github.com/ystory/pstack.git
+ codex plugin add pstack-for-codex@pstack-for-codex
+ ```
+ 
+-An extracted distribution artifact can also be added with `codex plugin marketplace add /absolute/path/to/artifact`. Both routes use the same marketplace identity. See the [repository installation guide](https://github.com/ystory/pstack-for-codex#install) for requirements and update instructions.
++An extracted distribution artifact can also be added with `codex plugin marketplace add /absolute/path/to/artifact`. Both routes use the same marketplace identity. See the [repository installation guide](https://github.com/ystory/pstack#install) for requirements and update instructions.
+ 
+ Setup needs an existing Node.js 24.12+ and Python 3.11+ interpreter; it uses only Python's standard-library TOML parser. Opus execution also needs an installed, authenticated Claude Code CLI. Setup checks its existing path, version, and options; runs reuse its existing authentication. It does not install Claude Code or rewrite its global settings. Codex presents setup onboarding after installation. Setup registers the two bundled custom-agent definitions and their native config references, plus a description-only `pstack-general-purpose` role that leaves your existing default role intact. It stores your role choices in `$CODEX_HOME/pstack-for-codex/models.json`, defaulting to `~/.codex`. Re-run setup after an update or a prior-version restore to synchronize its owned agent files. Existing user edits stop replacement; role preferences are retained.
+ 
+diff --git a/TERMS.md b/TERMS.md
+index 128104f..60435c6 100644
+--- a/TERMS.md
++++ b/TERMS.md
+@@ -22,4 +22,4 @@ The plugin uses the tasks, context, and tool permissions supplied in your enviro
+ 
+ ## Privacy and support
+ 
+-See the [privacy notice](PRIVACY.md) for information handling and user controls. Questions and support reports can be posted to [GitHub issues](https://github.com/ystory/pstack-for-codex/issues).
++See the [privacy notice](PRIVACY.md) for information handling and user controls. Questions and support reports can be posted to [GitHub issues](https://github.com/ystory/pstack/issues).
+diff --git a/docs/guide/01-setup.md b/docs/guide/01-setup.md
+index 7391502..ff63418 100644
+--- a/docs/guide/01-setup.md
++++ b/docs/guide/01-setup.md
+@@ -7,11 +7,11 @@ In this page you install the plugin, pick which models pstack uses, and run your
+ Install from the GitHub marketplace described in the [plugin README](../../README.md). No repository build is needed:
+ 
+ ```sh
+-codex plugin marketplace add https://github.com/ystory/pstack-for-codex.git
++codex plugin marketplace add https://github.com/ystory/pstack.git
+ codex plugin add pstack-for-codex@pstack-for-codex
+ ```
+ 
+-For a local distribution artifact, replace the GitHub URL with its absolute directory path. Both routes use the same marketplace identity. The [repository README](https://github.com/ystory/pstack-for-codex#update-or-restore) explains updates and switching from an existing local marketplace.
++For a local distribution artifact, replace the GitHub URL with its absolute directory path. Both routes use the same marketplace identity. The [repository README](https://github.com/ystory/pstack#update-or-restore) explains updates and switching from an existing local marketplace.
+ 
+ Start a new Codex chat in your project and select `$pstack-for-codex:setup-pstack`. Installing the plugin and running setup are separate steps.
+ 
+diff --git a/plugin.json b/plugin.json
+index 8a99072..194e1aa 100644
+--- a/plugin.json
++++ b/plugin.json
+@@ -6,8 +6,8 @@
+   "author": {
+     "name": "Lauren Tan"
+   },
+-  "homepage": "https://github.com/ystory/pstack-for-codex",
+-  "repository": "https://github.com/ystory/pstack-for-codex",
++  "homepage": "https://github.com/ystory/pstack",
++  "repository": "https://github.com/ystory/pstack",
+   "license": "MIT",
+   "keywords": [
+     "pstack",
+@@ -30,10 +30,10 @@
+         "category": "Developer Tools",
+         "logo": "./assets/ystory-icon.svg",
+         "composerIcon": "./assets/ystory-icon.svg",
+-        "websiteURL": "https://github.com/ystory/pstack-for-codex",
+-        "supportURL": "https://github.com/ystory/pstack-for-codex/issues",
+-        "privacyPolicyURL": "https://github.com/ystory/pstack-for-codex/blob/main/plugin/PRIVACY.md",
+-        "termsOfServiceURL": "https://github.com/ystory/pstack-for-codex/blob/main/plugin/TERMS.md"
++        "websiteURL": "https://github.com/ystory/pstack",
++        "supportURL": "https://github.com/ystory/pstack/issues",
++        "privacyPolicyURL": "https://github.com/ystory/pstack/blob/main/plugin/PRIVACY.md",
++        "termsOfServiceURL": "https://github.com/ystory/pstack/blob/main/plugin/TERMS.md"
+       }
+     }
+   }

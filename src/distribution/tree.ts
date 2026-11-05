@@ -72,6 +72,14 @@ export async function copyTree(
 export async function createOutputDirectory(output: string): Promise<void> {
   if (!path.isAbsolute(output))
     throw new Error('Output must be an absolute path.');
-  // Existing output is never replaced, even when empty: failed candidates stay reviewable.
+  await assertPhysicalDirectory(path.dirname(output));
   await mkdir(output, { recursive: false });
+}
+
+export async function assertPhysicalDirectory(
+  directory: string,
+): Promise<void> {
+  const stat = await lstat(directory);
+  if (stat.isSymbolicLink() || !stat.isDirectory())
+    throw new Error(`Expected physical directory, not a symlink: ${directory}`);
 }

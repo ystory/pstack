@@ -1,16 +1,16 @@
 {
-  "name": "pstack-for-codex",
+  "name": "pstack",
   "version": "0.1.0-dev.0",
   "private": true,
   "license": "MIT",
-  "description": "Maintain and verify a Codex adaptation of pstack",
-  "homepage": "https://github.com/ystory/pstack-for-codex#readme",
+  "description": "Maintain and verify Codex and Claude Code adaptations of pstack",
+  "homepage": "https://github.com/ystory/pstack#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ystory/pstack-for-codex.git"
+    "url": "git+https://github.com/ystory/pstack.git"
   },
   "bugs": {
-    "url": "https://github.com/ystory/pstack-for-codex/issues"
+    "url": "https://github.com/ystory/pstack/issues"
   },
   "type": "module",
   "packageManager": "pnpm@12.13.0",
@@ -18,7 +18,7 @@
     "node": ">=24.12.0"
   },
   "bin": {
-    "pstack-for-codex": "dist/cli.js"
+    "pstack": "dist/cli.js"
   },
   "files": [
     "LICENSE",
@@ -31,7 +31,11 @@
     "patches",
     "upstream/cursor-team-kit",
     "dependencies.lock.json",
-    "distribution-policy.json"
+    "distribution-policy.json",
+    "plugin-claude",
+    ".claude-plugin",
+    "upstream/codex-runtime",
+    "codex-runtime.lock.json"
   ],
   "scripts": {
     "format": "prettier --write .",
@@ -42,7 +46,7 @@
     "package:test": "node scripts/check-package.ts",
     "upstream:verify": "node src/cli.ts verify-upstream",
     "upstream:check": "node src/cli.ts check-upstream",
-    "patches:verify": "node src/cli.ts verify-patches",
+    "patches:verify": "node src/cli.ts verify-patches --target all",
     "plugin:build": "node src/cli.ts build-plugin",
     "verify": "pnpm format:check && pnpm typecheck && pnpm test && pnpm build && pnpm package:test && pnpm upstream:verify && pnpm patches:verify"
   },

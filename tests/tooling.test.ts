@@ -255,6 +255,9 @@ test('upstream check uses pstack path revision and reports unchanged and changed
     'https://api.github.com/repos/openai/codex/commits/main',
   );
   assert.ok(calls.every((call) => call.options.signal instanceof AbortSignal));
+  assert.ok(
+    calls.every((call) => call.options.headers['User-Agent'] === 'pstack'),
+  );
 });
 
 test('HTTP and payload errors are failures, not no-update results', async () => {
@@ -331,6 +334,7 @@ test('maintainer CLI supports help and rejects unsupported commands', () => {
     encoding: 'utf8',
   });
   assert.equal(help.status, 0);
+  assert.match(help.stdout, /^pstack maintainer CLI\n/);
   assert.match(help.stdout, /verify-upstream/);
   assert.match(help.stdout, /check-upstream/);
   const invalid = spawnSync(process.execPath, [cli, 'install'], {

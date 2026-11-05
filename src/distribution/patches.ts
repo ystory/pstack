@@ -1,6 +1,9 @@
+import { distributionTarget } from './targets.ts';
+import type { TargetId } from './targets.ts';
 import { spawnSync } from 'node:child_process';
 import {
   chmod,
+  lstat,
   copyFile,
   mkdir,
   mkdtemp,
@@ -11,7 +14,13 @@ import {
 } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { copyTree, inspectTree, sha256, treeDigest } from './tree.ts';
+import {
+  assertPhysicalDirectory,
+  copyTree,
+  inspectTree,
+  sha256,
+  treeDigest,
+} from './tree.ts';
 import { verifySnapshot } from '../upstream/verify.ts';
 import { copyPristinePlugin } from '../upstream/dependencies.ts';
 import { readDistributionPolicy, verifyDistributionPolicy } from './policy.ts';
@@ -42,9 +51,20 @@ export function runGit(
 
 export async function readPatchSeries(
   projectRoot: string,
+  target: TargetId = 'codex',
 ): Promise<PatchRecord[]> {
+  await assertPhysicalDirectory(
+    path.join(projectRoot, distributionTarget(target).patchDirectory),
+  );
   const names = (
-    await readFile(path.join(projectRoot, 'patches', 'series'), 'utf8')
+    await readFile(
+      path.join(
+        projectRoot,
+        distributionTarget(target).patchDirectory,
+        'series',
+      ),
+      'utf8',
+    )
   )
     .split(/\r?\n/)
     .filter((name) => name && !name.startsWith('#'));
@@ -57,24 +77,38 @@ export async function readPatchSeries(
     );
   }
   return Promise.all(
-    names.map(async (name) => ({
-      name,
-      sha256: sha256(await readFile(path.join(projectRoot, 'patches', name))),
-    })),
+    names.map(async (name) => {
+      const file = path.join(
+        projectRoot,
+        distributionTarget(target).patchDirectory,
+        name,
+      );
+      const stat = await lstat(file);
+      if (stat.isSymbolicLink() || !stat.isFile())
+        throw new Error(`Patch must be a physical file: ${name}`);
+      return { name, sha256: sha256(await readFile(file)) };
+    }),
   );
 }
 
 export async function applyPatchSeries(
   projectRoot: string,
   destination: string,
+  target: TargetId = 'codex',
 ): Promise<PatchRecord[]> {
-  const patches = await readPatchSeries(projectRoot);
+  const patches = await readPatchSeries(projectRoot, target);
   const env = {
     ...process.env,
     GIT_CEILING_DIRECTORIES: path.dirname(path.resolve(destination)),
   };
   for (const patch of patches) {
-    const bytes = await readFile(path.join(projectRoot, 'patches', patch.name));
+    const bytes = await readFile(
+      path.join(
+        projectRoot,
+        distributionTarget(target).patchDirectory,
+        patch.name,
+      ),
+    );
     try {
       runGit(destination, ['apply', '--check', '--binary', '-'], bytes, env);
       runGit(destination, ['apply', '--binary', '-'], bytes, env);
@@ -89,20 +123,23 @@ export async function applyPatchSeries(
 
 export async function verifyPatches(
   projectRoot: string,
+  target: TargetId = 'codex',
 ): Promise<{ files: number; digest: string; patches: PatchRecord[] }> {
   await verifySnapshot(projectRoot);
   await verifyDistributionPolicy(
-    path.join(projectRoot, 'plugin'),
+    path.join(projectRoot, distributionTarget(target).pluginDirectory),
     await readDistributionPolicy(projectRoot),
   );
   const temporary = await mkdtemp(
     path.join(os.tmpdir(), 'pstack-patch-replay-'),
   );
   try {
-    await copyPristinePlugin(projectRoot, temporary);
-    const patches = await applyPatchSeries(projectRoot, temporary);
+    await copyPristinePlugin(projectRoot, temporary, target);
+    const patches = await applyPatchSeries(projectRoot, temporary, target);
     const actual = await inspectTree(temporary);
-    const expected = await inspectTree(path.join(projectRoot, 'plugin'));
+    const expected = await inspectTree(
+      path.join(projectRoot, distributionTarget(target).pluginDirectory),
+    );
     if (JSON.stringify(actual) !== JSON.stringify(expected)) {
       const actualMap = new Map(actual.map((entry) => [entry.path, entry]));
       const expectedMap = new Map(expected.map((entry) => [entry.path, entry]));
@@ -131,11 +168,12 @@ export async function generatePatch(
   projectRoot: string,
   name: string,
   selectedPaths?: string[],
+  target: TargetId = 'codex',
 ): Promise<string> {
   if (!/^\d{4}-[a-z0-9-]+\.patch$/.test(name))
     throw new Error('Patch name must be NNNN-lowercase-name.patch.');
   await verifySnapshot(projectRoot);
-  const patches = await readPatchSeries(projectRoot);
+  const patches = await readPatchSeries(projectRoot, target);
   if (patches.some((patch) => patch.name === name))
     throw new Error('Existing patches are immutable; use a new name.');
   if (patches.length && name <= patches.at(-1)!.name)
@@ -162,8 +200,8 @@ export async function generatePatch(
     path.join(os.tmpdir(), 'pstack-patch-generate-'),
   );
   try {
-    await copyPristinePlugin(projectRoot, temporary);
-    await applyPatchSeries(projectRoot, temporary);
+    await copyPristinePlugin(projectRoot, temporary, target);
+    await applyPatchSeries(projectRoot, temporary, target);
     const previousFiles = new Set(
       (await inspectTree(temporary))
         .filter((entry) => entry.kind === 'file')
@@ -178,25 +216,37 @@ export async function generatePatch(
             recursive: true,
             force: true,
           });
-      await copyTree(path.join(projectRoot, 'plugin'), temporary);
+      await copyTree(
+        path.join(projectRoot, distributionTarget(target).pluginDirectory),
+        temporary,
+      );
     } else {
       for (const file of selectedPaths)
         await rm(path.join(temporary, file), { recursive: true, force: true });
-      for (const entry of await inspectTree(path.join(projectRoot, 'plugin'))) {
+      for (const entry of await inspectTree(
+        path.join(projectRoot, distributionTarget(target).pluginDirectory),
+      )) {
         if (
           !selectedPaths.some(
             (file) => entry.path === file || entry.path.startsWith(`${file}/`),
           )
         )
           continue;
-        const target = path.join(temporary, entry.path);
+        const destinationFile = path.join(temporary, entry.path);
         if (entry.kind === 'directory')
-          await mkdir(target, { recursive: true });
+          await mkdir(destinationFile, { recursive: true });
         else {
-          await mkdir(path.dirname(target), { recursive: true });
-          await copyFile(path.join(projectRoot, 'plugin', entry.path), target);
+          await mkdir(path.dirname(destinationFile), { recursive: true });
+          await copyFile(
+            path.join(
+              projectRoot,
+              distributionTarget(target).pluginDirectory,
+              entry.path,
+            ),
+            destinationFile,
+          );
         }
-        await chmod(target, entry.mode);
+        await chmod(destinationFile, entry.mode);
       }
     }
     const newFiles = (await inspectTree(temporary))
@@ -223,12 +273,20 @@ export async function generatePatch(
       '--no-ext-diff',
     ]);
     if (!patch.trim()) throw new Error('No new plugin changes to record.');
-    await writeFile(path.join(projectRoot, 'patches', name), patch, {
-      flag: 'wx',
-    });
     await writeFile(
-      path.join(projectRoot, 'patches', 'series'),
-      `${patches.map((patch) => patch.name).join('\n')}\n${name}\n`,
+      path.join(projectRoot, distributionTarget(target).patchDirectory, name),
+      patch,
+      {
+        flag: 'wx',
+      },
+    );
+    await writeFile(
+      path.join(
+        projectRoot,
+        distributionTarget(target).patchDirectory,
+        'series',
+      ),
+      `${[...patches.map((patch) => patch.name), name].join('\n')}\n`,
     );
     return name;
   } finally {

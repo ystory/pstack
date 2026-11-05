@@ -1,0 +1,34 @@
+diff --git a/docs/guide/07-overnight.md b/docs/guide/07-overnight.md
+index 12bb559..0866f93 100644
+--- a/docs/guide/07-overnight.md
++++ b/docs/guide/07-overnight.md
+@@ -115,7 +115,7 @@ Every loop above still waits for you to start it. A scheduled or event-driven au
+ - Every stage can stop the line. Triage can decide the report is expected behavior, repro can fail to reproduce it, and the fixer can judge the change too risky. Each of those outcomes is useful, because it keeps bad work from reaching the next stage, where it costs more to undo.
+ - Every stage hands over evidence. Repro attaches screenshots and video of the broken state, and the fix attaches before-and-after proof. A human can then check that the agent fixed the right thing before reading a line of code.
+ 
+-The source Benny automation pack is excluded by the distribution policy. For authorized native schedules and webhook-driven work, use [Claude Code wakeups](../../skills/poteto-mode/references/claude-wakeups.md). The make-bot-ui skill can use a configured Claude channel. Its availability must be checked in the actual host.
++For authorized native schedules and webhook-driven work, use [Claude Code wakeups](../../skills/poteto-mode/references/claude-wakeups.md). The make-bot-ui skill can use a configured Claude channel. Its availability must be checked in the actual host.
+ 
+ **Pitfall:** a duration is not a finish condition. "work on this for 4 hours" gives the agent nothing to check, and you'll wake up to four hours of motion instead of a result. Give `/loop` a predicate that can pass or fail.
+ 
+diff --git a/skills/poteto-mode/references/delegation-sites.json b/skills/poteto-mode/references/delegation-sites.json
+index e691ae0..164e707 100644
+--- a/skills/poteto-mode/references/delegation-sites.json
++++ b/skills/poteto-mode/references/delegation-sites.json
+@@ -388,7 +388,7 @@
+     },
+     {
+       "path": "docs/guide/07-overnight.md",
+-      "reason": "Native target installation, commands, host capabilities and upstream attribution."
++      "reason": "Map commands, worktrees and wakeups to Claude Code and omit the reporting automation excluded by the repository distribution policy."
+     },
+     {
+       "path": "docs/guide/08-principles.md",
+@@ -616,7 +616,6 @@
+     }
+   ],
+   "omittedMetadata": ["plugin.json", ".cursor-plugin/plugin.json"],
+-  "excludedByPolicy": ["automations/benny"],
+   "preservedExecutionAdaptations": [
+     "skills/poteto-mode/scripts/bootstrap.ts",
+     "skills/poteto-mode/scripts/check-plan.mjs",

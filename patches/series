@@ -24,3 +24,5 @@
 0024-github-install-guidance.patch
 0025-directory-readiness.patch
 0026-claude-file-permission-guidance.patch
+0027-setup-cli-login-guidance.patch
+0028-project-repository-rename.patch

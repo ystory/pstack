@@ -1,0 +1,44 @@
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 4920adb..afc3f50 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -19,11 +19,13 @@ For an isolated check, pass an absolute temporary `--codex-home` directory. `--d
+ 
+ ### 1. Detect available models
+ 
++Check `node --version` and the selected worker CLIs. For a missing CLI or a logged-out executor, read [CLI installation and login](references/cli-prerequisites.md), guide the authorized installation or human login, then rerun detection. Distinguish ChatGPT subscription login from API-key billing. Detection and catalog reads do not install software, authenticate, or change executor settings.
++
+ Enumerate the actual model IDs and supported reasoning efforts exposed by this session's native subagent tools or model catalog. Prefer Codex `model/list` for completeness when available; collect every page. Native defaults use `gpt-6.1-sol`. The `hardest tasks` default and one entry in each of the four list defaults use the existing Claude Code CLI with pinned `claude-opus-5-5`.
+ 
+ Normalize the detected native catalog with `scripts/models.mjs catalog --input ABSOLUTE_JSON`. It accepts a `model/list` response or `{ "models": [{ "model": "gpt-6.1-sol", "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"] }] }` assembled from the current tool's confirmed choices. Retain the actual supported values. If availability cannot be confirmed, ask for the Codex model IDs and efforts the user can use.
+ 
+-Run the sibling `poteto-mode/scripts/run-claude.mjs detect` with Node.js from its absolute installed path as described in the [execution binding](../poteto-mode/references/codex-execution.md). It discovers the existing executable and checks CLI version and required options. Reuse existing authentication and configuration. Installing Claude, authenticating, and changing Claude settings are separate operations. Normalize both routes with `scripts/models.mjs catalog --input ABSOLUTE_NATIVE_JSON --claude-runtime ABSOLUTE_DETECT_JSON`. The Claude route requires CLI 2.1.280 or newer and supports `low`, `medium`, `high`, `xhigh`, and `max`. A detection receipt confirms CLI capabilities; its `modelExecutionVerified` state remains separate from actual model access and execution evidence. Keep the exact pinned model rather than a moving `opus` alias.
++Run the sibling `poteto-mode/scripts/run-claude.mjs detect` with Node.js from its absolute installed path as described in the [execution binding](../poteto-mode/references/codex-execution.md). It discovers the existing executable and checks CLI version and required options. Reuse existing authentication and configuration. Use the prerequisite guide when installation or login is needed. Installing Claude, authenticating, and changing Claude settings remain separate operations from capability detection. Normalize both routes with `scripts/models.mjs catalog --input ABSOLUTE_NATIVE_JSON --claude-runtime ABSOLUTE_DETECT_JSON`. The Claude route requires CLI 2.1.280 or newer and supports `low`, `medium`, `high`, `xhigh`, and `max`. A detection receipt confirms CLI capabilities; its `modelExecutionVerified` state remains separate from actual model access and execution evidence. Keep the exact pinned model rather than a moving `opus` alias.
+ 
+ `inherit-parent` and `auto` are always valid saved aliases. Both select the literal Codex parent model and effort, and cannot be tagged for Claude execution. Use the shared execution binding when dispatching; omit native override fields only when doing so has been confirmed to preserve those parent settings.
+ 
+diff --git a/skills/setup-pstack/references/cli-prerequisites.md b/skills/setup-pstack/references/cli-prerequisites.md
+new file mode 100644
+index 0000000..093801a
+--- /dev/null
++++ b/skills/setup-pstack/references/cli-prerequisites.md
+@@ -0,0 +1,19 @@
++# Prepare worker CLIs and login
++
++Check Node.js and the executors selected for this Codex host. Detection and model catalog commands do not install software or authenticate. Run an installer when that installation is authorized, then let the user complete interactive login.
++
++## Node.js and Codex
++
++Run `node --version` and `codex --version`. The setup helpers need Node.js 24.12 or newer from the [official Node.js downloads](https://nodejs.org/en/download).
++
++For a missing Codex CLI, follow the [official installation guide](https://developers.openai.com/codex/cli). Its npm route is `npm install -g @openai/codex`. Run `codex login` in a terminal. In a headless environment, or when a localhost browser callback cannot complete, use `codex login --device-auth` as described in the [authentication guide](https://learn.chatgpt.com/docs/auth). Device login may require account or workspace enablement.
++
++ChatGPT login uses the account's Codex plan. API-key login uses OpenAI API billing. Follow the official auth flow for the chosen method outside the conversation. Do not print credentials or read credential caches into the chat. Recheck login status and the actual model catalog after login.
++
++## Claude Code workers
++
++When the user selects the existing external Claude route, run the bundled `run-claude.mjs detect`. If the CLI is missing, use the [official Claude installation guide](https://code.claude.com/docs/en/setup). On macOS, Linux, or WSL, its native installer is `curl -fsSL https://claude.ai/install.sh | bash`. Use that guide's Windows commands on Windows.
++
++Run `claude auth status` to inspect login. If logged out, guide `claude auth login` in a terminal, or `/login` inside Claude Code. The [authentication guide](https://code.claude.com/docs/en/authentication) describes subscription, Console, and provider methods. Reuse the user's intended account and organization settings.
++
++Rerun the existing capability detector after installation or login. The external route still requires the existing pinned model and supported CLI options. CLI capability, login state, model access, and successful execution remain separate evidence. Claude-only setup does not replace or change the Codex host's own authentication.

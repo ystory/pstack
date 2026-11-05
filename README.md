@@ -57,7 +57,7 @@ If setup cannot find `node`, `claude`, or `codex`, check the command's installat
 3. Paste this source in the URL field and select **Sync**:
 
    ```text
-   https://github.com/ystory/pstack-for-codex.git#codex/claude-workflows
+   ystory/pstack-for-codex#codex/claude-workflows
    ```
 
 4. Open the `pstack-cc` entry from that marketplace and install it for your user account. Confirm that the plugin appears as installed and enabled.

@@ -125,7 +125,7 @@ async function fixture(t: TestContext) {
   await writeFile(
     path.join(project, 'plugin', 'plugin.json'),
     JSON.stringify({
-      name: 'pstack-for-codex',
+      name: 'pstack-codex',
       version: '1.0.0',
       license: 'MIT',
     }),
@@ -441,7 +441,7 @@ test('a Codex-only build keeps its existing source contract when an unused Claud
   assert.equal(
     (await buildDistributionArtifact(project, path.join(root, 'codex-only')))
       .name,
-    'pstack-for-codex',
+    'pstack-codex',
   );
   await assert.rejects(
     buildDistributionArtifact(

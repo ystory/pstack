@@ -10,7 +10,7 @@ Run the sibling setup helper with its absolute path:
 node <skills>/setup-pstack/scripts/models.mjs resolve --role "<role>"
 ```
 
-It reads `$CODEX_HOME/pstack-for-codex/models.json`, or `~/.codex/pstack-for-codex/models.json` when `CODEX_HOME` is unset. The response contains `role`, ordered `entries`, `source`, and `file`. Each entry supplies `model`, its saved budget's starting `reasoningEffort`, and an optional `executor`. An absent executor or `"codex"` uses native Codex delegation. `"claude-code"` uses the bundled Claude Code runner with that entry's exact model ID. Pass it explicitly as `--model ENTRY.MODEL`.
+It reads `$CODEX_HOME/pstack-codex/models.json`, or `~/.codex/pstack-codex/models.json` when `CODEX_HOME` is unset. The response contains `role`, ordered `entries`, `source`, and `file`. Each entry supplies `model`, its saved budget's starting `reasoningEffort`, and an optional `executor`. An absent executor or `"codex"` uses native Codex delegation. `"claude-code"` uses the bundled Claude Code runner with that entry's exact model ID. Pass it explicitly as `--model ENTRY.MODEL`.
 
 A missing role uses the bundled default. Ordinary implementation and investigation, judgment and prose, how, why, reflect, and scalar swarm workers default to native `gpt-6.1-sol`. Only `hardest tasks` defaults to Claude Code `claude-opus-5-5`. The `arena runners`, `architect runners`, and `interrogate reviewers` defaults each contain one Sol seat and one Opus seat. The `arena cross-judge pool` contains those two choices, from which the caller selects one judge.
 

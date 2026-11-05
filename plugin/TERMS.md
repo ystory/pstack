@@ -4,9 +4,9 @@ Last updated: 2026-10-15
 
 ## Open-source licenses
 
-pstack-for-codex is a free, unofficial open-source adaptation of pstack for Codex. Its software and documentation are provided under the included licenses:
+pstack-codex is a free, unofficial open-source adaptation of pstack for Codex. Its software and documentation are provided under the included licenses:
 
-- [Codex adaptation: MIT](licenses/pstack-for-codex/LICENSE)
+- [Codex adaptation: MIT](licenses/pstack-codex/LICENSE)
 - [pstack: MIT](LICENSE)
 - [Bundled cursor-team-kit skills: MIT](licenses/cursor-team-kit/LICENSE)
 

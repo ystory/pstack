@@ -413,7 +413,7 @@ async function main(options) {
   if (!path.isAbsolute(selectedHome))
     throw new Error('Codex home must be an absolute path.');
   const codexHome = path.resolve(selectedHome);
-  const directory = path.join(codexHome, 'pstack-for-codex');
+  const directory = path.join(codexHome, 'pstack-codex');
   const file = path.join(directory, 'models.json');
   await inspect(codexHome, true);
   await inspect(directory, true);

@@ -529,8 +529,8 @@ test('full native model IDs retain context modifiers through catalog save read a
 
 test('saving Claude choices leaves independent Codex preferences and unrelated Claude files byte-identical', async (t) => {
   const f = await fixture(t);
-  await mkdir(path.join(f.codex, 'pstack-for-codex'), { recursive: true });
-  const codexFile = path.join(f.codex, 'pstack-for-codex/models.json');
+  await mkdir(path.join(f.codex, 'pstack-codex'), { recursive: true });
+  const codexFile = path.join(f.codex, 'pstack-codex/models.json');
   await writeFile(codexFile, 'Codex-owned fixture bytes\n');
   await mkdir(f.home, { recursive: true });
   const settings = path.join(f.home, 'settings.json');

@@ -1,6 +1,6 @@
 # Global model choices
 
-`scripts/models.mjs` stores user choices outside the plugin at `$CODEX_HOME/pstack-for-codex/models.json` (default `~/.codex/pstack-for-codex/models.json`). Resolve the script from the actual installed skill path. An explicit `--codex-home ABSOLUTE_PATH` selects an isolated destination without changing environment variables.
+`scripts/models.mjs` stores user choices outside the plugin at `$CODEX_HOME/pstack-codex/models.json` (default `~/.codex/pstack-codex/models.json`). Resolve the script from the actual installed skill path. An explicit `--codex-home ABSOLUTE_PATH` selects an isolated destination without changing environment variables.
 
 ```json
 {

@@ -52,7 +52,7 @@ function rawLock(): Record<string, unknown> {
 }
 
 async function fixture(t: TestContext) {
-  const root = await mkdtemp(path.join(os.tmpdir(), 'pstack-for-codex-test-'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'pstack-codex-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const snapshotRoot = path.join(root, 'upstream', 'pstack');
   await mkdir(path.join(snapshotRoot, '.cursor-plugin'), { recursive: true });

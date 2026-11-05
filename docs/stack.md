@@ -77,10 +77,10 @@ To install a selected local artifact, add the fixed local marketplace and instal
 
 ```sh
 codex plugin marketplace add "$PWD/.local/artifacts"
-codex plugin add pstack-for-codex@pstack-for-codex
+codex plugin add pstack-codex@pstack-codex
 ```
 
-After building or promoting another artifact, repeat `codex plugin add pstack-for-codex@pstack-for-codex`, then rerun setup. For a selected local Claude artifact, use `/plugin marketplace add /absolute/claude-marketplace` and `/plugin install pstack-cc@pstack-cc` in Claude Code, then rerun `/pstack-cc:setup-pstack`. For the GitHub installation routes and setup, see the [README](../README.md). Both routes use the same marketplace identity; use the route you intend to maintain.
+After building or promoting another artifact, repeat `codex plugin add pstack-codex@pstack-codex`, then rerun setup. For a selected local Claude artifact, use `/plugin marketplace add /absolute/claude-marketplace` and `/plugin install pstack-cc@pstack-cc` in Claude Code, then rerun `/pstack-cc:setup-pstack`. For the GitHub installation routes and setup, see the [README](../README.md). Both routes use the same marketplace identity; use the route you intend to maintain.
 
 ## Review an upstream update
 

@@ -169,14 +169,14 @@ try {
     throw new Error('Packed CLI did not verify its distributable plugin.');
   const codexHome = path.join(temporaryRoot, 'isolated-codex-home');
   await mkdir(path.join(codexHome, 'agents'), { recursive: true });
-  await mkdir(path.join(codexHome, 'pstack-for-codex'));
+  await mkdir(path.join(codexHome, 'pstack-codex'));
   const preservedSettings = '{"userChoice":"preserve"}\n';
   await writeFile(
     path.join(codexHome, 'config.toml'),
     'model = "user-model"\n',
   );
   await writeFile(
-    path.join(codexHome, 'pstack-for-codex', 'models.json'),
+    path.join(codexHome, 'pstack-codex', 'models.json'),
     preservedSettings,
   );
   await writeFile(
@@ -200,13 +200,13 @@ try {
   register(['--dry-run']);
   register();
   const beforeRegistration = await readFile(
-    path.join(codexHome, 'pstack-for-codex', 'agent-registration.json'),
+    path.join(codexHome, 'pstack-codex', 'agent-registration.json'),
   );
   register();
   if (
     !(
       await readFile(
-        path.join(codexHome, 'pstack-for-codex', 'agent-registration.json'),
+        path.join(codexHome, 'pstack-codex', 'agent-registration.json'),
       )
     ).equals(beforeRegistration)
   )
@@ -234,7 +234,7 @@ try {
   if (
     JSON.parse(
       await readFile(
-        path.join(codexHome, 'pstack-for-codex', 'agent-registration.json'),
+        path.join(codexHome, 'pstack-codex', 'agent-registration.json'),
         'utf8',
       ),
     ).pluginVersion !== fixtureManifest.version
@@ -259,7 +259,7 @@ try {
     throw new Error('Unregister did not preserve unowned agent files.');
   if (
     (await readFile(
-      path.join(codexHome, 'pstack-for-codex', 'models.json'),
+      path.join(codexHome, 'pstack-codex', 'models.json'),
       'utf8',
     )) !== preservedSettings ||
     (await readFile(path.join(codexHome, 'config.toml'), 'utf8')) !==
@@ -829,7 +829,7 @@ try {
     (await readFile(path.join(claudeHome, 'agents/user-agent.md'), 'utf8')) !==
       'Unrelated Claude agent.\n' ||
     (await readFile(
-      path.join(codexHome, 'pstack-for-codex/models.json'),
+      path.join(codexHome, 'pstack-codex/models.json'),
       'utf8',
     )) !== preservedSettings
   )

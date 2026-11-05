@@ -5,7 +5,7 @@ description: Register pstack's bundled Codex agents and configure per-role model
 
 # Setup pstack
 
-Save pstack's per-role choices in `$CODEX_HOME/pstack-for-codex/models.json`, or `~/.codex/pstack-for-codex/models.json` when `CODEX_HOME` is unset. These choices belong to the user and survive plugin updates and rollbacks. Resolve every bundled helper relative to this installed `SKILL.md`, then run Node.js with the helper's absolute path.
+Save pstack's per-role choices in `$CODEX_HOME/pstack-codex/models.json`, or `~/.codex/pstack-codex/models.json` when `CODEX_HOME` is unset. These choices belong to the user and survive plugin updates and rollbacks. Resolve every bundled helper relative to this installed `SKILL.md`, then run Node.js with the helper's absolute path.
 
 ## Steps
 

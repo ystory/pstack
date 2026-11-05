@@ -89,7 +89,7 @@ async function fixture(t: TestContext) {
     'setup-pstack/scripts/models.mjs',
   );
   const codexHome = path.join(root, 'isolated-codex');
-  const file = path.join(codexHome, 'pstack-for-codex/models.json');
+  const file = path.join(codexHome, 'pstack-codex/models.json');
   const catalog = path.join(root, 'catalog.json');
   await writeFile(
     catalog,

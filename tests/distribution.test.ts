@@ -78,13 +78,13 @@ async function fixture(t: TestContext) {
   );
   await writeFile(
     path.join(project, 'patches', '0001-plugin-identity.patch'),
-    '--- a/plugin.json\n+++ b/plugin.json\n@@ -1,5 +1,5 @@\n {\n-  "name": "pstack",\n+  "name": "pstack-for-codex",\n   "version": "0.15.24",\n   "license": "MIT"\n }\n',
+    '--- a/plugin.json\n+++ b/plugin.json\n@@ -1,5 +1,5 @@\n {\n-  "name": "pstack",\n+  "name": "pstack-codex",\n   "version": "0.15.24",\n   "license": "MIT"\n }\n',
   );
   const plugin = path.join(project, 'plugin');
   await copyTree(upstream, plugin);
   await writeFile(
     path.join(plugin, 'plugin.json'),
-    manifest.replace('"pstack"', '"pstack-for-codex"'),
+    manifest.replace('"pstack"', '"pstack-codex"'),
   );
   return { root, project, upstream, plugin, lock };
 }

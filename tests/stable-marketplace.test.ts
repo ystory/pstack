@@ -73,13 +73,13 @@ async function fixture(t: TestContext) {
   );
   await writeFile(
     path.join(project, 'patches', '0001-identity.patch'),
-    '--- a/plugin.json\n+++ b/plugin.json\n@@ -1,5 +1,5 @@\n {\n-  "name": "pstack",\n+  "name": "pstack-for-codex",\n   "version": "0.15.24",\n   "license": "MIT"\n }\n',
+    '--- a/plugin.json\n+++ b/plugin.json\n@@ -1,5 +1,5 @@\n {\n-  "name": "pstack",\n+  "name": "pstack-codex",\n   "version": "0.15.24",\n   "license": "MIT"\n }\n',
   );
   const plugin = path.join(project, 'plugin');
   await copyTree(upstream, plugin);
   await writeFile(
     path.join(plugin, 'plugin.json'),
-    manifest.replace('"pstack"', '"pstack-for-codex"'),
+    manifest.replace('"pstack"', '"pstack-codex"'),
   );
   const marketplace = path.join(root, 'artifacts');
   await mkdir(marketplace);
@@ -106,7 +106,7 @@ test('a verified build selects its immutable child through the fixed native mark
   );
   assert.equal(result.status, 0, result.stderr);
   const manifest = JSON.parse(await readFile(marketplaceManifest, 'utf8'));
-  assert.equal(manifest.name, 'pstack-for-codex');
+  assert.equal(manifest.name, 'pstack-codex');
   assert.equal(manifest.plugins[0].source.path, './first/plugin');
   const installedSource = path.resolve(
     marketplace,
@@ -119,9 +119,9 @@ test('a verified build selects its immutable child through the fixed native mark
   assert.equal(runCli('verify-plugin', '--artifact', artifact).status, 0);
 });
 
-test('previous marketplace artifacts verify unchanged and promote under the current name', async (t) => {
-  const { project, marketplace, marketplaceManifest } = await fixture(t);
-  const artifact = path.join(marketplace, 'previous');
+test('artifacts reject a different marketplace identity even with a matching digest', async (t) => {
+  const { project, marketplace } = await fixture(t);
+  const artifact = path.join(marketplace, 'wrong-name');
   assert.equal(
     runCli('build-plugin', '--project', project, '--output', artifact).status,
     0,
@@ -133,57 +133,24 @@ test('previous marketplace artifacts verify unchanged and promote under the curr
     'marketplace.json',
   );
   const metadataFile = path.join(artifact, 'artifact.json');
-  const previousManifest = JSON.parse(await readFile(embeddedFile, 'utf8'));
-  previousManifest.name = 'pstack-for-codex-local';
-  const previousBytes = `${JSON.stringify(previousManifest, null, 2)}\n`;
-  await writeFile(embeddedFile, previousBytes);
-  assert.equal(runCli('verify-plugin', '--artifact', artifact).status, 1);
+  const manifest = JSON.parse(await readFile(embeddedFile, 'utf8'));
+  manifest.name = 'another-marketplace';
+  const bytes = `${JSON.stringify(manifest, null, 2)}\n`;
   const metadata = JSON.parse(await readFile(metadataFile, 'utf8'));
-  metadata.marketplaceSha256 = sha256(previousBytes);
+  metadata.marketplaceSha256 = sha256(bytes);
+  await writeFile(embeddedFile, bytes);
   await writeFile(metadataFile, `${JSON.stringify(metadata, null, 2)}\n`);
-  const previousTree = await inspectTree(artifact);
-  const verification = runCli('verify-plugin', '--artifact', artifact);
-  assert.equal(verification.status, 0, verification.stderr);
-  const promotion = runCli(
-    'promote-plugin',
-    '--artifact',
-    artifact,
-    '--marketplace',
-    marketplace,
-  );
-  assert.equal(promotion.status, 0, promotion.stderr);
-  const selectedBytes = await readFile(marketplaceManifest);
-  const selected = JSON.parse(selectedBytes.toString('utf8'));
-  assert.equal(selected.name, 'pstack-for-codex');
-  assert.equal(selected.plugins[0].source.path, './previous/plugin');
-  assert.deepEqual(await inspectTree(artifact), previousTree);
-
-  const invalid = path.join(marketplace, 'invalid');
-  await copyTree(artifact, invalid);
-  previousManifest.plugins[0].source.path = '../plugin';
-  const invalidBytes = `${JSON.stringify(previousManifest, null, 2)}\n`;
-  metadata.marketplaceSha256 = sha256(invalidBytes);
-  await writeFile(
-    path.join(invalid, '.agents', 'plugins', 'marketplace.json'),
-    invalidBytes,
-  );
-  await writeFile(
-    path.join(invalid, 'artifact.json'),
-    `${JSON.stringify(metadata, null, 2)}\n`,
-  );
-  assert.equal(runCli('verify-plugin', '--artifact', invalid).status, 1);
+  assert.equal(runCli('verify-plugin', '--artifact', artifact).status, 1);
   assert.equal(
     runCli(
       'promote-plugin',
       '--artifact',
-      invalid,
+      artifact,
       '--marketplace',
       marketplace,
     ).status,
     1,
   );
-  assert.deepEqual(await readFile(marketplaceManifest), selectedBytes);
-  assert.deepEqual(await inspectTree(artifact), previousTree);
 });
 
 test('staged builds leave selection alone until promotion advances the same-version source', async (t) => {

@@ -15,6 +15,8 @@ Check `node --version` first. The helpers require Node.js 24.12 or newer. If Nod
 
 Run `scripts/detect.mjs detect`. Report Node and Claude versions, native effort support, and each executor's login state. It checks Claude's CLI and auth status and the bundled Codex runner's capabilities. It does not install, authenticate, read credential files, or change settings.
 
+Report `configuration.claudeHome` as the setup configuration target and `claude.cli.environment` as the inherited CLI environment used for authentication. `--claude-home` changes the configuration target only. Existing CLI authentication stays in the inherited environment, including an existing `CLAUDE_CONFIG_DIR`. An intentionally selected environment profile keeps its own login state.
+
 Claude-only choices do not require Codex. For a selected executor that is missing or logged out, read [the prerequisite guide](references/prerequisites.md), guide installation or login, then rerun detection. Distinguish ChatGPT subscription login from OpenAI API-key billing. Keep interactive login in the user's terminal or the host's normal login flow. Never ask the user to paste credentials into the conversation.
 
 Native exact-model choices use generated agent definitions and per-invocation effort. Claude Code 2.1.292 introduced that effort parameter. If the installed host lacks the parameter, guide an update before configuring explicit native effort. Inspect the active tool schema as well as the version.

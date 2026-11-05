@@ -1,6 +1,6 @@
 # Claude setup helper contract
 
-The helpers are standalone Node.js scripts. They need no package installation or build. Resolve their paths from the installed setup skill. Paths supplied as arguments are absolute. `--claude-home ABS` selects an isolated host home for every stateful command. Otherwise the home is `CLAUDE_CONFIG_DIR`, or `~/.claude` when unset.
+The helpers are standalone Node.js scripts. They need no package installation or build. Resolve their paths from the installed setup skill. Paths supplied as arguments are absolute. `--claude-home ABS` selects the configuration home for settings inspection, preferences, and agent registration. Otherwise the configuration home is `CLAUDE_CONFIG_DIR`, or `~/.claude` when unset.
 
 ## Saved choices
 
@@ -76,6 +76,8 @@ Normalized entries have `executor`, `model`, and `supportedReasoningEfforts`. Na
 - `register-agents.mjs [--input ABS] [--dry-run] [--unregister]` manages owned native definitions. With no input, it uses saved preferences. Removal retains preferences.
 - `detect.mjs detect` reports Node, Claude, Codex, capability and auth evidence, configured native candidates, and applicable install or login guidance.
 - `detect.mjs catalog --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` and `--codex-executable ABS` select existing CLI executables for either detection command.
+
+Detection reports the configuration target in `configuration.claudeHome`. Claude version, help, and authentication checks use the unchanged inherited CLI environment. `claude.cli.environment.source` is `inherited`. Its `claudeConfigDir` contains the inherited `CLAUDE_CONFIG_DIR` value, or `null` when the CLI uses its default lookup. `--claude-home` does not relocate credentials or select another authentication profile. A profile selected through the inherited environment keeps its own login state. Detection copies no credentials and writes no setup files.
 
 `KIND` is `general-purpose`, `poteto-agent`, `comment-sicko`, or `read-only`. An explicit Claude selection resolves to `pstack-cc-KIND-HASH`, where `HASH` is the first 16 hexadecimal characters of the exact model ID's SHA-256. Definitions are in `agents/pstack-cc/` under the Claude home. Parent aliases and unsaved native defaults resolve to `pstack-cc:KIND`. The readonly kind disallows `Write`, `Edit`, and `NotebookEdit` and retains the general-purpose body. Codex entries do not receive a native agent type.
 

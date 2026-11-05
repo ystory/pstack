@@ -1,0 +1,91 @@
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 02e833e..7b51eb6 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -15,6 +15,8 @@ Check `node --version` first. The helpers require Node.js 24.12 or newer. If Nod
+ 
+ Run `scripts/detect.mjs detect`. Report Node and Claude versions, native effort support, and each executor's login state. It checks Claude's CLI and auth status and the bundled Codex runner's capabilities. It does not install, authenticate, read credential files, or change settings.
+ 
++Report `configuration.claudeHome` as the setup configuration target and `claude.cli.environment` as the inherited CLI environment used for authentication. `--claude-home` changes the configuration target only. Existing CLI authentication stays in the inherited environment, including an existing `CLAUDE_CONFIG_DIR`. An intentionally selected environment profile keeps its own login state.
++
+ Claude-only choices do not require Codex. For a selected executor that is missing or logged out, read [the prerequisite guide](references/prerequisites.md), guide installation or login, then rerun detection. Distinguish ChatGPT subscription login from OpenAI API-key billing. Keep interactive login in the user's terminal or the host's normal login flow. Never ask the user to paste credentials into the conversation.
+ 
+ Native exact-model choices use generated agent definitions and per-invocation effort. Claude Code 2.1.292 introduced that effort parameter. If the installed host lacks the parameter, guide an update before configuring explicit native effort. Inspect the active tool schema as well as the version.
+diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
+index 444ac2c..f6551e2 100644
+--- a/skills/setup-pstack/references/models-contract.md
++++ b/skills/setup-pstack/references/models-contract.md
+@@ -1,6 +1,6 @@
+ # Claude setup helper contract
+ 
+-The helpers are standalone Node.js scripts. They need no package installation or build. Resolve their paths from the installed setup skill. Paths supplied as arguments are absolute. `--claude-home ABS` selects an isolated host home for every stateful command. Otherwise the home is `CLAUDE_CONFIG_DIR`, or `~/.claude` when unset.
++The helpers are standalone Node.js scripts. They need no package installation or build. Resolve their paths from the installed setup skill. Paths supplied as arguments are absolute. `--claude-home ABS` selects the configuration home for settings inspection, preferences, and agent registration. Otherwise the configuration home is `CLAUDE_CONFIG_DIR`, or `~/.claude` when unset.
+ 
+ ## Saved choices
+ 
+@@ -77,6 +77,8 @@ Normalized entries have `executor`, `model`, and `supportedReasoningEfforts`. Na
+ - `detect.mjs detect` reports Node, Claude, Codex, capability and auth evidence, configured native candidates, and applicable install or login guidance.
+ - `detect.mjs catalog --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` and `--codex-executable ABS` select existing CLI executables for either detection command.
+ 
++Detection reports the configuration target in `configuration.claudeHome`. Claude version, help, and authentication checks use the unchanged inherited CLI environment. `claude.cli.environment.source` is `inherited`. Its `claudeConfigDir` contains the inherited `CLAUDE_CONFIG_DIR` value, or `null` when the CLI uses its default lookup. `--claude-home` does not relocate credentials or select another authentication profile. A profile selected through the inherited environment keeps its own login state. Detection copies no credentials and writes no setup files.
++
+ `KIND` is `general-purpose`, `poteto-agent`, `comment-sicko`, or `read-only`. An explicit Claude selection resolves to `pstack-cc-KIND-HASH`, where `HASH` is the first 16 hexadecimal characters of the exact model ID's SHA-256. Definitions are in `agents/pstack-cc/` under the Claude home. Parent aliases and unsaved native defaults resolve to `pstack-cc:KIND`. The readonly kind disallows `Write`, `Edit`, and `NotebookEdit` and retains the general-purpose body. Codex entries do not receive a native agent type.
+ 
+ ## Registration ownership
+diff --git a/skills/setup-pstack/references/prerequisites.md b/skills/setup-pstack/references/prerequisites.md
+index 008e292..ed5172f 100644
+--- a/skills/setup-pstack/references/prerequisites.md
++++ b/skills/setup-pstack/references/prerequisites.md
+@@ -18,6 +18,8 @@ For Windows, use that guide's PowerShell or CMD instructions. After installation
+ 
+ Use `claude auth status` to inspect login state. If logged out, run `claude auth login` in a terminal, or use the host's `/login` flow. The [Claude authentication guide](https://code.claude.com/docs/en/authentication) describes subscription, Console, and provider authentication. Reuse the selected account and organization configuration. Do not copy tokens into setup files.
+ 
++Detection checks the existing CLI login through the inherited environment, including any existing `CLAUDE_CONFIG_DIR`. The helper flag `--claude-home` selects where setup inspects and saves configuration. It does not change the CLI authentication environment. The detection receipt reports both locations. To use a different CLI profile, launch setup with that profile's environment and use its normal login flow if needed.
++
+ ## Codex workers
+ 
+ Codex is optional when every worker uses native Claude. Check `codex --version` and the bundled runner's `detect` result. The [official Codex CLI guide](https://developers.openai.com/codex/cli) provides installation options, including this npm command.
+diff --git a/skills/setup-pstack/scripts/detect.mjs b/skills/setup-pstack/scripts/detect.mjs
+index df6e89e..20ecca8 100644
+--- a/skills/setup-pstack/scripts/detect.mjs
++++ b/skills/setup-pstack/scripts/detect.mjs
+@@ -114,15 +114,16 @@ await run(async () => {
+   const home = claudeHome(options.claudeHome);
+   await inspect(home, true);
+   const executable = await executableFor(options.claudeExecutable, 'claude');
+-  const env = { ...process.env, CLAUDE_CONFIG_DIR: home };
+-  const versionResult = executable && invoke(executable, ['--version'], env);
+-  const helpResult = executable && invoke(executable, ['--help'], env);
++  const versionResult =
++    executable && invoke(executable, ['--version'], process.env);
++  const helpResult = executable && invoke(executable, ['--help'], process.env);
+   const version =
+     versionResult && succeeded(versionResult)
+       ? (versionResult.stdout.match(/\d+\.\d+\.\d+(?:[-+][\w.-]+)?/)?.[0] ??
+         null)
+       : null;
+-  const authResult = executable && invoke(executable, ['auth', 'status'], env);
++  const authResult =
++    executable && invoke(executable, ['auth', 'status'], process.env);
+   let auth;
+   if (authResult && !authResult.error && [0, 1].includes(authResult.status)) {
+     try {
+@@ -141,6 +142,10 @@ await run(async () => {
+         helpResult.stdout.includes('--agents'),
+       ),
+       perCallEffort: versionAtLeast(version, '2.1.292'),
++      environment: {
++        source: 'inherited',
++        claudeConfigDir: process.env.CLAUDE_CONFIG_DIR ?? null,
++      },
+     },
+     auth: {
+       verified: Boolean(auth && typeof auth.loggedIn === 'boolean'),
+@@ -209,6 +214,7 @@ await run(async () => {
+     });
+   return {
+     schemaVersion: 1,
++    configuration: { claudeHome: home },
+     node: {
+       executable: process.execPath,
+       version: process.version,

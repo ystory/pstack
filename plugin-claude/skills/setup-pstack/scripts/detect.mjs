@@ -114,15 +114,16 @@ await run(async () => {
   const home = claudeHome(options.claudeHome);
   await inspect(home, true);
   const executable = await executableFor(options.claudeExecutable, 'claude');
-  const env = { ...process.env, CLAUDE_CONFIG_DIR: home };
-  const versionResult = executable && invoke(executable, ['--version'], env);
-  const helpResult = executable && invoke(executable, ['--help'], env);
+  const versionResult =
+    executable && invoke(executable, ['--version'], process.env);
+  const helpResult = executable && invoke(executable, ['--help'], process.env);
   const version =
     versionResult && succeeded(versionResult)
       ? (versionResult.stdout.match(/\d+\.\d+\.\d+(?:[-+][\w.-]+)?/)?.[0] ??
         null)
       : null;
-  const authResult = executable && invoke(executable, ['auth', 'status'], env);
+  const authResult =
+    executable && invoke(executable, ['auth', 'status'], process.env);
   let auth;
   if (authResult && !authResult.error && [0, 1].includes(authResult.status)) {
     try {
@@ -141,6 +142,10 @@ await run(async () => {
         helpResult.stdout.includes('--agents'),
       ),
       perCallEffort: versionAtLeast(version, '2.1.292'),
+      environment: {
+        source: 'inherited',
+        claudeConfigDir: process.env.CLAUDE_CONFIG_DIR ?? null,
+      },
     },
     auth: {
       verified: Boolean(auth && typeof auth.loggedIn === 'boolean'),
@@ -209,6 +214,7 @@ await run(async () => {
     });
   return {
     schemaVersion: 1,
+    configuration: { claudeHome: home },
     node: {
       executable: process.execPath,
       version: process.version,

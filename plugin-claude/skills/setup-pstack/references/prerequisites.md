@@ -18,6 +18,8 @@ For Windows, use that guide's PowerShell or CMD instructions. After installation
 
 Use `claude auth status` to inspect login state. If logged out, run `claude auth login` in a terminal, or use the host's `/login` flow. The [Claude authentication guide](https://code.claude.com/docs/en/authentication) describes subscription, Console, and provider authentication. Reuse the selected account and organization configuration. Do not copy tokens into setup files.
 
+Detection checks the existing CLI login through the inherited environment, including any existing `CLAUDE_CONFIG_DIR`. The helper flag `--claude-home` selects where setup inspects and saves configuration. It does not change the CLI authentication environment. The detection receipt reports both locations. To use a different CLI profile, launch setup with that profile's environment and use its normal login flow if needed.
+
 ## Codex workers
 
 Codex is optional when every worker uses native Claude. Check `codex --version` and the bundled runner's `detect` result. The [official Codex CLI guide](https://developers.openai.com/codex/cli) provides installation options, including this npm command.

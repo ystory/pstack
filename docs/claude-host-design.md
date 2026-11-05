@@ -18,6 +18,8 @@ The Claude Code host reads its own role configuration. It uses the native Agent 
 
 Reuse the host's asynchronous execution and completion events. A foreground runner calls the bundled official runtime's direct app-server path inside Claude Code's background Bash. Each run owns its process and receipt. It waits for a real terminal event and resumes only an explicit thread. The companion CLI's shared broker and last-task lookup are outside this execution path.
 
+The workflow's parent owns the launch. It sets the supported native background timeout explicitly and reads retained result files after completion. Setup's configuration target is separate from the inherited CLI authentication environment.
+
 Saved exact Claude selections use generated native definitions. Unsaved roles use the upstream native parent or disclosed Opus-alias defaults through static agents. Readonly source sites use a native kind that excludes file-editing tools. This is not an OS-level write boundary. Existing workflow requirements determine worktree isolation and when a worker may resume.
 
 Named runtime paths were verified on Claude Code 2.1.317 and Codex CLI 0.165.0. The scope and unexposed settings are recorded in [Design and compatibility](spec.md).

@@ -7,6 +7,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   stat,
   symlink,
@@ -952,6 +953,79 @@ test('detect reports missing optional Codex and logged-out Claude guidance witho
   assert.ok(!result.stdout.includes('private@example'));
   await assert.rejects(stat(f.home), { code: 'ENOENT' });
 });
+
+for (const configuredProfile of [true, false]) {
+  for (const loggedIn of [true, false]) {
+    test(`detect uses the inherited ${configuredProfile ? 'configured' : 'default'} CLI profile when the preferences target differs and login is ${loggedIn}`, async (t) => {
+      const f = await fixture(t);
+      const hostHome = path.join(f.root, 'existing CLI profile');
+      const targetHome = path.join(f.root, 'empty preferences target');
+      const credentialFile = path.join(hostHome, '.credentials.json');
+      const credentials = JSON.stringify({
+        loggedIn,
+        token: 'private-fixture-credential',
+      });
+      await mkdir(hostHome);
+      await writeFile(credentialFile, credentials, { mode: 0o600 });
+      const fake = path.join(f.root, 'profile-aware claude');
+      await writeFile(
+        fake,
+        `#!${process.execPath}\nimport { readFileSync } from 'node:fs';\nimport path from 'node:path';\nconst home = process.env.CLAUDE_CONFIG_DIR ?? process.env.PSTACK_FIXTURE_AUTH_HOME;\nconst inherited = home === process.env.PSTACK_FIXTURE_AUTH_HOME;\nif (process.argv.includes('--version')) console.log(inherited ? '2.1.292' : '0.0.0');\nelse if (process.argv.includes('--help')) console.log(inherited ? '--agents --effort' : '');\nelse {\n  const loggedIn = inherited && JSON.parse(readFileSync(path.join(home, '.credentials.json'), 'utf8')).loggedIn;\n  console.log(JSON.stringify({ loggedIn, authMethod: loggedIn ? 'oauth_token' : 'none', apiKey: 'private-fixture-credential' }));\n  process.exitCode = loggedIn ? 0 : 1;\n}\n`,
+      );
+      await chmod(fake, 0o755);
+      const env = {
+        CLAUDE_CONFIG_DIR: configuredProfile ? hostHome : undefined,
+        PSTACK_FIXTURE_AUTH_HOME: hostHome,
+        PSTACK_FIXTURE_CODEX: JSON.stringify({
+          cli: { available: false },
+          auth: { verified: false, loggedIn: null, method: null },
+        }),
+      };
+      const result = f.invoke(
+        'detect.mjs',
+        ['detect', '--claude-home', targetHome, '--claude-executable', fake],
+        env,
+      );
+      assert.equal(result.status, 0, result.stderr);
+      const detection = JSON.parse(result.stdout);
+      assert.equal(detection.claude.auth.loggedIn, loggedIn);
+      assert.equal(detection.claude.auth.verified, true);
+      assert.equal(
+        detection.claude.auth.method,
+        loggedIn ? 'oauth_token' : 'none',
+      );
+      assert.equal(detection.claude.cli.version, '2.1.292');
+      assert.equal(detection.claude.cli.agentDefinitions, true);
+      assert.deepEqual(detection.claude.cli.environment, {
+        source: 'inherited',
+        claudeConfigDir: configuredProfile ? hostHome : null,
+      });
+      assert.equal(detection.configuration.claudeHome, targetHome);
+      assert.equal(
+        detection.guidance.some(
+          (entry: { command?: string }) =>
+            entry.command === 'claude auth login',
+        ),
+        !loggedIn,
+      );
+      assert.ok(!result.stdout.includes('private-fixture-credential'));
+      const preferences = f.invoke(
+        'models.mjs',
+        ['read', '--claude-home', targetHome],
+        env,
+      );
+      assert.equal(preferences.status, 0, preferences.stderr);
+      assert.equal(
+        JSON.parse(preferences.stdout).file,
+        path.join(targetHome, 'pstack-cc/models.json'),
+      );
+      assert.equal(await readFile(credentialFile, 'utf8'), credentials);
+      assert.equal((await stat(credentialFile)).mode & 0o777, 0o600);
+      assert.deepEqual(await readdir(hostHome), ['.credentials.json']);
+      await assert.rejects(stat(targetHome), { code: 'ENOENT' });
+    });
+  }
+}
 
 test('detect retains subscription versus API status and delegates complete model collection without native entitlement claims', async (t) => {
   const f = await fixture(t);

@@ -26,3 +26,4 @@
 0026-claude-file-permission-guidance.patch
 0027-setup-cli-login-guidance.patch
 0028-project-repository-rename.patch
+0029-selectable-claude-worker-models.patch

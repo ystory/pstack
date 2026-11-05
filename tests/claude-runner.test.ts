@@ -217,7 +217,13 @@ test('detect checks installed CLI capability without asserting model execution',
     verbose: true,
     resume: true,
   });
-  assert.deepEqual(receipt.effortSyntax, ['low', 'medium', 'high', 'xhigh', 'max']);
+  assert.deepEqual(receipt.effortSyntax, [
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max',
+  ]);
   assert.equal(receipt.models, undefined);
   await assert.rejects(access(f.callPath));
 });
@@ -230,7 +236,14 @@ test('detect reports incompatibility below the adapter CLI minimum', async (t) =
 });
 
 test('explicit default and nondefault model IDs reach argv and request without changing legacy omission', async (t) => {
-  for (const selected of [undefined, 'claude-opus-5-5', 'claude-sonnet-fixture-20300101', 'provider.anthropic.model-fixture-v1:0']) {
+  for (const selected of [
+    undefined,
+    'claude-opus-5-5',
+    'claude-sonnet-fixture-20300101',
+    'provider.anthropic.model-fixture-v1:0',
+    'claude-opus-4-6[1m]',
+    'provider.anthropic.model-fixture-v1:0[1m]',
+  ]) {
     const f = await fixture(t);
     const args = selected ? [...f.runArgs, '--model', selected] : f.runArgs;
     const result = f.invoke(args);
@@ -243,16 +256,24 @@ test('explicit default and nondefault model IDs reach argv and request without c
     assert.equal(request.model, expected);
     assert.equal(receipt.model, expected);
     assert.equal(receipt.observedModel, expected);
-    assert.equal(receipt.modelSelection, selected ? 'explicit' : 'legacy-default');
+    assert.equal(
+      receipt.modelSelection,
+      selected ? 'explicit' : 'legacy-default',
+    );
     assert.deepEqual(request.args, call.args);
   }
 });
 
 test('requested nondefault model stays separate from missing or mismatched stream observations', async (t) => {
-  for (const [scenario, observed] of [['missing-model', null], ['mismatched-model', 'claude-other-fixture-20300101']]) {
+  for (const [scenario, observed] of [
+    ['missing-model', null],
+    ['mismatched-model', 'claude-other-fixture-20300101'],
+  ]) {
     const f = await fixture(t);
     const selected = 'claude-sonnet-fixture-20300101';
-    const result = f.invoke([...f.runArgs, '--model', selected], undefined, { PSTACK_FAKE_SCENARIO: scenario! });
+    const result = f.invoke([...f.runArgs, '--model', selected], undefined, {
+      PSTACK_FAKE_SCENARIO: scenario!,
+    });
     assert.equal(result.status, 0, result.stderr);
     const receipt = JSON.parse(result.stdout);
     assert.equal(receipt.model, selected);
@@ -264,7 +285,15 @@ test('requested nondefault model stays separate from missing or mismatched strea
 test('explicit nondefault resume retains the model, exact session and normal tool/context binding', async (t) => {
   const f = await fixture(t);
   const selected = 'claude-sonnet-fixture-20300101';
-  const result = f.invoke([...f.runArgs, '--model', selected, '--resume', sessionId, '--role', f.role]);
+  const result = f.invoke([
+    ...f.runArgs,
+    '--model',
+    selected,
+    '--resume',
+    sessionId,
+    '--role',
+    f.role,
+  ]);
   assert.equal(result.status, 0, result.stderr);
   const receipt = JSON.parse(result.stdout);
   const call = JSON.parse(await readFile(f.callPath, 'utf8'));
@@ -278,13 +307,36 @@ test('explicit nondefault resume retains the model, exact session and normal too
 
 test('invalid explicit models fail before launch and never fall back to the legacy default', async (t) => {
   const f = await fixture(t);
-  for (const selected of ['', ' ', ' leading', 'embedded\nnewline', '--flag', 'auto', 'inherit-parent', 'opus', 'sonnet', 'haiku', 'default']) {
+  for (const selected of [
+    '',
+    ' ',
+    ' leading',
+    'embedded\nnewline',
+    '--flag',
+    'auto',
+    'inherit-parent',
+    'opus',
+    'sonnet',
+    'haiku',
+    'default',
+    'sonnet[1m]',
+    'opus[1m]',
+  ]) {
     const result = f.invoke([...f.runArgs, '--model', selected]);
     assert.equal(result.status, 1, selected);
     await assert.rejects(access(f.callPath));
     await assert.rejects(access(f.runDir));
   }
-  assert.equal(f.invoke([...f.runArgs, '--model', 'claude-exact-v1', '--model', 'claude-exact-v2']).status, 1);
+  assert.equal(
+    f.invoke([
+      ...f.runArgs,
+      '--model',
+      'claude-exact-v1',
+      '--model',
+      'claude-exact-v2',
+    ]).status,
+    1,
+  );
   await assert.rejects(access(f.callPath));
 });
 

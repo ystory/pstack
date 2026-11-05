@@ -22,8 +22,6 @@ flowchart LR
     V --> R[Answer, change, or PR with evidence]
 ```
 
-The [Codex configuration example](docs/assets/pstack-for-codex-workflow.png) shows the bundled Codex defaults in more detail. Its [SVG source](docs/assets/pstack-for-codex-workflow.svg) remains available.
-
 For example, start a development task in Codex with:
 
 ```text
@@ -67,7 +65,7 @@ For updates and restores, follow [Update or remove](plugin-claude/docs/guide/01-
 
 ## Install in Codex
 
-In the Codex distribution, ordinary roles default to Sol 6.1 through Codex. The hardest tasks use Opus 5.5 through an existing Claude Code CLI, and candidate and review panels use both models. The default configuration requires an installed, authenticated Claude Code CLI with Opus 5.5 access.
+In the Codex distribution, ordinary roles default to Sol 6.1 through Codex. The hardest tasks use Opus 5.5 through an existing Claude Code CLI, and candidate and review panels use both models. The default configuration requires an installed, authenticated Claude Code CLI with Opus 5.5 access. Setup can select other supported exact Claude models with model-specific effort and source evidence; CLI detection alone does not list account models.
 
 Setup can save an all-Sol configuration, but that configuration cannot satisfy upstream steps requiring a different model or model family, such as Orchestrate's per-PR verifier, the final audit in `show-me-your-work`, and the eval playbook. Arena instead reports when it cannot run a judge from another family and continues without that judge. See the [plugin manifest](plugin/plugin.json) for the current version and the [compatibility notes](docs/spec.md) for verified workflows and limitations.
 
@@ -131,7 +129,7 @@ Run `$pstack-for-codex:setup-pstack` again to synchronize its managed registrati
 
 To switch an existing local `pstack-for-codex` marketplace to GitHub, run the two [install commands](#install) above, then rerun setup and start a new chat. Adding the Git URL selects that source for the same marketplace identity; `marketplace upgrade` alone does not turn a local source into a Git source. For building, selecting, or restoring local artifacts, see [Development and maintenance](docs/stack.md#build-and-select-an-artifact).
 
-Before restoring an older all-Sol bundle, use the current setup to explicitly save Codex-only role choices: older helpers reject the mixed-executor schema 2, while native-only schema 1 remains compatible. This does not make all-Sol choices satisfy steps that require a different model or model family.
+Earlier mixed bundles pinned to Opus reject saved nondefault Claude choices. Before restoring one, explicitly save choices it supports with the current setup. Before restoring an older all-Sol bundle, use the current setup to explicitly save Codex-only role choices: older helpers reject the mixed-executor schema 2, while native-only schema 1 remains compatible. This does not make all-Sol choices satisfy steps that require a different model or model family.
 
 ### Remove
 

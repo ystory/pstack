@@ -45,6 +45,11 @@ const judgmentRoles = new Set([
 ]);
 const keyFor = (entry) => `${entry.executor}\0${entry.model}`;
 
+function isNativeAlias(model) {
+  const base = model.split('[')[0];
+  return nativeAliases.has(base) || aliases.has(base);
+}
+
 function entryFor(value, role) {
   if (typeof value === 'string' && aliases.has(value)) return value;
   if (
@@ -66,7 +71,7 @@ function entryFor(value, role) {
       );
     return { executor, model: value.model };
   }
-  if (executor === 'claude-code' && nativeAliases.has(value.model))
+  if (executor === 'claude-code' && isNativeAlias(value.model))
     throw new Error(
       `Role ${role} requires an exact Claude model ID, not ${value.model}.`,
     );
@@ -217,7 +222,7 @@ export function normalizeCatalog(input, native) {
       );
     if (
       executor === 'claude-code' &&
-      (nativeAliases.has(model) ||
+      (isNativeAlias(model) ||
         !['host', 'configuration', 'manual-confirmation'].includes(
           entry.source?.kind,
         ) ||

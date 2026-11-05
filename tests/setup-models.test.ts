@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import {
-  copyFile,
+  cp,
   mkdir,
   mkdtemp,
   readFile,
@@ -18,10 +18,6 @@ import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
-const script = path.join(
-  projectRoot,
-  'plugin/skills/setup-pstack/scripts/models.mjs',
-);
 
 interface Entry {
   executor?: 'codex' | 'claude-code';
@@ -43,7 +39,12 @@ interface Result {
   needsChoice: unknown[];
   entries: Entry[];
   source: string;
-  models: { model: string; supportedReasoningEfforts: string[] }[];
+  models: {
+    executor?: string;
+    model: string;
+    supportedReasoningEfforts: string[];
+    source?: { kind: string; description: string };
+  }[];
   targetReasoningEffort: string;
   defaultChanges: {
     role: string;
@@ -67,12 +68,7 @@ const claudeRuntime = {
     verbose: true,
     resume: true,
   },
-  models: [
-    {
-      model: 'claude-opus-5-5',
-      supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
-    },
-  ],
+  effortSyntax: ['low', 'medium', 'high', 'xhigh', 'max'],
   modelExecutionVerified: false,
 };
 
@@ -81,8 +77,17 @@ async function fixture(t: TestContext) {
   t.after(() => rm(root, { recursive: true, force: true }));
   const consumer = path.join(root, 'unrelated consumer');
   await mkdir(consumer);
-  const bundledScript = path.join(root, 'standalone script with spaces.mjs');
-  await copyFile(script, bundledScript);
+  const bundledSkills = path.join(root, 'standalone plugin with spaces/skills');
+  for (const skill of ['setup-pstack', 'poteto-mode'])
+    await cp(
+      path.join(projectRoot, 'plugin/skills', skill, 'scripts'),
+      path.join(bundledSkills, skill, 'scripts'),
+      { recursive: true },
+    );
+  const bundledScript = path.join(
+    bundledSkills,
+    'setup-pstack/scripts/models.mjs',
+  );
   const codexHome = path.join(root, 'isolated-codex');
   const file = path.join(codexHome, 'pstack-for-codex/models.json');
   const catalog = path.join(root, 'catalog.json');
@@ -109,7 +114,6 @@ async function fixture(t: TestContext) {
             { reasoningEffort: 'high' },
           ],
         },
-        { executor: 'claude-code', ...claudeRuntime.models[0] },
       ],
       nextCursor: null,
       runtimes: [claudeRuntime],
@@ -144,7 +148,17 @@ async function fixture(t: TestContext) {
       ...flags,
     );
   };
-  return { root, codexHome, file, input, catalog, invoke, run, save };
+  return {
+    root,
+    bundledSkills,
+    codexHome,
+    file,
+    input,
+    catalog,
+    invoke,
+    run,
+    save,
+  };
 }
 
 test('standalone model helper preserves every upstream role and default fan-out without writing', async (t) => {
@@ -601,7 +615,7 @@ test('independent user choices survive mixed defaults and budget previews', asyn
   assert.deepEqual(f.run('resolve', '--role', 'arena runners').entries, chosen);
 });
 
-test('native catalog combines only with detected pinned Claude capabilities and keeps execution proof separate', async (t) => {
+test('native catalog adds the labeled bundled Claude default without claiming model access', async (t) => {
   const f = await fixture(t);
   const native = {
     data: [{ model: 'gpt-6.1-sol', supportedReasoningEfforts: ['xhigh'] }],
@@ -617,10 +631,17 @@ test('native catalog combines only with detected pinned Claude capabilities and 
     receipt,
   );
   assert.deepEqual(combined.models[0], native.data[0]);
-  assert.deepEqual(combined.models[1], {
-    executor: 'claude-code',
-    ...claudeRuntime.models[0],
-  });
+  assert.equal(combined.models[1]?.executor, 'claude-code');
+  assert.equal(combined.models[1]?.model, 'claude-opus-5-5');
+  assert.deepEqual(
+    combined.models[1]?.supportedReasoningEfforts,
+    claudeRuntime.effortSyntax,
+  );
+  assert.equal(combined.models[1]?.source?.kind, 'bundled-default');
+  assert.match(
+    combined.models[1]?.source?.description ?? '',
+    /not.*(?:access|execution)/i,
+  );
   assert.equal(combined.runtimes?.[0]?.modelExecutionVerified, false);
   await writeFile(f.catalog, JSON.stringify(combined));
   await f.save(f.run('read').config);
@@ -635,7 +656,15 @@ test('native catalog combines only with detected pinned Claude capabilities and 
 
 test('Claude catalog rejects absent capabilities, obsolete CLI, unsupported options and drifting aliases', async (t) => {
   const f = await fixture(t);
-  const external = { executor: 'claude-code', ...claudeRuntime.models[0] };
+  const external = {
+    executor: 'claude-code',
+    model: 'claude-opus-5-5',
+    supportedReasoningEfforts: ['xhigh'],
+    source: {
+      kind: 'manual-confirmation',
+      description: 'Fixture confirms exact model and efforts.',
+    },
+  };
   const cases = [
     { models: [external] },
     {
@@ -709,4 +738,351 @@ test('executor identity prevents native catalog entries from validating external
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /detected claude-code catalog/);
   assert.deepEqual(await readFile(f.file), before);
+});
+
+const sonnetCapability = {
+  executor: 'claude-code',
+  model: 'claude-sonnet-fixture-20300101',
+  supportedReasoningEfforts: ['low', 'medium', 'high'],
+  source: {
+    kind: 'manual-confirmation',
+    description:
+      'Fixture user confirmed this exact model and its three efforts.',
+  },
+};
+const providerCapability = {
+  executor: 'claude-code',
+  model: 'provider.anthropic.model-fixture-v1:0',
+  supportedReasoningEfforts: ['medium', 'max'],
+  source: {
+    kind: 'configuration',
+    description:
+      'Fixture configuration records this exact provider ID and two efforts.',
+  },
+};
+
+test('confirmed external models preserve provenance through catalog normalization and same-ID native entries', async (t) => {
+  const f = await fixture(t);
+  const input = {
+    models: [
+      sonnetCapability,
+      providerCapability,
+      { ...sonnetCapability, model: 'claude-opus-4-6[1m]' },
+      {
+        ...providerCapability,
+        model: 'provider.anthropic.model-fixture-v1:0[1m]',
+      },
+      { model: sonnetCapability.model, supportedReasoningEfforts: ['xhigh'] },
+    ],
+    runtimes: [claudeRuntime],
+  };
+  await writeFile(f.catalog, JSON.stringify(input));
+  const normalized = f.run('catalog', '--input', f.catalog);
+  assert.deepEqual(
+    normalized.models.slice(0, input.models.length),
+    input.models,
+  );
+  await writeFile(f.catalog, JSON.stringify(normalized));
+  assert.deepEqual(f.run('catalog', '--input', f.catalog), normalized);
+  const explicitDefault = {
+    ...sonnetCapability,
+    model: 'claude-opus-5-5',
+    supportedReasoningEfforts: ['medium'],
+  };
+  await writeFile(
+    f.catalog,
+    JSON.stringify({ ...input, models: [explicitDefault] }),
+  );
+  assert.deepEqual(f.run('catalog', '--input', f.catalog).models, [
+    explicitDefault,
+  ]);
+});
+
+test('nondefault selections round-trip offline and budgets retain ordered duplicate seats and user state', async (t) => {
+  const f = await fixture(t);
+  const catalog = JSON.parse(await readFile(f.catalog, 'utf8'));
+  catalog.data.push(sonnetCapability, providerCapability);
+  await writeFile(f.catalog, JSON.stringify(catalog));
+  const sonnet = {
+    executor: 'claude-code' as const,
+    model: sonnetCapability.model,
+    reasoningEffort: 'high',
+  };
+  const provider = {
+    executor: 'claude-code' as const,
+    model: providerCapability.model,
+    reasoningEffort: 'medium',
+  };
+  const proposal = {
+    roles: {
+      'hardest tasks': [sonnet],
+      'architect runners': [
+        sonnet,
+        provider,
+        sonnet,
+        { model: 'inherit-parent' },
+      ],
+    },
+  };
+  await f.save(proposal, 'absent', '--dry-run');
+  await assert.rejects(stat(f.file), { code: 'ENOENT' });
+  await f.save(proposal);
+  const before = await readFile(f.file);
+  for (const [budget, sonnetEffort, providerEffort] of [
+    ['unlimited', 'high', 'max'],
+    ['large', 'high', 'medium'],
+    ['medium', 'high', 'medium'],
+    ['small', 'medium', 'medium'],
+  ]) {
+    const mapped = f.run('budget', '--budget', budget!, '--catalog', f.catalog);
+    assert.deepEqual(mapped.needsChoice, []);
+    assert.deepEqual(mapped.config.roles['architect runners'], [
+      { ...sonnet, reasoningEffort: sonnetEffort },
+      { ...provider, reasoningEffort: providerEffort },
+      { ...sonnet, reasoningEffort: sonnetEffort },
+      { model: 'inherit-parent' },
+    ]);
+  }
+  await rm(f.catalog);
+  assert.deepEqual(f.run('resolve', '--role', 'hardest tasks').entries, [
+    sonnet,
+  ]);
+  assert.deepEqual(
+    f.run('read').config.roles['architect runners'],
+    proposal.roles['architect runners'],
+  );
+  assert.deepEqual(await readFile(f.file), before);
+  await writeFile(f.catalog, JSON.stringify(catalog));
+  catalog.data = catalog.data.filter(
+    (entry: { model: string }) => entry.model !== sonnet.model,
+  );
+  await writeFile(f.catalog, JSON.stringify(catalog));
+  const unavailable = f.run(
+    'budget',
+    '--budget',
+    'large',
+    '--catalog',
+    f.catalog,
+  );
+  assert.equal(unavailable.needsChoice.length, 3);
+  await writeFile(f.input, JSON.stringify(unavailable));
+  assert.notEqual(
+    f.invoke(
+      'write',
+      '--input',
+      f.input,
+      '--catalog',
+      f.catalog,
+      '--expected-hash',
+      f.run('read').sha256!,
+    ).status,
+    0,
+  );
+  assert.deepEqual(await readFile(f.file), before);
+});
+
+test('external capabilities need per-model provenance and cannot borrow runtime candidates or native effort support', async (t) => {
+  const f = await fixture(t);
+  for (const invalid of [
+    { ...sonnetCapability, source: undefined },
+    {
+      ...sonnetCapability,
+      source: { kind: 'manual-confirmation', description: ' ' },
+    },
+    {
+      ...sonnetCapability,
+      source: {
+        kind: 'bundled-default',
+        description: 'Not a bundled default.',
+      },
+    },
+    { ...sonnetCapability, supportedReasoningEfforts: ['ultra'] },
+    ...[
+      'opus',
+      'sonnet',
+      'haiku',
+      'sonnet[1m]',
+      'opus[1m]',
+      'auto',
+      'inherit-parent',
+      '',
+      ' leading',
+      '--flag',
+      'embedded\nnewline',
+    ].map((model) => ({ ...sonnetCapability, model })),
+  ]) {
+    await writeFile(
+      f.catalog,
+      JSON.stringify({ models: [invalid], runtimes: [claudeRuntime] }),
+    );
+    assert.notEqual(
+      f.invoke('catalog', '--input', f.catalog).status,
+      0,
+      JSON.stringify(invalid),
+    );
+  }
+  await writeFile(
+    f.catalog,
+    JSON.stringify({
+      models: [{ ...sonnetCapability, source: undefined }],
+      runtimes: [{ ...claudeRuntime, models: [sonnetCapability] }],
+    }),
+  );
+  assert.notEqual(f.invoke('catalog', '--input', f.catalog).status, 0);
+  await writeFile(
+    f.catalog,
+    JSON.stringify({
+      models: [],
+      runtimes: [{ ...claudeRuntime, models: [sonnetCapability] }],
+    }),
+  );
+  assert.deepEqual(
+    f.run('catalog', '--input', f.catalog).models.map((entry) => entry.model),
+    ['claude-opus-5-5'],
+  );
+  await writeFile(
+    f.catalog,
+    JSON.stringify({
+      models: [sonnetCapability, sonnetCapability],
+      runtimes: [claudeRuntime],
+    }),
+  );
+  assert.notEqual(f.invoke('catalog', '--input', f.catalog).status, 0);
+  const catalog = {
+    models: [
+      { model: 'gpt-6.1-sol', supportedReasoningEfforts: ['xhigh'] },
+      { model: sonnetCapability.model, supportedReasoningEfforts: ['xhigh'] },
+      sonnetCapability,
+    ],
+    runtimes: [claudeRuntime],
+  };
+  await writeFile(f.catalog, JSON.stringify(catalog));
+  await writeFile(
+    f.input,
+    JSON.stringify({
+      roles: {
+        'hardest tasks': [
+          {
+            executor: 'claude-code',
+            model: sonnetCapability.model,
+            reasoningEffort: 'xhigh',
+          },
+        ],
+      },
+    }),
+  );
+  assert.notEqual(
+    f.invoke(
+      'write',
+      '--input',
+      f.input,
+      '--catalog',
+      f.catalog,
+      '--expected-hash',
+      'absent',
+    ).status,
+    0,
+  );
+  await assert.rejects(stat(f.file), { code: 'ENOENT' });
+});
+
+test('detected transport, confirmed catalog, budgeted saved role and runner forward one nondefault selection', async (t) => {
+  const f = await fixture(t);
+  const runner = path.join(
+    f.bundledSkills,
+    'poteto-mode/scripts/run-claude.mjs',
+  );
+  const executable = path.join(f.root, 'existing claude fixture');
+  const capture = path.join(f.root, 'received argv.json');
+  await writeFile(
+    executable,
+    `#!${process.execPath}
+import { writeFileSync } from 'node:fs';
+const args = process.argv.slice(2);
+if (args[0] === '--version') console.log('2.1.300 (Claude Code)');
+else if (args[0] === '--help') console.log('--print --model --effort low medium high xhigh max --output-format stream-json --verbose --resume');
+else {
+  process.stdin.resume();
+  process.stdin.on('end', () => {
+    writeFileSync(${JSON.stringify(capture)}, JSON.stringify(args));
+    const modelIndex = args.indexOf('--model');
+    const model = modelIndex < 0 ? null : args[modelIndex + 1];
+    console.log(JSON.stringify({ type: 'system', subtype: 'init', model }));
+    console.log(JSON.stringify({ type: 'result', result: 'Fixture received ' + model }));
+  });
+}
+`,
+    { mode: 0o755 },
+  );
+  const execute = (args: string[], input?: string) => {
+    const result = spawnSync(
+      process.execPath,
+      [runner, ...args, '--executable', executable],
+      { cwd: f.root, encoding: 'utf8', input, timeout: 10_000 },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  const runtime = execute(['detect']);
+  await assert.rejects(stat(capture), { code: 'ENOENT' });
+  const runtimeFile = path.join(f.root, 'detected-runtime.json');
+  await writeFile(runtimeFile, JSON.stringify(runtime));
+  const combined = JSON.parse(await readFile(f.catalog, 'utf8'));
+  delete combined.runtimes;
+  combined.data.push(sonnetCapability);
+  await writeFile(f.catalog, JSON.stringify(combined));
+  const normalized = f.run(
+    'catalog',
+    '--input',
+    f.catalog,
+    '--claude-runtime',
+    runtimeFile,
+  );
+  await writeFile(f.catalog, JSON.stringify(normalized));
+  await f.save({
+    roles: {
+      'how explainer': [
+        {
+          executor: 'claude-code',
+          model: sonnetCapability.model,
+          reasoningEffort: 'high',
+        },
+      ],
+    },
+  });
+  const budget = f.run('budget', '--budget', 'small', '--catalog', f.catalog);
+  await f.save(budget);
+  assert.equal(f.run('read').config.budget, 'small');
+  const entry = f.run('resolve', '--role', 'how explainer').entries[0]!;
+  assert.deepEqual(entry, {
+    executor: 'claude-code',
+    model: sonnetCapability.model,
+    reasoningEffort: 'medium',
+  });
+  const instruction = path.join(f.root, 'AGENTS.md');
+  await writeFile(instruction, 'Apply the fixture task only.\n');
+  const receipt = execute(
+    [
+      'run',
+      '--cwd',
+      f.root,
+      '--run-dir',
+      path.join(f.root, 'run'),
+      '--model',
+      entry.model,
+      '--effort',
+      entry.reasoningEffort!,
+      '--instruction',
+      instruction,
+      '--skill',
+      path.join(projectRoot, 'plugin/skills/how/SKILL.md'),
+    ],
+    'Report the received fixture model.\n',
+  );
+  const argv = JSON.parse(await readFile(capture, 'utf8'));
+  assert.equal(argv[argv.indexOf('--model') + 1], sonnetCapability.model);
+  assert.equal(argv[argv.indexOf('--effort') + 1], 'medium');
+  assert.equal(receipt.model, sonnetCapability.model);
+  assert.equal(receipt.observedModel, sonnetCapability.model);
+  assert.equal(receipt.result, `Fixture received ${sonnetCapability.model}`);
 });

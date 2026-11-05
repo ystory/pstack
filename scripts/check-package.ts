@@ -305,14 +305,23 @@ try {
     'Apply only the assigned package fixture task.\n',
   );
   const externalStub = path.join(temporaryRoot, 'existing-claude-stub');
+  const externalCapture = path.join(temporaryRoot, 'external-argv.json');
   await writeFile(
     externalStub,
     `#!${process.execPath}\n` +
-      `process.stdin.resume();\n` +
-      `process.stdin.on('end', () => {\n` +
-      `  console.log(JSON.stringify({type:'system',subtype:'init',model:'claude-opus-5-5',session_id:'00000000-0000-4000-8000-000000000001'}));\n` +
-      `  console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,result:'packaged external transport stub'}));\n` +
-      `});\n`,
+      `const args = process.argv.slice(2);\n` +
+      `if (args[0] === '--version') console.log('2.1.300 (Claude Code)');\n` +
+      `else if (args[0] === '--help') console.log('--print --model --effort low medium high xhigh max --output-format stream-json --verbose --resume');\n` +
+      `else {\n` +
+      `  process.stdin.resume();\n` +
+      `  process.stdin.on('end', () => {\n` +
+      `    require('node:fs').writeFileSync(${JSON.stringify(externalCapture)}, JSON.stringify(args));\n` +
+      `    const index = args.indexOf('--model');\n` +
+      `    const model = index < 0 ? null : args[index + 1];\n` +
+      `    console.log(JSON.stringify({type:'system',subtype:'init',model,session_id:'00000000-0000-4000-8000-000000000001'}));\n` +
+      `    console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,result:'packaged external transport received ' + model}));\n` +
+      `  });\n` +
+      `}\n`,
   );
   await chmod(externalStub, 0o755);
   const runner = JSON.parse(
@@ -345,12 +354,175 @@ try {
     runner.exitCode !== 0 ||
     runner.model !== 'claude-opus-5-5' ||
     runner.observedModel !== 'claude-opus-5-5' ||
-    runner.result !== 'packaged external transport stub' ||
+    runner.result !== 'packaged external transport received claude-opus-5-5' ||
     !(await readFile(runner.promptPath, 'utf8')).includes(
       'Apply only the assigned package fixture task.',
     )
   )
     throw new Error('Packaged runner did not execute the external stub.');
+  const packagedRunner = path.join(
+    artifactRoot,
+    'plugin/skills/poteto-mode/scripts/run-claude.mjs',
+  );
+  const packagedModels = path.join(
+    artifactRoot,
+    'plugin/skills/setup-pstack/scripts/models.mjs',
+  );
+  const modelCall = (args: string[]) =>
+    JSON.parse(
+      run(
+        process.execPath,
+        [packagedModels, ...args, '--codex-home', isolatedModelsHome],
+        temporaryRoot,
+      ),
+    );
+  const runtimeFile = path.join(temporaryRoot, 'external-runtime.json');
+  const detected = JSON.parse(
+    run(
+      process.execPath,
+      [packagedRunner, 'detect', '--executable', externalStub],
+      temporaryRoot,
+    ),
+  );
+  if (
+    detected.models !== undefined ||
+    detected.modelExecutionVerified !== false
+  )
+    throw new Error('Packaged detection claimed account model capabilities.');
+  await writeFile(runtimeFile, JSON.stringify(detected));
+  const packageModel = 'claude-package-fixture-20300101';
+  const combinedInput = path.join(temporaryRoot, 'combined-models.json');
+  const combinedCatalog = path.join(temporaryRoot, 'combined-catalog.json');
+  const selectedInput = path.join(temporaryRoot, 'selected-model.json');
+  const source = {
+    kind: 'manual-confirmation',
+    description:
+      'Package fixture confirms this exact model and supported efforts.',
+  };
+  await writeFile(
+    combinedInput,
+    JSON.stringify({
+      models: [
+        {
+          model: 'gpt-6.1-sol',
+          supportedReasoningEfforts: ['medium', 'high', 'xhigh'],
+        },
+        {
+          executor: 'claude-code',
+          model: packageModel,
+          supportedReasoningEfforts: ['medium', 'high'],
+          source,
+        },
+      ],
+    }),
+  );
+  const catalog = modelCall([
+    'catalog',
+    '--input',
+    combinedInput,
+    '--claude-runtime',
+    runtimeFile,
+  ]);
+  if (JSON.stringify(catalog.models[1].source) !== JSON.stringify(source))
+    throw new Error('Packaged catalog lost external model provenance.');
+  await writeFile(combinedCatalog, JSON.stringify(catalog));
+  await writeFile(
+    selectedInput,
+    JSON.stringify({
+      roles: {
+        'how explainer': [
+          {
+            executor: 'claude-code',
+            model: packageModel,
+            reasoningEffort: 'high',
+          },
+        ],
+      },
+    }),
+  );
+  modelCall([
+    'write',
+    '--input',
+    selectedInput,
+    '--catalog',
+    combinedCatalog,
+    '--expected-hash',
+    'absent',
+    '--dry-run',
+  ]);
+  modelCall([
+    'write',
+    '--input',
+    selectedInput,
+    '--catalog',
+    combinedCatalog,
+    '--expected-hash',
+    'absent',
+  ]);
+  const budgeted = modelCall([
+    'budget',
+    '--budget',
+    'small',
+    '--catalog',
+    combinedCatalog,
+  ]);
+  await writeFile(selectedInput, JSON.stringify(budgeted));
+  modelCall([
+    'write',
+    '--input',
+    selectedInput,
+    '--catalog',
+    combinedCatalog,
+    '--expected-hash',
+    budgeted.sha256,
+  ]);
+  const selected = modelCall(['resolve', '--role', 'how explainer']).entries[0];
+  if (
+    modelCall(['read']).config.budget !== 'small' ||
+    selected.model !== packageModel ||
+    selected.reasoningEffort !== 'medium'
+  )
+    throw new Error(
+      'Packaged setup did not preserve the budgeted external choice.',
+    );
+  const nondefault = JSON.parse(
+    run(
+      process.execPath,
+      [
+        packagedRunner,
+        'run',
+        '--cwd',
+        temporaryRoot,
+        '--run-dir',
+        path.join(temporaryRoot, 'external-nondefault-evidence'),
+        '--model',
+        selected.model,
+        '--effort',
+        selected.reasoningEffort,
+        '--instruction',
+        instruction,
+        '--skill',
+        path.join(artifactRoot, 'plugin/skills/how/SKILL.md'),
+        '--executable',
+        externalStub,
+      ],
+      temporaryRoot,
+      'Check the selected packaged nondefault model.\n',
+    ),
+  );
+  const received = JSON.parse(await readFile(externalCapture, 'utf8'));
+  const request = JSON.parse(await readFile(nondefault.requestPath, 'utf8'));
+  if (
+    received[received.indexOf('--model') + 1] !== packageModel ||
+    received[received.indexOf('--effort') + 1] !== 'medium' ||
+    request.model !== packageModel ||
+    nondefault.model !== packageModel ||
+    nondefault.observedModel !== packageModel ||
+    nondefault.result !== `packaged external transport received ${packageModel}`
+  )
+    throw new Error(
+      'Packaged detect-to-run chain lost the selected external model.',
+    );
   run(
     process.execPath,
     [
@@ -762,7 +934,7 @@ lines.on('close', () => process.exit(0));
     temporaryRoot,
   );
   console.log(
-    'Packed artifact verified: both standalone host plugins, native marketplace manifests, independent patch replay and pinned runtime, isolated setup lifecycle, mixed model defaults, and both external CLI stub transports without source files or development dependencies. User settings are preserved. The stubs do not prove authentication or live model execution. Native global install was not run.',
+    'Packed artifact verified: both standalone host plugins, native marketplace manifests, independent patch replay and pinned runtime, isolated setup lifecycle, mixed model defaults, the nondefault Claude detect-to-run chain, and both external CLI stub transports without source files or development dependencies. User settings are preserved. The stubs do not prove authentication or live model execution. Native global install was not run.',
   );
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });

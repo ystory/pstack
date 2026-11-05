@@ -448,6 +448,85 @@ test('scalar shapes, panel duplicates, pool order and aliases survive actual wri
   );
 });
 
+test('modified native aliases cannot load as exact choices or normalize as capabilities', async (t) => {
+  const actual = [];
+  for (const model of [
+    'sonnet[1m]',
+    'opus[1m]',
+    'auto[1m]',
+    'inherit-parent[1m]',
+  ]) {
+    const f = await fixture(t);
+    const file = path.join(f.home, 'pstack-cc/models.json');
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(
+      file,
+      JSON.stringify({
+        schemaVersion: 1,
+        host: 'claude-code',
+        roles: {
+          'bug-fix': {
+            executor: 'claude-code',
+            model,
+            reasoningEffort: 'high',
+          },
+        },
+      }),
+    );
+    const before = await readFile(file);
+    const read = f.invoke('models.mjs', ['read']);
+    assert.deepEqual(await readFile(file), before);
+    await writeFile(
+      f.catalog,
+      JSON.stringify({ models: [{ ...f.catalogValue.models[0], model }] }),
+    );
+    const catalog = f.invoke('models.mjs', ['catalog', '--input', f.catalog]);
+    actual.push({
+      model,
+      configRejected: read.status !== 0,
+      catalogRejected: catalog.status !== 0,
+    });
+    assert.deepEqual(await readFile(file), before);
+  }
+  assert.deepEqual(
+    actual,
+    ['sonnet[1m]', 'opus[1m]', 'auto[1m]', 'inherit-parent[1m]'].map(
+      (model) => ({ model, configRejected: true, catalogRejected: true }),
+    ),
+  );
+});
+
+test('full native model IDs retain context modifiers through catalog save read and resolve', async (t) => {
+  const f = await fixture(t);
+  const exact = [
+    'claude-opus-4-6[1m]',
+    'provider.anthropic.model-fixture-v1:0[1m]',
+  ];
+  await writeFile(
+    f.catalog,
+    JSON.stringify({
+      models: [
+        ...f.catalogValue.models,
+        ...exact.map((model) => ({ ...f.catalogValue.models[0], model })),
+      ],
+    }),
+  );
+  const catalog = f.models('catalog', '--input', f.catalog);
+  for (const model of exact) {
+    assert.ok(
+      catalog.models.some(
+        (entry) => entry.executor === 'claude-code' && entry.model === model,
+      ),
+    );
+    const saved = await f.save(f.config(model));
+    assert.deepEqual(f.models('read').config, saved.config);
+    assert.equal(
+      f.models('resolve', '--role', 'hardest tasks').entries[0]?.model,
+      model,
+    );
+  }
+});
+
 test('saving Claude choices leaves independent Codex preferences and unrelated Claude files byte-identical', async (t) => {
   const f = await fixture(t);
   await mkdir(path.join(f.codex, 'pstack-for-codex'), { recursive: true });

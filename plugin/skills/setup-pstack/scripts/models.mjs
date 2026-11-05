@@ -4,6 +4,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import {
+  DEFAULT_CLAUDE_MODEL,
+  exactClaudeModel,
+  normalizeClaudeRuntime,
+} from '../../poteto-mode/scripts/claude-capabilities.mjs';
 
 const roles = {
   'feature, refactoring': 1,
@@ -41,9 +46,6 @@ const efforts = [
   'ultra',
 ];
 const aliases = new Set(['auto', 'inherit-parent']);
-const claudeModel = 'claude-opus-5-5';
-const claudeEfforts = ['low', 'medium', 'high', 'xhigh', 'max'];
-const claudeMinimumVersion = '2.1.280';
 const commands = new Set(['read', 'resolve', 'budget', 'write', 'catalog']);
 
 function argumentsFor(argv) {
@@ -119,44 +121,6 @@ const executorFor = (entry) =>
   entry.executor === undefined ? 'codex' : entry.executor;
 const modelKey = (entry) => `${executorFor(entry)}\0${entry.model}`;
 
-function versionAtLeast(version, minimum) {
-  if (!/^\d+\.\d+\.\d+(?:[-+].*)?$/.test(version)) return false;
-  const actual = version.split(/[.-]/).slice(0, 3).map(Number);
-  const required = minimum.split('.').map(Number);
-  for (let index = 0; index < 3; index += 1) {
-    if (actual[index] !== required[index])
-      return actual[index] > required[index];
-  }
-  return true;
-}
-
-function normalizeClaudeRuntime(runtime) {
-  if (
-    runtime?.executor !== 'claude-code' ||
-    typeof runtime.executable !== 'string' ||
-    !path.isAbsolute(runtime.executable) ||
-    typeof runtime.version !== 'string' ||
-    !versionAtLeast(runtime.version, claudeMinimumVersion) ||
-    ['print', 'model', 'effort', 'outputFormat', 'verbose', 'resume'].some(
-      (option) => runtime.requiredOptions?.[option] !== true,
-    ) ||
-    runtime.compatible === false ||
-    typeof runtime.modelExecutionVerified !== 'boolean' ||
-    !Array.isArray(runtime.models) ||
-    runtime.models.length !== 1 ||
-    runtime.models[0]?.model !== claudeModel ||
-    !Array.isArray(runtime.models[0]?.supportedReasoningEfforts) ||
-    !runtime.models[0].supportedReasoningEfforts.length ||
-    runtime.models[0].supportedReasoningEfforts.some(
-      (effort) => !claudeEfforts.includes(effort),
-    )
-  )
-    throw new Error(
-      `Claude runtime requires a detected executable, CLI ${claudeMinimumVersion} or newer, required options, and ${claudeModel} effort metadata. CLI detection does not verify model execution.`,
-    );
-  return runtime;
-}
-
 function normalizeCatalog(input, suppliedRuntime) {
   const response = input?.result ?? input;
   const data = Array.isArray(response)
@@ -177,15 +141,23 @@ function normalizeCatalog(input, suppliedRuntime) {
   const runtime = runtimes[0] && normalizeClaudeRuntime(runtimes[0]);
   const combined = [...data];
   if (
-    suppliedRuntime &&
-    !combined.some((entry) => executorFor(entry) === 'claude-code')
+    runtime &&
+    !combined.some(
+      (entry) =>
+        executorFor(entry) === 'claude-code' &&
+        (entry.model ?? entry.id) === DEFAULT_CLAUDE_MODEL,
+    )
   )
-    combined.push(
-      ...runtime.models.map((entry) => ({
-        executor: 'claude-code',
-        ...entry,
-      })),
-    );
+    combined.push({
+      executor: 'claude-code',
+      model: DEFAULT_CLAUDE_MODEL,
+      supportedReasoningEfforts: runtime.effortSyntax,
+      source: {
+        kind: 'bundled-default',
+        description:
+          'Shipped default route using global CLI effort syntax, not proof of account access or model execution.',
+      },
+    });
   const seen = new Set();
   const models = combined.map((model) => {
     const id = model.model ?? model.id;
@@ -209,23 +181,45 @@ function normalizeCatalog(input, suppliedRuntime) {
         'Model catalog entries need unique model IDs and supported reasoning efforts.',
       );
     }
-    if (
-      executorFor(model) === 'claude-code' &&
-      (!runtime ||
-        id !== claudeModel ||
+    if (executorFor(model) === 'claude-code') {
+      exactClaudeModel(id);
+      if (
+        !runtime ||
         reasoningEfforts.some(
-          (effort) =>
-            !runtime.models[0].supportedReasoningEfforts.includes(effort),
-        ))
-    )
-      throw new Error(
-        'External catalog entries require matching detected Claude runtime capabilities.',
-      );
+          (effort) => !runtime.effortSyntax.includes(effort),
+        )
+      )
+        throw new Error(
+          'External catalog entries require efforts expressible by the detected Claude runtime.',
+        );
+      const source = model.source;
+      if (
+        ![
+          'host',
+          'configuration',
+          'manual-confirmation',
+          ...(id === DEFAULT_CLAUDE_MODEL ? ['bundled-default'] : []),
+        ].includes(source?.kind) ||
+        typeof source?.description !== 'string' ||
+        !source.description.trim()
+      )
+        throw new Error(
+          'External catalog entries require a labeled per-model source for the exact ID and supported efforts.',
+        );
+    }
     seen.add(modelKey({ ...model, model: id }));
     return {
       ...(model.executor !== undefined ? { executor: model.executor } : {}),
       model: id,
       supportedReasoningEfforts: [...new Set(reasoningEfforts)],
+      ...(executorFor(model) === 'claude-code'
+        ? {
+            source: {
+              kind: model.source.kind,
+              description: model.source.description,
+            },
+          }
+        : {}),
     };
   });
   return { models, ...(runtime ? { runtimes: [runtime] } : {}) };
@@ -256,10 +250,7 @@ function validateEntry(entry, role) {
   }
   if (typeof entry.reasoningEffort !== 'string' || !entry.reasoningEffort)
     throw new Error(`Role ${role} must declare a separate reasoningEffort.`);
-  if (executorFor(entry) === 'claude-code' && entry.model !== claudeModel)
-    throw new Error(
-      `Claude role ${role} must use pinned model ${claudeModel}.`,
-    );
+  if (executorFor(entry) === 'claude-code') exactClaudeModel(entry.model);
   return {
     ...executor,
     model: entry.model,
@@ -271,7 +262,7 @@ function defaultsFor(role, budget) {
   const sol = { model: 'gpt-6.1-sol', reasoningEffort: budgets[budget] };
   const opus = {
     executor: 'claude-code',
-    model: claudeModel,
+    model: DEFAULT_CLAUDE_MODEL,
     reasoningEffort: budgets[budget],
   };
   if (role === 'hardest tasks') return [opus];
@@ -524,7 +515,7 @@ try {
   const options = argumentsFor(process.argv.slice(2));
   if (options.help)
     process.stdout.write(
-      'Usage: node models.mjs read|resolve|budget|write|catalog [options]\nread/resolve: [--codex-home ABS] [--role ROLE]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\ncatalog: --input ABS (native Codex model/list response) [--claude-runtime ABS]\nbudget/write also accept --claude-runtime ABS or a normalized catalog containing its runtime receipt.\n',
+      'Usage: node models.mjs read|resolve|budget|write|catalog [options]\nread/resolve: [--codex-home ABS] [--role ROLE]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\ncatalog: --input ABS (native model/list or combined model capabilities) [--claude-runtime ABS]\nbudget/write also accept --claude-runtime ABS or a normalized catalog containing its runtime receipt.\n',
     );
   else
     process.stdout.write(`${JSON.stringify(await main(options), null, 2)}\n`);

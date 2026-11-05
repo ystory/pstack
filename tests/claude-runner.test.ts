@@ -4,7 +4,7 @@ import { constants } from 'node:fs';
 import {
   access,
   chmod,
-  copyFile,
+  cp,
   mkdir,
   mkdtemp,
   readdir,
@@ -78,7 +78,7 @@ async function fixture(t: TestContext) {
   const callPath = path.join(root, 'call.json');
   await mkdir(scripts, { recursive: true });
   await mkdir(cwd);
-  await copyFile(source, runner);
+  await cp(path.dirname(source), scripts, { recursive: true });
   const instructionBytes = 'Use the project terminology.\r\n';
   const skillBytes =
     '---\nname: source-skill\n---\nRead the assigned evidence.\n';
@@ -116,7 +116,11 @@ if (args[0] === '--version') {
   } else if (scenario === 'missing-result') {
     process.stdout.write(JSON.stringify({type: 'system', subtype: 'init', session_id: '${sessionId}'}) + '\\n');
   } else {
-    const bytes = Buffer.from(${JSON.stringify(streamBytes)});
+    const model = args[args.indexOf('--model') + 1];
+    const events = ${JSON.stringify(streamBytes)}.split('\\n').map(line => JSON.parse(line));
+    if (scenario === 'missing-model') delete events[0].model;
+    else events[0].model = scenario === 'mismatched-model' ? 'claude-other-fixture-20300101' : model;
+    const bytes = Buffer.from(events.map(value => JSON.stringify(value)).join('\\n'));
     const split = bytes.indexOf(Buffer.from('🥔')) + 2;
     process.stdout.write(bytes.subarray(0, split));
     await new Promise(resolve => setTimeout(resolve, 5));
@@ -213,20 +217,127 @@ test('detect checks installed CLI capability without asserting model execution',
     verbose: true,
     resume: true,
   });
-  assert.deepEqual(receipt.models, [
-    {
-      model: 'claude-opus-5-5',
-      supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh', 'max'],
-    },
+  assert.deepEqual(receipt.effortSyntax, [
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max',
   ]);
+  assert.equal(receipt.models, undefined);
   await assert.rejects(access(f.callPath));
 });
 
-test('detect reports incompatibility below the documented Opus minimum', async (t) => {
+test('detect reports incompatibility below the adapter CLI minimum', async (t) => {
   const f = await fixture(t);
   const result = f.invoke(['detect'], '', { PSTACK_FAKE_VERSION: '2.1.279' });
   assert.equal(result.status, 1, result.stderr);
   assert.equal(JSON.parse(result.stdout).compatible, false);
+});
+
+test('explicit default and nondefault model IDs reach argv and request without changing legacy omission', async (t) => {
+  for (const selected of [
+    undefined,
+    'claude-opus-5-5',
+    'claude-sonnet-fixture-20300101',
+    'provider.anthropic.model-fixture-v1:0',
+    'claude-opus-4-6[1m]',
+    'provider.anthropic.model-fixture-v1:0[1m]',
+  ]) {
+    const f = await fixture(t);
+    const args = selected ? [...f.runArgs, '--model', selected] : f.runArgs;
+    const result = f.invoke(args);
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    const call = JSON.parse(await readFile(f.callPath, 'utf8'));
+    const request = JSON.parse(await readFile(receipt.requestPath, 'utf8'));
+    const expected = selected ?? 'claude-opus-5-5';
+    assert.equal(call.args[call.args.indexOf('--model') + 1], expected);
+    assert.equal(request.model, expected);
+    assert.equal(receipt.model, expected);
+    assert.equal(receipt.observedModel, expected);
+    assert.equal(
+      receipt.modelSelection,
+      selected ? 'explicit' : 'legacy-default',
+    );
+    assert.deepEqual(request.args, call.args);
+  }
+});
+
+test('requested nondefault model stays separate from missing or mismatched stream observations', async (t) => {
+  for (const [scenario, observed] of [
+    ['missing-model', null],
+    ['mismatched-model', 'claude-other-fixture-20300101'],
+  ]) {
+    const f = await fixture(t);
+    const selected = 'claude-sonnet-fixture-20300101';
+    const result = f.invoke([...f.runArgs, '--model', selected], undefined, {
+      PSTACK_FAKE_SCENARIO: scenario!,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.model, selected);
+    assert.equal(receipt.observedModel, observed);
+    assert.equal(receipt.result, finalEvent.result);
+  }
+});
+
+test('explicit nondefault resume retains the model, exact session and normal tool/context binding', async (t) => {
+  const f = await fixture(t);
+  const selected = 'claude-sonnet-fixture-20300101';
+  const result = f.invoke([
+    ...f.runArgs,
+    '--model',
+    selected,
+    '--resume',
+    sessionId,
+    '--role',
+    f.role,
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  const call = JSON.parse(await readFile(f.callPath, 'utf8'));
+  assert.equal(call.args[call.args.indexOf('--model') + 1], selected);
+  assert.equal(call.args[call.args.indexOf('--resume') + 1], sessionId);
+  assert.equal(receipt.model, selected);
+  assert.equal(receipt.observedModel, selected);
+  assert.equal(receipt.resumeSessionId, sessionId);
+  assert.ok(call.input.includes(f.roleBody));
+});
+
+test('invalid explicit models fail before launch and never fall back to the legacy default', async (t) => {
+  const f = await fixture(t);
+  for (const selected of [
+    '',
+    ' ',
+    ' leading',
+    'embedded\nnewline',
+    '--flag',
+    'auto',
+    'inherit-parent',
+    'opus',
+    'sonnet',
+    'haiku',
+    'default',
+    'sonnet[1m]',
+    'opus[1m]',
+  ]) {
+    const result = f.invoke([...f.runArgs, '--model', selected]);
+    assert.equal(result.status, 1, selected);
+    await assert.rejects(access(f.callPath));
+    await assert.rejects(access(f.runDir));
+  }
+  assert.equal(
+    f.invoke([
+      ...f.runArgs,
+      '--model',
+      'claude-exact-v1',
+      '--model',
+      'claude-exact-v2',
+    ]).status,
+    1,
+  );
+  await assert.rejects(access(f.callPath));
 });
 
 test('run preserves cwd, stdin context, role body, raw trace, and immutable bundle bytes', async (t) => {

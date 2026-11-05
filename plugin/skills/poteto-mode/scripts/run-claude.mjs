@@ -14,15 +14,19 @@ import { StringDecoder } from 'node:string_decoder';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import {
+  DEFAULT_CLAUDE_MODEL,
+  CLAUDE_MINIMUM_VERSION,
+  CLAUDE_CLI_EFFORTS,
+  exactClaudeModel,
+  versionAtLeast,
+} from './claude-capabilities.mjs';
 
-const MODEL = 'claude-opus-5-5';
-const MINIMUM_VERSION = '2.1.280';
-const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const USAGE = `Usage:
   node run-claude.mjs detect [--executable /absolute/claude]
   node run-claude.mjs run --cwd /absolute/worktree --run-dir /absolute/local-run \\
-    --effort xhigh --instruction /absolute/AGENTS.md --skill /absolute/SKILL.md \\
+    [--model EXACT_MODEL_ID] --effort xhigh --instruction /absolute/AGENTS.md --skill /absolute/SKILL.md \\
     [--role /absolute/role.md] [--resume session-uuid] [--allowed-tool tool] \\
     [--executable /absolute/claude] < task.txt
 
@@ -30,7 +34,8 @@ Repeat --instruction, --skill, and --allowed-tool as needed. --role supplies onl
 the requested role's Markdown body. Each supplied context file receives an exact
 Read allowance. Pass the task's other authorized tool rules with --allowed-tool.
 Fresh sessions are the default. Artifacts are saved in --run-dir outside the
-plugin; stdout is the result receipt JSON.`;
+plugin; stdout is the result receipt JSON. Dispatchers pass the resolved model.
+Legacy direct calls omitting --model retain the bundled Opus default.`;
 
 function parseArguments(argv) {
   const command = argv[0];
@@ -41,6 +46,7 @@ function parseArguments(argv) {
     '--cwd': 'cwd',
     '--run-dir': 'runDir',
     '--effort': 'effort',
+    '--model': 'model',
     '--instruction': 'instruction',
     '--skill': 'skill',
     '--role': 'role',
@@ -114,15 +120,6 @@ async function executablePath(requested = 'claude') {
   throw new Error('claude was not found on PATH');
 }
 
-function atLeast(version, minimum) {
-  const left = version.split('.').map(Number);
-  const right = minimum.split('.').map(Number);
-  for (let index = 0; index < 3; index++) {
-    if (left[index] !== right[index]) return left[index] > right[index];
-  }
-  return true;
-}
-
 function cliText(executable, argument) {
   const result = spawnSync(executable, [argument], { encoding: 'utf8' });
   if (result.error) throw result.error;
@@ -156,20 +153,20 @@ async function detect(options) {
     effortStart,
     effortEnd === -1 ? undefined : effortEnd,
   );
-  const supportedReasoningEfforts = EFFORTS.filter((effort) =>
+  const effortSyntax = CLAUDE_CLI_EFFORTS.filter((effort) =>
     new RegExp(`\\b${effort}\\b`).test(effortHelp),
   );
   return {
     executor: 'claude-code',
     executable,
     version,
-    minimumVersion: MINIMUM_VERSION,
+    minimumVersion: CLAUDE_MINIMUM_VERSION,
     requiredOptions,
     compatible:
-      atLeast(version, MINIMUM_VERSION) &&
+      versionAtLeast(version, CLAUDE_MINIMUM_VERSION) &&
       Object.values(requiredOptions).every(Boolean) &&
-      supportedReasoningEfforts.length > 0,
-    models: [{ model: MODEL, supportedReasoningEfforts }],
+      effortSyntax.length > 0,
+    effortSyntax,
     modelExecutionVerified: false,
   };
 }
@@ -196,14 +193,15 @@ async function inputText() {
 }
 
 async function run(options) {
+  const model = exactClaudeModel(options.model ?? DEFAULT_CLAUDE_MODEL);
   const cwd = absolute(options.cwd, '--cwd');
   if (!(await stat(cwd)).isDirectory())
     throw new Error('--cwd must be a directory');
   const runDir = absolute(options.runDir, '--run-dir');
   if (contains(PLUGIN_ROOT, runDir))
     throw new Error('--run-dir must be outside the plugin');
-  if (!EFFORTS.includes(options.effort))
-    throw new Error(`--effort must be one of ${EFFORTS.join(', ')}`);
+  if (!CLAUDE_CLI_EFFORTS.includes(options.effort))
+    throw new Error(`--effort must be one of ${CLAUDE_CLI_EFFORTS.join(', ')}`);
   if (options.instruction.length === 0 || options.skill.length === 0) {
     throw new Error('run requires at least one --instruction and --skill path');
   }
@@ -243,7 +241,7 @@ async function run(options) {
   const args = [
     '-p',
     '--model',
-    MODEL,
+    model,
     '--effort',
     options.effort,
     '--output-format',
@@ -263,7 +261,8 @@ async function run(options) {
     executable,
     args,
     cwd,
-    model: MODEL,
+    model,
+    modelSelection: options.model === undefined ? 'legacy-default' : 'explicit',
     reasoningEffort: options.effort,
     resumeSessionId: options.resume ?? null,
     context: context.map(({ kind, path: sourcePath }) => ({

@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
 
-Read [Codex execution](../poteto-mode/references/codex-execution.md) before delegation. Resolve the `why investigators` and `why synthesizer` roles with the sibling setup helper. Both default to `gpt-6.1-sol`; inherited aliases use Codex execution's parent-selection binding. Use general-purpose delegates through each selected executor, with `agent_type: "pstack-general-purpose"` on the native path, and supply absolute paths to this skill and each selected reference.
+Read [Codex execution](../poteto-mode/references/codex-execution.md) before delegation. Resolve the `why investigators` and `why synthesizer` roles with the sibling setup helper. Missing roles and inherited aliases use Codex execution's native parent-selection binding. Use general-purpose delegates through each selected executor, with `agent_type: "pstack-general-purpose"` on the native path, and supply absolute paths to this skill and each selected reference.
 
 Native investigators and the synthesizer use the parent's MCP access and sandbox for investigation and citation spot-checks. Claude Code uses its configured tools and MCPs through Codex execution. Investigators still shouldn't write anything.
 
@@ -46,7 +46,7 @@ Map each available MCP to one evidence category:
 
 Source control is always available through git and `gh`. For the other six, classify using the MCP name, server instructions, tool names, and resource descriptors. If an MCP could fit more than one category, choose the one matching its primary evidence. Record ambiguous cases in the coverage map.
 
-Spawn one investigator per category that has a matching MCP, all in a single message so they run concurrently, each owning exactly one tool or MCP. Don't ask one agent to cover multiple MCPs. Model role `why investigators`, default `gpt-6.1-sol`.
+Spawn one investigator per category that has a matching MCP, all in a single message so they run concurrently, each owning exactly one tool or MCP. Don't ask one agent to cover multiple MCPs. Model role `why investigators`.
 
 Each investigator's prompt is `references/investigator-prompt.md` filled in, plus:
 - the category playbook `references/sources/<source>.md` for the selected MCP, adapted from the examples in `references/source-playbook.md`
@@ -76,7 +76,7 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 
 ## Step 4. Synthesize
 
-Spawn one synthesizer. Model role `why synthesizer`, default `gpt-6.1-sol`. It gets:
+Spawn one synthesizer. Model role `why synthesizer`. It gets:
 1. The investigator findings, including any null results and any categories skipped with justification
 2. The code anchor
 3. The user's original question

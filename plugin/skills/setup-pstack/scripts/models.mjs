@@ -5,7 +5,6 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
-  DEFAULT_CLAUDE_MODEL,
   exactClaudeModel,
   normalizeClaudeRuntime,
 } from '../../poteto-mode/scripts/claude-capabilities.mjs';
@@ -139,27 +138,8 @@ function normalizeCatalog(input, suppliedRuntime) {
   if (runtimes.length > 1)
     throw new Error('Supply one detected Claude runtime.');
   const runtime = runtimes[0] && normalizeClaudeRuntime(runtimes[0]);
-  const combined = [...data];
-  if (
-    runtime &&
-    !combined.some(
-      (entry) =>
-        executorFor(entry) === 'claude-code' &&
-        (entry.model ?? entry.id) === DEFAULT_CLAUDE_MODEL,
-    )
-  )
-    combined.push({
-      executor: 'claude-code',
-      model: DEFAULT_CLAUDE_MODEL,
-      supportedReasoningEfforts: runtime.effortSyntax,
-      source: {
-        kind: 'bundled-default',
-        description:
-          'Shipped default route using global CLI effort syntax, not proof of account access or model execution.',
-      },
-    });
   const seen = new Set();
-  const models = combined.map((model) => {
+  const models = data.map((model) => {
     const id = model.model ?? model.id;
     const supported =
       model.supportedReasoningEfforts ?? model.supported_reasoning_efforts;
@@ -194,12 +174,9 @@ function normalizeCatalog(input, suppliedRuntime) {
         );
       const source = model.source;
       if (
-        ![
-          'host',
-          'configuration',
-          'manual-confirmation',
-          ...(id === DEFAULT_CLAUDE_MODEL ? ['bundled-default'] : []),
-        ].includes(source?.kind) ||
+        !['host', 'configuration', 'manual-confirmation'].includes(
+          source?.kind,
+        ) ||
         typeof source?.description !== 'string' ||
         !source.description.trim()
       )
@@ -258,41 +235,36 @@ function validateEntry(entry, role) {
   };
 }
 
-function defaultsFor(role, budget) {
-  const sol = { model: 'gpt-6.1-sol', reasoningEffort: budgets[budget] };
-  const opus = {
-    executor: 'claude-code',
-    model: DEFAULT_CLAUDE_MODEL,
-    reasoningEffort: budgets[budget],
+function proposalFor(config) {
+  return {
+    ...config,
+    roles: Object.fromEntries(
+      Object.entries(roles).map(([role, count]) => [
+        role,
+        config.roles[role] ??
+          Array.from({ length: count }, () => ({
+            reasoningEffort: budgets[config.budget],
+          })),
+      ]),
+    ),
   };
-  if (role === 'hardest tasks') return [opus];
-  return roles[role] === 2 ? [sol, opus] : [sol];
 }
 
-function defaultChanges(saved, config) {
-  return Object.entries(roles).flatMap(([role, count]) => {
-    if (
-      !Object.hasOwn(saved?.roles ?? {}, role) ||
-      (role !== 'hardest tasks' && count !== 2)
-    )
-      return [];
-    const current = config.roles[role];
-    const proposed = defaultsFor(role, config.budget);
-    if (JSON.stringify(current) === JSON.stringify(proposed)) return [];
-    const previousDefault = Array.from({ length: count }, () => ({
-      model: 'gpt-6.1-sol',
-      reasoningEffort: budgets[config.budget],
-    }));
-    return [
-      {
-        role,
-        current,
-        proposed,
-        matchesPreviousDefault:
-          JSON.stringify(current) === JSON.stringify(previousDefault),
-      },
-    ];
-  });
+function unresolvedChoices(proposal) {
+  return Object.entries(proposal.roles).flatMap(([role, entries]) =>
+    entries.flatMap((entry, index) =>
+      entry.model
+        ? []
+        : [
+            {
+              role,
+              index,
+              reason:
+                'Choose an executor and exact model, or a native parent alias.',
+            },
+          ],
+    ),
+  );
 }
 
 function normalizeConfig(input, previous) {
@@ -300,45 +272,27 @@ function normalizeConfig(input, previous) {
     !input ||
     typeof input !== 'object' ||
     Array.isArray(input) ||
-    (input.schemaVersion !== undefined && ![1, 2].includes(input.schemaVersion))
+    (input.schemaVersion !== undefined && input.schemaVersion !== 1)
   )
-    throw new Error('Model configuration schemaVersion must be 1 or 2.');
+    throw new Error('Model configuration schemaVersion must be 1.');
   const budget = input.budget ?? previous?.budget ?? 'large';
   if (!Object.hasOwn(budgets, budget))
     throw new Error('Unknown pstack budget.');
   const selected = input.roles ?? {};
   if (!selected || typeof selected !== 'object' || Array.isArray(selected))
     throw new Error('Model configuration roles must be an object.');
-  const droppedRoles = Object.keys(selected).filter(
-    (role) => !Object.hasOwn(roles, role),
-  );
-  const normalized = {};
-  for (const [role, count] of Object.entries(roles)) {
-    const entries = Object.hasOwn(selected, role)
-      ? selected[role]
-      : (previous?.roles[role] ?? defaultsFor(role, budget));
+  const normalized = { ...(previous?.roles ?? {}) };
+  for (const [role, entries] of Object.entries(selected)) {
+    if (!Object.hasOwn(roles, role))
+      throw new Error(`Unknown pstack role: ${role}`);
     if (!Array.isArray(entries) || !entries.length)
       throw new Error(`Role ${role} must contain at least one entry.`);
-    if (count === 1 && entries.length !== 1)
+    if (roles[role] === 1 && entries.length !== 1)
       throw new Error(`Scalar role ${role} must contain exactly one entry.`);
     normalized[role] = entries.map((entry) => validateEntry(entry, role));
-    if (
-      input.schemaVersion === 1 &&
-      Object.hasOwn(selected, role) &&
-      normalized[role].some((entry) => executorFor(entry) === 'claude-code')
-    )
-      throw new Error(
-        'Claude executor entries require model configuration schemaVersion 2; schemaVersion 1 is native-only.',
-      );
   }
-  const schemaVersion = Object.values(normalized).some((entries) =>
-    entries.some((entry) => executorFor(entry) === 'claude-code'),
-  )
-    ? 2
-    : 1;
   return {
-    config: { schemaVersion, budget, roles: normalized },
-    droppedRoles,
+    config: { schemaVersion: 1, budget, roles: normalized },
   };
 }
 
@@ -431,7 +385,8 @@ async function main(options) {
     return {
       ...info,
       ...loaded,
-      defaultChanges: defaultChanges(saved, loaded.config),
+      proposal: proposalFor(loaded.config),
+      needsChoice: unresolvedChoices(proposalFor(loaded.config)),
       targetReasoningEffort: budgets[loaded.config.budget],
     };
   if (options.command === 'resolve') {
@@ -441,10 +396,14 @@ async function main(options) {
       );
     return {
       role: options.role,
-      entries: loaded.config.roles[options.role],
+      entries:
+        loaded.config.roles[options.role] ??
+        Array.from({ length: roles[options.role] }, () => ({
+          model: 'inherit-parent',
+        })),
       source: Object.hasOwn(saved?.roles ?? {}, options.role)
         ? 'saved'
-        : 'default',
+        : 'unconfigured',
       file,
       budget: loaded.config.budget,
       targetReasoningEffort: budgets[loaded.config.budget],
@@ -457,7 +416,6 @@ async function main(options) {
   if (options.command === 'budget')
     return {
       ...info,
-      droppedRoles: loaded.droppedRoles,
       ...applyBudget(loaded.config, options.budget, catalog),
     };
   const supplied = await inputJson(options.input, '--input');

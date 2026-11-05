@@ -34,7 +34,7 @@ interface Result {
   exists: boolean;
   sha256: string | null;
   config: Config;
-  droppedRoles: string[];
+  proposal: Config;
   changed: boolean;
   needsChoice: unknown[];
   entries: Entry[];
@@ -46,12 +46,6 @@ interface Result {
     source?: { kind: string; description: string };
   }[];
   targetReasoningEffort: string;
-  defaultChanges: {
-    role: string;
-    current: Entry[];
-    proposed: Entry[];
-    matchesPreviousDefault: boolean;
-  }[];
   runtimes?: { modelExecutionVerified: boolean }[];
 }
 
@@ -161,9 +155,10 @@ async function fixture(t: TestContext) {
   };
 }
 
-test('standalone model helper preserves every upstream role and default fan-out without writing', async (t) => {
+test('fresh config stays empty while proposal and parent resolution preserve every role count', async (t) => {
   const f = await fixture(t);
   const result = f.run('read');
+  assert.deepEqual(result.config.roles, {});
   const upstream = await readFile(
     path.join(projectRoot, 'upstream/pstack/skills/setup-pstack/SKILL.md'),
     'utf8',
@@ -173,34 +168,24 @@ test('standalone model helper preserves every upstream role and default fan-out 
     .filter((line) => /^[^#\s][^:]*: (?:grok|claude)-/.test(line));
   assert.equal(original.length, 17);
   assert.deepEqual(
-    Object.keys(result.config.roles),
+    Object.keys(result.proposal.roles),
     original.map((line) => line.slice(0, line.indexOf(': '))),
   );
   for (const line of original) {
     const [role, models] = line.split(': ');
     assert.ok(role && models);
-    assert.equal(result.config.roles[role]?.length, models.split(', ').length);
-    const defaults = result.config.roles[role]!;
-    assert.ok(defaults.every((entry) => entry.reasoningEffort === 'xhigh'));
+    const count = models.split(', ').length;
+    const slots = result.proposal.roles[role]!;
+    assert.equal(slots.length, count);
+    assert.ok(slots.every((entry) => entry.model === undefined));
+    const resolved = f.run('resolve', '--role', role);
+    assert.equal(resolved.source, 'unconfigured');
     assert.deepEqual(
-      defaults.map((entry) => [entry.executor ?? 'codex', entry.model]),
-      role === 'hardest tasks'
-        ? [['claude-code', 'claude-opus-5-5']]
-        : defaults.length === 2
-          ? [
-              ['codex', 'gpt-6.1-sol'],
-              ['claude-code', 'claude-opus-5-5'],
-            ]
-          : [['codex', 'gpt-6.1-sol']],
+      resolved.entries,
+      Array.from({ length: count }, () => ({ model: 'inherit-parent' })),
     );
   }
-  assert.equal(
-    Object.values(result.config.roles).filter(
-      (entries) => entries.length === 1 && entries[0]?.model === 'gpt-6.1-sol',
-    ).length,
-    12,
-  );
-  assert.deepEqual(result.defaultChanges, []);
+  assert.equal(result.needsChoice.length, 21);
   assert.equal(result.config.budget, 'large');
   assert.equal(result.sha256, null);
   await assert.rejects(stat(f.codexHome), { code: 'ENOENT' });
@@ -229,6 +214,9 @@ test('native catalog normalization uses executable model IDs and exact supported
 
 test('all original budgets map to separate native efforts without changing model IDs', async (t) => {
   const f = await fixture(t);
+  await f.save({
+    roles: { 'bug-fix': [{ model: 'gpt-6.1-sol', reasoningEffort: 'xhigh' }] },
+  });
   for (const [budget, effort] of Object.entries({
     unlimited: 'max',
     large: 'xhigh',
@@ -249,7 +237,9 @@ test('all original budgets map to separate native efforts without changing model
         ),
     );
   }
-  await assert.rejects(stat(f.codexHome), { code: 'ENOENT' });
+  assert.deepEqual(f.run('read').config.roles['bug-fix'], [
+    { model: 'gpt-6.1-sol', reasoningEffort: 'xhigh' },
+  ]);
 });
 
 test('reconfiguration retains chosen model, ordered panel lists, duplicates, aliases and supported fallback effort', async (t) => {
@@ -302,29 +292,25 @@ test('partial preference saves preserve existing user choices and unrelated Code
   assert.equal(await readFile(unrelated, 'utf8'), 'model = "user-choice"\n');
 });
 
-test('retired roles are reported and absent active roles fall back before a requested save', async (t) => {
+test('unknown role keys fail without dropping them or changing saved choices', async (t) => {
   const f = await fixture(t);
-  await mkdir(path.dirname(f.file), { recursive: true });
+  const saved = await f.save({ roles: { 'bug-fix': [{ model: 'auto' }] } });
+  const before = await readFile(f.file);
   await writeFile(
-    f.file,
-    JSON.stringify({
-      schemaVersion: 1,
-      budget: 'small',
-      roles: {
-        'bug-fix': [{ model: 'auto' }],
-        'how critics': [{ model: 'auto' }],
-      },
-    }),
+    f.input,
+    JSON.stringify({ roles: { 'unknown role': [{ model: 'auto' }] } }),
   );
-  const result = f.run('read');
-  assert.deepEqual(result.droppedRoles, ['how critics']);
-  assert.equal(f.run('resolve', '--role', 'hillclimb').source, 'default');
-  assert.deepEqual(result.config.roles['hillclimb'], [
-    { model: 'gpt-6.1-sol', reasoningEffort: 'medium' },
-  ]);
-  await f.save(result);
-  assert.deepEqual(f.run('read').droppedRoles, []);
-  assert.equal(Object.keys(f.run('read').config.roles).length, 17);
+  const rejected = f.invoke(
+    'write',
+    '--input',
+    f.input,
+    '--catalog',
+    f.catalog,
+    '--expected-hash',
+    saved.sha256!,
+  );
+  assert.equal(rejected.status, 1);
+  assert.deepEqual(await readFile(f.file), before);
 });
 
 test('identical preference saves leave bytes and timestamp untouched', async (t) => {
@@ -349,7 +335,13 @@ test('dry-run validates preferences without creating a destination', async (t) =
 
 test('inherit aliases remain valid even when no real model is detected', async (t) => {
   const f = await fixture(t);
-  const config = f.run('read').config;
+  const config: Config = {
+    ...f.run('read').config,
+    roles: {
+      'bug-fix': [{ model: 'auto' }],
+      'arena runners': [{ model: 'auto' }, { model: 'auto' }],
+    },
+  };
   for (const entries of Object.values(config.roles)) {
     for (const entry of entries) {
       entry.model = 'auto';
@@ -420,7 +412,9 @@ test('scalar roles reject multiple entries instead of silently selecting one', a
 
 test('unresolved budget entries cannot be saved as if valid', async (t) => {
   const f = await fixture(t);
-  await f.save(f.run('read').config);
+  await f.save({
+    roles: { 'bug-fix': [{ model: 'gpt-6.1-sol', reasoningEffort: 'xhigh' }] },
+  });
   await writeFile(
     f.catalog,
     JSON.stringify({
@@ -428,7 +422,7 @@ test('unresolved budget entries cannot be saved as if valid', async (t) => {
     }),
   );
   const result = f.run('budget', '--budget', 'large', '--catalog', f.catalog);
-  assert.equal(result.needsChoice.length, 21);
+  assert.equal(result.needsChoice.length, 1);
   await writeFile(f.input, JSON.stringify(result));
   const save = f.invoke(
     'write',
@@ -480,111 +474,53 @@ test('malformed preferences and symlink destinations fail without mutating their
   assert.equal(await readFile(outside, 'utf8'), 'outside contents\n');
 });
 
-test('legacy all-Sol choices stay native and unchanged while mixed defaults are proposed separately', async (t) => {
+test('the new identity uses one schema for sparse native and mixed choices', async (t) => {
   const f = await fixture(t);
-  const legacy = f.run('read').config;
-  legacy.schemaVersion = 1;
-  for (const entries of Object.values(legacy.roles)) {
-    for (const entry of entries) {
-      entry.model = 'gpt-6.1-sol';
-      delete entry.executor;
-    }
-  }
-  await mkdir(path.dirname(f.file), { recursive: true });
-  await writeFile(f.file, JSON.stringify(legacy));
-  const before = await readFile(f.file);
-  const read = f.run('read');
-  assert.deepEqual(read.config, legacy);
-  assert.equal(read.defaultChanges.length, 5);
-  assert.ok(
-    read.defaultChanges.every((change) => change.matchesPreviousDefault),
-  );
-  assert.ok(
-    read.defaultChanges.every((change) =>
-      change.proposed.some((entry) => entry.executor === 'claude-code'),
-    ),
-  );
-  assert.deepEqual(f.run('resolve', '--role', 'hardest tasks').entries, [
-    { model: 'gpt-6.1-sol', reasoningEffort: 'xhigh' },
+  await f.save({ schemaVersion: 1, roles: { 'bug-fix': [{ model: 'auto' }] } });
+  const catalog = JSON.parse(await readFile(f.catalog, 'utf8'));
+  catalog.data.push(sonnetCapability);
+  await writeFile(f.catalog, JSON.stringify(catalog));
+  const saved = await f.save({
+    roles: {
+      'hardest tasks': [
+        {
+          executor: 'claude-code',
+          model: sonnetCapability.model,
+          reasoningEffort: 'high',
+        },
+      ],
+    },
+  });
+  assert.equal(saved.config.schemaVersion, 1);
+  assert.deepEqual(Object.keys(saved.config.roles), [
+    'bug-fix',
+    'hardest tasks',
   ]);
-  assert.deepEqual(await readFile(f.file), before);
-  await f.save({ roles: { 'bug-fix': [{ model: 'auto' }] } });
-  assert.deepEqual(f.run('resolve', '--role', 'hardest tasks').entries, [
-    { model: 'gpt-6.1-sol', reasoningEffort: 'xhigh' },
-  ]);
-  assert.equal(f.run('read').defaultChanges.length, 5);
-});
-
-test('mixed schema 2 is rejected by the exact previous reader without changing saved bytes', async (t) => {
-  const f = await fixture(t);
-  const patch = await readFile(
-    path.join(projectRoot, 'patches/0004-global-models-lifecycle.patch'),
-    'utf8',
+  assert.equal(
+    f.run('resolve', '--role', 'hardest tasks').entries[0]?.model,
+    sonnetCapability.model,
   );
-  const section = patch
-    .split('+++ b/skills/setup-pstack/scripts/models.mjs\n')[1]
-    ?.split('\ndiff --git ')[0];
-  assert.ok(
-    section,
-    'Original added helper must exist in the preserved patch.',
-  );
-  const oldSource = section
-    .split('\n')
-    .filter((line) => line.startsWith('+'))
-    .map((line) => line.slice(1))
-    .join('\n');
-  const oldScript = path.join(f.root, 'old-models.mjs');
-  await writeFile(oldScript, oldSource);
-  const saved = await f.save(f.run('read').config);
-  assert.equal(saved.config.schemaVersion, 2);
   const before = await readFile(f.file);
-  const oldRead = () =>
-    spawnSync(
-      process.execPath,
-      [oldScript, 'read', '--codex-home', f.codexHome],
-      {
-        encoding: 'utf8',
-        timeout: 10_000,
-      },
-    );
-  const rejected = oldRead();
-  assert.notEqual(rejected.status, 0);
-  assert.match(rejected.stderr, /schemaVersion must be 1/);
-  assert.deepEqual(await readFile(f.file), before);
-
-  const nativeOnly = structuredClone(saved.config);
-  for (const entries of Object.values(nativeOnly.roles)) {
-    for (const entry of entries) {
-      if (entry.executor === 'claude-code') {
-        delete entry.executor;
-        entry.model = 'gpt-6.1-sol';
-      }
-    }
-  }
-  const nativeSaved = await f.save(nativeOnly);
-  assert.equal(nativeSaved.config.schemaVersion, 1);
-  const accepted = oldRead();
-  assert.equal(accepted.status, 0, accepted.stderr);
-  assert.deepEqual(JSON.parse(accepted.stdout).config, nativeSaved.config);
-});
-
-test('external entries labeled schema 1 fail unchanged instead of losing their executor', async (t) => {
-  const f = await fixture(t);
-  const mislabeled = f.run('read').config;
-  mislabeled.schemaVersion = 1;
-  await mkdir(path.dirname(f.file), { recursive: true });
-  await writeFile(f.file, JSON.stringify(mislabeled));
-  const before = await readFile(f.file);
-  const result = f.invoke('read');
-  assert.notEqual(result.status, 0);
-  assert.match(
-    result.stderr,
-    /Claude executor entries require.*schemaVersion 2/,
+  await writeFile(
+    f.input,
+    JSON.stringify({ ...saved.config, schemaVersion: 2 }),
+  );
+  assert.notEqual(
+    f.invoke(
+      'write',
+      '--input',
+      f.input,
+      '--catalog',
+      f.catalog,
+      '--expected-hash',
+      saved.sha256!,
+    ).status,
+    0,
   );
   assert.deepEqual(await readFile(f.file), before);
 });
 
-test('independent user choices survive mixed defaults and budget previews', async (t) => {
+test('independent user choices survive sparse saves and budget previews', async (t) => {
   const f = await fixture(t);
   const chosen: Entry[] = [
     { model: 'inherit-parent' },
@@ -598,10 +534,7 @@ test('independent user choices survive mixed defaults and budget previews', asyn
     },
   });
   const read = f.run('read');
-  assert.equal(read.defaultChanges.length, 2);
-  assert.ok(
-    read.defaultChanges.every((change) => !change.matchesPreviousDefault),
-  );
+  assert.deepEqual(read.config.roles['arena runners'], chosen);
   const budget = f.run(
     'budget',
     '--budget',
@@ -615,7 +548,7 @@ test('independent user choices survive mixed defaults and budget previews', asyn
   assert.deepEqual(f.run('resolve', '--role', 'arena runners').entries, chosen);
 });
 
-test('native catalog adds the labeled bundled Claude default without claiming model access', async (t) => {
+test('runtime syntax adds no model capability or executable proposal default', async (t) => {
   const f = await fixture(t);
   const native = {
     data: [{ model: 'gpt-6.1-sol', supportedReasoningEfforts: ['xhigh'] }],
@@ -630,27 +563,16 @@ test('native catalog adds the labeled bundled Claude default without claiming mo
     '--claude-runtime',
     receipt,
   );
-  assert.deepEqual(combined.models[0], native.data[0]);
-  assert.equal(combined.models[1]?.executor, 'claude-code');
-  assert.equal(combined.models[1]?.model, 'claude-opus-5-5');
-  assert.deepEqual(
-    combined.models[1]?.supportedReasoningEfforts,
-    claudeRuntime.effortSyntax,
-  );
-  assert.equal(combined.models[1]?.source?.kind, 'bundled-default');
-  assert.match(
-    combined.models[1]?.source?.description ?? '',
-    /not.*(?:access|execution)/i,
-  );
+  assert.deepEqual(combined.models, native.data);
   assert.equal(combined.runtimes?.[0]?.modelExecutionVerified, false);
   await writeFile(f.catalog, JSON.stringify(combined));
-  await f.save(f.run('read').config);
+  await f.save({ roles: { 'bug-fix': [{ model: 'auto' }] } });
+  assert.equal(
+    f.run('resolve', '--role', 'hardest tasks').source,
+    'unconfigured',
+  );
   assert.deepEqual(f.run('resolve', '--role', 'hardest tasks').entries, [
-    {
-      executor: 'claude-code',
-      model: 'claude-opus-5-5',
-      reasoningEffort: 'xhigh',
-    },
+    { model: 'inherit-parent' },
   ]);
 });
 
@@ -690,7 +612,20 @@ test('Claude catalog rejects absent capabilities, obsolete CLI, unsupported opti
 
 test('executor identity prevents native catalog entries from validating external choices and aliases remain native', async (t) => {
   const f = await fixture(t);
-  const initial = await f.save(f.run('read').config);
+  const combined = JSON.parse(await readFile(f.catalog, 'utf8'));
+  combined.data.push(sonnetCapability);
+  await writeFile(f.catalog, JSON.stringify(combined));
+  const initial = await f.save({
+    roles: {
+      'hardest tasks': [
+        {
+          executor: 'claude-code',
+          model: sonnetCapability.model,
+          reasoningEffort: 'high',
+        },
+      ],
+    },
+  });
   const before = await readFile(f.file);
   for (const entry of [
     { executor: 'claude-code', model: 'auto' },
@@ -724,7 +659,7 @@ test('executor identity prevents native catalog entries from validating external
     }),
   );
   const preview = f.run('budget', '--budget', 'large', '--catalog', f.catalog);
-  assert.equal(preview.needsChoice.length, 5);
+  assert.equal(preview.needsChoice.length, 1);
   await writeFile(f.input, JSON.stringify(initial.config));
   const result = f.invoke(
     'write',
@@ -938,7 +873,7 @@ test('external capabilities need per-model provenance and cannot borrow runtime 
   );
   assert.deepEqual(
     f.run('catalog', '--input', f.catalog).models.map((entry) => entry.model),
-    ['claude-opus-5-5'],
+    [],
   );
   await writeFile(
     f.catalog,
@@ -1001,6 +936,7 @@ import { writeFileSync } from 'node:fs';
 const args = process.argv.slice(2);
 if (args[0] === '--version') console.log('2.1.300 (Claude Code)');
 else if (args[0] === '--help') console.log('--print --model --effort low medium high xhigh max --output-format stream-json --verbose --resume');
+else if (args[0] === 'auth') console.log(JSON.stringify({ loggedIn: true, authMethod: 'oauth_token' }));
 else {
   process.stdin.resume();
   process.stdin.on('end', () => {
@@ -1085,4 +1021,65 @@ else {
   assert.equal(receipt.model, sonnetCapability.model);
   assert.equal(receipt.observedModel, sonnetCapability.model);
   assert.equal(receipt.result, `Fixture received ${sonnetCapability.model}`);
+});
+
+test('native-only sparse setup saves without an external runtime or CLI and rejects unresolved proposal slots', async (t) => {
+  const f = await fixture(t);
+  await writeFile(
+    f.catalog,
+    JSON.stringify({
+      models: [
+        { model: 'native-fixture', supportedReasoningEfforts: ['high'] },
+      ],
+    }),
+  );
+  const accepted = await f.save({
+    budget: 'medium',
+    roles: {
+      'how explainer': [
+        { executor: 'codex', model: 'native-fixture', reasoningEffort: 'high' },
+      ],
+    },
+  });
+  assert.equal(accepted.config.schemaVersion, 1);
+  assert.deepEqual(
+    f.run('resolve', '--role', 'how explainer').entries,
+    accepted.config.roles['how explainer'],
+  );
+  assert.deepEqual(f.run('resolve', '--role', 'arena runners').entries, [
+    { model: 'inherit-parent' },
+    { model: 'inherit-parent' },
+  ]);
+  const before = await readFile(f.file);
+  await writeFile(f.input, JSON.stringify(f.run('read').proposal));
+  assert.notEqual(
+    f.invoke(
+      'write',
+      '--input',
+      f.input,
+      '--catalog',
+      f.catalog,
+      '--expected-hash',
+      accepted.sha256!,
+    ).status,
+    0,
+  );
+  assert.deepEqual(await readFile(f.file), before);
+});
+
+test('the new state identity never imports an old installation preference file', async (t) => {
+  const f = await fixture(t);
+  const oldState = path.join(f.codexHome, 'pstack-for-codex');
+  await mkdir(oldState, { recursive: true });
+  const bytes = JSON.stringify({
+    schemaVersion: 2,
+    roles: { 'bug-fix': [{ model: 'old-choice' }] },
+  });
+  await writeFile(path.join(oldState, 'models.json'), bytes);
+  assert.deepEqual(f.run('read').config.roles, {});
+  assert.equal(f.run('resolve', '--role', 'bug-fix').source, 'unconfigured');
+  assert.equal(
+    await readFile(path.join(oldState, 'models.json'), 'utf8'),
+    bytes,
+  );
 });

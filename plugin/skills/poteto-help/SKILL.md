@@ -24,7 +24,7 @@ Infer the need from the message and the conversation. A named situation, such as
 
 Check the state that changes the answer, and mention it only when it does:
 
-- Read the setup helper's model configuration with its absolute `scripts/models.mjs read` command. `source: default` means no saved Codex role configuration, so every role uses its bundled default.
+- Read the setup helper's model configuration with its absolute `scripts/models.mjs read` command. `source: unconfigured` means that role has no saved choice and uses the actual native parent with its original cardinality.
 - No `verify-*` skill or other app harness in the project means agents have no scripted way to drive the app. Mention `$pstack-codex:create-verification-skill` when the question is about proving a change works.
 - No formal verification skill in the project means no property is checked past what tests reach. Mention `$pstack-codex:create-formal-verification-skill` when the question is about a race, an invariant, or another case tests rarely hit. When one exists and the code it covers changed after the commit it records as last in sync, mention `$pstack-codex:maintain-formal-verification-skill` if the question touches that code.
 
@@ -43,7 +43,7 @@ When the model rule is missing and it matters, ask whether the user wants to pic
 
 If cost is the worry, say where the tokens go and how to spend fewer. pstack spends extra tokens on subagents and review panels. Rerun `$pstack-codex:setup-pstack` and pick a smaller budget or cheaper models. A role set to `auto` or `inherit-parent` runs on the chat's actual model through the parent-selection binding in **Codex execution**; omitted native parameters alone do not prove inheritance. A shorter panel list runs fewer subagents, one for each entry. Save `$pstack-codex:poteto-mode` for work that needs rigor.
 
-This distribution defaults to Sol through native Codex subagents and Opus 5.5 through Claude Code. Saved supported model choices override those defaults. Shared role configuration, project-scoped history, and event-watch/heartbeat continuation bind those workers to this host. Read [Codex execution](../poteto-mode/references/codex-execution.md) for these bindings and their permission boundaries. Worktrees replace cloud placement by the approved choice and share machine resources. The diversity panels default to Sol and Opus. Original different-model and different-family requirements still apply.
+This distribution uses saved worker choices or the actual native parent for unconfigured roles. Setup chooses executors before checking their CLI and login requirements, then models, roles, and budget. Shared role configuration, project-scoped history, and event-watch/heartbeat continuation bind workers to this host. Read [Codex execution](../poteto-mode/references/codex-execution.md) for these bindings and permission boundaries. Worktrees replace cloud placement and share machine resources. Different-model and different-family requirements apply at the workflow step that needs them.
 
 ## Start a task with `$pstack-codex:poteto-mode`
 

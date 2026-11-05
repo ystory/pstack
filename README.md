@@ -6,7 +6,7 @@ This is an unofficial adaptation of [Lauren Tan's pstack](https://github.com/cur
 
 Choose your host to get started:
 
-- [Codex](#install-in-codex). Install `pstack-for-codex` and select workers with setup.
+- [Codex](#install-in-codex). Install `pstack-codex` and select workers with setup.
 - [Claude Code](#install-in-claude-code). Install `pstack-cc` in the terminal or Claude desktop's local Code sessions.
 
 The host is where you talk to the parent agent. Each workflow role has its own worker executor, model, and reasoning effort. Setup saves these choices separately for each host and leaves the parent chat model unchanged.
@@ -25,7 +25,7 @@ flowchart LR
 For example, start a development task in Codex with:
 
 ```text
-$pstack-for-codex:poteto-mode the export writes duplicate rows when a retry lands mid-run. reproduce it, then fix and verify.
+$pstack-codex:poteto-mode the export writes duplicate rows when a retry lands mid-run. reproduce it, then fix and verify.
 ```
 
 In Claude Code, use `/pstack-cc:poteto-mode` with the same request. Expect the agent to reproduce the issue, check the change against the real behavior, and report the evidence and remaining limits. The [Codex guide](plugin/docs/guide/README.md) and [Claude Code guide](plugin-claude/docs/guide/README.md) explain the playbooks and review steps.
@@ -51,7 +51,7 @@ Start a local Code session in your project and run:
 /pstack-cc:setup-pstack
 ```
 
-Setup checks CLI capabilities and authentication, then shows the 17 roles. Choose supported Claude or Codex executors, exact models, and reasoning efforts. Setup shows unavailable upstream Grok suggestions so you can replace them with supported choices. Review the proposal before saving. Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`, independently of Codex-host preferences.
+Setup first asks for native Claude only, or Claude with Codex workers. It checks installation and login only for selected CLIs and guides any needed installation and human authentication. Then choose supported exact models, role assignments, and a reasoning budget across the 17 roles. Review the proposal before saving. Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`, independently of Codex-host preferences.
 
 Start a new session after setup so Claude discovers the registered agents. Try a read-only question about a real module in your project:
 
@@ -65,9 +65,9 @@ For updates and restores, follow [Update or remove](plugin-claude/docs/guide/01-
 
 ## Install in Codex
 
-In the Codex distribution, ordinary roles default to Sol 6.1 through Codex. The hardest tasks use Opus 5.5 through an existing Claude Code CLI, and candidate and review panels use both models. The default configuration requires an installed, authenticated Claude Code CLI with Opus 5.5 access. Setup can select other supported exact Claude models with model-specific effort and source evidence; CLI detection alone does not list account models.
+Setup first asks for native Codex only, or Codex with Claude Code workers. It checks installation and login only for selected CLIs, guides any needed installation and human authentication, and then helps you choose exact supported models, role assignments, and reasoning budget. No fixed model is required. The parent chat model stays unchanged.
 
-Setup can save an all-Sol configuration, but that configuration cannot satisfy upstream steps requiring a different model or model family, such as Orchestrate's per-PR verifier, the final audit in `show-me-your-work`, and the eval playbook. Arena instead reports when it cannot run a judge from another family and continues without that judge. See the [plugin manifest](plugin/plugin.json) for the current version and the [compatibility notes](docs/spec.md) for verified workflows and limitations.
+A fresh saved configuration has no chosen roles. Before setup, missing scalar roles use one native-parent entry and panels or pools use two. Setup presents all 17 roles with unresolved choices. Saved exact selections take precedence. Required different-model or different-family checks apply only at the workflow step that needs them. If its eligible selected choices cannot satisfy a required verifier, that step retains its unmet outcome. Arena discloses and skips an unavailable judge. See [compatibility notes](docs/spec.md) for verified scope.
 
 <details>
 <summary>Codex requirements and optional workflow tools</summary>
@@ -76,13 +76,13 @@ Setup can save an all-Sol configuration, but that configuration cannot satisfy u
 - Git for Codex to fetch the GitHub marketplace.
 - Node.js 24.12+ for setup and the bundled runtime helpers.
 - Python 3.11+ for agent registration, using its standard-library TOML parser. Setup uses `python3` by default and can select another existing interpreter.
-- An installed, authenticated Claude Code CLI 2.1.280+ with Opus 5.5 access for the default Claude roles. Setup checks CLI capabilities; detection alone does not establish model access.
+- An installed, authenticated Claude Code CLI 2.1.280+ only when you select Claude workers. Setup checks CLI capabilities; detection alone does not establish model access.
 - Bun 1.2+ for the PR watcher helper. Its first use installs locked dependencies in a cache outside the plugin and may need network access. GitHub PR workflows also need an authenticated GitHub CLI (`gh`).
 - Optional TLA+ statechart checks need Java and TLC. The first real check uses mise to install pinned tools unless existing tools are supplied. SVG rendering uses Pele separately. See the [statechart skill](plugin/skills/statechart/SKILL.md) for its commands and limits.
 
 </details>
 
-You need Codex with plugin and native subagent support, Git, Node.js 24.12+, and Python 3.11+. The default Claude roles also need an authenticated Claude Code CLI 2.1.280+ and Opus 5.5 access.
+You need Codex with plugin and native subagent support, Git, Node.js 24.12+, and Python 3.11+. Select Claude workers during setup to prepare that optional CLI.
 
 ### Install
 
@@ -90,7 +90,7 @@ Add the GitHub marketplace, then install the plugin:
 
 ```sh
 codex plugin marketplace add https://github.com/ystory/pstack.git
-codex plugin add pstack-for-codex@pstack-for-codex
+codex plugin add pstack-codex@pstack-codex
 ```
 
 Codex reads the repository's marketplace catalog and installs the committed `plugin/` directory. You do not need to clone the repository, install project dependencies, or build it first. See [Development and maintenance](docs/stack.md) to build and verify a local artifact instead.
@@ -100,18 +100,18 @@ Codex reads the repository's marketplace catalog and installs the committed `plu
 Open a Codex chat in your project and run:
 
 ```text
-$pstack-for-codex:setup-pstack
+$pstack-codex:setup-pstack
 ```
 
-Setup registers the two bundled agents and a general-purpose role, then saves your reasoning budget and role choices in `$CODEX_HOME/pstack-for-codex/models.json` (default `~/.codex/pstack-for-codex/models.json`). It preserves unrelated settings and stops on conflicts with user-edited managed files or declarations.
+After worker selection, any needed CLI preparation, model selection, and review, setup registers the two bundled agents and a general-purpose role. It saves your reasoning budget and accepted role choices in `$CODEX_HOME/pstack-codex/models.json` (default `~/.codex/pstack-codex/models.json`). It preserves unrelated settings and stops on conflicts with user-edited managed files or declarations.
 
 After setup, start a new chat so Codex discovers the registered roles. For a first walkthrough, try:
 
 ```text
-$pstack-for-codex:how explain how this project starts up.
+$pstack-codex:how explain how this project starts up.
 ```
 
-Use `$pstack-for-codex:poteto-mode` at the start of a development task to select a playbook, or `$pstack-for-codex:poteto-help` to find a suitable workflow. The [pstack guide](plugin/docs/guide/README.md) covers prompting, review, verification, and longer runs.
+Use `$pstack-codex:poteto-mode` at the start of a development task to select a playbook, or `$pstack-codex:poteto-help` to find a suitable workflow. The [pstack guide](plugin/docs/guide/README.md) covers prompting, review, verification, and longer runs.
 
 <details>
 <summary>Update, restore, or remove the Codex plugin</summary>
@@ -121,22 +121,22 @@ Use `$pstack-for-codex:poteto-mode` at the start of a development task to select
 For a GitHub installation, refresh the Git marketplace and explicitly reinstall the plugin:
 
 ```sh
-codex plugin marketplace upgrade pstack-for-codex
-codex plugin add pstack-for-codex@pstack-for-codex
+codex plugin marketplace upgrade pstack-codex
+codex plugin add pstack-codex@pstack-codex
 ```
 
-Run `$pstack-for-codex:setup-pstack` again to synchronize its managed registrations, then start a new chat. Saved model choices are retained.
+Run `$pstack-codex:setup-pstack` again to synchronize its managed registrations, then start a new chat. Saved model choices are retained.
 
-To switch an existing local `pstack-for-codex` marketplace to GitHub, run the two [install commands](#install) above, then rerun setup and start a new chat. Adding the Git URL selects that source for the same marketplace identity; `marketplace upgrade` alone does not turn a local source into a Git source. For building, selecting, or restoring local artifacts, see [Development and maintenance](docs/stack.md#build-and-select-an-artifact).
+To switch an existing local `pstack-codex` marketplace to GitHub, run the two [install commands](#install) above, then rerun setup and start a new chat. Adding the Git URL selects that source for the same marketplace identity; `marketplace upgrade` alone does not turn a local source into a Git source. For building, selecting, or restoring local artifacts, see [Development and maintenance](docs/stack.md#build-and-select-an-artifact).
 
-Earlier mixed bundles pinned to Opus reject saved nondefault Claude choices. Before restoring one, explicitly save choices it supports with the current setup. Before restoring an older all-Sol bundle, use the current setup to explicitly save Codex-only role choices: older helpers reject the mixed-executor schema 2, while native-only schema 1 remains compatible. This does not make all-Sol choices satisfy steps that require a different model or model family.
+The new `pstack-codex` identity has one current preference schema and no automatic migration from the old plugin. For a fresh replacement of an existing `pstack-for-codex` installation, invoke its old `$pstack-for-codex:setup-pstack` while still installed and ask it to unregister owned agents. Then run `codex plugin remove pstack-for-codex@pstack-for-codex` before the new install commands. Preserve unrelated settings. Old preferences are not imported or read by the new plugin.
 
 ### Remove
 
-Before removing the plugin, run `$pstack-for-codex:setup-pstack` and ask it to unregister its managed agents. This removes unchanged owned registrations and leaves your model preferences in place. Then remove the plugin:
+Before removing the plugin, run `$pstack-codex:setup-pstack` and ask it to unregister its managed agents. This removes unchanged owned registrations and leaves your model preferences in place. Then remove the plugin:
 
 ```sh
-codex plugin remove pstack-for-codex@pstack-for-codex
+codex plugin remove pstack-codex@pstack-codex
 ```
 
 There is no automatic uninstall hook to clean up registered agents after the plugin is removed.
@@ -146,7 +146,7 @@ There is no automatic uninstall hook to clean up registered agents after the plu
 ## Docs and help
 
 - [Codex guide](plugin/docs/guide/README.md) and [Claude Code guide](plugin-claude/docs/guide/README.md) cover setup, prompting, design, review, and verification.
-- Use `$pstack-for-codex:poteto-help` or `/pstack-cc:poteto-help` to find a workflow.
+- Use `$pstack-codex:poteto-help` or `/pstack-cc:poteto-help` to find a workflow.
 - [Design and compatibility](docs/spec.md) separates source inspection, automated fixtures, and live runtime evidence. A successful build does not establish every workflow or account configuration.
 - Report project and installation bugs in [GitHub issues](https://github.com/ystory/pstack/issues).
 
@@ -164,4 +164,4 @@ For contributions:
 - [Original pstack README](upstream/pstack/README.md): upstream project background.
 - [pstack source lock](upstream.lock.json), [cursor-team-kit source lock](dependencies.lock.json), and [Codex worker runtime lock](codex-runtime.lock.json): pinned revisions, file mappings, and hashes.
 
-The original Codex adaptation code and documentation are released under the [MIT license](LICENSE). The Codex bundle includes this license at `licenses/pstack-for-codex/LICENSE`; the Claude bundle uses `licenses/pstack-cc/LICENSE`. pstack is by Lauren Tan and retains its [MIT license](upstream/pstack/LICENSE). The bundled cursor-team-kit skills retain Cursor's [MIT license](upstream/cursor-team-kit/LICENSE). The Claude target also includes pinned official Codex worker code and its notices under `vendor/codex-plugin-cc/`. Original copyright and license notices are preserved in each distribution.
+The original Codex adaptation code and documentation are released under the [MIT license](LICENSE). The Codex bundle includes this license at `licenses/pstack-codex/LICENSE`; the Claude bundle uses `licenses/pstack-cc/LICENSE`. pstack is by Lauren Tan and retains its [MIT license](upstream/pstack/LICENSE). The bundled cursor-team-kit skills retain Cursor's [MIT license](upstream/cursor-team-kit/LICENSE). The Claude target also includes pinned official Codex worker code and its notices under `vendor/codex-plugin-cc/`. Original copyright and license notices are preserved in each distribution.

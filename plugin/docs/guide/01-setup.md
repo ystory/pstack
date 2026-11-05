@@ -15,29 +15,25 @@ For a local distribution artifact, replace the GitHub URL with its absolute dire
 
 Start a new Codex chat in your project and select `$pstack-codex:setup-pstack`. Installing the plugin and running setup are separate steps.
 
-Original pstack also installs in Claude Code with `/plugin marketplace add cursor/plugins`, then `/plugin install pstack@cursor-plugins`. Its [Claude Code adapter](../harness/claude-code.md) covers that setup and its `pstack:` command prefix. This distribution uses the [Claude CLI bridge](../../skills/poteto-mode/references/codex-execution.md) from a Codex parent.
+## Choose workers and models
 
-## Pick your models
-
-Run:
+Run the installed setup skill.
 
 ```text
 $pstack-codex:setup-pstack
 ```
 
-[`$pstack-codex:setup-pstack`](../../skills/setup-pstack/SKILL.md) reads the native model catalog, confirms external model choices and their supported efforts, asks for a reasoning budget, shows you each role (code delegates, judgment, the review panels), and asks what you want. Answer the questions. It writes `$CODEX_HOME/pstack-codex/models.json`, or `~/.codex/pstack-codex/models.json` when `CODEX_HOME` is unset. Every pstack skill resolves its model roles from this user-owned configuration.
+First choose native Codex only, or Codex with Claude Code workers. The parent chat stays in Codex. Only selected CLIs need installation and login. Setup guides any needed authorized installation and human authentication, then rechecks the CLI before model selection. Reuse existing login. See [CLI preparation](../../skills/setup-pstack/references/cli-prerequisites.md).
 
-Ordinary roles, including explanation, judgment, and synthesis, default to Sol 6.1 through Codex. The hardest-task role defaults to Opus 5.5 through Claude Code. The three candidate and reviewer lists and the cross-judge pool default to `[Sol 6.1, Opus 5.5]`. The original requirements for a different model or model family still apply to audits, verification, and retries.
+Then choose supported exact models, role assignments, and one of `unlimited`, `large`, `medium`, or `small`. Setup shows all 17 roles with unresolved slots on a fresh install. No fixed model is required. It retains your saved choices on reruns. Model catalogs and confirmed per-model source evidence establish choices. CLI syntax alone does not establish account access.
 
-Claude runs need an existing, authenticated Claude Code CLI 2.1.280 or newer. Setup checks the executable path, version, and supported options. Runs reuse its existing authentication. It does not install Claude Code or change its global settings. The parent agent passes the task and needed instructions and file paths to the bundled [Claude runner](../../skills/poteto-mode/scripts/run-claude.mjs). Detection reports global CLI effort syntax and does not enumerate account models. You can select another supported exact Claude ID with model-specific source evidence, as described in the [model contract](../../skills/setup-pstack/references/models-contract.md#model-capability-records). Setup retains a labeled Opus default for the shipped route. Neither CLI detection nor that default proves account access or successful execution.
+Review the accepted selections before saving. Setup stores `$CODEX_HOME/pstack-codex/models.json`, defaulting to `~/.codex/pstack-codex/models.json`. Only accepted roles are saved. A role left unconfigured uses the actual native parent with disclosure. Scalars have one entry and initial panels or pools have two.
 
-The defaults run at `xhigh` reasoning, the same as the `large` budget. `unlimited` targets `max`; each model uses its highest supported level at or below the target. `medium` and `small` target `high` and `medium`. Model IDs and executors stay unchanged when the reasoning budget changes.
+`auto` and `inherit-parent` bind to the current native parent's model and effort. Exact choices carry model and effort separately. A budget change retains exact models and selects each model's highest supported effort at or below its target. The targets are `max`, `xhigh`, `high`, and `medium` respectively. Parent aliases keep the parent's actual settings.
 
-You only override what you care about. A role absent from `roles` keeps the skill's default. To restore a default, remove that role's entry. A rerun of `$pstack-codex:setup-pstack` keeps your existing choices. Saved choices stay separate from plugin updates; when a default changes, a saved old choice stays pinned until you remove or change it. For an existing all-Sol configuration, setup shows the proposed mixed defaults separately and asks before saving any change.
+Panels run every ordered entry, including duplicates. Arena's ordered cross-judge pool selects one eligible judge from another family. Parent aliases do not establish that relationship. Arena skips its judge with disclosure if no selected eligible choice runs. Other required diversity gates keep their existing unmet outcome. No optional CLI is required for unrelated steps.
 
-Preferences containing a Claude executor use schema 2. Earlier mixed bundles pinned to Opus reject saved nondefault Claude entries; explicitly save choices they support before restoring them. Older all-Sol bundles reject that format and preserve the file. Before restoring one of those bundles, use the current setup to explicitly choose Codex models for every role and save a native-only configuration; it uses schema 1. This conversion changes your choices only when you request it.
-
-You might be wondering what happens if you use Auto. Set a role to `inherit-parent` or `auto` to select your current parent chat's model and reasoning settings. Both values mean the same thing, and neither is a model slug. The [Codex execution binding](../../skills/poteto-mode/references/codex-execution.md#roles-models-and-effort) omits overrides only when that preserves the parent selection; otherwise it passes the observed parent settings. If those settings or effective inheritance cannot be established, the alias is reported as unresolved. For a panel role the value is an ordered list of objects, each with a `model`, optional `reasoningEffort`, and optional `executor`. Omitted `executor` retains the native Codex path; `claude-code` selects the external CLI. One worker runs per entry, so the list length sets the panel size; repeated model IDs remain separate seats. Setup also configures `swarm workers`, the default model for every `$pstack-codex:swarm` worker unless a race names a model for each arm.
+Start a fresh Codex chat after registration so the native host discovers the roles. The [model contract](../../skills/setup-pstack/references/models-contract.md) describes saved shapes and ownership. For a fresh replacement of an old install, unregister and remove the old plugin before installing the new identity. There is no automatic migration or old-name alias.
 
 ## Accept the verification offers, or don't
 

@@ -1,0 +1,661 @@
+diff --git a/.claude-plugin/plugin.json b/.claude-plugin/plugin.json
+index ae0ae2c..3acaffa 100644
+--- a/.claude-plugin/plugin.json
++++ b/.claude-plugin/plugin.json
+@@ -1,9 +1,9 @@
+ {
+   "name": "pstack-cc",
+-  "version": "0.1.0-dev.5",
++  "version": "0.1.0-dev.6",
+   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+   "author": {
+-    "name": "pstack-for-codex contributors"
++    "name": "pstack contributors"
+   },
+   "homepage": "https://github.com/ystory/pstack",
+   "repository": "https://github.com/ystory/pstack",
+diff --git a/README.md b/README.md
+index 20225c3..afd9426 100644
+--- a/README.md
++++ b/README.md
+@@ -17,9 +17,9 @@ For Claude desktop, use the [plugin browser instructions](docs/guide/01-setup.md
+ /pstack-cc:setup-pstack
+ ```
+ 
+-Setup checks Node, CLI capabilities and authentication. It guides missing CLI installation and human login, then saves your reasoning budget and exact worker choices for all 17 roles. It does not choose the parent chat model. A native Claude entry uses an exact-model agent definition. A Codex entry runs through the bundled, pinned official Codex runtime and your existing Codex login.
++Setup first asks for native Claude only, or Claude with Codex workers. It checks installation and login only for selected CLIs, guides missing installation and human authentication, then presents supported exact models, all 17 roles, and reasoning budget for review and saving. It does not choose the parent chat model. A native Claude entry uses an exact-model agent definition. A Codex entry runs through the bundled, pinned official Codex runtime and your existing Codex login.
+ 
+-Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`. They are independent of Codex-host preferences. The original unavailable Grok defaults need a supported choice. Panels preserve their ordered entries and duplicates. Parent aliases select the actual Claude parent. Required model diversity still applies.
++Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`. They are independent of Codex-host preferences. Fresh proposal slots are unresolved. Accepted saved roles remain authoritative. Missing roles use the actual native parent at their original cardinality. Panels preserve their ordered entries and duplicates. Parent aliases select the actual Claude parent. Required model diversity still applies.
+ 
+ Start a new session after setup so Claude discovers the registered agents. Then try:
+ 
+diff --git a/docs/guide/01-setup.md b/docs/guide/01-setup.md
+index b68260e..e613b51 100644
+--- a/docs/guide/01-setup.md
++++ b/docs/guide/01-setup.md
+@@ -8,7 +8,7 @@ You need a current Claude desktop app with the **Code** tab and local sessions,
+ 
+ Codex workers also need an authenticated Codex CLI with the app-server capabilities checked by setup. Claude-only workers do not need Codex. `pstack-cc` does not need the separate official Codex plugin. GitHub workflows need an authenticated GitHub CLI, `gh`. The bundled PR watcher needs Bun 1.2+ and installs locked dependencies in an external cache on first use.
+ 
+-## Prepare CLI login and PATH
++## Prepare selected CLI login and PATH
+ 
+ Install [Node.js](https://nodejs.org/en/download) and the [Claude Code CLI](https://code.claude.com/docs/en/setup) if needed. On macOS, Linux, or WSL, Claude's installer is:
+ 
+@@ -27,7 +27,7 @@ claude auth status
+ 
+ If Claude's CLI is logged out, run `claude auth login`, or use `/login` in Claude Code. Complete the browser login with the account and organization you intend to use for Claude workers. Setup checks authentication without copying credentials. Keep credentials out of the chat.
+ 
+-For Codex workers, install the [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) and sign in:
++After choosing Codex workers in setup, install the [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) and sign in:
+ 
+ ```sh
+ npm install -g @openai/codex
+@@ -40,7 +40,7 @@ You can also run `!codex login` from an interactive Claude session when appropri
+ 
+ If setup cannot find `node`, `claude`, or `codex`, check the command's installation directory and your `PATH`. Quit and reopen Desktop after changing the environment. See [Desktop tools and PATH](https://code.claude.com/docs/en/desktop#session-not-finding-installed-tools) if the command works in your terminal but fails in Code.
+ 
+-CLI detection, login, catalog access, and actual model execution are separate checks. After preparing the CLIs, return to your local Code session and run `/pstack-cc:setup-pstack`.
++CLI detection, login, catalog access, and actual model execution are separate checks. Run setup after installation. It asks which workers to use before checking selected CLIs, then guides any needed installation and human login. Continue to model selection after readiness checks.
+ 
+ ## Install
+ 
+@@ -71,13 +71,15 @@ Both routes install the committed `plugin-claude/` directory. You do not need a
+ 
+ ## Pick your models
+ 
+-Setup loads the current Claude preferences and the original pstack role defaults. It asks for `unlimited`, `large`, `medium`, or `small` reasoning budget and shows every role. Pick a supported Claude or Codex executor and exact model for each real selection. Unavailable upstream Grok suggestions need a choice. A temporary quota condition does not assign a permanent replacement model.
++Setup starts with native Claude only, or Claude with Codex workers. The parent chat stays in Claude. Unselected Codex is neither probed nor required. For a selected missing or logged-out CLI, setup guides installation or human login and rechecks it before model selection.
++
++Then choose supported exact models, role assignments, and `unlimited`, `large`, `medium`, or `small` reasoning budget. Fresh proposals expose all 17 roles with unresolved model slots. Saved entries prefill reruns. Review accepted choices before saving. You may leave a role unconfigured after seeing its native-parent fallback. No fixed model is required.
+ 
+ Scalar roles retain one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` retain ordered lists, with one worker per entry including duplicates. `arena cross-judge pool` is also a list, but Arena selects one judge from another family in preference order. `swarm workers` stays scalar unless a race specifies models per arm.
+ 
+ `auto` and `inherit-parent` select the actual native Claude parent. They do not select Codex. Setup does not change the parent chat model. A single-model configuration cannot satisfy a required different-model or different-family verifier. Arena has its own disclosed optional judge skip. The other required diversity gates remain requirements.
+ 
+-The helper saves `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json` and manages only owned generated native agents. It preserves unrelated files and settings. Codex-host preferences under `$CODEX_HOME/pstack-for-codex/` remain independent. Use isolated `--claude-home` paths for fixtures.
++The helper saves `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json` and manages only owned generated native agents. It preserves unrelated files and settings. Codex-host preferences under `$CODEX_HOME/pstack-codex/` remain independent. Use isolated `--claude-home` paths for fixtures.
+ 
+ ## Run your first task
+ 
+diff --git a/docs/harness/claude-code.md b/docs/harness/claude-code.md
+index d63633c..a20e68b 100644
+--- a/docs/harness/claude-code.md
++++ b/docs/harness/claude-code.md
+@@ -2,7 +2,7 @@
+ 
+ This target uses native Claude Code skills and agents, with setup-selected Claude or Codex workers. Read [Claude Code execution](../../skills/poteto-mode/references/claude-execution.md) for the binding shared by every workflow. It preserves exact selected models, ordered panels, worker instructions, stateful continuation, and caller-specific review and failure rules.
+ 
+-Workflows run before setup using the original Claude adapter's native defaults. Grok defaults inherit the parent and Opus defaults use the native `opus` alias with disclosure. Run `/pstack-cc:setup-pstack` to select exact models and executors, then start a new session. User commands use `/pstack-cc:<skill>`. Internally, read installed skill files by their actual path. The [setup guide](../guide/01-setup.md) covers independent preferences and CLI authentication. The [delegation inventory](../../skills/poteto-mode/references/delegation-sites.json) records the affected source sites.
++Before setup, missing roles inherit the actual native parent with disclosure and original cardinality. Setup proposals start unresolved, and saved exact entries take precedence. Run `/pstack-cc:setup-pstack` to select exact models and executors, then start a new session. User commands use `/pstack-cc:<skill>`. Internally, read installed skill files by their actual path. The [setup guide](../guide/01-setup.md) covers independent preferences and CLI authentication. The [delegation inventory](../../skills/poteto-mode/references/delegation-sites.json) records the affected source sites.
+ 
+ Readonly callers use the native `read-only` kind with the selected model, a no-edits brief, and a before/after `git status --short` check. The kind disallows `Write`, `Edit`, and `NotebookEdit`. Bash remains available, so this is a file-tool restriction rather than OS write isolation. Why and Reflect retain their full-access kind and MCP access.
+ 
+diff --git a/skills/arena/SKILL.md b/skills/arena/SKILL.md
+index d559b58..fd02465 100644
+--- a/skills/arena/SKILL.md
++++ b/skills/arena/SKILL.md
+@@ -14,7 +14,7 @@ Every candidate gets the same prompt, so the prompt is the contract.
+ 
+ 1. State the artifact each candidate is producing.
+ 2. Derive the rubric, 3-6 concrete gradeable criteria for what success looks like on *this* task. It is the picker's tool in Phase D. Candidates only see the task.
+-3. Pick the runners. Read [Claude Code execution](../poteto-mode/references/claude-execution.md) and resolve the ordered `arena runners` list with worker kind `general-purpose`. Run one seat per entry, including duplicates and aliases. A parent alias binds to the actual native Claude parent. If the selected executor rejects a configured model, try its family's bundled default and say so. Families go by model prefix, such as `claude-*`, `gpt-*`, and `grok-*`, with `cursor-grok-*` and `composer-*` in Grok's family. A refused `composer-*` entry uses the bundled Grok default. If the family has no available default, try the closest valid model of the same family from the executor's error, or drop the seat and say so. If dropouts leave fewer than two runners, add runners until there are two, or one when the configured list has one entry. Use a remaining runner's model for additions, or bind to the actual native parent when none remain, and say so. Spawn more runners when the arena covers multiple design directions. Use the same model N times when generation capacity matters more than judgment diversity. Apply poteto-mode's task effort and speed guidance.
++3. Pick the runners. Read [Claude Code execution](../poteto-mode/references/claude-execution.md) and resolve the ordered `arena runners` list with worker kind `general-purpose`. Run one seat per entry, including duplicates and aliases. A parent alias binds to the actual native Claude parent. Families go by model prefix, such as `claude-*`, `gpt-*`, and `grok-*`, with `cursor-grok-*` and `composer-*` in Grok's family. If the selected executor rejects a model, try the closest valid model of the same family from its error, or drop the seat and say so. Never resubmit a rejected model. If dropouts leave fewer than two runners, add runners until there are two, or one when the configured list has one entry. Use a remaining runner's model for additions, or bind to the actual native parent when none remain, and say so. Spawn more runners when the arena covers multiple design directions. Use the same model N times when generation capacity matters more than judgment diversity. Apply poteto-mode's task effort and speed guidance.
+ 4. Give each candidate its own output location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`), per the **separate-before-serializing-shared-state** principle skill.
+ 
+ ## Phase B: Fan out
+@@ -25,7 +25,7 @@ If a candidate produces no output, proceed with N-1 and note the dropout.
+ 
+ ## Phase C: Cross-judge
+ 
+-After all Phase B candidates complete, resolve `arena cross-judge pool` with worker kind `read-only`. Select one read-only judge from a family other than the actual parent's, in pool order. Parent aliases never judge. Compare the judge with the parent, not with every candidate. If the executor rejects an entry, try a supported setting of the same model, or move to the next eligible entry. Never resubmit a rejected model. If the configured pool fails, try the bundled default pool's other-family entries in order. If none runs, skip the judge, pick the base alone in Phase D, and say so. If the parent's model is unknown, try real model entries in order and disclose that the family check did not run. The judge sees the rubric and candidates by sanitized path label. It scores each criterion and recommends a base with rationale. Run it in parallel with your Phase D reading, after candidates stop writing.
++After all Phase B candidates complete, resolve `arena cross-judge pool` with worker kind `read-only`. Select one read-only judge from a family other than the actual parent's, in pool order. Parent aliases never judge. Compare the judge with the parent, not with every candidate. If the executor rejects an entry, try a supported setting of the same model, or move to the next eligible entry. Never resubmit a rejected model. If no selected eligible entry runs, skip the judge, pick the base alone in Phase D, and say so. If the parent's model is unknown, try real model entries in order and disclose that the family check did not run. The judge sees the rubric and candidates by sanitized path label. It scores each criterion and recommends a base with rationale. Run it in parallel with your Phase D reading, after candidates stop writing.
+ 
+ ## Phase D: Pick a base
+ 
+diff --git a/skills/how/SKILL.md b/skills/how/SKILL.md
+index ebbfb2a..6c65c60 100644
+--- a/skills/how/SKILL.md
++++ b/skills/how/SKILL.md
+@@ -8,7 +8,7 @@ disable-model-invocation: true
+ 
+ Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
+ 
+-Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Every seat uses worker kind `read-only` and a no-edits brief. Explorers resolve `how explorer`; every explainer resolves `how explainer`. Use the selected executor, exact model, supported task effort, and its returned `agentType` for native Claude seats. A rejected model follows this skill's bundled default, then the closest valid model of the same family from the error. Disclose each fallback. Parent aliases bind the actual native parent. Pass absolute paths to this skill and the selected templates.
++Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Every seat uses worker kind `read-only` and a no-edits brief. Explorers resolve `how explorer`; every explainer resolves `how explainer`. Use the selected executor, exact model, supported task effort, and its returned `agentType` for native Claude seats. A rejected model follows the execution binding and the closest valid model of the same family from the error. Disclose each fallback. Parent aliases bind the actual native parent. Pass absolute paths to this skill and the selected templates.
+ 
+ ## 1. Assess complexity
+ 
+diff --git a/skills/poteto-help/SKILL.md b/skills/poteto-help/SKILL.md
+index 962e4b2..146c758 100644
+--- a/skills/poteto-help/SKILL.md
++++ b/skills/poteto-help/SKILL.md
+@@ -24,14 +24,14 @@ Infer the need from the message and the conversation. A named situation, such as
+ 
+ Check the state that changes the answer, and mention it only when it does:
+ 
+-- A missing setup preferences file means `/pstack-cc:setup-pstack` hasn't run for this user, so roles use upstream defaults, including unavailable suggestions that need a supported choice.
++- A missing setup preferences file means `/pstack-cc:setup-pstack` hasn't run for this user, so missing roles inherit the actual native parent with disclosure and original cardinality.
+ - No `verify-*` skill or other app harness in the project means agents have no scripted way to drive the app. Mention `/pstack-cc:create-verification-skill` when the question is about proving a change works.
+ - No formal verification skill in the project means no property is checked past what tests reach. Mention `/pstack-cc:create-formal-verification-skill` when the question is about a race, an invariant, or another case tests rarely hit. When one exists and the code it covers changed after the commit it records as last in sync, mention `/pstack-cc:maintain-formal-verification-skill` if the question touches that code.
+ 
+ When the model preferences is missing and it matters, ask whether the user wants to pick a model for each role and a reasoning budget now. It matters when the user is new, the question is about setup or cost, or the answer depends on which models run. Ask at most once per chat. If the need is also unclear, ask both questions together. Offer two choices:
+ 
+ - Now: give them `/pstack-cc:setup-pstack` to type, and answer their question too.
+-- Later: answer their question, and add one line saying every role keeps its default model until they run `/pstack-cc:setup-pstack`.
++- Later: answer their question, and add one line saying unconfigured roles inherit the native parent, while saved choices remain authoritative.
+ 
+ ## Get set up
+ 
+diff --git a/skills/poteto-mode/SKILL.md b/skills/poteto-mode/SKILL.md
+index 9213f83..8d1daa3 100644
+--- a/skills/poteto-mode/SKILL.md
++++ b/skills/poteto-mode/SKILL.md
+@@ -95,7 +95,7 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
+ 
+ **Use the `poteto-agent` instructions for any subagent you spawn inside a playbook step** (code-writing delegates and ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) select `general-purpose` for their own seats and model roles. Respect that selection. Resolve the worker kind and model role through Claude Code execution. Pass this file's absolute path to every poteto-agent and require its actual full read before work.
+ 
+-**Defaults for every delegate call.** Execute asynchronously through the selected executor, including steering and continuation. Use file pointers rather than inlined context. Resolve an explicit model per role through `/setup-pstack`. The original role defaults remain visible in setup and unavailable selections need a supported choice. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) use `hardest tasks`, whether the task needs judgment on vague intent or follows a precise specification. Trivial mechanical edits use the fast code choice. Saved per-role entries override the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A missing role uses its bundled default. `inherit-parent` and `auto` select the actual native Claude parent. Each code playbook resolves its role (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`). Prose and judgment resolve `judgment and prose`.
++**Defaults for every delegate call.** Execute asynchronously through the selected executor, including steering and continuation. Use file pointers rather than inlined context. Resolve an explicit model per role through `/setup-pstack`. Setup presents unresolved choices for missing roles. No bundled exact model is an execution default. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) use `hardest tasks`, whether the task needs judgment on vague intent or follows a precise specification. Trivial mechanical edits use the fast code choice. Saved per-role entries override the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A missing role uses the actual native parent selection with disclosure and preserves its original cardinality. `inherit-parent` and `auto` select the actual native Claude parent. Each code playbook resolves its role (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`). Prose and judgment resolve `judgment and prose`.
+ 
+ **Match the model to the job.** Start from the role's entry and saved reasoning budget, xhigh by default. Preserve explicit task effort. Raise effort one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more for routine work. Use fast mode only when CI or trunk is red or a person is blocked on the result now. Otherwise use standard speed. Verification stays on `swarm workers` and its configured speed, except when the caller requires another model or family. Keep the selected exact model ID unchanged and pass supported effort and speed separately. Use the highest supported effort at or below the requested level. Parent aliases stay on the actual parent. If an adjusted setting is rejected, return to the role's supported starting setting and say so. If that fails, follow the caller's fallback through Claude Code execution. Record rejected model IDs per executor and never resubmit them, including in fallbacks. When the caller has no fallback, try the closest valid model of the role's family from the error's list. If none remains, or the caller exhausts its fallback without another outcome, bind to the actual native parent and disclose it. An unavailable executor or unresolved parent stays a capability gap. Preserve every required different-model or different-family gate and Arena's disclosed judge skip.
+ 
+diff --git a/skills/poteto-mode/references/claude-execution.md b/skills/poteto-mode/references/claude-execution.md
+index fe73238..a89fdde 100644
+--- a/skills/poteto-mode/references/claude-execution.md
++++ b/skills/poteto-mode/references/claude-execution.md
+@@ -14,17 +14,17 @@ The worker kinds are `general-purpose`, `poteto-agent`, `comment-sicko`, and `re
+ 
+ The helper reads `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`. Explicit entries preserve their executor, exact model, and reasoning effort. Scalar roles stay scalar. `arena runners`, `architect runners`, and `interrogate reviewers` are ordered panels. Run every seat, including duplicate selections and parent aliases. `arena cross-judge pool` is an ordered selection pool, so it launches one eligible judge rather than the whole list. `swarm workers` is scalar unless an explicit race assigns models per arm.
+ 
+-A missing role returns the original Claude adapter's native execution fallback without requiring setup or generated definitions. A Grok default binds to the actual native parent. An Opus default returns `model: "opus"` and `modelKind: "native-alias"` with the configured budget effort. Both disclose their original `upstreamModel` and use a static plugin agent type. Report this mapping when dispatching. The Opus alias is a moving native default, not an exact model ID. Run `resolve --defaults --role "<role>" --kind general-purpose` when a caller requires its original default fallback or Arena's default-pool retry. Saved choices remain intact. Setup's `read` and `budget` proposals still require explicit supported choices before saving.
++A missing role returns native `inherit-parent` entries with source `unconfigured`, without setup or generated definitions. Scalars yield one entry and panels or pools yield two initial entries. Their `agentType` uses the static inherited plugin definition. Disclose the native-parent resolution. Setup proposals remain unresolved until accepted. Saved exact choices remain authoritative. There is no hidden family default or default-pool retry.
+ 
+ For a real model, use the caller's explicit task effort when given. Otherwise adjust its saved starting effort through poteto-mode's Subagents guidance. Keep the exact model ID and send effort and speed as separate supported controls. Report unavailable independent speed controls. Do not append effort or `-fast` to model IDs. Keep a rejected-model record per executor and never resubmit a rejected ID. Follow the caller's fallback and dropout rules, with disclosure. An unavailable executor is a capability gap, not a rejected model.
+ 
+ `auto` and `inherit-parent` bind to the actual native Claude parent, regardless of the other workers' executors. Their returned `agentType` selects the plugin's inherited base definition. Omit invocation model and effort overrides. Never translate a parent alias to Codex or to an assumed Claude alias. Inspect host configuration if inheritance is overridden. Report unresolved or substituted effective settings rather than claiming the requested model ran.
+ 
+-Validate required different-model or different-family relationships before the affected step. A repeated seat is still a seat, but it does not establish diversity. Use a supported selected counterpart for a required non-author verifier or final audit. A configuration that cannot satisfy a required gate remains a configuration gap. Arena alone permits its disclosed different-family judge skip, default-pool retry, and unknown-parent behavior. Orchestrate's tool-error retry needs a different model, not necessarily another family.
++Validate required different-model or different-family relationships before the affected step. A repeated seat is still a seat, but it does not establish diversity. Use eligible exact choices already resolved by that workflow in their existing order, or an explicitly supplied task counterpart, for a required non-author verifier or final audit. Do not scan unrelated roles or add a verifier role or ranking. Parent aliases and unknown families cannot establish a different-family relationship. Sonnet and Opus belong to the same Claude family. A configuration that cannot satisfy a required gate remains a configuration gap. Arena alone permits its disclosed different-family judge skip and unknown-parent behavior. Orchestrate's tool-error retry needs a different model, not necessarily another family.
+ 
+ ## Native Claude workers
+ 
+-For `executor: "claude-code"`, use the native `Agent` tool with the returned `agentType` as `subagent_type`. Setup owns generated definitions for each exact Claude model and worker kind. Saved exact selections omit invocation model overrides. A default with `modelKind: "native-alias"` uses the static definition and passes its alias through Agent's `model` parameter only when the actual schema accepts it. Report a capability gap if the schema cannot select it. Pass the supported per-invocation `effort` for a real model or the native Opus default. Inherited aliases omit both overrides. Preserve the returned identity and inspect actual settings when the host exposes them.
++For `executor: "claude-code"`, use the native `Agent` tool with the returned `agentType` as `subagent_type`. Setup owns generated definitions for each exact Claude model and worker kind. Saved exact selections omit invocation model overrides. Pass supported per-invocation `effort` for an exact model. Inherited aliases omit both overrides. Preserve the returned identity and inspect actual settings when the host exposes them.
+ 
+ The [Claude subagent reference](https://code.claude.com/docs/en/sub-agents) documents exact model IDs in definitions, invocation effort, completion, and stateful messaging. Host policy can substitute models. Requested settings are not observed settings.
+ 
+diff --git a/skills/reflect/SKILL.md b/skills/reflect/SKILL.md
+index ffed3fb..9fd15c6 100644
+--- a/skills/reflect/SKILL.md
++++ b/skills/reflect/SKILL.md
+@@ -20,13 +20,13 @@ Read [Claude history](../recall/references/claude-history.md). List project-scop
+ 
+ Read [Claude Code execution](../poteto-mode/references/claude-execution.md). Launch three `general-purpose` reviewers through their selected executors without waiting between launches. Reviewers use the executor's configured MCP tools to check tickets, chat threads, and observability traces. Keep their no-edits scope explicit.
+ 
+-Resolve each table role through the sibling setup helper with worker kind `general-purpose`. Use the selected exact model and supported task effort. A rejected model tries the bundled default, then a closest valid model of the same family from the error, with disclosure. Parent aliases bind the actual native parent. Apply poteto-mode's reasoning and speed guidance.
++Resolve each table role through the sibling setup helper with worker kind `general-purpose`. Use the selected exact model and supported task effort. A rejected model follows the execution binding, using a valid same-family choice from the error when available, with disclosure. Parent aliases bind the actual native parent. Apply poteto-mode's reasoning and speed guidance.
+ 
+-| Lens | Model role | Original default | Prompt template |
++| Lens | Model role | Missing role | Prompt template |
+ |---|---|---|---|
+-| Judgment | `reflect judgment, divergent, synthesizer` | `claude-opus-5-5-xhigh` | `references/judgment-reviewer.md` |
+-| Tooling | `reflect tooling` | `grok-4.7-xhigh-fast` | `references/tooling-reviewer.md` |
+-| Divergent | `reflect judgment, divergent, synthesizer` | `claude-opus-5-5-xhigh` | `references/divergent-reviewer.md` |
++| Judgment | `reflect judgment, divergent, synthesizer` | native parent | `references/judgment-reviewer.md` |
++| Tooling | `reflect tooling` | native parent | `references/tooling-reviewer.md` |
++| Divergent | `reflect judgment, divergent, synthesizer` | native parent | `references/divergent-reviewer.md` |
+ 
+ Pass each template verbatim, substituting the transcript path or digest where marked. Collect every reviewer's terminal report through Claude Code execution before synthesis.
+ 
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 7b51eb6..3e1f6a8 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -9,11 +9,15 @@ Configure workers for this Claude Code host. Save choices in `${CLAUDE_CONFIG_DI
+ 
+ Resolve helpers relative to this installed skill and invoke their absolute paths with Node.js. Read [the helper contract](references/models-contract.md) for JSON shapes and fixture arguments.
+ 
+-## 1. Detect executors and login state
++## 1. Choose worker executors
++
++Start with worker executor selection unless already supplied in the conversation. Offer native Claude only, or native Claude with Codex workers. The parent chat stays in Claude Code. Prefill executors used by saved entries on a rerun. A harness choice does not choose a model. If a saved entry uses an executor the user excludes, show it and obtain its replacement before saving. Preserve other choices.
++
++## 2. Prepare selected CLIs
+ 
+ Check `node --version` first. The helpers require Node.js 24.12 or newer. If Node is missing, use the [prerequisite guide](references/prerequisites.md).
+ 
+-Run `scripts/detect.mjs detect`. Report Node and Claude versions, native effort support, and each executor's login state. It checks Claude's CLI and auth status and the bundled Codex runner's capabilities. It does not install, authenticate, read credential files, or change settings.
++Run `scripts/detect.mjs detect --executors claude-code` for native-only choices. When Codex workers are selected, use `--executors claude-code,codex` instead. Report Node and Claude versions, native effort support, and each executor's login state. It checks only selected worker CLIs and auth status. An unselected Codex CLI is neither probed nor required. It does not install, authenticate, read credential files, or change settings.
+ 
+ Report `configuration.claudeHome` as the setup configuration target and `claude.cli.environment` as the inherited CLI environment used for authentication. `--claude-home` changes the configuration target only. Existing CLI authentication stays in the inherited environment, including an existing `CLAUDE_CONFIG_DIR`. An intentionally selected environment profile keeps its own login state.
+ 
+@@ -21,9 +25,9 @@ Claude-only choices do not require Codex. For a selected executor that is missin
+ 
+ Native exact-model choices use generated agent definitions and per-invocation effort. Claude Code 2.1.292 introduced that effort parameter. If the installed host lacks the parameter, guide an update before configuring explicit native effort. Inspect the active tool schema as well as the version.
+ 
+-## 2. Collect actual model options
++## 3. Collect actual model options
+ 
+-For Codex workers, run `scripts/detect.mjs catalog --cwd ABSOLUTE_PROJECT`. The bundled runner collects every `model/list` page and each model's supported efforts. Its receipt separates CLI, authentication, catalog, and execution evidence.
++For Codex workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT`. The bundled runner collects every `model/list` page and each model's supported efforts. Its receipt separates CLI, authentication, catalog, and execution evidence.
+ 
+ For native Claude workers, use exact model IDs and supported efforts exposed by the current host or its model catalog. Inspect the current host and configuration rather than copying a fixed list from this skill. Detection lists configured model candidates, including `settings.json` model choices and model-specific environment variables. Those candidates require confirmation. A configured name or allowlist does not prove entitlement or supported efforts.
+ 
+@@ -33,32 +37,32 @@ Normalize both routes with `scripts/models.mjs catalog --input ABSOLUTE_CODEX_RE
+ 
+ `auto` and `inherit-parent` always mean the actual native Claude parent. They omit effort and executor overrides on invocation. They cannot select Codex. Use the [Claude execution binding](../poteto-mode/references/claude-execution.md) when dispatching.
+ 
+-## 3. Load current choices
++## 4. Load current choices
+ 
+ Run `scripts/models.mjs read`. Retain its `sha256`, `config`, `proposal`, and `needsChoice`.
+ 
+-`config` contains valid saved selections. `proposal` fills missing roles with the original upstream suggestions. Upstream code roles suggest Grok, which neither bundled executor supplies as an assumed route. Those suggestions remain visibly unresolved until the user chooses an available executor and model. Setup does not replace them with a permanent Sol default. The original Claude judgment preference and original panel order remain in the proposal. Execution is separate. Missing roles use the original Claude adapter's native parent or Opus alias fallback without setup, with disclosure. These execution fallbacks are not saved exact choices.
++`config` contains only saved selections and is empty on a fresh install. `proposal` exposes all 17 roles with unresolved model slots. Scalar roles have one initial slot, and panels or pools have two. No exact model is a proposal default. Missing roles execute on the actual native Claude parent with their original cardinality and `source: "unconfigured"`. Disclose that resolution. Before-setup tasks remain available.
+ 
+-On a rerun, retain independently chosen models, executors, aliases, efforts, list order, and duplicates. Report retired keys from `droppedRoles` before saving.
++On a rerun, retain independently chosen models, executors, aliases, efforts, list order, and duplicates. Unknown role keys fail validation without changing preferences.
+ 
+-## 4. Select the budget and role mapping
++## 5. Select the budget and role mapping
+ 
+-Use a budget already specified in the conversation. Otherwise show the saved budget, or explain that `large` matches the upstream effort target, and offer the original four choices.
++Use a budget already specified in the conversation. Otherwise show the saved budget, or explain that `large` is the initial effort target, and offer the original four choices.
+ 
+ - `unlimited` targets `max` reasoning.
+ - `large` targets `xhigh` reasoning.
+ - `medium` targets `high` reasoning.
+ - `small` targets `medium` reasoning.
+ 
+-Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below the target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve each `needsChoice` entry before saving.
++Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below the target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
+ 
+ Show every role's current and proposed executor, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices and parent aliases. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
+ 
+-Scalar roles hold one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` hold nonempty lists. Run one independent delegate per entry, including duplicates and aliases. `arena cross-judge pool` is an ordered candidate pool, from which Arena runs one eligible judge. Parent aliases never judge. Preserve Arena's original default-pool fallback and disclosed judge skip, plus every other workflow's original diversity, verifier, retry, and fresh-worker requirements.
++Scalar roles hold one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` hold nonempty lists. Run one independent delegate per entry, including duplicates and aliases. `arena cross-judge pool` is an ordered candidate pool, from which Arena runs one eligible judge. Parent aliases never judge. Preserve Arena's ordered selected pool and disclosed judge skip, plus every other workflow's original diversity, verifier, retry, and fresh-worker requirements.
+ 
+-## 5. Validate, register, and save
++## 6. Review, register, and save
+ 
+-Write the complete accepted proposal to an absolute temporary JSON file. Validate it with `scripts/models.mjs write --input ABSOLUTE_JSON --catalog ABSOLUTE_CATALOG --expected-hash HASH --dry-run`. Use the read hash, or `absent` if no file exists. All 17 roles need resolved choices for a first save.
++Show accepted roles, remaining unconfigured roles, budget, and evidence sources. Write the accepted sparse config to an absolute temporary JSON file. Validate it with `scripts/models.mjs write --input ABSOLUTE_JSON --catalog ABSOLUTE_CATALOG --expected-hash HASH --dry-run`. Use the read hash, or `absent` if no file exists. Missing roles keep their disclosed native-parent fallback.
+ 
+ Run `scripts/register-agents.mjs --input ABSOLUTE_JSON`. It derives four native agent kinds from this plugin's original bodies for each distinct exact Claude model. It writes owned definitions under the Claude home, without editing the installed plugin cache, unrelated agents, `settings.json`, or Codex configuration. `general-purpose`, `poteto-agent`, and `comment-sicko` retain their supplied bodies. `read-only` retains the general-purpose body and disallows `Write`, `Edit`, and `NotebookEdit` for actual readonly callers. Bash remains available. Task-specific effort uses the native invocation parameter.
+ 
+@@ -68,16 +72,16 @@ Registration is idempotent. Updates and older plugin bundles refresh the propose
+ 
+ After registration succeeds, run the same `models.mjs write` command without `--dry-run`. A changed hash requires reloading the current choices before saving. The helper saves atomically and leaves identical bytes untouched.
+ 
+-## 6. Report the result
++## 7. Verify a first task
+ 
+-Report the preferences path, selected executors, registered exact-model definitions, and detected CLI versions. State which choices came from a catalog or manual confirmation. A saved preference or definition does not verify execution. Start a new Claude Code session if its agent list has not refreshed, then use the emitted `agentType` with the selected effort. Keep observed model identity separate from requested settings.
++Report the preferences path, selected executors, registered exact-model definitions, and detected CLI versions. State which choices came from a catalog or manual confirmation. A saved preference or definition does not verify execution. Start a new Claude Code session if its agent list has not refreshed, then use the emitted `agentType` with the selected effort. Use the installed namespace for a small task with the selected worker. Keep observed model identity separate from requested settings. Distinguish fixture checks, native CLI execution, and Desktop UI evidence. A helper-only check does not establish first-time onboarding.
+ 
+ When the user requests removal, run `scripts/register-agents.mjs --unregister` before uninstalling the plugin. It removes only unchanged owned definitions and their registration record. It retains model preferences and unrelated files.
+ 
+-## 7. Offer a verification skill
++## 8. Offer a verification skill
+ 
+ If the project has no way to drive its real application, offer the original optional project verification skill once. On acceptance, resolve `create-verification-skill/SKILL.md` and follow it. On decline, continue.
+ 
+-## 8. Offer a formal verification skill
++## 9. Offer a formal verification skill
+ 
+ If the project has no formal verification skill, offer the original optional formal verification skill once. On acceptance, resolve `create-formal-verification-skill/SKILL.md` and follow it. On decline, continue.
+diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
+index f6551e2..df44eb8 100644
+--- a/skills/setup-pstack/references/models-contract.md
++++ b/skills/setup-pstack/references/models-contract.md
+@@ -36,7 +36,7 @@ Preferences are in `pstack-cc/models.json` under the Claude home.
+ }
+ ```
+ 
+-This excerpt shows the shapes. A first save supplies all 17 roles. Later partial proposals retain saved choices for omitted roles. An omitted executor in an object normalizes to native `claude-code`. Explicit persisted model entries retain their executor and effort. Aliases can be strings or native entries with `model` and no effort.
++This excerpt shows the shapes. Sparse accepted saves are valid. Partial proposals retain saved choices for omitted roles. Missing roles stay unconfigured and resolve to the actual native parent. An omitted executor in an object normalizes to native `claude-code`. Explicit persisted model entries retain their executor and effort. Aliases can be strings or native entries with `model` and no effort.
+ 
+ The scalar keys are `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `judgment and prose`, `hardest tasks`, `how explorer`, `how explainer`, `why investigators`, `why synthesizer`, `reflect tooling`, `reflect judgment, divergent, synthesizer`, and `swarm workers`.
+ 
+@@ -69,17 +69,17 @@ Normalized entries have `executor`, `model`, and `supportedReasoningEfforts`. Na
+ 
+ ## Commands
+ 
+-- `models.mjs read` returns `file`, `exists`, `sha256`, valid saved `config`, full `proposal`, `droppedRoles`, and `needsChoice`. The proposal's unresolved upstream Grok suggestions use `upstreamModel` and `upstreamSpeed`. They cannot be persisted as selected entries.
+-- `models.mjs resolve --role ROLE [--kind KIND] [--defaults]` returns an `entries` array for dispatch, plus the original `cardinality`, source, budget, and an empty `needsChoice`. Scalars still yield one dispatch entry. `--defaults` returns the native execution fallbacks even when that role has a saved choice. Missing roles use the same fallbacks. Grok maps to `model: "inherit-parent"`; Opus maps to `model: "opus"` with `modelKind: "native-alias"` and the budget effort. Both carry `upstreamModel` for disclosure and select static plugin definitions. These mappings require no setup, generated variants, or Codex CLI. Saved exact entries remain exact.
++- `models.mjs read` returns `file`, `exists`, `sha256`, valid saved `config`, full `proposal`, and `needsChoice`. Missing proposal slots contain only their target `reasoningEffort`, without a model or executor. Scalars start with one slot and panels or pools with two. These unresolved objects cannot be saved as selected entries.
++- `models.mjs resolve --role ROLE [--kind KIND]` returns an `entries` array, original `cardinality`, source, budget, and empty `needsChoice`. Scalars yield one entry. Missing roles yield one or two native `inherit-parent` entries at their original count, with source `unconfigured` and static inherited definitions. Saved exact entries remain exact.
+ - `models.mjs budget --budget LABEL --catalog ABS` returns a preview `config` and `needsChoice`. It never writes. A role with no supported effort at or below the target requires a choice.
+ - `models.mjs write --input ABS --catalog ABS --expected-hash HASH_OR_ABSENT [--dry-run]` validates all choices and saves atomically. The input is a config, or a result object containing `config`. Unresolved `needsChoice` results are rejected. A dry run creates no destination.
+ - `register-agents.mjs [--input ABS] [--dry-run] [--unregister]` manages owned native definitions. With no input, it uses saved preferences. Removal retains preferences.
+-- `detect.mjs detect` reports Node, Claude, Codex, capability and auth evidence, configured native candidates, and applicable install or login guidance.
+-- `detect.mjs catalog --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` and `--codex-executable ABS` select existing CLI executables for either detection command.
++- `detect.mjs detect --executors claude-code` reports native CLI, safe auth evidence, model candidates and guidance. `--executors claude-code,codex` also probes Codex. An unselected Codex CLI is never invoked or required.
++- `detect.mjs catalog --executors claude-code,codex --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` and `--codex-executable ABS` select existing CLI executables for either detection command.
+ 
+ Detection reports the configuration target in `configuration.claudeHome`. Claude version, help, and authentication checks use the unchanged inherited CLI environment. `claude.cli.environment.source` is `inherited`. Its `claudeConfigDir` contains the inherited `CLAUDE_CONFIG_DIR` value, or `null` when the CLI uses its default lookup. `--claude-home` does not relocate credentials or select another authentication profile. A profile selected through the inherited environment keeps its own login state. Detection copies no credentials and writes no setup files.
+ 
+-`KIND` is `general-purpose`, `poteto-agent`, `comment-sicko`, or `read-only`. An explicit Claude selection resolves to `pstack-cc-KIND-HASH`, where `HASH` is the first 16 hexadecimal characters of the exact model ID's SHA-256. Definitions are in `agents/pstack-cc/` under the Claude home. Parent aliases and unsaved native defaults resolve to `pstack-cc:KIND`. The readonly kind disallows `Write`, `Edit`, and `NotebookEdit` and retains the general-purpose body. Codex entries do not receive a native agent type.
++`KIND` is `general-purpose`, `poteto-agent`, `comment-sicko`, or `read-only`. An explicit Claude selection resolves to `pstack-cc-KIND-HASH`, where `HASH` is the first 16 hexadecimal characters of the exact model ID's SHA-256. Definitions are in `agents/pstack-cc/` under the Claude home. Parent aliases and unconfigured roles resolve to `pstack-cc:KIND`. The readonly kind disallows `Write`, `Edit`, and `NotebookEdit` and retains the general-purpose body. Codex entries do not receive a native agent type.
+ 
+ ## Registration ownership
+ 
+@@ -88,3 +88,5 @@ Detection reports the configuration target in `configuration.claudeHome`. Claude
+ Registration adds or refreshes the proposed variants and retains every other owned variant unchanged. Its `agents` receipt lists the proposal's variants, and `retained` lists earlier owned files. An interrupted setup or a stale preference hash cannot remove definitions needed by saved choices or another staged proposal. Unused variants accumulate until explicit unregister.
+ 
+ The registrar changes neither Claude settings nor plugin cache files. Unregister checks every owned definition before removing any. A native host must load the resulting definitions before they can be invoked. Registration alone is not live compatibility evidence.
++
++Unknown role keys fail boundary validation without dropping or migrating them. Preferences remain unchanged.
+diff --git a/skills/setup-pstack/scripts/detect.mjs b/skills/setup-pstack/scripts/detect.mjs
+index 20ecca8..2e17ff3 100644
+--- a/skills/setup-pstack/scripts/detect.mjs
++++ b/skills/setup-pstack/scripts/detect.mjs
+@@ -101,16 +101,30 @@ await run(async () => {
+   const options = argumentsFor(
+     process.argv.slice(2),
+     ['detect', 'catalog'],
+-    ['--claude-home', '--claude-executable', '--codex-executable', '--cwd'],
++    [
++      '--claude-home',
++      '--claude-executable',
++      '--codex-executable',
++      '--cwd',
++      '--executors',
++    ],
+   );
+   if (options.help) {
+     process.stdout.write(
+-      'Usage: node detect.mjs detect|catalog [--claude-home ABS] [--claude-executable ABS] [--codex-executable ABS] [--cwd ABS]\n',
++      'Usage: node detect.mjs detect|catalog [--claude-home ABS] [--claude-executable ABS] [--codex-executable ABS] [--cwd ABS] [--executors claude-code|claude-code,codex]\n',
+     );
+     return;
+   }
+   if (options.cwd && !path.isAbsolute(options.cwd))
+     throw new Error('--cwd requires an absolute path.');
++  const executors = (options.executors ?? 'claude-code').split(',');
++  if (
++    !executors.includes('claude-code') ||
++    new Set(executors).size !== executors.length ||
++    executors.some((executor) => !['claude-code', 'codex'].includes(executor))
++  )
++    throw new Error('--executors selects claude-code or claude-code,codex.');
++  const includeCodex = executors.includes('codex');
+   const home = claudeHome(options.claudeHome);
+   await inspect(home, true);
+   const executable = await executableFor(options.claudeExecutable, 'claude');
+@@ -172,13 +186,16 @@ await run(async () => {
+       ? ['--cwd', options.cwd]
+       : []),
+   ];
+-  const codexResult = invoke(process.execPath, args, process.env);
+-  const codex = jsonOutput(codexResult) ?? {
+-    cli: { available: false },
+-    auth: { verified: false, loggedIn: null, method: null },
+-    error:
+-      'Codex runtime detection was unavailable. Run the bundled run-codex.mjs detect for diagnostics.',
+-  };
++  const codexResult =
++    includeCodex && invoke(process.execPath, args, process.env);
++  const codex = !includeCodex
++    ? undefined
++    : (jsonOutput(codexResult) ?? {
++        cli: { available: false },
++        auth: { verified: false, loggedIn: null, method: null },
++        error:
++          'Codex runtime detection was unavailable. Run the bundled run-codex.mjs detect for diagnostics.',
++      });
+   const guidance = [];
+   if (!native.cli.available)
+     guidance.push({
+@@ -195,15 +212,15 @@ await run(async () => {
+       interactiveCommand: '/login',
+       url: 'https://code.claude.com/docs/en/authentication',
+     });
+-  if (!codex.cli?.available)
++  if (includeCodex && !codex.cli?.available)
+     guidance.push({
+       executor: 'codex',
+-      action: 'optional-install',
++      action: 'install',
+       command: 'npm install -g @openai/codex',
+       url: 'https://developers.openai.com/codex/cli',
+       requiredFor: 'Codex workers only',
+     });
+-  else if (codex.auth?.loggedIn === false)
++  else if (includeCodex && codex.auth?.loggedIn === false)
+     guidance.push({
+       executor: 'codex',
+       action: 'login',
+@@ -215,13 +232,14 @@ await run(async () => {
+   return {
+     schemaVersion: 1,
+     configuration: { claudeHome: home },
++    executors,
+     node: {
+       executable: process.execPath,
+       version: process.version,
+       available: true,
+     },
+     claude: native,
+-    codex,
++    ...(includeCodex ? { codex } : {}),
+     guidance,
+     authentication: {
+       chatgpt: 'Codex ChatGPT subscription login uses the account plan.',
+diff --git a/skills/setup-pstack/scripts/models.mjs b/skills/setup-pstack/scripts/models.mjs
+index 6eeaca6..5209778 100644
+--- a/skills/setup-pstack/scripts/models.mjs
++++ b/skills/setup-pstack/scripts/models.mjs
+@@ -36,13 +36,6 @@ const nativeAliases = new Set([
+   'opusplan',
+   'inherit',
+ ]);
+-const judgmentRoles = new Set([
+-  'judgment and prose',
+-  'hardest tasks',
+-  'how explainer',
+-  'why synthesizer',
+-  'reflect judgment, divergent, synthesizer',
+-]);
+ const keyFor = (entry) => `${entry.executor}\0${entry.model}`;
+ 
+ function isNativeAlias(model) {
+@@ -100,12 +93,9 @@ export function normalizeConfig(input, previous) {
+   if (!selected || typeof selected !== 'object' || Array.isArray(selected))
+     throw new Error('Model configuration roles must be an object.');
+   const normalized = { ...(previous?.roles ?? {}) };
+-  const droppedRoles = [];
+   for (const [role, value] of Object.entries(selected)) {
+-    if (!Object.hasOwn(roles, role)) {
+-      droppedRoles.push(role);
+-      continue;
+-    }
++    if (!Object.hasOwn(roles, role))
++      throw new Error(`Unknown pstack role: ${role}`);
+     if (roles[role] === 'scalar') {
+       if (Array.isArray(value))
+         throw new Error(
+@@ -125,43 +115,27 @@ export function normalizeConfig(input, previous) {
+       budget,
+       roles: normalized,
+     },
+-    droppedRoles,
+   };
+ }
+ 
+ function suggestions(config) {
+-  const claude = {
+-    executor: 'claude-code',
+-    model: 'claude-opus-5-5',
+-    reasoningEffort: budgets[config.budget],
+-  };
+-  const grok = {
+-    upstreamModel: 'grok-4.7',
+-    upstreamSpeed: 'fast',
+-    reasoningEffort: budgets[config.budget],
+-  };
+   return Object.fromEntries(
+     Object.entries(roles).map(([role, kind]) => [
+       role,
+-      Object.hasOwn(config.roles, role)
+-        ? config.roles[role]
+-        : kind === 'scalar'
+-          ? judgmentRoles.has(role)
+-            ? claude
+-            : grok
+-          : [claude, grok],
++      config.roles[role] ??
++        (kind === 'scalar'
++          ? { reasoningEffort: budgets[config.budget] }
++          : Array.from({ length: 2 }, () => ({
++              reasoningEffort: budgets[config.budget],
++            }))),
+     ]),
+   );
+ }
+ 
+-function executionDefault(entry, kind) {
+-  const inherited = Boolean(entry.upstreamModel);
++function executionDefault(kind) {
+   return {
+     executor: 'claude-code',
+-    model: inherited ? 'inherit-parent' : 'opus',
+-    ...(inherited ? {} : { modelKind: 'native-alias' }),
+-    upstreamModel: entry.upstreamModel ?? entry.model,
+-    ...(inherited ? {} : { reasoningEffort: entry.reasoningEffort }),
++    model: 'inherit-parent',
+     ...(kind ? { agentType: agentType(kind, 'inherit-parent') } : {}),
+   };
+ }
+@@ -265,13 +239,12 @@ function choicesFor(proposal, catalog) {
+     );
+   for (const [role, value] of Object.entries(proposal)) {
+     entriesFor(value).forEach((entry, index) => {
+-      if (entry?.upstreamModel)
++      if (!modelFor(entry))
+         needsChoice.push({
+           role,
+           ...(Array.isArray(value) ? { index } : {}),
+-          upstreamModel: entry.upstreamModel,
+           reason:
+-            'Choose a detected executor and exact model for this upstream suggestion.',
++            'Choose an executor and exact model, or a native parent alias.',
+         });
+       else if (!aliases.has(modelFor(entry)) && detected) {
+         const supported = detected.get(keyFor(entry));
+@@ -324,15 +297,12 @@ async function main(options) {
+     exists: Boolean(loaded.existing),
+     sha256: loaded.existing?.sha256 ?? null,
+   };
+-  const proposal = suggestions(
+-    options.defaults ? { ...loaded.config, roles: {} } : loaded.config,
+-  );
++  const proposal = suggestions(loaded.config);
+   if (options.command === 'read')
+     return {
+       ...info,
+       config: loaded.config,
+       proposal: { ...loaded.config, roles: proposal },
+-      droppedRoles: loaded.droppedRoles,
+       needsChoice: choicesFor(proposal),
+       targetReasoningEffort: budgets[loaded.config.budget],
+     };
+@@ -343,10 +313,9 @@ async function main(options) {
+       throw new Error(
+         `Unknown pstack role: ${options.role ?? '(missing --role)'}`,
+       );
+-    const saved =
+-      !options.defaults && Object.hasOwn(loaded.config.roles, options.role);
++    const saved = Object.hasOwn(loaded.config.roles, options.role);
+     const entries = entriesFor(proposal[options.role]).map((entry) => {
+-      if (!saved) return executionDefault(entry, options.kind);
++      if (!saved) return executionDefault(options.kind);
+       const normalized =
+         typeof entry === 'string'
+           ? { executor: 'claude-code', model: entry }
+@@ -363,7 +332,7 @@ async function main(options) {
+       cardinality: roles[options.role],
+       entries,
+       needsChoice: [],
+-      source: saved ? 'saved' : 'upstream-default',
++      source: saved ? 'saved' : 'unconfigured',
+       file: loaded.file,
+       budget: loaded.config.budget,
+       targetReasoningEffort: budgets[loaded.config.budget],
+@@ -378,7 +347,7 @@ async function main(options) {
+     const config = {
+       ...loaded.config,
+       budget: options.budget,
+-      roles: structuredClone(proposal),
++      roles: structuredClone(loaded.config.roles),
+     };
+     const target = budgets[options.budget];
+     const unmapped = [];
+@@ -397,7 +366,7 @@ async function main(options) {
+           .reverse()
+           .find((effort) => supported.includes(effort));
+         if (resolved) entry.reasoningEffort = resolved;
+-        else if (!entry.upstreamModel)
++        else
+           unmapped.push({
+             role,
+             ...(Array.isArray(value) ? { index } : {}),
+@@ -410,7 +379,6 @@ async function main(options) {
+       ...info,
+       config,
+       targetReasoningEffort: target,
+-      droppedRoles: loaded.droppedRoles,
+       needsChoice: [...choicesFor(config.roles, catalog), ...unmapped],
+     };
+   }
+@@ -423,13 +391,6 @@ async function main(options) {
+     supplied.config ?? supplied,
+     loaded.config,
+   );
+-  const missing = Object.keys(roles).filter(
+-    (role) => !Object.hasOwn(normalized.config.roles, role),
+-  );
+-  if (missing.length)
+-    throw new Error(
+-      `Choose every role before saving. Missing: ${missing.join(', ')}`,
+-    );
+   const needsChoice = choicesFor(normalized.config.roles, catalog);
+   if (needsChoice.length)
+     throw new Error(
+@@ -478,7 +439,7 @@ if (
+         '--input',
+         '--expected-hash',
+       ],
+-      ['--dry-run', '--defaults'],
++      ['--dry-run'],
+     );
+     if (options.help) {
+       process.stdout.write(
+diff --git a/skills/swarm/SKILL.md b/skills/swarm/SKILL.md
+index 715ce24..ec563f0 100644
+--- a/skills/swarm/SKILL.md
++++ b/skills/swarm/SKILL.md
+@@ -19,7 +19,7 @@ Open a todolist with one entry per phase before launching anything.
+ 
+ 1. State the done predicate and the artifact or report the swarm must return.
+ 2. Choose the shape. Partition into slices, race N workers on identical briefs, or mix both. For a race or mixed shape, declare `first pass`, `rank all`, or `best-of` before spawning.
+-3. Read [Claude Code execution](../poteto-mode/references/claude-execution.md) and resolve `swarm workers` with worker kind `general-purpose`. Each worker uses that scalar selection unless a model race or comparison assigns its arm another model. Name each race arm's model up front. Parent aliases bind the actual native parent. A rejected model tries the bundled default, then the closest valid model of its family from the error. Say which fallback ran. Apply poteto-mode's reasoning and speed guidance.
++3. Read [Claude Code execution](../poteto-mode/references/claude-execution.md) and resolve `swarm workers` with worker kind `general-purpose`. Each worker uses that scalar selection unless a model race or comparison assigns its arm another model. Name each race arm's model up front. Parent aliases bind the actual native parent. A rejected model follows the execution binding and the closest valid model of its family from the error. Say which fallback ran. Apply poteto-mode's reasoning and speed guidance.
+ 4. Give each worker its own writable output when it writes. When workers verify or measure commits, each brief names the exact SHAs. A measurement brief also names the method (sample count, what one sample is, order). The worker records both in its result.
+ 
+ ## Phase B: Fan out
+diff --git a/skills/why/SKILL.md b/skills/why/SKILL.md
+index d0f548c..e181703 100644
+--- a/skills/why/SKILL.md
++++ b/skills/why/SKILL.md
+@@ -8,7 +8,7 @@ disable-model-invocation: true
+ 
+ Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
+ 
+-Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Investigators resolve `why investigators`; the synthesizer resolves `why synthesizer`. A rejected model tries the bundled default, then the closest valid model of the same family from the error, with disclosure. Parent aliases bind the actual native parent. Use poteto-mode's reasoning and speed guidance.
++Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Investigators resolve `why investigators`; the synthesizer resolves `why synthesizer`. A rejected model follows the execution binding, using a valid same-family choice from the error when available, with disclosure. Parent aliases bind the actual native parent. Use poteto-mode's reasoning and speed guidance.
+ 
+ Every seat uses worker kind `general-purpose` with the selected executor's configured MCP tools. Investigators receive a no-edits brief. Do not substitute a restricted Explore or Plan agent for a configured worker, since that changes its model, instructions, and available tools.
+ 

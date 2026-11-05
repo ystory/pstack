@@ -1,91 +1,89 @@
 ---
 name: setup-pstack
-description: Register pstack's bundled Codex agents and configure per-role models and reasoning budget across native Codex and an existing Claude Code CLI. Saves user-global choices that override skill defaults. Use for $setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
+description: Configure pstack workers in Codex. Choose worker executors, prepare selected CLIs, select supported models and reasoning budget, and register bundled agents. Use for $setup-pstack, "configure pstack models", or "pstack budget".
 ---
 
 # Setup pstack
 
-Save pstack's per-role choices in `$CODEX_HOME/pstack-codex/models.json`, or `~/.codex/pstack-codex/models.json` when `CODEX_HOME` is unset. These choices belong to the user and survive plugin updates and rollbacks. Resolve every bundled helper relative to this installed `SKILL.md`, then run Node.js with the helper's absolute path.
+Save accepted choices in `$CODEX_HOME/pstack-codex/models.json`, or `~/.codex/pstack-codex/models.json` when `CODEX_HOME` is unset. Resolve helpers relative to this installed skill and invoke their absolute paths with Node.js. Read [the helper contract](references/models-contract.md) for shapes and arguments.
 
-## Steps
+For removal, run `scripts/register-agents.mjs --unregister` while this bundle is available, then remove the plugin. Unregister removes only unchanged owned registrations and retains preferences. A fresh reset removes the old installation through its own setup before installing this product. There is no old-name alias or automatic preference migration.
 
-### 0. Register the bundled agents
+## 1. Choose worker executors
 
-Run `scripts/register-agents.mjs` with Node.js and Python 3.11 or newer. Python's standard-library `tomllib` validates native configuration; `--python ABSOLUTE_PATH` selects an existing compatible interpreter. The helper locates this plugin's agent definitions, registers `poteto-agent` and `comment-sicko` under `$CODEX_HOME/agents/` (default `~/.codex/agents/`), and adds explicit `[agents.<name>]` declarations with absolute `config_file` paths and the original descriptions in `config.toml`. It also adds `[agents.pstack-general-purpose]` with only a pstack-specific description, so pstack's generic delegates can receive the selected model and reasoning effort. This metadata role has no separate file or instruction body and preserves the user's existing default role. Users do not need to copy or edit the TOML files. Their original instruction bodies remain intact; callers provide the absolute installed paths of referenced skills in the delegated task.
+Start by asking which worker executors to use, unless the conversation already supplies the choice. Offer native Codex only, or native Codex with Claude Code workers. The parent chat stays in Codex. Prefill the executors used by saved choices on a rerun. Do not infer a worker model from the chosen executors.
 
-Read the JSON result and report the two file-based `agents`, the description-only `metadataRoles`, and the native config declaration status separately. Re-running setup leaves identical files untouched. The registration record tracks agent hashes and permissions and the exact owned config block. Updates and older bundles replace only unchanged managed registrations. On an unowned role declaration, malformed configuration, or user edit inside the managed block, report the conflict and stop setup before any mutation. An inline `agents` table that cannot be extended requires the user to convert it to normal tables; preserve it and report that action. Registration retains unrelated agents, configuration bytes and comments, existing file permissions, and model preferences. Successful registration confirms writing the files; start a new Codex session and check that its native tool exposes the named role before invoking it.
+Only selected executors need installation and login checks. Codex-only setup must not invoke or require Claude Code. If a previously saved entry uses an executor the user now excludes, show that entry and obtain its replacement before saving. Preserve every other accepted choice.
 
-For an isolated check, pass an absolute temporary `--codex-home` directory. `--dry-run` parses and previews without writing. A requested uninstall uses `--unregister`; it removes only unchanged registered agent files, the owned config block, and their ownership record. It restores preexisting config bytes when otherwise unchanged and retains independent later edits and model settings. Continue with model configuration after registration succeeds.
+## 2. Prepare the selected CLIs
 
-### 1. Detect available models
+Check `node --version`. Helpers require Node.js 24.12 or newer. Codex registration also needs Python 3.11 or newer. Use [CLI installation and login](references/cli-prerequisites.md) when a prerequisite is missing.
 
-Check `node --version` and the selected worker CLIs. For a missing CLI or a logged-out executor, read [CLI installation and login](references/cli-prerequisites.md), guide the authorized installation or human login, then rerun detection. Distinguish ChatGPT subscription login from API-key billing. Detection and catalog reads do not install software, authenticate, or change executor settings.
+For selected Claude Code workers, run the sibling `poteto-mode/scripts/run-claude.mjs detect`. Report its executable, version, compatibility, safe auth status, and guidance. If missing, guide the authorized CLI installation. If logged out, guide human login in the user's terminal. Rerun detection afterward. Reuse existing authentication and configuration. Never copy credentials into a test home or setup file. Detection does not install tools, authenticate, or prove model access. If login status cannot be established, inspect the selected CLI's normal status flow with the user before choosing its models.
 
-Enumerate the actual model IDs and supported reasoning efforts exposed by this session's native subagent tools or model catalog. Prefer Codex `model/list` for completeness when available; collect every page. Native defaults use `gpt-6.1-sol`. The `hardest tasks` default and one entry in each of the four list defaults use the existing Claude Code CLI with default `claude-opus-5-5`. Saved supported Claude model choices override this default.
+The [execution binding](../poteto-mode/references/codex-execution.md) describes runtime capability checks. A global CLI effort list proves syntax only. It supplies no default model or account entitlement.
 
-Normalize the detected native catalog with `scripts/models.mjs catalog --input ABSOLUTE_JSON`. It accepts a `model/list` response or `{ "models": [{ "model": "gpt-6.1-sol", "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"] }] }` assembled from the current tool's confirmed choices. Retain the actual supported values. If availability cannot be confirmed, ask for the Codex model IDs and efforts the user can use.
+## 3. Load choices and collect supported models
 
-Run the sibling `poteto-mode/scripts/run-claude.mjs detect` with Node.js from its absolute installed path as described in the [execution binding](../poteto-mode/references/codex-execution.md). It discovers the existing executable and checks CLI version and required options. Reuse existing authentication and configuration. Use the prerequisite guide when installation or login is needed. Installing Claude, authenticating, and changing Claude settings remain separate operations from capability detection. Detection reports global `effortSyntax` and `modelExecutionVerified: false`, not an account model list. For a nondefault Claude choice, add an executor-qualified record to the same combined `models` input. Each record carries the exact model ID, its confirmed `supportedReasoningEfforts`, and a labeled `source` describing that evidence. Use existing host or configuration evidence, or the user's confirmation of that exact model and its efforts. A configured candidate alone does not prove access. Prefill saved IDs on a rerun and honor confirmation already provided in the conversation. See [model capability records](references/models-contract.md#model-capability-records) for the shape. Normalize with `scripts/models.mjs catalog --input ABSOLUTE_COMBINED_JSON --claude-runtime ABSOLUTE_DETECT_JSON`. CLI 2.1.280 or newer must express the selected efforts. A compatible runtime also retains the shipped Opus default under `bundled-default`, which is not account access or execution proof. Use full IDs instead of moving aliases such as `opus` or `sonnet`.
+Run `scripts/models.mjs read` and retain `config`, `proposal`, `needsChoice`, and `sha256`. Fresh `config.roles` is empty. The proposal presents all 17 roles with unresolved model slots. Scalars start with one slot and panels or pools with two. Saved choices prefill the proposal and remain authoritative. Missing roles execute on the actual native parent with their original counts, disclosed as `unconfigured`. Setup is optional before a task.
 
-`inherit-parent` and `auto` are always valid saved aliases. Both select the literal Codex parent model and effort, and cannot be tagged for Claude execution. Use the shared execution binding when dispatching; omit native override fields only when doing so has been confirmed to preserve those parent settings.
+Enumerate exact model IDs and supported efforts from this session's native tools or Codex `model/list`. Collect every page. For selected Claude workers, collect model-specific host or configuration evidence, or ask for confirmation of the exact model and its efforts. Label that source. A configured candidate alone does not prove access. Honor confirmation already supplied in the conversation.
 
-### 2. Load current state
+Normalize the combined catalog with `scripts/models.mjs catalog --input ABSOLUTE_JSON`. Include `--claude-runtime ABSOLUTE_DETECT_JSON` only when configuring external Claude entries. Every external entry needs its own source and efforts expressible by that runtime. See [model capability records](references/models-contract.md#model-capability-records). No fixed Sol, Opus, or other model is required.
 
-Run `scripts/models.mjs read` and use its `config` and `sha256`. With no saved file, the helper returns the defaults below and budget `large`. Saved role values override the packaged defaults; an absent role falls back to its default. Existing native schema 1 settings and entries without `executor` retain their selected values. Configurations containing a Claude executor use schema 2, which older bundles reject instead of misreading as native. Explicit Claude entries labeled schema 1 are rejected without modifying the file.
+`auto` and `inherit-parent` always mean the actual native Codex parent. They omit a separate effort and cannot select the external executor. Bind them through Codex execution's parent-selection rules.
 
-`defaultChanges` shows current and proposed values for saved hardest-task or list roles that differ from the new defaults; it does not apply those changes. `matchesPreviousDefault` is an exact comparison with the former all-Sol default, not evidence that the user wants it replaced. Preserve independently chosen models, lists, aliases, and efforts. The helper lists retired keys in `droppedRoles`, such as `how critics`. Show these to the user before saving.
+## 4. Choose roles and reasoning budget
 
-### 3. Budget, map, and confirm
+Present every role and its proposed executor, model or parent alias, and effort. Offer detected exact choices and parent aliases. A user can apply one selection to several roles. Resolve proposed slots that the user accepts as saved choices. A user may leave roles unconfigured after seeing their native-parent behavior. Do not persist unresolved proposal slots.
 
-**(a) Select a budget.** Use an already specified budget. Otherwise name the saved budget, or say that `large` matches the defaults, and offer the original four options. Prefer the current session's native user-input tool when available:
+Use an already specified budget. Otherwise offer these original four targets.
 
-- `unlimited — max reasoning`
-- `large — xhigh reasoning`
-- `medium — high reasoning`
-- `small — medium reasoning`
+- `unlimited` targets `max` reasoning.
+- `large` targets `xhigh` reasoning.
+- `medium` targets `high` reasoning.
+- `small` targets `medium` reasoning.
 
-**(b) Apply it.** Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_COMBINED_JSON`. It retains the selected executor, model, family, list, order, duplicates, and aliases while resolving the highest supported effort at or below the budget target. Model IDs stay unchanged: both default models use separate `reasoningEffort: "xhigh"` under `large` and `"medium"` under `small`. Identical effort names do not establish identical computation across providers. The budget is a global default target; a consuming skill's explicit task-specific effort still applies. Aliases keep the literal parent settings and do not change with the budget. Any entry in `needsChoice` requires an available model choice before saving.
+`scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_JSON` previews supported efforts for saved choices. It preserves model IDs, executors, ordered duplicates, and aliases. Choose the highest supported effort at or below the target. The preview does not write. Parent aliases keep the parent's actual settings. A consuming workflow's explicit task effort still applies.
 
-**(c) Show every role and confirm changes.** Display the current and proposed executor, model entries, and resolved efforts, plus dropped retired keys. On a re-run show the proposed diversity changes from `defaultChanges` alongside current choices; apply only the changes the user accepts. Keep independently chosen values unless the user changes them. Offer detected native models, confirmed exact Claude model choices with their supported efforts, the labeled bundled Claude default, `inherit-parent`, and `auto`. Honor choices already authorized in the conversation.
+Keep these original role names and initial counts.
 
-For `arena runners`, `architect runners`, and `interrogate reviewers`, run one independent delegate per list entry, including duplicate models and aliases: list length sets the count. `arena cross-judge pool` is a candidate list from which Arena runs one judge. It tries only entries from a family other than the parent's, in list order, so order the pool by preference. An `inherit-parent` or `auto` entry never judges. If the configured entries cannot run, try the default pool's entries from another family. If none runs, skip the judge and report it. When the parent's model is unknown, try the pool's real entries in order and report that the family check did not run. `swarm workers` supplies every worker's default unless a race or comparison assigns another model per arm. The two-entry defaults preserve the original counts. Keep each consuming workflow's original different-model and different-family requirements, audits, verifiers, and retry rules.
+| Role | Initial entries |
+| --- | --- |
+| feature, refactoring | 1 |
+| bug-fix | 1 |
+| perf-issue | 1 |
+| hillclimb | 1 |
+| judgment and prose | 1 |
+| hardest tasks | 1 |
+| how explorer | 1 |
+| how explainer | 1 |
+| why investigators | 1 |
+| why synthesizer | 1 |
+| reflect tooling | 1 |
+| reflect judgment, divergent, synthesizer | 1 |
+| arena runners | 2 |
+| arena cross-judge pool | 2 |
+| swarm workers | 1 |
+| architect runners | 2 |
+| interrogate reviewers | 2 |
 
-### 4. Validate
+Panels run every ordered entry, including duplicates and aliases. Arena's cross-judge pool selects one eligible judge in order. Parent aliases never establish a different family. Arena skips its judge with disclosure if no selected eligible entry runs. Required diversity gates elsewhere keep their own unmet outcome. No unused executor is a blanket requirement.
 
-Every real ID and its resolved effort must appear under its executor in the detected combined catalog. Native entries cannot validate Claude entries with the same ID. Claude entries require model-specific source evidence and efforts expressible by the detected runtime. Bare native catalog entries and arbitrary model names in a runtime receipt cannot authorize that route. Aliases omit effort and use the native parent. Resolve unavailable IDs, unsupported efforts, and `needsChoice` entries before writing. Saving configuration confirms the saved choices; model execution and review requirements need their own evidence.
+## 5. Review, register, and save
 
-### 5. Save the choices
+Show the accepted roles, any roles left unconfigured, the budget, supported efforts, and evidence sources. Honor choices already authorized in the conversation. Save the accepted sparse config to an absolute temporary JSON file. Validate with `scripts/models.mjs write --input ABSOLUTE_JSON --catalog ABSOLUTE_CATALOG --expected-hash HASH --dry-run`. Use the read hash, or `absent` for a fresh file.
 
-Read [references/models-contract.md](references/models-contract.md) for the JSON shape and helper arguments. Save the confirmed proposal to an absolute temporary JSON file, then run `scripts/models.mjs write --input ABSOLUTE_JSON --catalog ABSOLUTE_CATALOG --expected-hash HASH`. Use the hash from step 2, or `absent` if no configuration file existed. A concurrent change fails safely; reload and show the new state before saving. The helper validates every role before an atomic save and leaves identical bytes untouched. Keep the same exact role labels as poteto-mode:
+Run `scripts/register-agents.mjs`. It registers `poteto-agent`, `comment-sicko`, and the description-only `pstack-general-purpose` role. Python's standard-library `tomllib` checks native configuration. `--python ABSOLUTE_PATH` selects an existing interpreter. The helper preserves unrelated config, comments, modes, roles, and preferences. It refuses user edits, unowned declarations, symlinks, and damaged ownership. An unsupported inline agents table needs conversion to normal tables. Report the exact conflict before proceeding.
 
-| Role                                     | Default model entries                      |
-| ---------------------------------------- | ------------------------------------------ |
-| feature, refactoring                     | gpt-6.1-sol                                |
-| bug-fix                                  | gpt-6.1-sol                                |
-| perf-issue                               | gpt-6.1-sol                                |
-| hillclimb                                | gpt-6.1-sol                                |
-| judgment and prose                       | gpt-6.1-sol                                |
-| hardest tasks                            | claude-opus-5-5 (Claude Code)              |
-| how explorer                             | gpt-6.1-sol                                |
-| how explainer                            | gpt-6.1-sol                                |
-| why investigators                        | gpt-6.1-sol                                |
-| why synthesizer                          | gpt-6.1-sol                                |
-| reflect tooling                          | gpt-6.1-sol                                |
-| reflect judgment, divergent, synthesizer | gpt-6.1-sol                                |
-| arena runners                            | gpt-6.1-sol, claude-opus-5-5 (Claude Code) |
-| arena cross-judge pool                   | gpt-6.1-sol, claude-opus-5-5 (Claude Code) |
-| swarm workers                            | gpt-6.1-sol                                |
-| architect runners                        | gpt-6.1-sol, claude-opus-5-5 (Claude Code) |
-| interrogate reviewers                    | gpt-6.1-sol, claude-opus-5-5 (Claude Code) |
+Read the receipt's file-based `agents`, `metadataRoles`, and config declaration status. Repeated registration is idempotent. An isolated `--codex-home ABS` selects a fixture target. `--dry-run` previews without writing.
 
-### 6. Confirm
+After registration succeeds, run the same model write without `--dry-run`. A stale hash requires reloading and reviewing current state. Saving is atomic and identical bytes stay untouched. Both native and mixed settings use the current schema 1 under the new identity.
 
-Report the actual saved path, schema version, selected budget, and detected Claude executable/version. State model execution evidence separately; CLI detection alone leaves it unverified. pstack consumers read these global choices when next invoked, including in a new session. Re-running this skill updates them. A plugin install, update, rollback, or uninstall preserves this preference file. An older native-only bundle cannot read schema 2. Earlier mixed bundles pinned to Opus reject saved nondefault Claude entries. Before restoring one, explicitly save choices supported by that bundle using the current setup. If the user wants to run that bundle, selecting only native entries or parent aliases in the current setup and saving produces schema 1; do not replace external selections automatically. Claude receives the selected task, role, and absolute installed skill paths on invocation; this setup does not need a second Claude plugin or agent installation.
+## 6. Verify a first task
 
-### 7. Offer a verification skill (optional)
+Report the saved path, budget, selected executors, registration, and source evidence. Start a fresh Codex session so normal native discovery loads the roles. Use the installed namespace with a small task and the selected worker. Record requested and observed model separately, and distinguish saved settings, fixture evidence, native CLI execution, and Desktop UI evidence. Installation or helper success alone does not prove worker execution.
 
-Check whether the project has a way to drive the real app for proof, such as a `verify-*` skill or existing harness. If it does not, offer once: "want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one with $create-verification-skill." On yes, resolve the installed `create-verification-skill/SKILL.md` to an absolute path and follow it. On no, move on without pushing.
+## Optional project verification
 
-### 8. Offer a formal verification skill (optional)
-
-Check whether the project already has a formal verification skill (a project skill that runs a model checker, a proof, or another verifier against the code). If not, offer once: "want a formal verification skill, so agents can prove a key property of your code holds in every case in scope, not only the cases tests reach? I can generate one with $create-formal-verification-skill." On yes, resolve the installed `create-formal-verification-skill/SKILL.md` to an absolute path and follow it. On no, move on without pushing.
+If the project lacks a way to drive its real app, offer `create-verification-skill` once. If it lacks formal verification, offer `create-formal-verification-skill` once. Follow the selected installed skill only when accepted.

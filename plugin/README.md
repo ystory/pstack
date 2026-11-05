@@ -1,12 +1,12 @@
 # pstack for Codex
 
-This distribution adapts Lauren Tan's pstack workflows to Codex. Install through a Codex plugin marketplace and run its setup onboarding. By default, Sol 6.1 runs ordinary roles through Codex and Opus 5.5 runs the hardest tasks through an existing Claude Code CLI. Saved supported exact models override those defaults. Candidate and reviewer lists and the cross-judge pool default to both models, preserving the original requirements for different models or model families.
+This distribution adapts Lauren Tan's pstack workflows to Codex. Install `pstack-codex` through a native marketplace, then invoke setup. Choose worker executors first. Setup checks installation and login only for selected CLIs, guides any needed installation and human authentication, then helps choose supported exact models, roles, and budget. No fixed model is required. Saved roles take precedence. Unconfigured roles use the actual native parent at their original count. Workflow-specific diversity requirements remain.
 
 The following overview is adapted from [Lauren Tan's original pstack README](https://github.com/cursor/plugins/blob/b1695c2019b650ca5d4a66a6a6d805233c806d6d/pstack/README.md). Commands and skill namespaces have been updated for Codex.
 
 i'm [poteto](https://x.com/poteto). i'm not a president or ceo, but i've worked with millions of lines of code at Meta, Netflix, and Cursor. i'm also on the react core team where i help build and maintain react compiler.
 
-there's a growing sense that ai writes too much slop code. i agree. i don't want to ship like a team of twenty slop artists. throughput without quality is not a goal i aspire to. if you want to go fast, go deep first. 
+there's a growing sense that ai writes too much slop code. i agree. i don't want to ship like a team of twenty slop artists. throughput without quality is not a goal i aspire to. if you want to go fast, go deep first.
 
 **pstack is my answer.** these are the same skills i use every day to ship high quality code at Cursor. this turns cursor into a real engineering team. the goal is not to maximize loc, in fact it's the opposite. pstack helps you write less, but higher quality code.
 
@@ -14,7 +14,7 @@ there's a growing sense that ai writes too much slop code. i agree. i don't want
 
 **cursor gives you the best of all worlds.** every frontier model has its strengths and weaknesses. use any model with pstack. in fact, many of my skills use multi-model workflows to take advantage of each model's unique strengths.
 
-fork it. improve it. make it yours. PRs are welcome! 
+fork it. improve it. make it yours. PRs are welcome!
 
 ## install
 
@@ -27,9 +27,9 @@ codex plugin add pstack-codex@pstack-codex
 
 An extracted distribution artifact can also be added with `codex plugin marketplace add /absolute/path/to/artifact`. Both routes use the same marketplace identity. See the [repository installation guide](https://github.com/ystory/pstack#install) for requirements and update instructions.
 
-Setup needs an existing Node.js 24.12+ and Python 3.11+ interpreter; it uses only Python's standard-library TOML parser. Claude execution also needs an installed, authenticated Claude Code CLI. Setup checks its existing path, version, and options; runs reuse its existing authentication. It does not install Claude Code or rewrite its global settings. Codex presents setup onboarding after installation. Setup registers the two bundled custom-agent definitions and their native config references, plus a description-only `pstack-general-purpose` role that leaves your existing default role intact. It stores your role choices in `$CODEX_HOME/pstack-codex/models.json`, defaulting to `~/.codex`. Re-run setup after an update or a prior-version restore to synchronize its owned agent files. Existing user edits stop replacement; role preferences are retained.
+Setup needs an existing Node.js 24.12+ and Python 3.11+ interpreter; it uses only Python's standard-library TOML parser. Select Claude workers to prepare an installed, authenticated Claude Code CLI. Setup guides authorized installation and human login when needed. Runs reuse existing authentication and settings. Codex presents setup onboarding after installation. Setup registers the two bundled custom-agent definitions and their native config references, plus a description-only `pstack-general-purpose` role that leaves your existing default role intact. It stores your role choices in `$CODEX_HOME/pstack-codex/models.json`, defaulting to `~/.codex`. Re-run setup after an update or a prior-version restore to synchronize its owned agent files. Existing user edits stop replacement; role preferences are retained.
 
-Earlier mixed bundles pinned to Opus reject saved nondefault Claude choices. Before restoring one, explicitly save models it supports using the current setup. Before restoring an older all-Sol bundle, use the current setup to explicitly save Codex-only role choices. Preferences with a Claude executor use schema 2; older helpers reject that format and leave the file intact. Native-only preferences use schema 1, which those older bundles can read.
+The current new-identity preferences use schema 1 for native and mixed choices. No old-name aliases, old-state readers, or automatic migrations are supplied. For an old installation, unregister its owned agents through its own setup and remove it before installing this plugin.
 
 Before removing the plugin, ask setup to unregister its managed agents. It removes only its unchanged agent files and owned role declarations; unrelated configuration and your model preferences remain. Then use `codex plugin remove pstack-codex@pstack-codex`. Native plugin removal does not run an agent-cleanup hook.
 
@@ -37,12 +37,12 @@ Before removing the plugin, ask setup to unregister its managed agents. It remov
 
 two steps:
 
-1. run [`$pstack-codex:setup-pstack`](./skills/setup-pstack/SKILL.md), pick a reasoning budget, and choose which models you want.
+1. run [`$pstack-codex:setup-pstack`](./skills/setup-pstack/SKILL.md), choose worker executors, prepare selected CLIs, then choose models, roles, and reasoning budget.
 2. use [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) whenever you're doing anything that requires rigor.
 
 new here? the [pstack guide](./docs/guide/README.md) walks you through a first real task, from setup and prompting through verification and overnight runs. stuck, or unsure which skill fits? ask [`$pstack-codex:poteto-help`](./skills/poteto-help/SKILL.md).
 
-that's it. the other skills are situational, and the mode skill uses them for you as needed. out of the box, ordinary roles use sol 6.1 and the hardest tasks use opus 5.5. the default panel is sol 6.1 / opus 5.5. [`$pstack-codex:setup-pstack`](./skills/setup-pstack/SKILL.md) changes any of it.
+The other skills are situational. The mode skill uses them as the task needs. Missing roles inherit the native parent, while accepted saved choices retain their exact executor, model, and effort.
 
 ## usage
 
@@ -268,7 +268,7 @@ Use the installed `$skill-creator` for skill authoring. Inside `poteto-mode`, th
 
 ## why are there no planning skills?
 
-Codex plan mode can be used with pstack. but personally, i don't believe in planning. the best spec is code. if you do want to make a plan, [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) covers it, but it's not a default. 
+Codex plan mode can be used with pstack. but personally, i don't believe in planning. the best spec is code. if you do want to make a plan, [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) covers it, but it's not a default.
 
 ## make it yours
 
@@ -276,7 +276,7 @@ Codex plan mode can be used with pstack. but personally, i don't believe in plan
 
 type [`$pstack-codex:automate-me`](./skills/automate-me/SKILL.md). it mines your recent transcripts, drafts a `<your-name>-mode` skill from how you've actually worked, and routes through pstack underneath. you keep pstack as the base and end up with your own routing skill alongside `poteto-mode`.
 
-Models are configurable through [`$pstack-codex:setup-pstack`](./skills/setup-pstack/SKILL.md). Setup uses the available Codex model catalog and stores the selected budget and role assignments in a user-global JSON file. Consumers read that file; absent settings use the bundled defaults.
+Models are configurable through [`$pstack-codex:setup-pstack`](./skills/setup-pstack/SKILL.md). Setup uses the available Codex model catalog and stores the selected budget and role assignments in a user-global JSON file. Consumers read that file; absent roles use the actual native parent with their original cardinality.
 
 Saved choices remain separate from plugin versions. Re-run setup to review or change them after an update; an update or prior-version restore preserves the preference file.
 

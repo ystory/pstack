@@ -17,9 +17,9 @@ For Claude desktop, use the [plugin browser instructions](docs/guide/01-setup.md
 /pstack-cc:setup-pstack
 ```
 
-Setup checks Node, CLI capabilities and authentication. It guides missing CLI installation and human login, then saves your reasoning budget and exact worker choices for all 17 roles. It does not choose the parent chat model. A native Claude entry uses an exact-model agent definition. A Codex entry runs through the bundled, pinned official Codex runtime and your existing Codex login.
+Setup first asks for native Claude only, or Claude with Codex workers. It checks installation and login only for selected CLIs, guides missing installation and human authentication, then presents supported exact models, all 17 roles, and reasoning budget for review and saving. It does not choose the parent chat model. A native Claude entry uses an exact-model agent definition. A Codex entry runs through the bundled, pinned official Codex runtime and your existing Codex login.
 
-Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`. They are independent of Codex-host preferences. The original unavailable Grok defaults need a supported choice. Panels preserve their ordered entries and duplicates. Parent aliases select the actual Claude parent. Required model diversity still applies.
+Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`. They are independent of Codex-host preferences. Fresh proposal slots are unresolved. Accepted saved roles remain authoritative. Missing roles use the actual native parent at their original cardinality. Panels preserve their ordered entries and duplicates. Parent aliases select the actual Claude parent. Required model diversity still applies.
 
 Start a new session after setup so Claude discovers the registered agents. Then try:
 

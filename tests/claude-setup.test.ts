@@ -249,44 +249,9 @@ test('new Claude setup preserves upstream proposals without assigning Sol or per
   await assert.rejects(stat(f.home), { code: 'ENOENT' });
 });
 
-test('execution defaults work without setup or registration while setup proposals still need choices', async (t) => {
+test('every unconfigured role resolves to native parent at original cardinality without registration', async (t) => {
   const f = await fixture(t);
-  const explorer = f.models(
-    'resolve',
-    '--role',
-    'how explorer',
-    '--kind',
-    'general-purpose',
-  );
-  assert.equal(explorer.source, 'upstream-default');
-  assert.deepEqual(explorer.entries, [
-    {
-      executor: 'claude-code',
-      model: 'inherit-parent',
-      upstreamModel: 'grok-4.7',
-      agentType: 'pstack-cc:general-purpose',
-    },
-  ]);
-  const explainer = f.models(
-    'resolve',
-    '--role',
-    'how explainer',
-    '--kind',
-    'general-purpose',
-  );
-  assert.deepEqual(explainer.entries, [
-    {
-      executor: 'claude-code',
-      model: 'opus',
-      modelKind: 'native-alias',
-      upstreamModel: 'claude-opus-5-5',
-      reasoningEffort: 'xhigh',
-      agentType: 'pstack-cc:general-purpose',
-    },
-  ]);
-  assert.deepEqual(explorer.needsChoice, []);
-  assert.deepEqual(explainer.needsChoice, []);
-  for (const role of lists) {
+  for (const role of roleNames) {
     const resolved = f.models(
       'resolve',
       '--role',
@@ -294,31 +259,28 @@ test('execution defaults work without setup or registration while setup proposal
       '--kind',
       'general-purpose',
     );
+    assert.equal(resolved.source, 'unconfigured');
     assert.deepEqual(
-      resolved.entries.map((entry) => entry.model),
-      ['opus', 'inherit-parent'],
-    );
-    assert.ok(
-      resolved.entries.every(
-        (entry) => entry.agentType === 'pstack-cc:general-purpose',
-      ),
+      resolved.entries,
+      Array.from({ length: lists.has(role) ? 2 : 1 }, () => ({
+        executor: 'claude-code',
+        model: 'inherit-parent',
+        agentType: 'pstack-cc:general-purpose',
+      })),
     );
     assert.deepEqual(resolved.needsChoice, []);
   }
-  assert.ok(
-    f.models('read').needsChoice.some((entry) => entry.role === 'how explorer'),
-  );
-  for (const kind of workerKinds) {
-    const resolved = f.models(
-      'resolve',
-      '--role',
-      'how explorer',
-      '--kind',
-      kind,
+  const proposal = f.models('read');
+  assert.equal(proposal.needsChoice.length, 21);
+  for (const value of Object.values(proposal.proposal.roles))
+    for (const entry of Array.isArray(value) ? value : [value])
+      assert.equal(typeof entry === 'string' ? entry : entry.model, undefined);
+  for (const kind of workerKinds)
+    assert.equal(
+      f.models('resolve', '--role', 'how explorer', '--kind', kind).entries[0]
+        ?.agentType,
+      `pstack-cc:${kind}`,
     );
-    assert.equal(resolved.entries[0]?.agentType, `pstack-cc:${kind}`);
-    assert.equal(resolved.entries[0]?.model, 'inherit-parent');
-  }
   assert.equal(
     f.run<Agents>('register-agents.mjs', '--dry-run').agents.length,
     0,
@@ -326,58 +288,26 @@ test('execution defaults work without setup or registration while setup proposal
   await assert.rejects(stat(f.home), { code: 'ENOENT' });
 });
 
-test('missing roles in partial preferences use native defaults and explicit defaults leave exact selections intact', async (t) => {
+test('sparse saves retain exact selections while missing roles keep the native parent', async (t) => {
   const f = await fixture(t);
-  await mkdir(path.join(f.home, 'pstack-cc'), { recursive: true });
-  const selected = {
-    executor: 'claude-code',
-    model: f.model,
+  const chosen = {
+    executor: 'codex',
+    model: 'gpt-fixture',
     reasoningEffort: 'high',
   };
-  const saved = {
-    schemaVersion: 1,
-    host: 'claude-code',
-    budget: 'small',
-    roles: { 'how explorer': selected },
-  };
-  const file = path.join(f.home, 'pstack-cc/models.json');
-  await writeFile(file, JSON.stringify(saved));
-  const before = await readFile(file);
-  const exact = f.models(
-    'resolve',
-    '--role',
-    'how explorer',
-    '--kind',
-    'read-only',
-  );
-  assert.equal(exact.source, 'saved');
-  assert.deepEqual(exact.entries[0], {
-    ...selected,
-    agentType: `pstack-cc-read-only-${createHash('sha256').update(f.model).digest('hex').slice(0, 16)}`,
-  });
+  await f.save({ roles: { 'bug-fix': chosen } });
+  assert.deepEqual(f.models('resolve', '--role', 'bug-fix').entries, [chosen]);
+  const missing = f.models('resolve', '--role', 'hardest tasks');
+  assert.equal(missing.source, 'unconfigured');
+  assert.deepEqual(missing.entries, [
+    { executor: 'claude-code', model: 'inherit-parent' },
+  ]);
+  assert.deepEqual(Object.keys(f.models('read').config.roles), ['bug-fix']);
   assert.equal(
-    f.models(
-      'resolve',
-      '--role',
-      'how explorer',
-      '--kind',
-      'read-only',
-      '--defaults',
-    ).entries[0]?.model,
-    'inherit-parent',
+    f.invoke('models.mjs', ['resolve', '--role', 'bug-fix', '--defaults'])
+      .status,
+    1,
   );
-  const missing = f.models(
-    'resolve',
-    '--role',
-    'how explainer',
-    '--kind',
-    'read-only',
-  );
-  assert.equal(missing.entries[0]?.model, 'opus');
-  assert.equal(missing.entries[0]?.reasoningEffort, 'medium');
-  assert.equal(missing.entries[0]?.agentType, 'pstack-cc:read-only');
-  assert.deepEqual(await readFile(file), before);
-  assert.deepEqual(f.models('read').config.roles, saved.roles);
 });
 
 test('read-only registration preserves exact models and denies file mutation tools without restricting other kinds', async (t) => {
@@ -1006,7 +936,7 @@ test('detect reports missing optional Codex and logged-out Claude guidance witho
   await chmod(fake, 0o755);
   const result = f.invoke(
     'detect.mjs',
-    ['detect', '--claude-executable', fake],
+    ['detect', '--executors', 'claude-code,codex', '--claude-executable', fake],
     {
       PSTACK_FIXTURE_CODEX: JSON.stringify({
         cli: { available: false },
@@ -1020,7 +950,7 @@ test('detect reports missing optional Codex and logged-out Claude guidance witho
   assert.equal(detection.claude.auth.loggedIn, false);
   assert.ok(
     detection.guidance.some(
-      (entry: { action: string }) => entry.action === 'optional-install',
+      (entry: { action: string }) => entry.action === 'install',
     ),
   );
   assert.ok(
@@ -1127,7 +1057,15 @@ test('detect retains subscription versus API status and delegates complete model
     };
     const result = f.invoke(
       'detect.mjs',
-      ['catalog', '--claude-executable', fake, '--cwd', f.root],
+      [
+        'catalog',
+        '--executors',
+        'claude-code,codex',
+        '--claude-executable',
+        fake,
+        '--cwd',
+        f.root,
+      ],
       { PSTACK_FIXTURE_CODEX: JSON.stringify(receipt) },
     );
     assert.equal(result.status, 0, result.stderr);
@@ -1147,7 +1085,13 @@ test('logged-out Codex detection guides normal and device login while Claude-onl
   const f = await fixture(t);
   const result = f.invoke(
     'detect.mjs',
-    ['detect', '--claude-executable', path.join(f.root, 'missing-claude')],
+    [
+      'detect',
+      '--executors',
+      'claude-code,codex',
+      '--claude-executable',
+      path.join(f.root, 'missing-claude'),
+    ],
     {
       PSTACK_FIXTURE_CODEX: JSON.stringify({
         cli: { available: true },
@@ -1287,4 +1231,70 @@ test('budget preview marks a supported effort above the target as needing a choi
     ]).status,
     0,
   );
+});
+
+test('native-only setup never invokes the unselected Codex CLI and missing external prerequisites stay conditional', async (t) => {
+  const f = await fixture(t);
+  const capture = path.join(f.root, 'codex-was-probed');
+  await writeFile(
+    path.join(f.plugin, 'skills/poteto-mode/scripts/run-codex.mjs'),
+    `import { writeFileSync } from 'node:fs'; writeFileSync(${JSON.stringify(capture)}, 'invoked'); process.stdout.write(JSON.stringify({cli:{available:false},auth:{loggedIn:null}}));`,
+  );
+  const fake = path.join(f.root, 'native-cli');
+  await writeFile(
+    fake,
+    `#!${process.execPath}\nconst args=process.argv.slice(2); if(args[0]==='--version') console.log('2.1.300'); else if(args[0]==='--help') console.log('--agents'); else console.log(JSON.stringify({loggedIn:true,authMethod:'oauth_token'}));\n`,
+    { mode: 0o755 },
+  );
+  const native = f.run<Record<string, unknown>>(
+    'detect.mjs',
+    'detect',
+    '--executors',
+    'claude-code',
+    '--claude-executable',
+    fake,
+  );
+  assert.equal(native.codex, undefined);
+  assert.deepEqual(native.guidance, []);
+  await assert.rejects(stat(capture), { code: 'ENOENT' });
+  await f.save({ roles: { 'how explainer': 'inherit-parent' } });
+  assert.deepEqual(f.models('read').config.roles, {
+    'how explainer': 'inherit-parent',
+  });
+  const mixed = f.run<{ guidance: { executor: string; action: string }[] }>(
+    'detect.mjs',
+    'detect',
+    '--executors',
+    'claude-code,codex',
+    '--claude-executable',
+    fake,
+  );
+  assert.equal(await readFile(capture, 'utf8'), 'invoked');
+  assert.ok(
+    mixed.guidance.some(
+      (entry) => entry.executor === 'codex' && entry.action === 'install',
+    ),
+  );
+});
+
+test('unknown Claude role keys fail without discarding them or modifying preferences', async (t) => {
+  const f = await fixture(t);
+  const saved = await f.save({ roles: { 'how explainer': 'inherit-parent' } });
+  const file = path.join(f.home, 'pstack-cc/models.json');
+  const before = await readFile(file);
+  await writeFile(
+    f.input,
+    JSON.stringify({ roles: { 'unknown role': 'auto' } }),
+  );
+  const rejected = f.invoke('models.mjs', [
+    'write',
+    '--input',
+    f.input,
+    '--catalog',
+    f.catalog,
+    '--expected-hash',
+    saved.sha256!,
+  ]);
+  assert.equal(rejected.status, 1);
+  assert.deepEqual(await readFile(file), before);
 });

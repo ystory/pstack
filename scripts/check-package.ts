@@ -283,18 +283,19 @@ try {
     ),
   );
   if (
-    models.config.schemaVersion !== 2 ||
-    Object.keys(models.config.roles).length !== 17 ||
-    models.config.roles['hardest tasks'][0].executor !== 'claude-code' ||
-    models.config.roles['hardest tasks'][0].model !== 'claude-opus-5-5' ||
-    models.config.roles['how explainer'][0].model !== 'gpt-6.1-sol' ||
+    models.config.schemaVersion !== 1 ||
+    Object.keys(models.config.roles).length !== 0 ||
+    Object.keys(models.proposal.roles).length !== 17 ||
+    models.needsChoice.length !== 21 ||
     models.exists !== false ||
     models.sha256 !== null
   )
-    throw new Error('Packaged model helper did not retain mixed defaults.');
+    throw new Error(
+      'Packaged model helper did not preserve fresh unconfigured choices.',
+    );
   try {
     await access(isolatedModelsHome);
-    throw new Error('Reading packaged defaults wrote a model configuration.');
+    throw new Error('Reading packaged choices wrote a model configuration.');
   } catch (error) {
     if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT'))
       throw error;
@@ -312,6 +313,7 @@ try {
       `const args = process.argv.slice(2);\n` +
       `if (args[0] === '--version') console.log('2.1.300 (Claude Code)');\n` +
       `else if (args[0] === '--help') console.log('--print --model --effort low medium high xhigh max --output-format stream-json --verbose --resume');\n` +
+      `else if (args[0] === 'auth') console.log(JSON.stringify({loggedIn:true,authMethod:'oauth_token'}));\n` +
       `else {\n` +
       `  process.stdin.resume();\n` +
       `  process.stdin.on('end', () => {\n` +
@@ -337,6 +339,8 @@ try {
         temporaryRoot,
         '--run-dir',
         path.join(temporaryRoot, 'external-run-evidence'),
+        '--model',
+        'claude-transport-fixture-20300101',
         '--effort',
         'xhigh',
         '--instruction',
@@ -352,9 +356,10 @@ try {
   );
   if (
     runner.exitCode !== 0 ||
-    runner.model !== 'claude-opus-5-5' ||
-    runner.observedModel !== 'claude-opus-5-5' ||
-    runner.result !== 'packaged external transport received claude-opus-5-5' ||
+    runner.model !== 'claude-transport-fixture-20300101' ||
+    runner.observedModel !== 'claude-transport-fixture-20300101' ||
+    runner.result !==
+      'packaged external transport received claude-transport-fixture-20300101' ||
     !(await readFile(runner.promptPath, 'utf8')).includes(
       'Apply only the assigned package fixture task.',
     )
@@ -655,7 +660,7 @@ try {
     );
     const frontmatter = /^---\n([\s\S]*?)\n---\n\s*\S/.exec(definition)?.[1];
     if (
-      fallback.source !== 'upstream-default' ||
+      fallback.source !== 'unconfigured' ||
       fallback.entries.length !== 1 ||
       fallback.entries[0].executor !== 'claude-code' ||
       fallback.entries[0].model !== 'inherit-parent' ||
@@ -677,11 +682,10 @@ try {
     'general-purpose',
   ]);
   if (
-    nativeFallback.source !== 'upstream-default' ||
+    nativeFallback.source !== 'unconfigured' ||
     nativeFallback.entries.length !== 1 ||
     nativeFallback.entries[0].executor !== 'claude-code' ||
-    nativeFallback.entries[0].model !== 'opus' ||
-    nativeFallback.entries[0].modelKind !== 'native-alias' ||
+    nativeFallback.entries[0].model !== 'inherit-parent' ||
     nativeFallback.entries[0].agentType !== 'pstack-cc:general-purpose' ||
     claudeModelCall(['read']).exists
   )
@@ -934,7 +938,7 @@ lines.on('close', () => process.exit(0));
     temporaryRoot,
   );
   console.log(
-    'Packed artifact verified: both standalone host plugins, native marketplace manifests, independent patch replay and pinned runtime, isolated setup lifecycle, mixed model defaults, the nondefault Claude detect-to-run chain, and both external CLI stub transports without source files or development dependencies. User settings are preserved. The stubs do not prove authentication or live model execution. Native global install was not run.',
+    'Packed artifact verified: both standalone host plugins, native marketplace manifests, independent patch replay and pinned runtime, isolated setup lifecycle, fresh unresolved model choices, parent fallback cardinality, the nondefault Claude detect-to-run chain, and both external CLI stub transports without source files or development dependencies. User settings are preserved. The stubs do not prove authentication or live model execution. Native global install was not run.',
   );
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });

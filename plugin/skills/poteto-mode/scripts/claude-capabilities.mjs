@@ -1,6 +1,5 @@
 import path from 'node:path';
 
-export const DEFAULT_CLAUDE_MODEL = 'claude-opus-5-5';
 export const CLAUDE_MINIMUM_VERSION = '2.1.280';
 export const CLAUDE_CLI_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
 

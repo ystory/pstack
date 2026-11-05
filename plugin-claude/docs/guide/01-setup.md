@@ -8,7 +8,7 @@ You need a current Claude desktop app with the **Code** tab and local sessions, 
 
 Codex workers also need an authenticated Codex CLI with the app-server capabilities checked by setup. Claude-only workers do not need Codex. `pstack-cc` does not need the separate official Codex plugin. GitHub workflows need an authenticated GitHub CLI, `gh`. The bundled PR watcher needs Bun 1.2+ and installs locked dependencies in an external cache on first use.
 
-## Prepare CLI login and PATH
+## Prepare selected CLI login and PATH
 
 Install [Node.js](https://nodejs.org/en/download) and the [Claude Code CLI](https://code.claude.com/docs/en/setup) if needed. On macOS, Linux, or WSL, Claude's installer is:
 
@@ -27,7 +27,7 @@ claude auth status
 
 If Claude's CLI is logged out, run `claude auth login`, or use `/login` in Claude Code. Complete the browser login with the account and organization you intend to use for Claude workers. Setup checks authentication without copying credentials. Keep credentials out of the chat.
 
-For Codex workers, install the [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) and sign in:
+After choosing Codex workers in setup, install the [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) and sign in:
 
 ```sh
 npm install -g @openai/codex
@@ -40,7 +40,7 @@ You can also run `!codex login` from an interactive Claude session when appropri
 
 If setup cannot find `node`, `claude`, or `codex`, check the command's installation directory and your `PATH`. Quit and reopen Desktop after changing the environment. See [Desktop tools and PATH](https://code.claude.com/docs/en/desktop#session-not-finding-installed-tools) if the command works in your terminal but fails in Code.
 
-CLI detection, login, catalog access, and actual model execution are separate checks. After preparing the CLIs, return to your local Code session and run `/pstack-cc:setup-pstack`.
+CLI detection, login, catalog access, and actual model execution are separate checks. Run setup after installation. It asks which workers to use before checking selected CLIs, then guides any needed installation and human login. Continue to model selection after readiness checks.
 
 ## Install
 
@@ -71,13 +71,15 @@ Both routes install the committed `plugin-claude/` directory. You do not need a 
 
 ## Pick your models
 
-Setup loads the current Claude preferences and the original pstack role defaults. It asks for `unlimited`, `large`, `medium`, or `small` reasoning budget and shows every role. Pick a supported Claude or Codex executor and exact model for each real selection. Unavailable upstream Grok suggestions need a choice. A temporary quota condition does not assign a permanent replacement model.
+Setup starts with native Claude only, or Claude with Codex workers. The parent chat stays in Claude. Unselected Codex is neither probed nor required. For a selected missing or logged-out CLI, setup guides installation or human login and rechecks it before model selection.
+
+Then choose supported exact models, role assignments, and `unlimited`, `large`, `medium`, or `small` reasoning budget. Fresh proposals expose all 17 roles with unresolved model slots. Saved entries prefill reruns. Review accepted choices before saving. You may leave a role unconfigured after seeing its native-parent fallback. No fixed model is required.
 
 Scalar roles retain one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` retain ordered lists, with one worker per entry including duplicates. `arena cross-judge pool` is also a list, but Arena selects one judge from another family in preference order. `swarm workers` stays scalar unless a race specifies models per arm.
 
 `auto` and `inherit-parent` select the actual native Claude parent. They do not select Codex. Setup does not change the parent chat model. A single-model configuration cannot satisfy a required different-model or different-family verifier. Arena has its own disclosed optional judge skip. The other required diversity gates remain requirements.
 
-The helper saves `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json` and manages only owned generated native agents. It preserves unrelated files and settings. Codex-host preferences under `$CODEX_HOME/pstack-for-codex/` remain independent. Use isolated `--claude-home` paths for fixtures.
+The helper saves `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json` and manages only owned generated native agents. It preserves unrelated files and settings. Codex-host preferences under `$CODEX_HOME/pstack-codex/` remain independent. Use isolated `--claude-home` paths for fixtures.
 
 ## Run your first task
 

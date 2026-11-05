@@ -36,13 +36,6 @@ const nativeAliases = new Set([
   'opusplan',
   'inherit',
 ]);
-const judgmentRoles = new Set([
-  'judgment and prose',
-  'hardest tasks',
-  'how explainer',
-  'why synthesizer',
-  'reflect judgment, divergent, synthesizer',
-]);
 const keyFor = (entry) => `${entry.executor}\0${entry.model}`;
 
 function isNativeAlias(model) {
@@ -100,12 +93,9 @@ export function normalizeConfig(input, previous) {
   if (!selected || typeof selected !== 'object' || Array.isArray(selected))
     throw new Error('Model configuration roles must be an object.');
   const normalized = { ...(previous?.roles ?? {}) };
-  const droppedRoles = [];
   for (const [role, value] of Object.entries(selected)) {
-    if (!Object.hasOwn(roles, role)) {
-      droppedRoles.push(role);
-      continue;
-    }
+    if (!Object.hasOwn(roles, role))
+      throw new Error(`Unknown pstack role: ${role}`);
     if (roles[role] === 'scalar') {
       if (Array.isArray(value))
         throw new Error(
@@ -125,43 +115,27 @@ export function normalizeConfig(input, previous) {
       budget,
       roles: normalized,
     },
-    droppedRoles,
   };
 }
 
 function suggestions(config) {
-  const claude = {
-    executor: 'claude-code',
-    model: 'claude-opus-5-5',
-    reasoningEffort: budgets[config.budget],
-  };
-  const grok = {
-    upstreamModel: 'grok-4.7',
-    upstreamSpeed: 'fast',
-    reasoningEffort: budgets[config.budget],
-  };
   return Object.fromEntries(
     Object.entries(roles).map(([role, kind]) => [
       role,
-      Object.hasOwn(config.roles, role)
-        ? config.roles[role]
-        : kind === 'scalar'
-          ? judgmentRoles.has(role)
-            ? claude
-            : grok
-          : [claude, grok],
+      config.roles[role] ??
+        (kind === 'scalar'
+          ? { reasoningEffort: budgets[config.budget] }
+          : Array.from({ length: 2 }, () => ({
+              reasoningEffort: budgets[config.budget],
+            }))),
     ]),
   );
 }
 
-function executionDefault(entry, kind) {
-  const inherited = Boolean(entry.upstreamModel);
+function executionDefault(kind) {
   return {
     executor: 'claude-code',
-    model: inherited ? 'inherit-parent' : 'opus',
-    ...(inherited ? {} : { modelKind: 'native-alias' }),
-    upstreamModel: entry.upstreamModel ?? entry.model,
-    ...(inherited ? {} : { reasoningEffort: entry.reasoningEffort }),
+    model: 'inherit-parent',
     ...(kind ? { agentType: agentType(kind, 'inherit-parent') } : {}),
   };
 }
@@ -265,13 +239,12 @@ function choicesFor(proposal, catalog) {
     );
   for (const [role, value] of Object.entries(proposal)) {
     entriesFor(value).forEach((entry, index) => {
-      if (entry?.upstreamModel)
+      if (!modelFor(entry))
         needsChoice.push({
           role,
           ...(Array.isArray(value) ? { index } : {}),
-          upstreamModel: entry.upstreamModel,
           reason:
-            'Choose a detected executor and exact model for this upstream suggestion.',
+            'Choose an executor and exact model, or a native parent alias.',
         });
       else if (!aliases.has(modelFor(entry)) && detected) {
         const supported = detected.get(keyFor(entry));
@@ -324,15 +297,12 @@ async function main(options) {
     exists: Boolean(loaded.existing),
     sha256: loaded.existing?.sha256 ?? null,
   };
-  const proposal = suggestions(
-    options.defaults ? { ...loaded.config, roles: {} } : loaded.config,
-  );
+  const proposal = suggestions(loaded.config);
   if (options.command === 'read')
     return {
       ...info,
       config: loaded.config,
       proposal: { ...loaded.config, roles: proposal },
-      droppedRoles: loaded.droppedRoles,
       needsChoice: choicesFor(proposal),
       targetReasoningEffort: budgets[loaded.config.budget],
     };
@@ -343,10 +313,9 @@ async function main(options) {
       throw new Error(
         `Unknown pstack role: ${options.role ?? '(missing --role)'}`,
       );
-    const saved =
-      !options.defaults && Object.hasOwn(loaded.config.roles, options.role);
+    const saved = Object.hasOwn(loaded.config.roles, options.role);
     const entries = entriesFor(proposal[options.role]).map((entry) => {
-      if (!saved) return executionDefault(entry, options.kind);
+      if (!saved) return executionDefault(options.kind);
       const normalized =
         typeof entry === 'string'
           ? { executor: 'claude-code', model: entry }
@@ -363,7 +332,7 @@ async function main(options) {
       cardinality: roles[options.role],
       entries,
       needsChoice: [],
-      source: saved ? 'saved' : 'upstream-default',
+      source: saved ? 'saved' : 'unconfigured',
       file: loaded.file,
       budget: loaded.config.budget,
       targetReasoningEffort: budgets[loaded.config.budget],
@@ -378,7 +347,7 @@ async function main(options) {
     const config = {
       ...loaded.config,
       budget: options.budget,
-      roles: structuredClone(proposal),
+      roles: structuredClone(loaded.config.roles),
     };
     const target = budgets[options.budget];
     const unmapped = [];
@@ -397,7 +366,7 @@ async function main(options) {
           .reverse()
           .find((effort) => supported.includes(effort));
         if (resolved) entry.reasoningEffort = resolved;
-        else if (!entry.upstreamModel)
+        else
           unmapped.push({
             role,
             ...(Array.isArray(value) ? { index } : {}),
@@ -410,7 +379,6 @@ async function main(options) {
       ...info,
       config,
       targetReasoningEffort: target,
-      droppedRoles: loaded.droppedRoles,
       needsChoice: [...choicesFor(config.roles, catalog), ...unmapped],
     };
   }
@@ -423,13 +391,6 @@ async function main(options) {
     supplied.config ?? supplied,
     loaded.config,
   );
-  const missing = Object.keys(roles).filter(
-    (role) => !Object.hasOwn(normalized.config.roles, role),
-  );
-  if (missing.length)
-    throw new Error(
-      `Choose every role before saving. Missing: ${missing.join(', ')}`,
-    );
   const needsChoice = choicesFor(normalized.config.roles, catalog);
   if (needsChoice.length)
     throw new Error(
@@ -478,7 +439,7 @@ if (
         '--input',
         '--expected-hash',
       ],
-      ['--dry-run', '--defaults'],
+      ['--dry-run'],
     );
     if (options.help) {
       process.stdout.write(

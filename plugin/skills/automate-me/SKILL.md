@@ -16,7 +16,7 @@ This skill orchestrates three others: an inline mining pass (see step 1), Codex'
 
 ### 0. Check for an existing skill
 
-Look recursively for `.agents/skills/**/*-mode/SKILL.md` and `$CODEX_HOME/skills/*-mode/SKILL.md` (`~/.codex/skills` when unset) matching the user's handle. Mode skills can live in a personal category directory (`.agents/skills/<handle>/`), not only at the top level. If one exists, confirm intent with `request_user_input` when the current host exposes it, otherwise ask the same choice in chat and wait (unless they already said "update my skill" or similar):
+Look recursively for matching `*-mode/SKILL.md` files under the project's `.agents/skills/` and the personal roots `~/.agents/skills/` and `$CODEX_HOME/skills/` (`~/.codex/skills/` when unset). Mode skills can live in a personal category directory (`.agents/skills/<handle>/`), not only at the top level. If one exists, confirm intent with `request_user_input` when the current host exposes it, otherwise ask the same choice in chat and wait (unless they already said "update my skill" or similar):
 
 - Update the existing skill (default for repeat runs)
 - Start fresh (rare, ask why before doing it)

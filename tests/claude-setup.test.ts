@@ -1298,3 +1298,139 @@ test('unknown Claude role keys fail without discarding them or modifying prefere
   assert.equal(rejected.status, 1);
   assert.deepEqual(await readFile(file), before);
 });
+
+test('Claude native effort limits reject invalid catalog capabilities and real writes', async (t) => {
+  const outcomes = [];
+  for (const reasoningEffort of ['none', 'minimal', 'ultra']) {
+    const f = await fixture(t);
+    await writeFile(
+      f.catalog,
+      JSON.stringify({
+        models: [
+          {
+            ...f.catalogValue.models[0],
+            supportedReasoningEfforts: [reasoningEffort],
+          },
+        ],
+      }),
+    );
+    await writeFile(
+      f.input,
+      JSON.stringify({
+        roles: {
+          'bug-fix': {
+            executor: 'claude-code',
+            model: f.model,
+            reasoningEffort,
+          },
+        },
+      }),
+    );
+    outcomes.push({
+      reasoningEffort,
+      catalogRejected:
+        f.invoke('models.mjs', ['catalog', '--input', f.catalog]).status !== 0,
+      writeRejected:
+        f.invoke('models.mjs', [
+          'write',
+          '--input',
+          f.input,
+          '--catalog',
+          f.catalog,
+          '--expected-hash',
+          'absent',
+        ]).status !== 0,
+    });
+    assert.equal(f.models('read').exists, false);
+  }
+  assert.deepEqual(
+    outcomes,
+    ['none', 'minimal', 'ultra'].map((reasoningEffort) => ({
+      reasoningEffort,
+      catalogRejected: true,
+      writeRejected: true,
+    })),
+  );
+});
+
+test('Claude native effort limits also reject invalid saved preferences before read or resolve', async (t) => {
+  const outcomes = [];
+  for (const reasoningEffort of ['none', 'minimal', 'ultra']) {
+    const f = await fixture(t);
+    const file = path.join(f.home, 'pstack-cc/models.json');
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(
+      file,
+      JSON.stringify({
+        schemaVersion: 1,
+        host: 'claude-code',
+        roles: {
+          'bug-fix': {
+            executor: 'claude-code',
+            model: f.model,
+            reasoningEffort,
+          },
+        },
+      }),
+    );
+    const before = await readFile(file);
+    outcomes.push({
+      reasoningEffort,
+      readRejected: f.invoke('models.mjs', ['read']).status !== 0,
+      resolveRejected:
+        f.invoke('models.mjs', ['resolve', '--role', 'bug-fix']).status !== 0,
+    });
+    assert.deepEqual(await readFile(file), before);
+  }
+  assert.deepEqual(
+    outcomes,
+    ['none', 'minimal', 'ultra'].map((reasoningEffort) => ({
+      reasoningEffort,
+      readRejected: true,
+      resolveRejected: true,
+    })),
+  );
+});
+
+test('mixed executor efforts retain all native Claude values and Codex none minimal ultra', async (t) => {
+  const f = await fixture(t);
+  const nativeEfforts = ['low', 'medium', 'high', 'xhigh', 'max'];
+  const codexEfforts = ['none', 'minimal', 'ultra'];
+  await writeFile(
+    f.catalog,
+    JSON.stringify({
+      models: [
+        f.catalogValue.models[0],
+        {
+          executor: 'codex',
+          model: 'gpt-fixture',
+          supportedReasoningEfforts: codexEfforts,
+        },
+      ],
+    }),
+  );
+  const entries = [
+    ...nativeEfforts.map((reasoningEffort) => ({
+      executor: 'claude-code',
+      model: f.model,
+      reasoningEffort,
+    })),
+    ...codexEfforts.map((reasoningEffort) => ({
+      executor: 'codex',
+      model: 'gpt-fixture',
+      reasoningEffort,
+    })),
+  ];
+  assert.deepEqual(
+    f
+      .models('catalog', '--input', f.catalog)
+      .models.map((entry) => entry.supportedReasoningEfforts),
+    [nativeEfforts, codexEfforts],
+  );
+  await f.save({ roles: { 'arena runners': entries } });
+  assert.deepEqual(f.models('read').config.roles['arena runners'], entries);
+  assert.deepEqual(
+    f.models('resolve', '--role', 'arena runners').entries,
+    entries,
+  );
+});

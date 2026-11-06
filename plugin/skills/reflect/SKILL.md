@@ -44,7 +44,7 @@ Present the synthesizer's full Accepted / Rejected / Backlog output and wait for
 
 File each Backlog item to your team's devex or backlog tracker without waiting. Only the Accepted list waits for approval.
 
-Never edit a skill under `plugins/cache/`. Before approval, show its destination, `.agents/skills/<skill>/` or `~/.agents/skills/<skill>/`. After approval, copy the skill folder there and edit the copy. Never open a PR or push.
+Find existing editable skills under the project's `.agents/skills/`, `~/.agents/skills/`, and `$CODEX_HOME/skills/` (`~/.codex/skills/` when unset). Preserve the discovered path. Never edit a skill under `plugins/cache/`. Before approval, show the destination. For a new personal copy, default to `$CODEX_HOME/skills/<skill>/`, or `~/.codex/skills/<skill>/` when unset. After approval, edit the existing skill in place or copy a cached skill folder to that destination and edit the copy. Never open a PR or push.
 
 Follow each approved row's Routing exactly:
 

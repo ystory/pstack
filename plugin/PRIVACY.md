@@ -2,7 +2,7 @@
 
 Last updated: 2026-10-15
 
-This notice covers the unofficial pstack-for-codex distribution maintained at [ystory/pstack](https://github.com/ystory/pstack). Codex, Claude Code, GitHub, and other services have their own privacy policies and account settings.
+This notice covers the unofficial pstack-codex distribution maintained at [ystory/pstack](https://github.com/ystory/pstack). Codex, Claude Code, GitHub, and other services have their own privacy policies and account settings.
 
 ## Information used and where it goes
 

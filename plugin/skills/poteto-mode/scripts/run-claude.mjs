@@ -15,7 +15,6 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import {
-  DEFAULT_CLAUDE_MODEL,
   CLAUDE_MINIMUM_VERSION,
   CLAUDE_CLI_EFFORTS,
   exactClaudeModel,
@@ -26,7 +25,7 @@ const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const USAGE = `Usage:
   node run-claude.mjs detect [--executable /absolute/claude]
   node run-claude.mjs run --cwd /absolute/worktree --run-dir /absolute/local-run \\
-    [--model EXACT_MODEL_ID] --effort xhigh --instruction /absolute/AGENTS.md --skill /absolute/SKILL.md \\
+    --model EXACT_MODEL_ID --effort xhigh --instruction /absolute/AGENTS.md --skill /absolute/SKILL.md \\
     [--role /absolute/role.md] [--resume session-uuid] [--allowed-tool tool] \\
     [--executable /absolute/claude] < task.txt
 
@@ -35,7 +34,7 @@ the requested role's Markdown body. Each supplied context file receives an exact
 Read allowance. Pass the task's other authorized tool rules with --allowed-tool.
 Fresh sessions are the default. Artifacts are saved in --run-dir outside the
 plugin; stdout is the result receipt JSON. Dispatchers pass the resolved model.
-Legacy direct calls omitting --model retain the bundled Opus default.`;
+Run requires an explicit exact model ID.`;
 
 function parseArguments(argv) {
   const command = argv[0];
@@ -132,7 +131,29 @@ function cliText(executable, argument) {
 }
 
 async function detect(options) {
-  const executable = await executablePath(options.executable);
+  let executable;
+  try {
+    executable = await executablePath(options.executable);
+  } catch (error) {
+    if (
+      error.code !== 'ENOENT' &&
+      error.message !== 'claude was not found on PATH'
+    )
+      throw error;
+    return {
+      executor: 'claude-code',
+      available: false,
+      compatible: false,
+      modelExecutionVerified: false,
+      guidance: [
+        {
+          action: 'install',
+          command: 'curl -fsSL https://claude.ai/install.sh | bash',
+          url: 'https://code.claude.com/docs/en/setup',
+        },
+      ],
+    };
+  }
   const versionText = cliText(executable, '--version').trim();
   const version = versionText.match(/\b(\d+\.\d+\.\d+)\b/)?.[1];
   if (!version)
@@ -156,8 +177,38 @@ async function detect(options) {
   const effortSyntax = CLAUDE_CLI_EFFORTS.filter((effort) =>
     new RegExp(`\\b${effort}\\b`).test(effortHelp),
   );
+  const authResult = spawnSync(executable, ['auth', 'status'], {
+    encoding: 'utf8',
+    timeout: 20_000,
+  });
+  let auth;
+  if (!authResult.error && [0, 1].includes(authResult.status)) {
+    try {
+      auth = JSON.parse(authResult.stdout);
+    } catch {}
+  }
+  const loggedIn = typeof auth?.loggedIn === 'boolean' ? auth.loggedIn : null;
+  const method = auth?.authMethod ?? auth?.method;
   return {
     executor: 'claude-code',
+    available: true,
+    auth: {
+      verified: loggedIn !== null,
+      loggedIn,
+      method:
+        typeof method === 'string' && /^[\w-]+$/.test(method) ? method : null,
+    },
+    guidance:
+      loggedIn === false
+        ? [
+            {
+              action: 'login',
+              command: 'claude auth login',
+              interactiveCommand: '/login',
+              url: 'https://code.claude.com/docs/en/authentication',
+            },
+          ]
+        : [],
     executable,
     version,
     minimumVersion: CLAUDE_MINIMUM_VERSION,
@@ -193,7 +244,7 @@ async function inputText() {
 }
 
 async function run(options) {
-  const model = exactClaudeModel(options.model ?? DEFAULT_CLAUDE_MODEL);
+  const model = exactClaudeModel(options.model);
   const cwd = absolute(options.cwd, '--cwd');
   if (!(await stat(cwd)).isDirectory())
     throw new Error('--cwd must be a directory');
@@ -262,7 +313,7 @@ async function run(options) {
     args,
     cwd,
     model,
-    modelSelection: options.model === undefined ? 'legacy-default' : 'explicit',
+    modelSelection: 'explicit',
     reasoningEffort: options.effort,
     resumeSessionId: options.resume ?? null,
     context: context.map(({ kind, path: sourcePath }) => ({

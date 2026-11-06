@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
 
-Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Every seat uses worker kind `read-only` and a no-edits brief. Explorers resolve `how explorer`; every explainer resolves `how explainer`. Use the selected executor, exact model, supported task effort, and its returned `agentType` for native Claude seats. A rejected model follows this skill's bundled default, then the closest valid model of the same family from the error. Disclose each fallback. Parent aliases bind the actual native parent. Pass absolute paths to this skill and the selected templates.
+Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Every seat uses worker kind `read-only` and a no-edits brief. Explorers resolve `how explorer`; every explainer resolves `how explainer`. Use the selected executor, exact model, supported task effort, and its returned `agentType` for native Claude seats. A rejected model follows the execution binding and the closest valid model of the same family from the error. Disclose each fallback. Parent aliases bind the actual native parent. Pass absolute paths to this skill and the selected templates.
 
 ## 1. Assess complexity
 

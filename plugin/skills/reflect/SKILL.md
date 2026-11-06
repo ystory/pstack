@@ -22,17 +22,17 @@ Read [Codex execution](../poteto-mode/references/codex-execution.md). Launch thr
 
 Resolve each table role with the sibling setup helper. Apply task effort and budget guidance from poteto-mode. Pass absolute paths to this skill, each template, and the scoped transcript or digest.
 
-| Lens | Model role | Default `model` | Prompt template |
+| Lens | Model role | Missing role | Prompt template |
 |---|---|---|---|
-| Judgment | `reflect judgment, divergent, synthesizer` | `gpt-6.1-sol` | `references/judgment-reviewer.md` |
-| Tooling | `reflect tooling` | `gpt-6.1-sol` | `references/tooling-reviewer.md` |
-| Divergent | `reflect judgment, divergent, synthesizer` | `gpt-6.1-sol` | `references/divergent-reviewer.md` |
+| Judgment | `reflect judgment, divergent, synthesizer` | native parent | `references/judgment-reviewer.md` |
+| Tooling | `reflect tooling` | native parent | `references/tooling-reviewer.md` |
+| Divergent | `reflect judgment, divergent, synthesizer` | native parent | `references/divergent-reviewer.md` |
 
 Pass each template verbatim, substituting the transcript path or digest where marked. Collect each reviewer's terminal report through Codex execution before synthesis.
 
 ## 3. Synthesize
 
-Launch one general-purpose synthesizer through the selected executor, using `agent_type: "pstack-general-purpose"` on the native path and the `reflect judgment, divergent, synthesizer` role (default `gpt-6.1-sol`). It uses the selected executor's MCP access for citation spot-checks. Pass `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns an Accepted / Rejected / Backlog list.
+Launch one general-purpose synthesizer through the selected executor, using `agent_type: "pstack-general-purpose"` on the native path and the `reflect judgment, divergent, synthesizer` role. It uses the selected executor's MCP access for citation spot-checks. Pass `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns an Accepted / Rejected / Backlog list.
 
 ## 4. Structural enforcement check
 

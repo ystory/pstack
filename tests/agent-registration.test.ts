@@ -202,7 +202,7 @@ test('a conflicting second agent prevents registration of either file', async (t
   assert.match(result.stderr, /not managed|conflict|overwrite/i);
   assert.equal(await readFile(conflicting, 'utf8'), 'user-owned content\n');
   await assertMissing(path.join(f.codexHome, 'agents', 'poteto-agent.toml'));
-  await assertMissing(path.join(f.codexHome, 'pstack-for-codex'));
+  await assertMissing(path.join(f.codexHome, 'pstack-codex'));
 });
 
 test('an identical preexisting agent remains user-owned instead of being silently adopted', async (t) => {
@@ -310,7 +310,7 @@ test('an invalid ownership record is preserved and fails before modifying agents
   f.run();
   const record = path.join(
     f.codexHome,
-    'pstack-for-codex',
+    'pstack-codex',
     'agent-registration.json',
   );
   await writeFile(record, 'invalid record\n');
@@ -326,7 +326,7 @@ test('an invalid ownership record is preserved and fails before modifying agents
 test('unregister removes only owned agents and retains user preferences and unrelated files', async (t) => {
   const f = await fixture(t);
   f.run();
-  const preferences = path.join(f.codexHome, 'pstack-for-codex', 'models.json');
+  const preferences = path.join(f.codexHome, 'pstack-codex', 'models.json');
   const unrelated = path.join(f.codexHome, 'agents', 'user-agent.toml');
   await writeFile(preferences, 'user model choices\n');
   await writeFile(unrelated, 'user agent\n');
@@ -335,7 +335,7 @@ test('unregister removes only owned agents and retains user preferences and unre
   for (const name of names)
     await assertMissing(path.join(f.codexHome, 'agents', `${name}.toml`));
   await assertMissing(
-    path.join(f.codexHome, 'pstack-for-codex', 'agent-registration.json'),
+    path.join(f.codexHome, 'pstack-codex', 'agent-registration.json'),
   );
   assert.equal(await readFile(preferences, 'utf8'), 'user model choices\n');
   assert.equal(await readFile(unrelated, 'utf8'), 'user agent\n');
@@ -369,9 +369,7 @@ test('dry-run unregister changes no bytes and unregister requires ownership', as
       .agents.every(({ status }) => status === 'removed'),
   );
   assert.deepEqual(await readFile(registered), before);
-  await rm(
-    path.join(f.codexHome, 'pstack-for-codex', 'agent-registration.json'),
-  );
+  await rm(path.join(f.codexHome, 'pstack-codex', 'agent-registration.json'));
   assert.ok(
     f
       .run('--unregister')
@@ -400,7 +398,7 @@ test('a legacy hash-only registry upgrades ownership metadata without rewriting 
   f.run();
   const record = path.join(
     f.codexHome,
-    'pstack-for-codex',
+    'pstack-codex',
     'agent-registration.json',
   );
   const registry = JSON.parse(await readFile(record, 'utf8'));
@@ -469,7 +467,7 @@ test('role declarations collide safely across native TOML table, dotted, inline 
     assert.match(result.stderr, /not managed/i);
     assert.equal(await readFile(file, 'utf8'), content);
     await assertMissing(path.join(f.codexHome, 'agents'));
-    await assertMissing(path.join(f.codexHome, 'pstack-for-codex'));
+    await assertMissing(path.join(f.codexHome, 'pstack-codex'));
   }
 });
 
@@ -544,7 +542,7 @@ test('a transaction failure restores all agent and config bytes and leaves the p
   const config = path.join(f.codexHome, 'config.toml');
   const record = path.join(
     f.codexHome,
-    'pstack-for-codex',
+    'pstack-codex',
     'agent-registration.json',
   );
   const destinations = [
@@ -625,7 +623,7 @@ test('the generic pstack delegate is metadata-only and preserves user default ag
 async function makeTwoRoleRecord(f: Awaited<ReturnType<typeof fixture>>) {
   const record = path.join(
     f.codexHome,
-    'pstack-for-codex',
+    'pstack-codex',
     'agent-registration.json',
   );
   const config = path.join(f.codexHome, 'config.toml');
@@ -720,4 +718,45 @@ test('a user-owned generic role blocks a two-to-three upgrade while remaining in
     { name: 'pstack-general-purpose', status: 'not-managed' },
   ]);
   assert.equal(await readFile(old.config, 'utf8'), userRole);
+});
+
+test('old-name registrations require clean unregister before the new identity can register', async (t) => {
+  const f = await fixture(t);
+  const registrarFile = path.join(f.bundle, scriptPath);
+  const manifestFile = path.join(f.bundle, 'plugin.json');
+  const registrar = await readFile(registrarFile, 'utf8');
+  const manifest = await readFile(manifestFile, 'utf8');
+  const oldRegistrar = registrar.replaceAll('pstack-codex', 'pstack-for-codex');
+  const oldManifest = manifest.replaceAll('pstack-codex', 'pstack-for-codex');
+  await writeFile(registrarFile, oldRegistrar);
+  await writeFile(manifestFile, oldManifest);
+  f.run();
+  const configFile = path.join(f.codexHome, 'config.toml');
+  const previous = await readFile(configFile);
+  await writeFile(registrarFile, registrar);
+  await writeFile(manifestFile, manifest);
+  assert.notEqual(f.invoke().status, 0);
+  assert.deepEqual(await readFile(configFile), previous);
+  await assertMissing(path.join(f.codexHome, 'pstack-codex'));
+  await writeFile(registrarFile, oldRegistrar);
+  await writeFile(manifestFile, oldManifest);
+  f.run('--unregister');
+  await writeFile(registrarFile, registrar);
+  await writeFile(manifestFile, manifest);
+  const registered = f.run();
+  assert.ok(registered.agents.every((entry) => entry.status === 'installed'));
+  const ownership = JSON.parse(
+    await readFile(
+      path.join(f.codexHome, 'pstack-codex/agent-registration.json'),
+      'utf8',
+    ),
+  );
+  assert.equal(ownership.pluginName, 'pstack-codex');
+  assert.ok(
+    (await readFile(configFile, 'utf8')).includes(
+      '# >>> pstack-codex managed agents',
+    ),
+  );
+  f.run('--unregister');
+  await assertMissing(configFile);
 });

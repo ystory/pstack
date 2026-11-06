@@ -27,3 +27,7 @@
 0027-setup-cli-login-guidance.patch
 0028-project-repository-rename.patch
 0029-selectable-claude-worker-models.patch
+0030-pstack-codex-identity.patch
+0031-choice-first-setup.patch
+0032-review-binding-fixes.patch
+0033-native-binding-limits.patch

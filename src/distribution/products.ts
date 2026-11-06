@@ -38,7 +38,7 @@ export async function verifyDistributionArtifact(
     return verifyClaudePluginArtifact(root);
   if (
     metadata.schemaVersion === 1 &&
-    metadata.name === 'pstack-for-codex' &&
+    metadata.name === 'pstack-codex' &&
     metadata.target === undefined
   )
     return verifyPluginArtifact(root);

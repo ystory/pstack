@@ -1,5 +1,5 @@
 interface:
   display_name: "poteto-help"
-  short_description: "Guides users through pstack setup, $pstack-for-codex:poteto-mode, and picking the skill, playbook, or principle for a task. Type $pstack-for-codex:poteto-help with a question."
+  short_description: "Guides users through pstack setup, $pstack-codex:poteto-mode, and picking the skill, playbook, or principle for a task. Type $pstack-codex:poteto-help with a question."
 policy:
   allow_implicit_invocation: false

@@ -24,19 +24,19 @@ Infer the need from the message and the conversation. A named situation, such as
 
 Check the state that changes the answer, and mention it only when it does:
 
-- A missing setup preferences file means `/pstack-cc:setup-pstack` hasn't run for this user, so roles use upstream defaults, including unavailable suggestions that need a supported choice.
+- A missing setup preferences file means `/pstack-cc:setup-pstack` hasn't run for this user, so missing roles inherit the actual native parent with disclosure and original cardinality.
 - No `verify-*` skill or other app harness in the project means agents have no scripted way to drive the app. Mention `/pstack-cc:create-verification-skill` when the question is about proving a change works.
 - No formal verification skill in the project means no property is checked past what tests reach. Mention `/pstack-cc:create-formal-verification-skill` when the question is about a race, an invariant, or another case tests rarely hit. When one exists and the code it covers changed after the commit it records as last in sync, mention `/pstack-cc:maintain-formal-verification-skill` if the question touches that code.
 
 When the model preferences is missing and it matters, ask whether the user wants to pick a model for each role and a reasoning budget now. It matters when the user is new, the question is about setup or cost, or the answer depends on which models run. Ask at most once per chat. If the need is also unclear, ask both questions together. Offer two choices:
 
 - Now: give them `/pstack-cc:setup-pstack` to type, and answer their question too.
-- Later: answer their question, and add one line saying every role keeps its default model until they run `/pstack-cc:setup-pstack`.
+- Later: answer their question, and add one line saying unconfigured roles inherit the native parent, while saved choices remain authoritative.
 
 ## Get set up
 
 1. Add `ystory/pstack` through `/plugin marketplace add`, then install `pstack-cc@pstack-cc`.
-2. Run [`/pstack-cc:setup-pstack`](../setup-pstack/SKILL.md). It asks for a reasoning budget, maps a model to each role, and saves independent role preferences and registers exact-model agents. Start a new session afterward. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
+2. Run [`/pstack-cc:setup-pstack`](../setup-pstack/SKILL.md). Choose worker executors first. Setup checks installation and authentication only for selected CLIs and guides any needed installation and human login. Then choose supported models, role assignments, and a reasoning budget. Review and save the independent preferences and register exact-model agents. Start a new session afterward. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
 3. Start a real task with `/pstack-cc:poteto-mode`, a goal, and a check that can pass or fail.
 
 Installing changes nothing until the user invokes a skill. Only `/pstack-cc:setup-pstack` loads from the user's words. The [README](../../README.md) and [guide page 1](../../docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).

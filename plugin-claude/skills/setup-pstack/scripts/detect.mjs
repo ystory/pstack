@@ -101,16 +101,30 @@ await run(async () => {
   const options = argumentsFor(
     process.argv.slice(2),
     ['detect', 'catalog'],
-    ['--claude-home', '--claude-executable', '--codex-executable', '--cwd'],
+    [
+      '--claude-home',
+      '--claude-executable',
+      '--codex-executable',
+      '--cwd',
+      '--executors',
+    ],
   );
   if (options.help) {
     process.stdout.write(
-      'Usage: node detect.mjs detect|catalog [--claude-home ABS] [--claude-executable ABS] [--codex-executable ABS] [--cwd ABS]\n',
+      'Usage: node detect.mjs detect|catalog [--claude-home ABS] [--claude-executable ABS] [--codex-executable ABS] [--cwd ABS] [--executors claude-code|claude-code,codex]\n',
     );
     return;
   }
   if (options.cwd && !path.isAbsolute(options.cwd))
     throw new Error('--cwd requires an absolute path.');
+  const executors = (options.executors ?? 'claude-code').split(',');
+  if (
+    !executors.includes('claude-code') ||
+    new Set(executors).size !== executors.length ||
+    executors.some((executor) => !['claude-code', 'codex'].includes(executor))
+  )
+    throw new Error('--executors selects claude-code or claude-code,codex.');
+  const includeCodex = executors.includes('codex');
   const home = claudeHome(options.claudeHome);
   await inspect(home, true);
   const executable = await executableFor(options.claudeExecutable, 'claude');
@@ -172,13 +186,16 @@ await run(async () => {
       ? ['--cwd', options.cwd]
       : []),
   ];
-  const codexResult = invoke(process.execPath, args, process.env);
-  const codex = jsonOutput(codexResult) ?? {
-    cli: { available: false },
-    auth: { verified: false, loggedIn: null, method: null },
-    error:
-      'Codex runtime detection was unavailable. Run the bundled run-codex.mjs detect for diagnostics.',
-  };
+  const codexResult =
+    includeCodex && invoke(process.execPath, args, process.env);
+  const codex = !includeCodex
+    ? undefined
+    : (jsonOutput(codexResult) ?? {
+        cli: { available: false },
+        auth: { verified: false, loggedIn: null, method: null },
+        error:
+          'Codex runtime detection was unavailable. Run the bundled run-codex.mjs detect for diagnostics.',
+      });
   const guidance = [];
   if (!native.cli.available)
     guidance.push({
@@ -195,15 +212,15 @@ await run(async () => {
       interactiveCommand: '/login',
       url: 'https://code.claude.com/docs/en/authentication',
     });
-  if (!codex.cli?.available)
+  if (includeCodex && !codex.cli?.available)
     guidance.push({
       executor: 'codex',
-      action: 'optional-install',
+      action: 'install',
       command: 'npm install -g @openai/codex',
       url: 'https://developers.openai.com/codex/cli',
       requiredFor: 'Codex workers only',
     });
-  else if (codex.auth?.loggedIn === false)
+  else if (includeCodex && codex.auth?.loggedIn === false)
     guidance.push({
       executor: 'codex',
       action: 'login',
@@ -215,13 +232,14 @@ await run(async () => {
   return {
     schemaVersion: 1,
     configuration: { claudeHome: home },
+    executors,
     node: {
       executable: process.execPath,
       version: process.version,
       available: true,
     },
     claude: native,
-    codex,
+    ...(includeCodex ? { codex } : {}),
     guidance,
     authentication: {
       chatgpt: 'Codex ChatGPT subscription login uses the account plan.',

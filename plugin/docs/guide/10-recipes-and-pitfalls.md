@@ -7,7 +7,7 @@ Prompts worth copying, then the mistakes everyone makes once. Swap in your own p
 ## Understand an unfamiliar subsystem
 
 ```text
-use $pstack-for-codex:how first to understand how this initialization works. then use $pstack-for-codex:why to figure out why it broke recently.
+use $pstack-codex:how first to understand how this initialization works. then use $pstack-codex:why to figure out why it broke recently.
 ```
 
 Mechanics first, history second. Each skill's report tells you which sources it searched, so you know what the answer is grounded in.
@@ -15,15 +15,15 @@ Mechanics first, history second. Each skill's report tells you which sources it 
 ## Restate a noisy report before touching code
 
 ```text
-$pstack-for-codex:poteto-mode read this thread. restate the underlying issue in your own words, in plain english. don't change any code yet.
+$pstack-codex:poteto-mode read this thread. restate the underlying issue in your own words, in plain english. don't change any code yet.
 ```
 
-A misreading shows up in the restatement, where it costs one message to correct. Keep your own theory to yourself until the agent has stated its own. `$pstack-for-codex:in-your-own-words` asks for the restatement alone, with no playbook.
+A misreading shows up in the restatement, where it costs one message to correct. Keep your own theory to yourself until the agent has stated its own. `$pstack-codex:in-your-own-words` asks for the restatement alone, with no playbook.
 
 ## Sharpen a prompt before you send it
 
 ```text
-$pstack-for-codex:sharpen write the onboarding doc for the new billing service.
+$pstack-codex:sharpen write the onboarding doc for the new billing service.
 ```
 
 The agent names what an expert would do that you didn't ask for, the raw material they'd start from, their methods and tools, and an outside check that the result is right. It hands back your prompt rewritten to ask for that and doesn't do the task. Send the rewrite when it reads right.
@@ -31,7 +31,7 @@ The agent names what an expert would do that you didn't ask for, the raw materia
 ## Prototype before you pick
 
 ```text
-$pstack-for-codex:poteto-mode prototype a few options for the settings layout. put them behind a switcher and send me screenshots of each.
+$pstack-codex:poteto-mode prototype a few options for the settings layout. put them behind a switcher and send me screenshots of each.
 ```
 
 You pick from things that run, not from descriptions. The agent answers its own layout and timing questions along the way.
@@ -39,7 +39,7 @@ You pick from things that run, not from descriptions. The agent answers its own 
 ## Turn a settled design into a plan
 
 ```text
-$pstack-for-codex:poteto-mode turn this design into a plan. small verifiable PRs, each with its own proof.
+$pstack-codex:poteto-mode turn this design into a plan. small verifiable PRs, each with its own proof.
 ```
 
 Ask only after the design settles. The plan is the deliverable, and it names the playbook that will execute it.
@@ -47,7 +47,7 @@ Ask only after the design settles. The plan is the deliverable, and it names the
 ## Get a second opinion on a design
 
 ```text
-ask $pstack-for-codex:arena for a second opinion on this thread and our approach
+ask $pstack-codex:arena for a second opinion on this thread and our approach
 ```
 
 Your current design becomes one candidate among several, and the synthesis tells you whether the panel found something better or confirmed what you had. It costs little next to a design that is expensive to reverse.
@@ -55,7 +55,7 @@ Your current design becomes one candidate among several, and the synthesis tells
 ## Check independent slices in parallel
 
 ```text
-$pstack-for-codex:swarm check every package under packages/ against its check.sh. one worker per package. one report.
+$pstack-codex:swarm check every package under packages/ against its check.sh. one worker per package. one report.
 ```
 
 Each worker owns one package. The parent waits for every slice and returns one `PASS`, `ISSUES`, or `BLOCKED` report instead of raw worker dumps.
@@ -63,7 +63,7 @@ Each worker owns one package. The parent waits for every slice and returns one `
 ## Review a branch skeptically
 
 ```text
-$pstack-for-codex:interrogate the whole branch, but skeptically. don't change anything yet. no nitpicks unless it's an actual bug or regression in behavior.
+$pstack-codex:interrogate the whole branch, but skeptically. don't change anything yet. no nitpicks unless it's an actual bug or regression in behavior.
 ```
 
 The qualifiers do real work. "don't change anything yet" keeps it read-only, and the nitpick rule pre-filters the noise so the verified findings are worth your time.
@@ -71,7 +71,7 @@ The qualifiers do real work. "don't change anything yet" keeps it read-only, and
 ## Fix a bug through a failing test
 
 ```text
-$pstack-for-codex:poteto-mode repro the duplicate write first. if there's a cheap test path, $pstack-for-codex:tdd it. then fix and rerun.
+$pstack-codex:poteto-mode repro the duplicate write first. if there's a cheap test path, $pstack-codex:tdd it. then fix and rerun.
 ```
 
 "if there's a cheap test path" matters. Forcing a test through brittle mocks proves less than running the real command, and the playbook is allowed to say so.
@@ -79,7 +79,7 @@ $pstack-for-codex:poteto-mode repro the duplicate write first. if there's a chea
 ## Repro and fix a report with proof
 
 ```text
-$pstack-for-codex:poteto-mode repro this with $verify-<app>. if it repros on main, fix it and show me a video as proof.
+$pstack-codex:poteto-mode repro this with $verify-<app>. if it repros on main, fix it and show me a video as proof.
 ```
 
 "if it repros on main" lets the run stop early when the bug is already gone. The video lets you check the fix before you read the diff.
@@ -87,7 +87,7 @@ $pstack-for-codex:poteto-mode repro this with $verify-<app>. if it repros on mai
 ## Prove a property tests rarely reach
 
 ```text
-$pstack-for-codex:create-formal-verification-skill the retry queue. a message must never be delivered twice.
+$pstack-codex:create-formal-verification-skill the retry queue. a message must never be delivered twice.
 ```
 
 You get one property checked in every case within a stated scope, a counterexample in your code's terms if the code already breaks it, and a project skill the next agent runs on any change to that code.
@@ -95,7 +95,7 @@ You get one property checked in every case within a stated scope, a counterexamp
 ## Vet a number before you post it
 
 ```text
-$pstack-for-codex:benchmark-checklist vet this 40% speedup before it goes in the pr description
+$pstack-codex:benchmark-checklist vet this 40% speedup before it goes in the pr description
 ```
 
 You get faster, slower, no measurable difference, or inconclusive, with the run count, the range, and what limits the number.
@@ -103,7 +103,7 @@ You get faster, slower, no measurable difference, or inconclusive, with the run 
 ## Stop correcting the same mistake
 
 ```text
-$pstack-for-codex:correct agents keep adding new config flags without registering them in the schema
+$pstack-codex:correct agents keep adding new config flags without registering them in the schema
 ```
 
 The fix lands in the repo as architecture, a type, a lint, or a test, so the next agent can't make the mistake.
@@ -111,7 +111,7 @@ The fix lands in the repo as architecture, a type, a lint, or a test, so the nex
 ## Ask how without starting the work
 
 ```text
-$pstack-for-codex:poteto-help how do i get poteto-mode to stay on every turn?
+$pstack-codex:poteto-help how do i get poteto-mode to stay on every turn?
 ```
 
 You get an answer, a prompt to send, and a link to the source. Nothing runs until you send that prompt.
@@ -137,7 +137,7 @@ apply prove it works. show me the real output, not the build log.
 ```
 
 ```text
-$pstack-for-codex:unslop that, no emdashes
+$pstack-codex:unslop that, no emdashes
 ```
 
 You rarely need more words. You need the right name, and [the principles page](./08-principles.md) is the vocabulary.
@@ -145,34 +145,34 @@ You rarely need more words. You need the right name, and [the principles page](.
 ## Get the reply in plain words
 
 ```text
-$pstack-for-codex:bro
+$pstack-codex:bro
 ```
 
-That's the whole prompt. [`$pstack-for-codex:bro`](../../skills/bro/SKILL.md) restates the last message like one human talking to another, no jargon, shorter. Use it when a reply is technically thorough and you still don't know what it said.
+That's the whole prompt. [`$pstack-codex:bro`](../../skills/bro/SKILL.md) restates the last message like one human talking to another, no jargon, shorter. Use it when a reply is technically thorough and you still don't know what it said.
 
 ## Catch up on a chat you left running
 
 ```text
-$pstack-for-codex:ketchup
+$pstack-codex:ketchup
 ```
 
-[`$pstack-for-codex:ketchup`](../../skills/ketchup/SKILL.md) tells you in plain words what changed since your last message, then lists each call waiting on you with its pick, evidence, and risk. It changes nothing while it reports.
+[`$pstack-codex:ketchup`](../../skills/ketchup/SKILL.md) tells you in plain words what changed since your last message, then lists each call waiting on you with its pick, evidence, and risk. It changes nothing while it reports.
 
-To watch the catch-up instead, run [`$pstack-for-codex:ketchup-video`](../../skills/ketchup-video/SKILL.md). It shows what happened in a short subtitled video of slides, and lists the calls waiting on you as text under it.
+To watch the catch-up instead, run [`$pstack-codex:ketchup-video`](../../skills/ketchup-video/SKILL.md). It shows what happened in a short subtitled video of slides, and lists the calls waiting on you as text under it.
 
 ## The pitfalls
 
-- **Enumerating skills in the prompt.** "use $pstack-for-codex:how then $pstack-for-codex:architect then $pstack-for-codex:arena" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
+- **Enumerating skills in the prompt.** "use $pstack-codex:how then $pstack-codex:architect then $pstack-codex:arena" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
 - **A vague finish condition.** "make it better" gives the Codex loop nothing to check. Give a command or artifact that can pass or fail.
 - **Leading with your theory of the cause.** The agent searches wherever you pointed. Ask it to restate the problem first, then share your hunch.
-- **Taking the first design.** One attempt locks in the first shape the model thought of. Ask for prototypes or `$pstack-for-codex:architect` and pick from evidence.
+- **Taking the first design.** One attempt locks in the first shape the model thought of. Ask for prototypes or `$pstack-codex:architect` and pick from evidence.
 - **Polishing an abstract plan.** Adversarial review of a plan with no code behind it invents risks that will never happen. Settle the open questions with prototypes, then review what got built.
 - **Parallel agents in one worktree.** They overwrite each other, and nobody can tell which agent changed what. Say "own worktree per attempt" and allocate separate ports and build outputs for concurrent runs on the same host.
 - **Looping before you trust the loop.** A loop that can't verify its own work only makes unchecked work faster. Get the verification skill working first.
-- **Trusting an unvetted number.** A warm cache or a skipped code path can fake a speedup. Run `$pstack-for-codex:benchmark-checklist` before the number goes anywhere.
-- **Correcting the same mistake by hand.** A correction in chat helps one run. `$pstack-for-codex:correct` fixes the repo so no later run repeats it.
-- **Using `$pstack-for-codex:arena` for coverage.** `$pstack-for-codex:arena` repeats one design or code brief, then picks a base and grafts the best parts. `$pstack-for-codex:swarm` partitions slices or declared race arms and aggregates one report.
-- **Accepting every review comment.** Bots and humans both file real catches and noise in one list. `$pstack-for-codex:interrogate` keeps only the findings a rerun proves and lists what it dropped and why, and you can override either way.
+- **Trusting an unvetted number.** A warm cache or a skipped code path can fake a speedup. Run `$pstack-codex:benchmark-checklist` before the number goes anywhere.
+- **Correcting the same mistake by hand.** A correction in chat helps one run. `$pstack-codex:correct` fixes the repo so no later run repeats it.
+- **Using `$pstack-codex:arena` for coverage.** `$pstack-codex:arena` repeats one design or code brief, then picks a base and grafts the best parts. `$pstack-codex:swarm` partitions slices or declared race arms and aggregates one report.
+- **Accepting every review comment.** Bots and humans both file real catches and noise in one list. `$pstack-codex:interrogate` keeps only the findings a rerun proves and lists what it dropped and why, and you can override either way.
 - **Treating `auto` as a model slug.** `auto` and `inherit-parent` select the current parent chat's model and reasoning settings. The [Codex execution binding](../../skills/poteto-mode/references/codex-execution.md#roles-models-and-effort) preserves that selection through confirmed inheritance or observed explicit settings, and reports it unresolved when neither can be established. [Setup](./01-setup.md) covers the roles.
 - **Reporting success off a green build.** A build proves it compiles. Ask for the real command, flow, stored value, or profile, and expect the evidence in the reply.
 - **Writing a `SKILL.md` freehand.** Route it through the [Authoring or modifying a skill playbook](../../skills/poteto-mode/playbooks/authoring-a-skill.md) so validation and review happen.

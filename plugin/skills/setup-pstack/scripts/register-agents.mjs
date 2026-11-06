@@ -16,8 +16,8 @@ const pluginRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const parser = fileURLToPath(
   new URL('./parse-agent-config.py', import.meta.url),
 );
-const blockStart = '# >>> pstack-for-codex managed agents v1\n';
-const blockEnd = '# <<< pstack-for-codex managed agents v1\n';
+const blockStart = '# >>> pstack-codex managed agents v1\n';
+const blockEnd = '# <<< pstack-codex managed agents v1\n';
 
 function argumentsFor(argv) {
   const options = {
@@ -327,7 +327,7 @@ async function register(options) {
     throw new Error('Codex home must be an absolute path.');
   const codexHome = path.resolve(selectedHome);
   const agentsDirectory = path.join(codexHome, 'agents');
-  const stateDirectory = path.join(codexHome, 'pstack-for-codex');
+  const stateDirectory = path.join(codexHome, 'pstack-codex');
   const registryFile = path.join(stateDirectory, 'agent-registration.json');
   const configFile = path.join(codexHome, 'config.toml');
   for (const directory of [codexHome, agentsDirectory, stateDirectory])

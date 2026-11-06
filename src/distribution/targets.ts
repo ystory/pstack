@@ -6,7 +6,7 @@ export type TargetId = 'codex' | 'claude-code';
 const targets = {
   codex: {
     id: 'codex',
-    name: 'pstack-for-codex',
+    name: 'pstack-codex',
     pluginDirectory: 'plugin',
     patchDirectory: 'patches',
     manifest: 'plugin.json',

@@ -96,6 +96,8 @@ if (args[0] === '--version') {
   console.log((process.env.PSTACK_FAKE_VERSION ?? '2.1.287') + ' (Claude Code)');
 } else if (args[0] === '--help') {
   console.log(${JSON.stringify(fakeHelp)});
+} else if (args[0] === 'auth') {
+  console.log(JSON.stringify({ loggedIn: process.env.PSTACK_FAKE_LOGGED_IN !== 'false', authMethod: 'oauth_token', email: 'private@example.invalid', token: 'private-fixture' }));
 } else {
   let input = '';
   process.stdin.setEncoding('utf8');
@@ -177,6 +179,8 @@ if (args[0] === '--version') {
     instruction,
     '--skill',
     skill,
+    '--model',
+    'claude-opus-5-5',
   ];
   return {
     root,
@@ -235,9 +239,8 @@ test('detect reports incompatibility below the adapter CLI minimum', async (t) =
   assert.equal(JSON.parse(result.stdout).compatible, false);
 });
 
-test('explicit default and nondefault model IDs reach argv and request without changing legacy omission', async (t) => {
+test('explicit exact model IDs reach argv and request', async (t) => {
   for (const selected of [
-    undefined,
     'claude-opus-5-5',
     'claude-sonnet-fixture-20300101',
     'provider.anthropic.model-fixture-v1:0',
@@ -245,21 +248,18 @@ test('explicit default and nondefault model IDs reach argv and request without c
     'provider.anthropic.model-fixture-v1:0[1m]',
   ]) {
     const f = await fixture(t);
-    const args = selected ? [...f.runArgs, '--model', selected] : f.runArgs;
+    const args = [...f.runArgs.slice(0, -2), '--model', selected];
     const result = f.invoke(args);
     assert.equal(result.status, 0, result.stderr);
     const receipt = JSON.parse(result.stdout);
     const call = JSON.parse(await readFile(f.callPath, 'utf8'));
     const request = JSON.parse(await readFile(receipt.requestPath, 'utf8'));
-    const expected = selected ?? 'claude-opus-5-5';
+    const expected = selected;
     assert.equal(call.args[call.args.indexOf('--model') + 1], expected);
     assert.equal(request.model, expected);
     assert.equal(receipt.model, expected);
     assert.equal(receipt.observedModel, expected);
-    assert.equal(
-      receipt.modelSelection,
-      selected ? 'explicit' : 'legacy-default',
-    );
+    assert.equal(receipt.modelSelection, 'explicit');
     assert.deepEqual(request.args, call.args);
   }
 });
@@ -271,9 +271,13 @@ test('requested nondefault model stays separate from missing or mismatched strea
   ]) {
     const f = await fixture(t);
     const selected = 'claude-sonnet-fixture-20300101';
-    const result = f.invoke([...f.runArgs, '--model', selected], undefined, {
-      PSTACK_FAKE_SCENARIO: scenario!,
-    });
+    const result = f.invoke(
+      [...f.runArgs.slice(0, -2), '--model', selected],
+      undefined,
+      {
+        PSTACK_FAKE_SCENARIO: scenario!,
+      },
+    );
     assert.equal(result.status, 0, result.stderr);
     const receipt = JSON.parse(result.stdout);
     assert.equal(receipt.model, selected);
@@ -286,7 +290,7 @@ test('explicit nondefault resume retains the model, exact session and normal too
   const f = await fixture(t);
   const selected = 'claude-sonnet-fixture-20300101';
   const result = f.invoke([
-    ...f.runArgs,
+    ...f.runArgs.slice(0, -2),
     '--model',
     selected,
     '--resume',
@@ -305,8 +309,12 @@ test('explicit nondefault resume retains the model, exact session and normal too
   assert.ok(call.input.includes(f.roleBody));
 });
 
-test('invalid explicit models fail before launch and never fall back to the legacy default', async (t) => {
+test('invalid or missing explicit models fail before launch', async (t) => {
   const f = await fixture(t);
+  const omitted = f.invoke(f.runArgs.slice(0, -2));
+  assert.equal(omitted.status, 1);
+  await assert.rejects(access(f.callPath));
+  await assert.rejects(access(f.runDir));
   for (const selected of [
     '',
     ' ',
@@ -322,7 +330,7 @@ test('invalid explicit models fail before launch and never fall back to the lega
     'sonnet[1m]',
     'opus[1m]',
   ]) {
-    const result = f.invoke([...f.runArgs, '--model', selected]);
+    const result = f.invoke([...f.runArgs.slice(0, -2), '--model', selected]);
     assert.equal(result.status, 1, selected);
     await assert.rejects(access(f.callPath));
     await assert.rejects(access(f.runDir));
@@ -609,4 +617,27 @@ test('run accepts symlinked output destinations outside the plugin', async (t) =
     path.join(destination, 'new run', 'nested', 'result.json'),
   );
   await access(f.callPath);
+});
+
+test('selected Claude detection reports missing installation and safe login guidance without a worker', async (t) => {
+  const f = await fixture(t);
+  const missing = spawnSync(
+    process.execPath,
+    [f.runner, 'detect', '--executable', path.join(f.root, 'missing-cli')],
+    { encoding: 'utf8' },
+  );
+  assert.equal(missing.status, 1, missing.stderr);
+  const unavailable = JSON.parse(missing.stdout);
+  assert.equal(unavailable.available, false);
+  assert.equal(unavailable.guidance[0].action, 'install');
+  const loggedOut = f.invoke(['detect'], undefined, {
+    PSTACK_FAKE_LOGGED_IN: 'false',
+  });
+  assert.equal(loggedOut.status, 0, loggedOut.stderr);
+  const receipt = JSON.parse(loggedOut.stdout);
+  assert.equal(receipt.auth.loggedIn, false);
+  assert.equal(receipt.guidance[0].command, 'claude auth login');
+  assert.ok(!loggedOut.stdout.includes('private-fixture'));
+  assert.ok(!loggedOut.stdout.includes('private@example'));
+  await assert.rejects(access(f.callPath));
 });

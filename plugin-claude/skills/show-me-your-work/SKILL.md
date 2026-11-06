@@ -73,7 +73,7 @@ Before handing back, spawn a subagent on a different model family from the one t
 - Choices that look risky in hindsight (premature, scope-creeping, papering over a symptom).
 - Gaps the user would otherwise miss on a casual skim.
 
-Every reply for a run that produced a trail ends with an "Attention" section. Lead with the reviewer's model on its own line (`reviewed by <model>`), then list each flag pointing to specific rows or moments. "No flags" is a valid value. The model name is not.
+Every reply for a run that produced a trail ends with an "Attention" section. After a completed review, lead with the reviewer's model on its own line (`reviewed by <model>`), then list each flag pointing to specific rows or moments. "No flags" is a valid value. The model name is not. If no eligible reviewer can run, lead with `review not completed`, state the specific configuration or capability gap, and keep the required review unmet. Do not claim a completed review or "No flags" for an unrun review.
 
 ## Reviewing the trail
 

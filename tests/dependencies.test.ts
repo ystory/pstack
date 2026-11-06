@@ -99,7 +99,7 @@ async function fixture(t: TestContext) {
   await copyPristinePlugin(project, path.join(project, 'plugin'));
   await writeFile(
     path.join(project, 'plugin', 'plugin.json'),
-    manifest.replace('"pstack"', '"pstack-for-codex"'),
+    manifest.replace('"pstack"', '"pstack-codex"'),
   );
   await mkdir(path.join(project, 'patches'));
   await writeFile(
@@ -108,7 +108,7 @@ async function fixture(t: TestContext) {
   );
   await writeFile(
     path.join(project, 'patches', '0001-identity.patch'),
-    `--- a/plugin.json\n+++ b/plugin.json\n@@ -1 +1 @@\n-${manifest}\n\\ No newline at end of file\n+${manifest.replace('"pstack"', '"pstack-for-codex"')}\n\\ No newline at end of file\n`,
+    `--- a/plugin.json\n+++ b/plugin.json\n@@ -1 +1 @@\n-${manifest}\n\\ No newline at end of file\n+${manifest.replace('"pstack"', '"pstack-codex"')}\n\\ No newline at end of file\n`,
   );
   return { root, project, pstack, dependency, lock, dependencies };
 }

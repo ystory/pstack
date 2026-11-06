@@ -1,12 +1,12 @@
 # Terms of use
 
-Last updated: 2026-10-15
+Last updated: 2026-11-06
 
 ## Open-source licenses
 
-pstack-for-codex is a free, unofficial open-source adaptation of pstack for Codex. Its software and documentation are provided under the included licenses:
+pstack-codex is a free, unofficial open-source adaptation of pstack for Codex. Its software and documentation are provided under the included licenses:
 
-- [Codex adaptation: MIT](licenses/pstack-for-codex/LICENSE)
+- [Codex adaptation: MIT](licenses/pstack-codex/LICENSE)
 - [pstack: MIT](LICENSE)
 - [Bundled cursor-team-kit skills: MIT](licenses/cursor-team-kit/LICENSE)
 
@@ -14,7 +14,7 @@ Those licenses govern copying, modification, distribution, warranty, and liabili
 
 ## Your environment and third-party services
 
-Running the plugin requires compatible local tools and your own accounts and model access. The default configuration uses Codex native agents and an installed, authenticated Claude Code CLI with Opus 5.5 access. Model access, service subscriptions, and usage credits are not included with the plugin.
+Running the plugin requires compatible local tools and your own accounts and model access. Unconfigured roles use the native Codex parent. Claude Code installation and authentication are required only when you select Claude workers. Model access, service subscriptions, and usage credits are not included with the plugin.
 
 Codex, Claude Code, model providers, GitHub, and other connected services are operated by their respective providers. Their own terms, charges, privacy policies, and account controls apply to your use of those services.
 

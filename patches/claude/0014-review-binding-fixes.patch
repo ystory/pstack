@@ -1,0 +1,38 @@
+diff --git a/.claude-plugin/plugin.json b/.claude-plugin/plugin.json
+index 3acaffa..f3fcea9 100644
+--- a/.claude-plugin/plugin.json
++++ b/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pstack-cc",
+-  "version": "0.1.0-dev.6",
++  "version": "0.1.0-dev.7",
+   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+   "author": {
+     "name": "pstack contributors"
+diff --git a/skills/poteto-help/SKILL.md b/skills/poteto-help/SKILL.md
+index 146c758..e335b8c 100644
+--- a/skills/poteto-help/SKILL.md
++++ b/skills/poteto-help/SKILL.md
+@@ -36,7 +36,7 @@ When the model preferences is missing and it matters, ask whether the user wants
+ ## Get set up
+ 
+ 1. Add `ystory/pstack` through `/plugin marketplace add`, then install `pstack-cc@pstack-cc`.
+-2. Run [`/pstack-cc:setup-pstack`](../setup-pstack/SKILL.md). It asks for a reasoning budget, maps a model to each role, and saves independent role preferences and registers exact-model agents. Start a new session afterward. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
++2. Run [`/pstack-cc:setup-pstack`](../setup-pstack/SKILL.md). Choose worker executors first. Setup checks installation and authentication only for selected CLIs and guides any needed installation and human login. Then choose supported models, role assignments, and a reasoning budget. Review and save the independent preferences and register exact-model agents. Start a new session afterward. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
+ 3. Start a real task with `/pstack-cc:poteto-mode`, a goal, and a check that can pass or fail.
+ 
+ Installing changes nothing until the user invokes a skill. Only `/pstack-cc:setup-pstack` loads from the user's words. The [README](../../README.md) and [guide page 1](../../docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).
+diff --git a/skills/show-me-your-work/SKILL.md b/skills/show-me-your-work/SKILL.md
+index d26fd94..c8cbe28 100644
+--- a/skills/show-me-your-work/SKILL.md
++++ b/skills/show-me-your-work/SKILL.md
+@@ -73,7 +73,7 @@ Before handing back, spawn a subagent on a different model family from the one t
+ - Choices that look risky in hindsight (premature, scope-creeping, papering over a symptom).
+ - Gaps the user would otherwise miss on a casual skim.
+ 
+-Every reply for a run that produced a trail ends with an "Attention" section. Lead with the reviewer's model on its own line (`reviewed by <model>`), then list each flag pointing to specific rows or moments. "No flags" is a valid value. The model name is not.
++Every reply for a run that produced a trail ends with an "Attention" section. After a completed review, lead with the reviewer's model on its own line (`reviewed by <model>`), then list each flag pointing to specific rows or moments. "No flags" is a valid value. The model name is not. If no eligible reviewer can run, lead with `review not completed`, state the specific configuration or capability gap, and keep the required review unmet. Do not claim a completed review or "No flags" for an unrun review.
+ 
+ ## Reviewing the trail
+ 

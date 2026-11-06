@@ -20,7 +20,7 @@ Reuse the host's asynchronous execution and completion events. A foreground runn
 
 The workflow's parent owns the launch. It sets the supported native background timeout explicitly and reads retained result files after completion. Setup's configuration target is separate from the inherited CLI authentication environment.
 
-Saved exact Claude selections use generated native definitions. Unsaved roles use the upstream native parent or disclosed Opus-alias defaults through static agents. Readonly source sites use a native kind that excludes file-editing tools. This is not an OS-level write boundary. Existing workflow requirements determine worktree isolation and when a worker may resume.
+Saved exact Claude selections use generated native definitions. Unsaved roles use only the actual native parent through static inherited agents at their original cardinality. Setup proposals remain separate from these execution fallbacks. Readonly source sites use a native kind that excludes file-editing tools. This is not an OS-level write boundary. Existing workflow requirements determine worktree isolation and when a worker may resume.
 
 Named runtime paths were verified on Claude Code 2.1.317 and Codex CLI 0.165.0. The scope and unexposed settings are recorded in [Design and compatibility](spec.md).
 

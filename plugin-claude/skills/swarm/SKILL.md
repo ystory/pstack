@@ -19,7 +19,7 @@ Open a todolist with one entry per phase before launching anything.
 
 1. State the done predicate and the artifact or report the swarm must return.
 2. Choose the shape. Partition into slices, race N workers on identical briefs, or mix both. For a race or mixed shape, declare `first pass`, `rank all`, or `best-of` before spawning.
-3. Read [Claude Code execution](../poteto-mode/references/claude-execution.md) and resolve `swarm workers` with worker kind `general-purpose`. Each worker uses that scalar selection unless a model race or comparison assigns its arm another model. Name each race arm's model up front. Parent aliases bind the actual native parent. A rejected model tries the bundled default, then the closest valid model of its family from the error. Say which fallback ran. Apply poteto-mode's reasoning and speed guidance.
+3. Read [Claude Code execution](../poteto-mode/references/claude-execution.md) and resolve `swarm workers` with worker kind `general-purpose`. Each worker uses that scalar selection unless a model race or comparison assigns its arm another model. Name each race arm's model up front. Parent aliases bind the actual native parent. A rejected model follows the execution binding and the closest valid model of its family from the error. Say which fallback ran. Apply poteto-mode's reasoning and speed guidance.
 4. Give each worker its own writable output when it writes. When workers verify or measure commits, each brief names the exact SHAs. A measurement brief also names the method (sample count, what one sample is, order). The worker records both in its result.
 
 ## Phase B: Fan out

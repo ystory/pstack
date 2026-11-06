@@ -169,14 +169,14 @@ try {
     throw new Error('Packed CLI did not verify its distributable plugin.');
   const codexHome = path.join(temporaryRoot, 'isolated-codex-home');
   await mkdir(path.join(codexHome, 'agents'), { recursive: true });
-  await mkdir(path.join(codexHome, 'pstack-for-codex'));
+  await mkdir(path.join(codexHome, 'pstack-codex'));
   const preservedSettings = '{"userChoice":"preserve"}\n';
   await writeFile(
     path.join(codexHome, 'config.toml'),
     'model = "user-model"\n',
   );
   await writeFile(
-    path.join(codexHome, 'pstack-for-codex', 'models.json'),
+    path.join(codexHome, 'pstack-codex', 'models.json'),
     preservedSettings,
   );
   await writeFile(
@@ -200,13 +200,13 @@ try {
   register(['--dry-run']);
   register();
   const beforeRegistration = await readFile(
-    path.join(codexHome, 'pstack-for-codex', 'agent-registration.json'),
+    path.join(codexHome, 'pstack-codex', 'agent-registration.json'),
   );
   register();
   if (
     !(
       await readFile(
-        path.join(codexHome, 'pstack-for-codex', 'agent-registration.json'),
+        path.join(codexHome, 'pstack-codex', 'agent-registration.json'),
       )
     ).equals(beforeRegistration)
   )
@@ -234,7 +234,7 @@ try {
   if (
     JSON.parse(
       await readFile(
-        path.join(codexHome, 'pstack-for-codex', 'agent-registration.json'),
+        path.join(codexHome, 'pstack-codex', 'agent-registration.json'),
         'utf8',
       ),
     ).pluginVersion !== fixtureManifest.version
@@ -259,7 +259,7 @@ try {
     throw new Error('Unregister did not preserve unowned agent files.');
   if (
     (await readFile(
-      path.join(codexHome, 'pstack-for-codex', 'models.json'),
+      path.join(codexHome, 'pstack-codex', 'models.json'),
       'utf8',
     )) !== preservedSettings ||
     (await readFile(path.join(codexHome, 'config.toml'), 'utf8')) !==
@@ -283,18 +283,46 @@ try {
     ),
   );
   if (
-    models.config.schemaVersion !== 2 ||
-    Object.keys(models.config.roles).length !== 17 ||
-    models.config.roles['hardest tasks'][0].executor !== 'claude-code' ||
-    models.config.roles['hardest tasks'][0].model !== 'claude-opus-5-5' ||
-    models.config.roles['how explainer'][0].model !== 'gpt-6.1-sol' ||
+    models.config.schemaVersion !== 1 ||
+    Object.keys(models.config.roles).length !== 0 ||
+    Object.keys(models.proposal.roles).length !== 17 ||
+    models.needsChoice.length !== 21 ||
     models.exists !== false ||
     models.sha256 !== null
   )
-    throw new Error('Packaged model helper did not retain mixed defaults.');
+    throw new Error(
+      'Packaged model helper did not preserve fresh unconfigured choices.',
+    );
+  const unconfiguredPanel = JSON.parse(
+    run(
+      process.execPath,
+      [
+        path.join(
+          artifactRoot,
+          'plugin/skills/setup-pstack/scripts/models.mjs',
+        ),
+        'resolve',
+        '--role',
+        'arena runners',
+        '--codex-home',
+        isolatedModelsHome,
+      ],
+      temporaryRoot,
+    ),
+  );
+  if (
+    unconfiguredPanel.source !== 'unconfigured' ||
+    unconfiguredPanel.entries.length !== 2 ||
+    !unconfiguredPanel.entries.every(
+      (entry: { model: string; executor?: string }) =>
+        entry.model === 'inherit-parent' &&
+        (entry.executor === undefined || entry.executor === 'codex'),
+    )
+  )
+    throw new Error('Packaged Codex panel lost its two native-parent seats.');
   try {
     await access(isolatedModelsHome);
-    throw new Error('Reading packaged defaults wrote a model configuration.');
+    throw new Error('Reading packaged choices wrote a model configuration.');
   } catch (error) {
     if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT'))
       throw error;
@@ -312,6 +340,7 @@ try {
       `const args = process.argv.slice(2);\n` +
       `if (args[0] === '--version') console.log('2.1.300 (Claude Code)');\n` +
       `else if (args[0] === '--help') console.log('--print --model --effort low medium high xhigh max --output-format stream-json --verbose --resume');\n` +
+      `else if (args[0] === 'auth') console.log(JSON.stringify({loggedIn:true,authMethod:'oauth_token'}));\n` +
       `else {\n` +
       `  process.stdin.resume();\n` +
       `  process.stdin.on('end', () => {\n` +
@@ -337,6 +366,8 @@ try {
         temporaryRoot,
         '--run-dir',
         path.join(temporaryRoot, 'external-run-evidence'),
+        '--model',
+        'claude-transport-fixture-20300101',
         '--effort',
         'xhigh',
         '--instruction',
@@ -352,9 +383,10 @@ try {
   );
   if (
     runner.exitCode !== 0 ||
-    runner.model !== 'claude-opus-5-5' ||
-    runner.observedModel !== 'claude-opus-5-5' ||
-    runner.result !== 'packaged external transport received claude-opus-5-5' ||
+    runner.model !== 'claude-transport-fixture-20300101' ||
+    runner.observedModel !== 'claude-transport-fixture-20300101' ||
+    runner.result !==
+      'packaged external transport received claude-transport-fixture-20300101' ||
     !(await readFile(runner.promptPath, 'utf8')).includes(
       'Apply only the assigned package fixture task.',
     )
@@ -635,6 +667,24 @@ try {
     throw new Error(
       'Packaged Claude helper did not expose the original role proposal.',
     );
+  const unconfiguredClaudePanel = claudeModelCall([
+    'resolve',
+    '--role',
+    'arena runners',
+    '--kind',
+    'general-purpose',
+  ]);
+  if (
+    unconfiguredClaudePanel.source !== 'unconfigured' ||
+    unconfiguredClaudePanel.entries.length !== 2 ||
+    !unconfiguredClaudePanel.entries.every(
+      (entry: { model: string; executor: string; agentType: string }) =>
+        entry.model === 'inherit-parent' &&
+        entry.executor === 'claude-code' &&
+        entry.agentType === 'pstack-cc:general-purpose',
+    )
+  )
+    throw new Error('Packaged Claude panel lost its two native-parent seats.');
   const nativeWorkerKinds = [
     'general-purpose',
     'poteto-agent',
@@ -655,7 +705,7 @@ try {
     );
     const frontmatter = /^---\n([\s\S]*?)\n---\n\s*\S/.exec(definition)?.[1];
     if (
-      fallback.source !== 'upstream-default' ||
+      fallback.source !== 'unconfigured' ||
       fallback.entries.length !== 1 ||
       fallback.entries[0].executor !== 'claude-code' ||
       fallback.entries[0].model !== 'inherit-parent' ||
@@ -677,11 +727,10 @@ try {
     'general-purpose',
   ]);
   if (
-    nativeFallback.source !== 'upstream-default' ||
+    nativeFallback.source !== 'unconfigured' ||
     nativeFallback.entries.length !== 1 ||
     nativeFallback.entries[0].executor !== 'claude-code' ||
-    nativeFallback.entries[0].model !== 'opus' ||
-    nativeFallback.entries[0].modelKind !== 'native-alias' ||
+    nativeFallback.entries[0].model !== 'inherit-parent' ||
     nativeFallback.entries[0].agentType !== 'pstack-cc:general-purpose' ||
     claudeModelCall(['read']).exists
   )
@@ -829,7 +878,7 @@ try {
     (await readFile(path.join(claudeHome, 'agents/user-agent.md'), 'utf8')) !==
       'Unrelated Claude agent.\n' ||
     (await readFile(
-      path.join(codexHome, 'pstack-for-codex/models.json'),
+      path.join(codexHome, 'pstack-codex/models.json'),
       'utf8',
     )) !== preservedSettings
   )
@@ -934,7 +983,7 @@ lines.on('close', () => process.exit(0));
     temporaryRoot,
   );
   console.log(
-    'Packed artifact verified: both standalone host plugins, native marketplace manifests, independent patch replay and pinned runtime, isolated setup lifecycle, mixed model defaults, the nondefault Claude detect-to-run chain, and both external CLI stub transports without source files or development dependencies. User settings are preserved. The stubs do not prove authentication or live model execution. Native global install was not run.',
+    'Packed artifact verified: both standalone host plugins, native marketplace manifests, independent patch replay and pinned runtime, isolated setup lifecycle, fresh unresolved model choices, parent fallback cardinality, the nondefault Claude detect-to-run chain, and both external CLI stub transports without source files or development dependencies. User settings are preserved. The stubs do not prove authentication or live model execution. Native global install was not run.',
   );
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });

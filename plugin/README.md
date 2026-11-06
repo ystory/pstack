@@ -1,12 +1,12 @@
 # pstack for Codex
 
-This distribution adapts Lauren Tan's pstack workflows to Codex. Install through a Codex plugin marketplace and run its setup onboarding. By default, Sol 6.1 runs ordinary roles through Codex and Opus 5.5 runs the hardest tasks through an existing Claude Code CLI. Saved supported exact models override those defaults. Candidate and reviewer lists and the cross-judge pool default to both models, preserving the original requirements for different models or model families.
+This distribution adapts Lauren Tan's pstack workflows to Codex. Install `pstack-codex` through a native marketplace, then invoke setup. Choose worker executors first. Setup checks installation and login only for selected CLIs, guides any needed installation and human authentication, then helps choose supported exact models, roles, and budget. No fixed model is required. Saved roles take precedence. Unconfigured roles use the actual native parent at their original count. Workflow-specific diversity requirements remain.
 
 The following overview is adapted from [Lauren Tan's original pstack README](https://github.com/cursor/plugins/blob/b1695c2019b650ca5d4a66a6a6d805233c806d6d/pstack/README.md). Commands and skill namespaces have been updated for Codex.
 
 i'm [poteto](https://x.com/poteto). i'm not a president or ceo, but i've worked with millions of lines of code at Meta, Netflix, and Cursor. i'm also on the react core team where i help build and maintain react compiler.
 
-there's a growing sense that ai writes too much slop code. i agree. i don't want to ship like a team of twenty slop artists. throughput without quality is not a goal i aspire to. if you want to go fast, go deep first. 
+there's a growing sense that ai writes too much slop code. i agree. i don't want to ship like a team of twenty slop artists. throughput without quality is not a goal i aspire to. if you want to go fast, go deep first.
 
 **pstack is my answer.** these are the same skills i use every day to ship high quality code at Cursor. this turns cursor into a real engineering team. the goal is not to maximize loc, in fact it's the opposite. pstack helps you write less, but higher quality code.
 
@@ -14,7 +14,7 @@ there's a growing sense that ai writes too much slop code. i agree. i don't want
 
 **cursor gives you the best of all worlds.** every frontier model has its strengths and weaknesses. use any model with pstack. in fact, many of my skills use multi-model workflows to take advantage of each model's unique strengths.
 
-fork it. improve it. make it yours. PRs are welcome! 
+fork it. improve it. make it yours. PRs are welcome!
 
 ## install
 
@@ -22,45 +22,45 @@ Add the GitHub marketplace, then install the plugin. No repository build is need
 
 ```sh
 codex plugin marketplace add https://github.com/ystory/pstack.git
-codex plugin add pstack-for-codex@pstack-for-codex
+codex plugin add pstack-codex@pstack-codex
 ```
 
 An extracted distribution artifact can also be added with `codex plugin marketplace add /absolute/path/to/artifact`. Both routes use the same marketplace identity. See the [repository installation guide](https://github.com/ystory/pstack#install) for requirements and update instructions.
 
-Setup needs an existing Node.js 24.12+ and Python 3.11+ interpreter; it uses only Python's standard-library TOML parser. Claude execution also needs an installed, authenticated Claude Code CLI. Setup checks its existing path, version, and options; runs reuse its existing authentication. It does not install Claude Code or rewrite its global settings. Codex presents setup onboarding after installation. Setup registers the two bundled custom-agent definitions and their native config references, plus a description-only `pstack-general-purpose` role that leaves your existing default role intact. It stores your role choices in `$CODEX_HOME/pstack-for-codex/models.json`, defaulting to `~/.codex`. Re-run setup after an update or a prior-version restore to synchronize its owned agent files. Existing user edits stop replacement; role preferences are retained.
+Setup needs an existing Node.js 24.12+ and Python 3.11+ interpreter; it uses only Python's standard-library TOML parser. Select Claude workers to prepare an installed, authenticated Claude Code CLI. Setup guides authorized installation and human login when needed. Runs reuse existing authentication and settings. Codex presents setup onboarding after installation. Setup registers the two bundled custom-agent definitions and their native config references, plus a description-only `pstack-general-purpose` role that leaves your existing default role intact. It stores your role choices in `$CODEX_HOME/pstack-codex/models.json`, defaulting to `~/.codex`. Re-run setup after an update or a prior-version restore to synchronize its owned agent files. Existing user edits stop replacement; role preferences are retained.
 
-Earlier mixed bundles pinned to Opus reject saved nondefault Claude choices. Before restoring one, explicitly save models it supports using the current setup. Before restoring an older all-Sol bundle, use the current setup to explicitly save Codex-only role choices. Preferences with a Claude executor use schema 2; older helpers reject that format and leave the file intact. Native-only preferences use schema 1, which those older bundles can read.
+The current new-identity preferences use schema 1 for native and mixed choices. No old-name aliases, old-state readers, or automatic migrations are supplied. For an old installation, unregister its owned agents through its own setup and remove it before installing this plugin.
 
-Before removing the plugin, ask setup to unregister its managed agents. It removes only its unchanged agent files and owned role declarations; unrelated configuration and your model preferences remain. Then use `codex plugin remove pstack-for-codex@pstack-for-codex`. Native plugin removal does not run an agent-cleanup hook.
+Before removing the plugin, ask setup to unregister its managed agents. It removes only its unchanged agent files and owned role declarations; unrelated configuration and your model preferences remain. Then use `codex plugin remove pstack-codex@pstack-codex`. Native plugin removal does not run an agent-cleanup hook.
 
 ## get started
 
 two steps:
 
-1. run [`$pstack-for-codex:setup-pstack`](./skills/setup-pstack/SKILL.md), pick a reasoning budget, and choose which models you want.
-2. use [`$pstack-for-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) whenever you're doing anything that requires rigor.
+1. run [`$pstack-codex:setup-pstack`](./skills/setup-pstack/SKILL.md), choose worker executors, prepare selected CLIs, then choose models, roles, and reasoning budget.
+2. use [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) whenever you're doing anything that requires rigor.
 
-new here? the [pstack guide](./docs/guide/README.md) walks you through a first real task, from setup and prompting through verification and overnight runs. stuck, or unsure which skill fits? ask [`$pstack-for-codex:poteto-help`](./skills/poteto-help/SKILL.md).
+new here? the [pstack guide](./docs/guide/README.md) walks you through a first real task, from setup and prompting through verification and overnight runs. stuck, or unsure which skill fits? ask [`$pstack-codex:poteto-help`](./skills/poteto-help/SKILL.md).
 
-that's it. the other skills are situational, and the mode skill uses them for you as needed. out of the box, ordinary roles use sol 6.1 and the hardest tasks use opus 5.5. the default panel is sol 6.1 / opus 5.5. [`$pstack-for-codex:setup-pstack`](./skills/setup-pstack/SKILL.md) changes any of it.
+The other skills are situational. The mode skill uses them as the task needs. Missing roles inherit the native parent, while accepted saved choices retain their exact executor, model, and effort.
 
 ## usage
 
-use [`$pstack-for-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) at the start of a task. it reads your request, picks from a set of playbooks, and runs the other skills as the steps need them.
+use [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) at the start of a task. it reads your request, picks from a set of playbooks, and runs the other skills as the steps need them.
 
-Invoke `$pstack-for-codex:poteto-mode` explicitly with your task, or choose the skill from the Codex skill picker.
+Invoke `$pstack-codex:poteto-mode` explicitly with your task, or choose the skill from the Codex skill picker.
 
-### just use [`$pstack-for-codex:poteto-mode`](./skills/poteto-mode/SKILL.md)
+### just use [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md)
 
 this skill is the main shortcut. i use it whenever i need the agent to do rigorous engineering work. it comes with twenty-three playbooks:
 
 ```
-$pstack-for-codex:poteto-mode this pr has a subtle bug where the scroll drifts every 750ms even when idle. repro
+$pstack-codex:poteto-mode this pr has a subtle bug where the scroll drifts every 750ms even when idle. repro
 first, then fix and verify.
 ```
 
 ```
-$pstack-for-codex:poteto-mode i'm going to bed. land the stack even if ci flakes. i want everything merged by
+$pstack-codex:poteto-mode i'm going to bed. land the stack even if ci flakes. i want everything merged by
 morning.
 ```
 
@@ -105,20 +105,20 @@ when invoked it:
 
 the full rules and playbooks live in [`skills/poteto-mode/SKILL.md`](./skills/poteto-mode/SKILL.md).
 
-Use `$pstack-for-codex:poteto-mode` when starting a task. If you want its workflow to continue across turns, state that request for the current task; invoke it again in a new chat.
+Use `$pstack-codex:poteto-mode` when starting a task. If you want its workflow to continue across turns, state that request for the current task; invoke it again in a new chat.
 
 For recurring PR checks, ask Codex to create a thread heartbeat and stop it when the work is complete. For sustained work in the current run, use the task's supported Codex execution tools; schedules and active-run execution are separate mechanisms.
 
 ## skills
 
-[`$pstack-for-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) runs most of these for you when a step needs them (`how`, `why`, `architect`, `arena`, `swarm`, `interrogate`, `unslop`, `no-comments`, `technical-writing`, `tdd`, and the principles). the table below is for when you want one directly:
+[`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) runs most of these for you when a step needs them (`how`, `why`, `architect`, `arena`, `swarm`, `interrogate`, `unslop`, `no-comments`, `technical-writing`, `tdd`, and the principles). the table below is for when you want one directly:
 
 ```
-$pstack-for-codex:how do we cancel runs? do we have an n+1 when we look up every run to cancel?
+$pstack-codex:how do we cancel runs? do we have an n+1 when we look up every run to cancel?
 ```
 
 ```
-$pstack-for-codex:interrogate review this pr.
+$pstack-codex:interrogate review this pr.
 ```
 
 <details>
@@ -126,40 +126,40 @@ $pstack-for-codex:interrogate review this pr.
 
 | skill | use it when |
 |---|---|
-| [`$pstack-for-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) | default entry point for any non-trivial task. |
-| [`$pstack-for-codex:poteto-help`](./skills/poteto-help/SKILL.md) | you're new to pstack, or unsure which skill, playbook, or principle fits. finds out what you're trying to do, answers that part, and hands you a prompt to type. runs only when you type `$pstack-for-codex:poteto-help`. |
-| [`$pstack-for-codex:in-your-own-words`](./skills/in-your-own-words/SKILL.md) | you want the agent to play back your goal and the problem before it starts. runs only when you type `$pstack-for-codex:in-your-own-words`. |
-| [`$pstack-for-codex:sharpen`](./skills/sharpen/SKILL.md) | you want a prompt made deeper, not bigger, before you send it: what a top professional would do that you didn't ask for, the raw material they'd start from, their methods and tools, and an outside check that the result is right. hands back the rewritten prompt and leaves your choices open. doesn't do the task. runs only when you type `$pstack-for-codex:sharpen`. |
-| [`$pstack-for-codex:how`](./skills/how/SKILL.md) | you want a walkthrough of how a subsystem works. |
-| [`$pstack-for-codex:why`](./skills/why/SKILL.md) | you want to know why something was built this way. discovers available MCPs at run time and queries each evidence category in parallel (source control, issue tracker, long-form docs, real-time chat, infra observability, error tracking, analytics warehouse). |
-| [`$pstack-for-codex:recall`](./skills/recall/SKILL.md) | you're starting or resuming work and want your recent context on a topic rebuilt from your own chat history and the shared record, handed back as a tight current-state brief. |
-| [`$pstack-for-codex:ketchup`](./skills/ketchup/SKILL.md) | you want what changed in this chat since your last message, in plain words and small visuals, with every item waiting on you listed and decidable from the reply alone, even when that makes the reply long. |
-| [`$pstack-for-codex:ketchup-video`](./skills/ketchup-video/SKILL.md) | you want the `$pstack-for-codex:ketchup` catch-up as a short subtitled video of slides, with the calls waiting on you as text under it. |
-| [`$pstack-for-codex:blast-radius`](./skills/blast-radius/SKILL.md) | you have a small-looking change and want to know what else it could break, with the one fact it's safe because of proven by running code, not asserted. |
-| [`$pstack-for-codex:architect`](./skills/architect/SKILL.md) | you're about to write code that crosses a function boundary and want the caller's usage, types, and module shape settled first. |
-| [`$pstack-for-codex:arena`](./skills/arena/SKILL.md) | you want N parallel attempts at the same thing, then to grab the best parts of each. |
-| [`$pstack-for-codex:swarm`](./skills/swarm/SKILL.md) | you want N parallel workers across different slices or races, then one aggregated report. |
-| [`$pstack-for-codex:interrogate`](./skills/interrogate/SKILL.md) | you have a diff and want different models to try to break it, keeping only findings a run proves. |
-| [`$pstack-for-codex:automate-me`](./skills/automate-me/SKILL.md) | you want your own `-mode` skill, drafted from how you've actually worked. |
-| [`$pstack-for-codex:make-bot-ui`](./skills/make-bot-ui/SKILL.md) | you want a page or dashboard whose buttons wake a Grok Bot over a webhook, including the sender-key handoff and Tailscale. |
-| [`$pstack-for-codex:setup-pstack`](./skills/setup-pstack/SKILL.md) | you want to pick which models pstack uses per role. detects your models and writes a config rule. |
-| [`$pstack-for-codex:reflect`](./skills/reflect/SKILL.md) | a long task landed and you want the recipe captured as a skill edit. |
-| [`$pstack-for-codex:correct`](./skills/correct/SKILL.md) | you keep correcting agents for the same mistakes. mines history for mistake classes, fixes each at the highest level that works (architecture, then types, lint, and ci, then tests, with docs last), and keeps a table pairing each rule with what enforces it. |
-| [`$pstack-for-codex:teach`](./skills/teach/SKILL.md) | you want to actually understand a change or subsystem, not just have it summarized. runs how + why and weaves one plain explanation, built up diagram by diagram. |
-| [`$pstack-for-codex:tdd`](./skills/tdd/SKILL.md) | you're fixing a bug and there's a cheap local test path. write the failing test first, then the fix. |
-| [`$pstack-for-codex:benchmark-checklist`](./skills/benchmark-checklist/SKILL.md) | you ran a benchmark or measured a speedup or regression. vets the number (limiter, tuning, errors, repeat runs, end-to-end relevance) before you report or act on it. |
-| [`$pstack-for-codex:no-comments`](./skills/no-comments/SKILL.md) | strip comments before review; spawns Comment Sicko, fixes accepted findings, offers encodings for claimed constraints. |
-| [`$pstack-for-codex:typescript-best-practices`](./skills/typescript-best-practices/SKILL.md) | you're reading or editing typescript. grounds the type-system-discipline principle in syntax. |
-| [`$pstack-for-codex:figure-it-out`](./skills/figure-it-out/SKILL.md) | no bundled playbook fits. designs a rigorous, auditable playbook for the task. |
-| [`$pstack-for-codex:show-me-your-work`](./skills/show-me-your-work/SKILL.md) | you want a reviewable decision trail. logs decisions to a tsv you can commit. |
-| [`$pstack-for-codex:create-verification-skill`](./skills/create-verification-skill/SKILL.md) | your project has no scripted way to prove app behavior. generates a project-local verify skill with a feature map, for any language or platform. |
-| [`$pstack-for-codex:maintain-verification-skill`](./skills/maintain-verification-skill/SKILL.md) | your verify skill's feature map has drifted from the app. source wave + one live pass, at most one PR of proven corrections. |
-| [`$pstack-for-codex:create-formal-verification-skill`](./skills/create-formal-verification-skill/SKILL.md) | tests can't reach the case that breaks a race, retry, state machine, parser, or unsafe code. verifies one property with the tool that fits and generates a project-local skill to recheck it on every change. |
-| [`$pstack-for-codex:maintain-formal-verification-skill`](./skills/maintain-formal-verification-skill/SKILL.md) | code your formal verification covers has changed since it was last checked. updates the model, harness, or properties to match the code, reruns, and says whether each failure is drift in the verification or a bug in the code. |
-| [`$pstack-for-codex:statechart`](./skills/statechart/SKILL.md) | someone who owns the behavior needs to see it, not read a spec. checks a tla+ model, draws what the user sees as a mermaid statechart, marks each state that breaks a rule, and gives the shortest path to each one. |
-| [`$pstack-for-codex:unslop`](./skills/unslop/SKILL.md) | you're cleaning up writing. removes AI tells. |
-| [`$pstack-for-codex:bro`](./skills/bro/SKILL.md) | you want the last message restated in plain human language, no jargon. |
-| [`$pstack-for-codex:technical-writing`](./skills/technical-writing/SKILL.md) | layered doc standard (Diátaxis + Google developer style + STE + Global English) for docs, RFCs, readmes, PR descriptions, commit messages. |
+| [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) | default entry point for any non-trivial task. |
+| [`$pstack-codex:poteto-help`](./skills/poteto-help/SKILL.md) | you're new to pstack, or unsure which skill, playbook, or principle fits. finds out what you're trying to do, answers that part, and hands you a prompt to type. runs only when you type `$pstack-codex:poteto-help`. |
+| [`$pstack-codex:in-your-own-words`](./skills/in-your-own-words/SKILL.md) | you want the agent to play back your goal and the problem before it starts. runs only when you type `$pstack-codex:in-your-own-words`. |
+| [`$pstack-codex:sharpen`](./skills/sharpen/SKILL.md) | you want a prompt made deeper, not bigger, before you send it: what a top professional would do that you didn't ask for, the raw material they'd start from, their methods and tools, and an outside check that the result is right. hands back the rewritten prompt and leaves your choices open. doesn't do the task. runs only when you type `$pstack-codex:sharpen`. |
+| [`$pstack-codex:how`](./skills/how/SKILL.md) | you want a walkthrough of how a subsystem works. |
+| [`$pstack-codex:why`](./skills/why/SKILL.md) | you want to know why something was built this way. discovers available MCPs at run time and queries each evidence category in parallel (source control, issue tracker, long-form docs, real-time chat, infra observability, error tracking, analytics warehouse). |
+| [`$pstack-codex:recall`](./skills/recall/SKILL.md) | you're starting or resuming work and want your recent context on a topic rebuilt from your own chat history and the shared record, handed back as a tight current-state brief. |
+| [`$pstack-codex:ketchup`](./skills/ketchup/SKILL.md) | you want what changed in this chat since your last message, in plain words and small visuals, with every item waiting on you listed and decidable from the reply alone, even when that makes the reply long. |
+| [`$pstack-codex:ketchup-video`](./skills/ketchup-video/SKILL.md) | you want the `$pstack-codex:ketchup` catch-up as a short subtitled video of slides, with the calls waiting on you as text under it. |
+| [`$pstack-codex:blast-radius`](./skills/blast-radius/SKILL.md) | you have a small-looking change and want to know what else it could break, with the one fact it's safe because of proven by running code, not asserted. |
+| [`$pstack-codex:architect`](./skills/architect/SKILL.md) | you're about to write code that crosses a function boundary and want the caller's usage, types, and module shape settled first. |
+| [`$pstack-codex:arena`](./skills/arena/SKILL.md) | you want N parallel attempts at the same thing, then to grab the best parts of each. |
+| [`$pstack-codex:swarm`](./skills/swarm/SKILL.md) | you want N parallel workers across different slices or races, then one aggregated report. |
+| [`$pstack-codex:interrogate`](./skills/interrogate/SKILL.md) | you have a diff and want different models to try to break it, keeping only findings a run proves. |
+| [`$pstack-codex:automate-me`](./skills/automate-me/SKILL.md) | you want your own `-mode` skill, drafted from how you've actually worked. |
+| [`$pstack-codex:make-bot-ui`](./skills/make-bot-ui/SKILL.md) | you want a page or dashboard whose buttons wake a Grok Bot over a webhook, including the sender-key handoff and Tailscale. |
+| [`$pstack-codex:setup-pstack`](./skills/setup-pstack/SKILL.md) | you want to pick which models pstack uses per role. detects your models and writes a config rule. |
+| [`$pstack-codex:reflect`](./skills/reflect/SKILL.md) | a long task landed and you want the recipe captured as a skill edit. |
+| [`$pstack-codex:correct`](./skills/correct/SKILL.md) | you keep correcting agents for the same mistakes. mines history for mistake classes, fixes each at the highest level that works (architecture, then types, lint, and ci, then tests, with docs last), and keeps a table pairing each rule with what enforces it. |
+| [`$pstack-codex:teach`](./skills/teach/SKILL.md) | you want to actually understand a change or subsystem, not just have it summarized. runs how + why and weaves one plain explanation, built up diagram by diagram. |
+| [`$pstack-codex:tdd`](./skills/tdd/SKILL.md) | you're fixing a bug and there's a cheap local test path. write the failing test first, then the fix. |
+| [`$pstack-codex:benchmark-checklist`](./skills/benchmark-checklist/SKILL.md) | you ran a benchmark or measured a speedup or regression. vets the number (limiter, tuning, errors, repeat runs, end-to-end relevance) before you report or act on it. |
+| [`$pstack-codex:no-comments`](./skills/no-comments/SKILL.md) | strip comments before review; spawns Comment Sicko, fixes accepted findings, offers encodings for claimed constraints. |
+| [`$pstack-codex:typescript-best-practices`](./skills/typescript-best-practices/SKILL.md) | you're reading or editing typescript. grounds the type-system-discipline principle in syntax. |
+| [`$pstack-codex:figure-it-out`](./skills/figure-it-out/SKILL.md) | no bundled playbook fits. designs a rigorous, auditable playbook for the task. |
+| [`$pstack-codex:show-me-your-work`](./skills/show-me-your-work/SKILL.md) | you want a reviewable decision trail. logs decisions to a tsv you can commit. |
+| [`$pstack-codex:create-verification-skill`](./skills/create-verification-skill/SKILL.md) | your project has no scripted way to prove app behavior. generates a project-local verify skill with a feature map, for any language or platform. |
+| [`$pstack-codex:maintain-verification-skill`](./skills/maintain-verification-skill/SKILL.md) | your verify skill's feature map has drifted from the app. source wave + one live pass, at most one PR of proven corrections. |
+| [`$pstack-codex:create-formal-verification-skill`](./skills/create-formal-verification-skill/SKILL.md) | tests can't reach the case that breaks a race, retry, state machine, parser, or unsafe code. verifies one property with the tool that fits and generates a project-local skill to recheck it on every change. |
+| [`$pstack-codex:maintain-formal-verification-skill`](./skills/maintain-formal-verification-skill/SKILL.md) | code your formal verification covers has changed since it was last checked. updates the model, harness, or properties to match the code, reruns, and says whether each failure is drift in the verification or a bug in the code. |
+| [`$pstack-codex:statechart`](./skills/statechart/SKILL.md) | someone who owns the behavior needs to see it, not read a spec. checks a tla+ model, draws what the user sees as a mermaid statechart, marks each state that breaks a rule, and gives the shortest path to each one. |
+| [`$pstack-codex:unslop`](./skills/unslop/SKILL.md) | you're cleaning up writing. removes AI tells. |
+| [`$pstack-codex:bro`](./skills/bro/SKILL.md) | you want the last message restated in plain human language, no jargon. |
+| [`$pstack-codex:technical-writing`](./skills/technical-writing/SKILL.md) | layered doc standard (Diátaxis + Google developer style + STE + Global English) for docs, RFCs, readmes, PR descriptions, commit messages. |
 
 </details>
 
@@ -167,60 +167,60 @@ $pstack-for-codex:interrogate review this pr.
 
 ### examples
 
-mostly i type [`$pstack-for-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) at the start of a task and let it route to a playbook. the other skills fire as the steps need them. a few i reach for directly.
+mostly i type [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) at the start of a task and let it route to a playbook. the other skills fire as the steps need them. a few i reach for directly.
 
 
 <details>
 <summary>all the examples</summary>
 
 ```
-bug fix:           $pstack-for-codex:poteto-mode this pr has a subtle bug where the scroll drifts every 750ms even
+bug fix:           $pstack-codex:poteto-mode this pr has a subtle bug where the scroll drifts every 750ms even
                    when idle. repro first, then fix and verify.
-perf:              $pstack-for-codex:poteto-mode a big list takes a second or two to load even though we virtualize.
+perf:              $pstack-codex:poteto-mode a big list takes a second or two to load even though we virtualize.
                    run a cpu trace and tell me why.
-feature:           $pstack-for-codex:poteto-mode build a small feature behind a feature flag. verify it really works.
-prototype:         $pstack-for-codex:poteto-mode build two prototypes of the markdown renderer so we can compare.
+feature:           $pstack-codex:poteto-mode build a small feature behind a feature flag. verify it really works.
+prototype:         $pstack-codex:poteto-mode build two prototypes of the markdown renderer so we can compare.
                    spawn an agent for each.
-multi-phase:       $pstack-for-codex:poteto-mode open source these skills as a plugin. nothing internal leaks, work
+multi-phase:       $pstack-codex:poteto-mode open source these skills as a plugin. nothing internal leaks, work
                    in a temp dir, show me the dependency graph first.
-overnight run:     $pstack-for-codex:poteto-mode i'm going to bed. land the stack even if ci flakes. i want
+overnight run:     $pstack-codex:poteto-mode i'm going to bed. land the stack even if ci flakes. i want
                    everything merged by morning.
-babysit:           $pstack-for-codex:poteto-mode check on pr 123. anything outstanding?
-visual parity:     $pstack-for-codex:poteto-mode the row spacing is too tall when this flag is on. the second image
+babysit:           $pstack-codex:poteto-mode check on pr 123. anything outstanding?
+visual parity:     $pstack-codex:poteto-mode the row spacing is too tall when this flag is on. the second image
                    is correct. repro and fix until it matches.
-figure it out:     $pstack-for-codex:poteto-mode i'm stepping away. migrate every caller from the synchronous store
+figure it out:     $pstack-codex:poteto-mode i'm stepping away. migrate every caller from the synchronous store
                    to the new async one, keeping behavior identical. i want to trust it was done
                    right when i'm back.
-how:               $pstack-for-codex:how do we cancel runs? do we have an n+1 when we look up every run to cancel?
-why:               $pstack-for-codex:why is this feature flag not on yet?
-architect:         design this instrumentation to be high signal with no false positives. $pstack-for-codex:architect
+how:               $pstack-codex:how do we cancel runs? do we have an n+1 when we look up every run to cancel?
+why:               $pstack-codex:why is this feature flag not on yet?
+architect:         design this instrumentation to be high signal with no false positives. $pstack-codex:architect
                    this first.
-arena:             $pstack-for-codex:arena take my prompt to the arena verbatim. i want to compare their proposals
+arena:             $pstack-codex:arena take my prompt to the arena verbatim. i want to compare their proposals
                    with yours.
-swarm:             $pstack-for-codex:swarm check every package under packages/ against its check.sh. one worker per
+swarm:             $pstack-codex:swarm check every package under packages/ against its check.sh. one worker per
                    package. one report.
-interrogate:       $pstack-for-codex:interrogate review this pr.
-tdd:               $pstack-for-codex:tdd implement
+interrogate:       $pstack-codex:interrogate review this pr.
+tdd:               $pstack-codex:tdd implement
 unslop:            can we unslop and tighten the new changes?
-reflect:           $pstack-for-codex:reflect that took too long. capture what we learned so the next run doesn't
+reflect:           $pstack-codex:reflect that took too long. capture what we learned so the next run doesn't
                    repeat it.
-correct:           $pstack-for-codex:correct
-show-me-your-work: $pstack-for-codex:show-me-your-work keep a decision trail i can review when i'm back.
-automate-me:       $pstack-for-codex:automate-me
-help:              $pstack-for-codex:poteto-help which skill should i use to review this branch?
+correct:           $pstack-codex:correct
+show-me-your-work: $pstack-codex:show-me-your-work keep a decision trail i can review when i'm back.
+automate-me:       $pstack-codex:automate-me
+help:              $pstack-codex:poteto-help which skill should i use to review this branch?
 ```
 
 </details>
 
 ## the `poteto-agent` and Comment Sicko subagents
 
-[`$pstack-for-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) runs in the chat that receives it. that chat owns the playbook, the todo list, and every subagent spawn.
+[`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) runs in the chat that receives it. that chat owns the playbook, the todo list, and every subagent spawn.
 
 pstack also ships [`poteto-agent`](./agents/poteto-agent.md) as the delegate wrapper. Its original instructions read `poteto-mode` in full, including the inline principles index, before doing work. Setup registers its native Codex definition; custom-type dispatch requires a runtime that exposes that capability. The [Codex execution contract](./skills/poteto-mode/references/codex-execution.md) defines the supported delegation path.
 
-[`$pstack-for-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) and [`poteto-agent`](./agents/poteto-agent.md) route through the same wrapper.
+[`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) and [`poteto-agent`](./agents/poteto-agent.md) route through the same wrapper.
 
-pstack also ships [Comment Sicko](./agents/comment-sicko.md), a comment reviewer whose original instructions are preserved in a registered Codex custom-agent definition. Use a native custom-agent type when the runtime exposes that capability. usually invoke it through [`$pstack-for-codex:no-comments`](./skills/no-comments/SKILL.md), not directly.
+pstack also ships [Comment Sicko](./agents/comment-sicko.md), a comment reviewer whose original instructions are preserved in a registered Codex custom-agent definition. Use a native custom-agent type when the runtime exposes that capability. usually invoke it through [`$pstack-codex:no-comments`](./skills/no-comments/SKILL.md), not directly.
 
 ## principles
 
@@ -260,23 +260,23 @@ twenty-four short skills, one principle each. `poteto-mode` indexes them inline 
 
 ## companion skills
 
-[`$pstack-for-codex:deslop`](./skills/deslop/SKILL.md), [`control-cli`](./skills/control-cli/SKILL.md), and [`control-ui`](./skills/control-ui/SKILL.md) are bundled from cursor-team-kit with its [MIT license](./licenses/cursor-team-kit/LICENSE). Their original sources are tracked and updated with this distribution.
+[`$pstack-codex:deslop`](./skills/deslop/SKILL.md), [`control-cli`](./skills/control-cli/SKILL.md), and [`control-ui`](./skills/control-ui/SKILL.md) are bundled from cursor-team-kit with its [MIT license](./licenses/cursor-team-kit/LICENSE). Their original sources are tracked and updated with this distribution.
 
-The [upstream Claude Code guide](./docs/harness/claude-code.md) describes running pstack with Claude Code as the parent agent. This Codex distribution keeps its [Claude CLI bridge](./skills/poteto-mode/references/codex-execution.md) and does not require the upstream Claude plugin.
+The [Claude Code worker guide](./docs/harness/claude-code.md) describes running selected Claude workers from a Codex parent. This distribution uses its [Claude CLI bridge](./skills/poteto-mode/references/codex-execution.md). The separate `pstack-cc` distribution supports Claude Code as the parent.
 
 Use the installed `$skill-creator` for skill authoring. Inside `poteto-mode`, the [babysit playbook](./skills/poteto-mode/playbooks/babysit.md) handles PR status requests.
 
 ## why are there no planning skills?
 
-Codex plan mode can be used with pstack. but personally, i don't believe in planning. the best spec is code. if you do want to make a plan, [`$pstack-for-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) covers it, but it's not a default. 
+Codex plan mode can be used with pstack. but personally, i don't believe in planning. the best spec is code. if you do want to make a plan, [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) covers it, but it's not a default.
 
 ## make it yours
 
 `poteto-mode` is my style. you may not want exactly that.
 
-type [`$pstack-for-codex:automate-me`](./skills/automate-me/SKILL.md). it mines your recent transcripts, drafts a `<your-name>-mode` skill from how you've actually worked, and routes through pstack underneath. you keep pstack as the base and end up with your own routing skill alongside `poteto-mode`.
+type [`$pstack-codex:automate-me`](./skills/automate-me/SKILL.md). it mines your recent transcripts, drafts a `<your-name>-mode` skill from how you've actually worked, and routes through pstack underneath. you keep pstack as the base and end up with your own routing skill alongside `poteto-mode`.
 
-Models are configurable through [`$pstack-for-codex:setup-pstack`](./skills/setup-pstack/SKILL.md). Setup uses the available Codex model catalog and stores the selected budget and role assignments in a user-global JSON file. Consumers read that file; absent settings use the bundled defaults.
+Models are configurable through [`$pstack-codex:setup-pstack`](./skills/setup-pstack/SKILL.md). Setup uses the available Codex model catalog and stores the selected budget and role assignments in a user-global JSON file. Consumers read that file; absent roles use the actual native parent with their original cardinality.
 
 Saved choices remain separate from plugin versions. Re-run setup to review or change them after an update; an update or prior-version restore preserves the preference file.
 

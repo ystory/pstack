@@ -1,9 +1,9 @@
 {
   "name": "pstack-cc",
-  "version": "0.1.0-dev.5",
+  "version": "0.1.0-dev.7",
   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
   "author": {
-    "name": "pstack-for-codex contributors"
+    "name": "pstack contributors"
   },
   "homepage": "https://github.com/ystory/pstack",
   "repository": "https://github.com/ystory/pstack",

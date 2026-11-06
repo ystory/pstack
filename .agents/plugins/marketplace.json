@@ -1,11 +1,11 @@
 {
-  "name": "pstack-for-codex",
+  "name": "pstack-codex",
   "interface": {
-    "displayName": "pstack for Codex"
+    "displayName": "pstack Codex"
   },
   "plugins": [
     {
-      "name": "pstack-for-codex",
+      "name": "pstack-codex",
       "source": {
         "source": "local",
         "path": "./plugin"

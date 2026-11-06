@@ -26,7 +26,7 @@ import type { TreeEntry } from './tree.ts';
 
 export interface PluginArtifact {
   schemaVersion: 1;
-  name: 'pstack-for-codex';
+  name: 'pstack-codex';
   version: string;
   upstream: UpstreamLock;
   dependencies?: DependencyLock;
@@ -38,9 +38,9 @@ export interface PluginArtifact {
 }
 
 export const localMarketplace = {
-  name: 'pstack-for-codex',
+  name: 'pstack-codex',
   plugins: [
-    { name: 'pstack-for-codex', source: { source: 'local', path: './plugin' } },
+    { name: 'pstack-codex', source: { source: 'local', path: './plugin' } },
   ],
 };
 
@@ -56,7 +56,7 @@ export async function buildPluginArtifact(
     await readFile(path.join(projectRoot, 'plugin', 'plugin.json'), 'utf8'),
   );
   if (
-    manifest.name !== 'pstack-for-codex' ||
+    manifest.name !== 'pstack-codex' ||
     typeof manifest.version !== 'string' ||
     !manifest.version
   )
@@ -71,7 +71,7 @@ export async function buildPluginArtifact(
   const marketplaceBytes = `${JSON.stringify(localMarketplace, null, 2)}\n`;
   const artifact: PluginArtifact = {
     schemaVersion: 1,
-    name: 'pstack-for-codex',
+    name: 'pstack-codex',
     version: manifest.version,
     upstream,
     ...(dependencies ? { dependencies } : {}),
@@ -107,7 +107,7 @@ export async function verifyPluginArtifact(
   );
   if (
     value.schemaVersion !== 1 ||
-    value.name !== 'pstack-for-codex' ||
+    value.name !== 'pstack-codex' ||
     typeof value.version !== 'string' ||
     !value.version ||
     !Array.isArray(value.entries) ||
@@ -131,11 +131,7 @@ export async function verifyPluginArtifact(
     sha256(marketplaceBytes) === value.marketplaceSha256
       ? JSON.parse(marketplaceBytes.toString('utf8'))
       : undefined;
-  const expectedMarketplace =
-    marketplace?.name === 'pstack-for-codex-local'
-      ? { ...localMarketplace, name: marketplace.name }
-      : localMarketplace;
-  if (JSON.stringify(marketplace) !== JSON.stringify(expectedMarketplace))
+  if (JSON.stringify(marketplace) !== JSON.stringify(localMarketplace))
     throw new Error('Native marketplace manifest integrity mismatch.');
   const entries = await inspectTree(path.join(root, 'plugin'));
   if (

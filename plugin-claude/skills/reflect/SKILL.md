@@ -20,13 +20,13 @@ Read [Claude history](../recall/references/claude-history.md). List project-scop
 
 Read [Claude Code execution](../poteto-mode/references/claude-execution.md). Launch three `general-purpose` reviewers through their selected executors without waiting between launches. Reviewers use the executor's configured MCP tools to check tickets, chat threads, and observability traces. Keep their no-edits scope explicit.
 
-Resolve each table role through the sibling setup helper with worker kind `general-purpose`. Use the selected exact model and supported task effort. A rejected model tries the bundled default, then a closest valid model of the same family from the error, with disclosure. Parent aliases bind the actual native parent. Apply poteto-mode's reasoning and speed guidance.
+Resolve each table role through the sibling setup helper with worker kind `general-purpose`. Use the selected exact model and supported task effort. A rejected model follows the execution binding, using a valid same-family choice from the error when available, with disclosure. Parent aliases bind the actual native parent. Apply poteto-mode's reasoning and speed guidance.
 
-| Lens | Model role | Original default | Prompt template |
+| Lens | Model role | Missing role | Prompt template |
 |---|---|---|---|
-| Judgment | `reflect judgment, divergent, synthesizer` | `claude-opus-5-5-xhigh` | `references/judgment-reviewer.md` |
-| Tooling | `reflect tooling` | `grok-4.7-xhigh-fast` | `references/tooling-reviewer.md` |
-| Divergent | `reflect judgment, divergent, synthesizer` | `claude-opus-5-5-xhigh` | `references/divergent-reviewer.md` |
+| Judgment | `reflect judgment, divergent, synthesizer` | native parent | `references/judgment-reviewer.md` |
+| Tooling | `reflect tooling` | native parent | `references/tooling-reviewer.md` |
+| Divergent | `reflect judgment, divergent, synthesizer` | native parent | `references/divergent-reviewer.md` |
 
 Pass each template verbatim, substituting the transcript path or digest where marked. Collect every reviewer's terminal report through Claude Code execution before synthesis.
 

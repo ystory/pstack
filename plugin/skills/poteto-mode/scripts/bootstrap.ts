@@ -60,7 +60,7 @@ export function dependencyCacheDirectory(): string {
     explicit ??
     join(
       process.env.XDG_CACHE_HOME || join(homedir(), '.cache'),
-      'pstack-for-codex',
+      'pstack-codex',
       'poteto-mode',
     );
   const path = canonicalPath(resolve(cacheRoot, currentInstallKey()));

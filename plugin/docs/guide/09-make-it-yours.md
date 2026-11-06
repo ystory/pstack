@@ -7,15 +7,15 @@ Start smaller than you think. You don't need many skills on day one, or even thi
 ## Generate your own mode with automate-me
 
 ```text
-$pstack-for-codex:automate-me
+$pstack-codex:automate-me
 ```
 
-You don't describe your style, because [`$pstack-for-codex:automate-me`](../../skills/automate-me/SKILL.md) reads it out of your history. It mines your recent transcripts in the active workspace for repeated preferences, in how you like replies, delegation, verification, code, prose, and process, then asks you which patterns are really you. It drafts `.agents/skills/<your-name>-mode/SKILL.md` through Codex's `$skill-creator` flow, runs the draft through [`$pstack-for-codex:unslop`](../../skills/unslop/SKILL.md), and opens a PR from a worktree so you review it like any other change.
+You don't describe your style, because [`$pstack-codex:automate-me`](../../skills/automate-me/SKILL.md) reads it out of your history. It mines your recent transcripts in the active workspace for repeated preferences, in how you like replies, delegation, verification, code, prose, and process, then asks you which patterns are really you. It drafts `.agents/skills/<your-name>-mode/SKILL.md` through Codex's `$skill-creator` flow, runs the draft through [`$pstack-codex:unslop`](../../skills/unslop/SKILL.md), and opens a PR from a worktree so you review it like any other change.
 
 Run it again whenever your habits drift:
 
 ```text
-$pstack-for-codex:automate-me update my mode skill with everything since its last edit
+$pstack-codex:automate-me update my mode skill with everything since its last edit
 ```
 
 Update mode mines only the history since the skill last changed. It keeps rules you haven't contradicted, revises the ones with new evidence, and adds sections only for new patterns.
@@ -25,10 +25,10 @@ Update mode mines only the history since the skill last changed. It keeps rules 
 Right after a task that taught you something, run:
 
 ```text
-$pstack-for-codex:reflect that took way too long. capture what we learned so the next run doesn't repeat it.
+$pstack-codex:reflect that took way too long. capture what we learned so the next run doesn't repeat it.
 ```
 
-[`$pstack-for-codex:reflect`](../../skills/reflect/SKILL.md) sends the transcript to three parallel reviewers, then a synthesizer sorts the proposals into `Accepted`, `Rejected`, and `Backlog` and waits for your approval before any skill changes. Approve a proposal only if it would change a future decision. One weird session is an anecdote, not a rule.
+[`$pstack-codex:reflect`](../../skills/reflect/SKILL.md) sends the transcript to three parallel reviewers, then a synthesizer sorts the proposals into `Accepted`, `Rejected`, and `Backlog` and waits for your approval before any skill changes. Approve a proposal only if it would change a future decision. One weird session is an anecdote, not a rule.
 
 ## Fix the environment with correct
 
@@ -39,50 +39,50 @@ When you correct agents for the same mistake again and again, the fix belongs in
 3. Catch it with a test.
 4. Write it down as a doc or agent rule. Nothing fails when an agent skips a rule, so this comes last.
 
-Human review isn't on the list. A reviewer who must catch the same mistake on every PR is the problem this fixes. [`$pstack-for-codex:correct`](../../skills/correct/SKILL.md) does the work:
+Human review isn't on the list. A reviewer who must catch the same mistake on every PR is the problem this fixes. [`$pstack-codex:correct`](../../skills/correct/SKILL.md) does the work:
 
 ```text
-$pstack-for-codex:correct agents keep calling the database client directly instead of going through the repository layer
+$pstack-codex:correct agents keep calling the database client directly instead of going through the repository layer
 ```
 
 It reads recent commits, reverts, review comments, and comments that explain workarounds, then groups the mistakes into classes. A class counts once it has happened twice. It fixes the most frequent classes one commit each, at the highest level that works, and proves each new check fails on a real past mistake. It also keeps a table in the agent instruction file that pairs each rule with what enforces it, so a rule that nothing enforces shows up as a repeat. The reply lists each class with its evidence, the level chosen, and why a higher level didn't work.
 
-Run it with no argument and it finds the classes from history on its own. `$pstack-for-codex:reflect` and `$pstack-for-codex:correct` split the work. `$pstack-for-codex:reflect` improves skills from one session. `$pstack-for-codex:correct` changes the repo so a mistake class can't come back. Pair it with `$pstack-for-codex:architect` when the fix is a new boundary. [Run many projects in parallel](./07-overnight.md#run-many-projects-in-parallel) has a prompt that does both across a whole repo.
+Run it with no argument and it finds the classes from history on its own. `$pstack-codex:reflect` and `$pstack-codex:correct` split the work. `$pstack-codex:reflect` improves skills from one session. `$pstack-codex:correct` changes the repo so a mistake class can't come back. Pair it with `$pstack-codex:architect` when the fix is a new boundary. [Run many projects in parallel](./07-overnight.md#run-many-projects-in-parallel) has a prompt that does both across a whole repo.
 
 ## Author a focused skill
 
 When you already know the workflow you want to capture:
 
 ```text
-$pstack-for-codex:poteto-mode write a skill for verifying database migrations in this repo
+$pstack-codex:poteto-mode write a skill for verifying database migrations in this repo
 ```
 
 Writing a skill matches the [Authoring or modifying a skill playbook](../../skills/poteto-mode/playbooks/authoring-a-skill.md), which routes through Codex's `$skill-creator`, validates the frontmatter and links, and ships the result through the Opening a PR playbook. Agent-facing prose has a higher bar than human prose, because an unhelpful sentence becomes an instruction some future agent follows. Let the playbook hold that bar rather than writing a `SKILL.md` freehand.
 
-Two special cases have their own generators. A skill that must drive your app and prove behavior is a verification skill, so use [`$pstack-for-codex:create-verification-skill`](../../skills/create-verification-skill/SKILL.md) and [`$pstack-for-codex:maintain-verification-skill`](../../skills/maintain-verification-skill/SKILL.md) instead. A skill that checks a property of your code with a model checker, a proof, or another verifier is a formal verification skill, so use [`$pstack-for-codex:create-formal-verification-skill`](../../skills/create-formal-verification-skill/SKILL.md) and [`$pstack-for-codex:maintain-formal-verification-skill`](../../skills/maintain-formal-verification-skill/SKILL.md). [Verify and ship](./06-verify-and-ship.md#prove-a-property-with-a-formal-verification-skill) covers both kinds.
+Two special cases have their own generators. A skill that must drive your app and prove behavior is a verification skill, so use [`$pstack-codex:create-verification-skill`](../../skills/create-verification-skill/SKILL.md) and [`$pstack-codex:maintain-verification-skill`](../../skills/maintain-verification-skill/SKILL.md) instead. A skill that checks a property of your code with a model checker, a proof, or another verifier is a formal verification skill, so use [`$pstack-codex:create-formal-verification-skill`](../../skills/create-formal-verification-skill/SKILL.md) and [`$pstack-codex:maintain-formal-verification-skill`](../../skills/maintain-formal-verification-skill/SKILL.md). [Verify and ship](./06-verify-and-ship.md#prove-a-property-with-a-formal-verification-skill) covers both kinds.
 
 ## Write docs to a standard with technical-writing
 
 Skills aren't the only prose you ship. For docs, RFCs, readmes, PR descriptions, and commit messages:
 
 ```text
-$pstack-for-codex:technical-writing review the readme changes
+$pstack-codex:technical-writing review the readme changes
 ```
 
-[`$pstack-for-codex:technical-writing`](../../skills/technical-writing/SKILL.md) applies a layered standard. Its goal is prose that a tired engineer understands on the first read. It picks the document's mode first (tutorial, how-to, reference, or explanation), then works sentence by sentence: who does what, one thought per sentence, nothing readable two ways. Use it to review what you or an agent just wrote, or name it up front when you ask for a doc.
+[`$pstack-codex:technical-writing`](../../skills/technical-writing/SKILL.md) applies a layered standard. Its goal is prose that a tired engineer understands on the first read. It picks the document's mode first (tutorial, how-to, reference, or explanation), then works sentence by sentence: who does what, one thought per sentence, nothing readable two ways. Use it to review what you or an agent just wrote, or name it up front when you ask for a doc.
 
 ## Test a skill change blind
 
 A skill edit affects every future session, so test it like the experiment it is. The same goes for adopting someone else's skill. Check that it makes the agent better on your work before you keep it.
 
 ```text
-$pstack-for-codex:poteto-mode run the eval playbook on this skill change. same task for both variants, candidates stay blind.
+$pstack-codex:poteto-mode run the eval playbook on this skill change. same task for both variants, candidates stay blind.
 ```
 
 When a skill keeps missing and you know what it should do, change and test it in one task:
 
 ```text
-$pstack-for-codex:poteto-mode update the review skill so it flags missing migrations, and eval the change.
+$pstack-codex:poteto-mode update the review skill so it flags missing migrations, and eval the change.
 ```
 
 Asking for the eval up front keeps the edit honest. A fix written from one bad session tends to overfit that session, and over many edits the skill drifts. The eval catches the drift before it ships.
@@ -93,7 +93,7 @@ Read every output yourself before accepting the verdict. If you disagree with th
 
 ## Build a bot UI with make-bot-ui
 
-One situational skill is for Grok Bot users. [`$pstack-for-codex:make-bot-ui`](../../skills/make-bot-ui/SKILL.md) builds a small page whose buttons wake a bot over a webhook routine. For example, you could swipe through a review queue and have each swipe ask the bot to act on that item. A server on your machine holds the webhook's sender key, so the key never reaches the browser or the chat. The skill also covers exposing the page on Tailscale.
+One situational skill is for Grok Bot users. [`$pstack-codex:make-bot-ui`](../../skills/make-bot-ui/SKILL.md) builds a small page whose buttons wake a bot over a webhook routine. For example, you could swipe through a review queue and have each swipe ask the bot to act on that item. A server on your machine holds the webhook's sender key, so the key never reaches the browser or the chat. The skill also covers exposing the page on Tailscale.
 
 **Pitfall:** don't edit a skill mid-task because it's misbehaving. Fix it in its own PR and keep the task moving. A skill edit that ships tangled into feature work is invisible to review and impossible to evaluate.
 

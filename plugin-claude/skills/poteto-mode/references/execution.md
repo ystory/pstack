@@ -32,7 +32,7 @@ The brief names the goal, owned files or slice, forbidden changes, assigned chec
 
 Pass the absolute `poteto-mode/SKILL.md` path to every poteto-agent. Its first action is an actual full Read of that file, including the Principles index. Copying the body into a prompt does not establish that read. Require reads of applied principle leaves as upstream specifies, and inspect the worker transcript when chain-following matters.
 
-Use the current Agent schema's asynchronous controls. Current Claude subagents normally run in the background. Launch independent seats without waiting between them and keep every agent ID. Native completion delivers a result. Use the exposed result or task retrieval tool when needed. An acknowledgement or completed status without its report is not a result. A concurrency limit queues work, not permission to omit required seats.
+Use the exposed native `Agent` or `Task` schema's asynchronous controls. Set `run_in_background: true` when that field is supported, including a steer or resume, as upstream requires. Follow the actual host's asynchronous mechanism when the field differs instead of assuming a background default. Launch independent seats without waiting between them and keep every agent ID. Native completion delivers a result. Use the exposed result or task retrieval tool when needed. An acknowledgement or completed status without its report is not a result. A concurrency limit queues work, not permission to omit required seats.
 
 ## Codex workers
 

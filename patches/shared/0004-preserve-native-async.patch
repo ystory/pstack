@@ -1,0 +1,12 @@
+diff --git a/skills/poteto-mode/references/worker-context.md b/skills/poteto-mode/references/worker-context.md
+index 10fd50e..05a9558 100644
+--- a/skills/poteto-mode/references/worker-context.md
++++ b/skills/poteto-mode/references/worker-context.md
+@@ -4,6 +4,6 @@ The receiving executor declared above is the harness running this worker. Suppli
+ 
+ For a resolved entry whose executor matches this receiving harness, delegate with the native subagent tools actually exposed here. Pass the selected exact model, supported effort, and complete role and template brief. For a read-only workflow such as How, use the native read-only kind where available, or a native general-purpose seat with an explicit no-edits brief when it preserves the requested settings. A host-specific `agentType` applies only in its own host. Parent aliases refer to the actual native parent in this receiving runtime, without acquiring a foreign executor from launching-host metadata.
+ 
+-The launching parent's external-run background recipe starts this worker. Native delegation inside this worker uses this harness's own completion mechanism. It does not require re-entering the external runner or creating an external-run receipt for a native child. Preserve the current task scope and read-only or write permissions.
++The launching parent's external-run background recipe starts this worker. Native delegation inside this worker retains upstream's asynchronous launch, steer, and resume behavior through this harness's own completion mechanism. For native Claude `Agent` or `Task` calls, set `run_in_background: true` when the exposed schema supports that field. Native Codex delegation already uses asynchronous handles; use its actual schema without adding a background field. Launch independent seats before waiting and collect their completed results. Native delegation does not require re-entering the external runner or creating an external-run receipt for a native child. Preserve the current task scope and read-only or write permissions.
+ 
+ Exact selections for another executor keep their chosen route. If the available controls cannot express a required executor, model, effort, or worker role, report the exact capability gap. Preserve the workflow's existing fallback and diversity rules without inventing a substitute or expanding permissions.

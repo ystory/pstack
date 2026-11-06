@@ -235,7 +235,9 @@ export async function createUpstreamCandidate(
     }
     const patches = await readPatchSeries(projectRoot, target);
     const failedIndex = conflict
-      ? patches.findIndex((patch) => conflict?.includes(patch.name))
+      ? patches.findIndex((patch) =>
+          conflict?.startsWith(`Patch conflict in ${patch.name}:`),
+        )
       : -1;
     targetReports.push({
       target,

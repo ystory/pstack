@@ -10,6 +10,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  rmdir,
   rm,
   writeFile,
 } from 'node:fs/promises';
@@ -129,13 +130,17 @@ export function applyPatchBytes(
   bytes: Uint8Array,
   reverse = false,
 ): void {
-  const env = {
-    ...process.env,
-    GIT_CEILING_DIRECTORIES: path.dirname(path.resolve(destination)),
-  };
+  const env = patchGitEnvironment(destination);
   const args = ['apply', '--binary', ...(reverse ? ['--reverse'] : [])];
   runGit(destination, [...args, '--check', '-'], bytes, env);
   runGit(destination, [...args, '-'], bytes, env);
+}
+
+function patchGitEnvironment(root: string): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    GIT_CEILING_DIRECTORIES: path.dirname(path.resolve(root)),
+  };
 }
 
 export function validatePatchPaths(files: readonly string[]): void {
@@ -158,9 +163,12 @@ export function validatePatchPaths(files: readonly string[]): void {
 }
 
 export function patchPaths(root: string, bytes: Uint8Array): string[] {
-  const records = runGit(root, ['apply', '--numstat', '-z', '-'], bytes).split(
-    '\0',
-  );
+  const records = runGit(
+    root,
+    ['apply', '--numstat', '-z', '-'],
+    bytes,
+    patchGitEnvironment(root),
+  ).split('\0');
   const files: string[] = [];
   for (let index = 0; index < records.length - 1; index++) {
     const file = records[index]!.split('\t').slice(2).join('\t');
@@ -215,10 +223,23 @@ export async function writeFileImages(
   root: string,
   images: ReadonlyMap<string, FileImage>,
 ): Promise<void> {
+  const boundary = path.resolve(root);
   for (const [file, image] of images) {
-    const absolute = path.join(root, file);
-    if (image.kind === 'absent') await rm(absolute, { force: true });
-    else {
+    const absolute = path.join(boundary, file);
+    if (image.kind === 'absent') {
+      await rm(absolute, { force: true });
+      let parent = path.dirname(absolute);
+      while (parent !== boundary) {
+        try {
+          await rmdir(parent);
+        } catch (error) {
+          if (!(error instanceof Error && 'code' in error)) throw error;
+          if (error.code === 'ENOTEMPTY') break;
+          if (error.code !== 'ENOENT') throw error;
+        }
+        parent = path.dirname(parent);
+      }
+    } else {
       await mkdir(path.dirname(absolute), { recursive: true });
       await writeFile(absolute, image.bytes);
       await chmod(absolute, image.mode);
@@ -505,11 +526,10 @@ export async function generateSharedPatch(
       flag: 'wx',
     });
     for (const target of targets) {
-      if (target !== input.from)
-        await writeFileImages(
-          path.join(projectRoot, distributionTarget(target).pluginDirectory),
-          await readFileImages(baselines.get(target)!, files),
-        );
+      await writeFileImages(
+        path.join(projectRoot, distributionTarget(target).pluginDirectory),
+        await readFileImages(baselines.get(target)!, files),
+      );
       await appendReference(projectRoot, target, name);
     }
     return name;

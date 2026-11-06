@@ -478,7 +478,7 @@ test('a Claude patch conflict cannot be reported as a successful Codex-only upst
   ]);
   await writeFile(
     path.join(project, 'patches/claude/0001-claude.patch'),
-    'invalid patch\n',
+    'diff --git a/LICENSE b/LICENSE\n--- a/LICENSE\n+++ b/LICENSE\n@@ -1 +1 @@\n-missing source context\n+changed\n',
   );
   const candidate = path.join(root, 'conflict');
   assert.equal(

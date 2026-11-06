@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   chmod,
   mkdir,
@@ -642,6 +642,96 @@ test('candidate conflict attribution keeps distinct local and shared patch ident
 });
 
 for (const from of targets) {
+  test(`local CLI preserves non-UTF-8 text and changed context for ${from}`, async (t) => {
+    const { project } = await fixture(t);
+    const file = path.join(outputFor(project, from), 'latin.txt');
+    const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
+    for (const [name, bytes] of [
+      ['0002-latin.patch', Buffer.from([0x63, 0x61, 0x66, 0xe9, 0x0a])],
+      ['0003-latin-edit.patch', Buffer.from([0x63, 0x61, 0x66, 0xe8, 0x0a])],
+    ] as const) {
+      await writeFile(file, bytes);
+      await chmod(file, 0o755);
+      const result = spawnSync(
+        process.execPath,
+        [
+          cli,
+          'generate-patch',
+          '--project',
+          project,
+          '--target',
+          from,
+          '--name',
+          name,
+          '--paths',
+          'latin.txt',
+        ],
+        { encoding: 'utf8' },
+      );
+      assert.equal(result.status, 0, result.stderr);
+      await verifyPatches(project, from);
+      assert.deepEqual(await readFile(file), bytes);
+    }
+  });
+
+  test(`shared CLI and reviewed regeneration preserve non-UTF-8 text from ${from}`, async (t) => {
+    const { project, root } = await fixture(t);
+    const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
+    const bytes = Buffer.from([0x63, 0x61, 0x66, 0xe9, 0x0a]);
+    await writeFile(path.join(outputFor(project, from), 'latin.txt'), bytes);
+    const result = spawnSync(
+      process.execPath,
+      [
+        cli,
+        'generate-shared-patch',
+        '--project',
+        project,
+        '--from',
+        from,
+        '--name',
+        '0001-latin.patch',
+        '--paths',
+        'latin.txt',
+      ],
+      { encoding: 'utf8' },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    for (const target of targets) {
+      assert.deepEqual(
+        await readFile(path.join(outputFor(project, target), 'latin.txt')),
+        bytes,
+      );
+      await verifyPatches(project, target);
+    }
+    const candidate = await candidateFixture(project, root);
+    const reviewed = Buffer.from([0x63, 0x61, 0x66, 0xe8, 0x0a]);
+    for (const target of targets)
+      await writeFile(
+        path.join(outputFor(candidate, target), 'latin.txt'),
+        reviewed,
+      );
+    const remainder = Buffer.from([0x72, 0xe7, 0x0a]);
+    await writeFile(
+      path.join(outputFor(candidate, from), 'remainder.txt'),
+      remainder,
+    );
+    const output = await installRegenerated(candidate, root);
+    for (const target of targets)
+      assert.deepEqual(
+        await readFile(path.join(outputFor(candidate, target), 'latin.txt')),
+        reviewed,
+      );
+    assert.deepEqual(
+      await readFile(path.join(outputFor(candidate, from), 'remainder.txt')),
+      remainder,
+    );
+    assert.ok(
+      (
+        await readFile(path.join(output, 'patches/shared/0001-latin.patch'))
+      ).includes(reviewed),
+    );
+  });
+
   test(`shared CLI records file-directory transitions from ${from} and regenerates each intermediate patch`, async (t) => {
     const { project, root } = await fixture(t);
     const source = outputFor(project, from);
@@ -765,3 +855,46 @@ for (const from of targets) {
     assert.deepEqual(await inspectTree(project), before);
   });
 }
+
+test('parallel CLI replay consumes each complete large patch input', async (t) => {
+  const { project, root } = await fixture(t);
+  const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
+  await Promise.all(
+    Array.from({ length: 4 }, async (_, index) => {
+      const copy = path.join(root, `parallel-${index}`);
+      await copyTree(project, copy);
+      const bytes = Buffer.from(
+        `Worker ${index}\n${'Large finite patch input\n'.repeat(6000)}`,
+      );
+      await writeFile(path.join(copy, 'plugin/large.txt'), bytes);
+      for (const args of [
+        [
+          'generate-patch',
+          '--name',
+          '0002-large.patch',
+          '--paths',
+          'large.txt',
+        ],
+        ['verify-patches'],
+      ]) {
+        const child = spawn(
+          process.execPath,
+          [cli, ...args, '--project', copy],
+          { stdio: ['ignore', 'pipe', 'pipe'] },
+        );
+        const stderr: Buffer[] = [];
+        child.stdout.resume();
+        child.stderr.on('data', (data) => stderr.push(data));
+        const status = await new Promise<number | null>((resolve, reject) => {
+          child.on('error', reject);
+          child.on('close', resolve);
+        });
+        assert.equal(status, 0, Buffer.concat(stderr).toString());
+      }
+      assert.deepEqual(
+        await readFile(path.join(copy, 'plugin/large.txt')),
+        bytes,
+      );
+    }),
+  );
+});

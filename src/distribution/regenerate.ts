@@ -253,7 +253,7 @@ async function patchForNode(
         return node.bytes;
     }
     await writeFileImages(next, node.after);
-    return Buffer.from(await diffPluginTrees(directory, next, node.paths));
+    return await diffPluginTrees(directory, next, node.paths);
   } finally {
     await rm(next, { recursive: true, force: true });
   }
@@ -471,7 +471,7 @@ async function regenerateSharedCandidate(
         distributionTarget(plan.target).pluginDirectory,
       );
       const remainder = await diffPluginTrees(plan.directory, final);
-      if (remainder.trim()) {
+      if (remainder.length) {
         const name = '9999-candidate-remainder.patch';
         if (plan.nodes.some((node) => node.name === name))
           throw new Error(
@@ -480,7 +480,7 @@ async function regenerateSharedCandidate(
         await writeFile(patchFile(project, plan.target, name), remainder, {
           flag: 'wx',
         });
-        applyPatchBytes(plan.directory, Buffer.from(remainder));
+        applyPatchBytes(plan.directory, remainder);
         await appendRegenerated(project, plan.target, name);
         plan.groups.push({ name, status: 'generated' });
       }

@@ -3,6 +3,7 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   applyPatchSeries,
+  GitPatchConflict,
   readPatchSeries,
   runGit,
 } from '../distribution/patches.ts';
@@ -80,7 +81,7 @@ async function writeSourceDifference(
   const difference = spawnSync(
     'git',
     ['diff', '--no-index', '--binary', '--no-ext-diff', previous, candidate],
-    { encoding: 'utf8', timeout: 30000, maxBuffer: 64 * 1024 * 1024 },
+    { timeout: 30000, maxBuffer: 64 * 1024 * 1024 },
   );
   if (difference.error) throw difference.error;
   if (difference.status !== 0 && difference.status !== 1)
@@ -227,6 +228,11 @@ export async function createUpstreamCandidate(
       await copyPristinePlugin(output, pluginRoot, target);
       await applyPatchSeries(projectRoot, pluginRoot, target);
     } catch (error) {
+      if (
+        !(error instanceof DistributionPolicyConflict) &&
+        !(error instanceof GitPatchConflict)
+      )
+        throw error;
       status =
         error instanceof DistributionPolicyConflict
           ? 'source-policy-conflict'

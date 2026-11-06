@@ -1012,6 +1012,33 @@ lines.on('close', () => process.exit(0));
     [path.join(packageRoot, cliPath), 'verify-patches', '--target', 'all'],
     temporaryRoot,
   );
+  const rawText = Buffer.from([0x63, 0x61, 0x66, 0xe9, 0x0a]);
+  await writeFile(path.join(packageRoot, 'plugin/latin.txt'), rawText);
+  run(
+    process.execPath,
+    [
+      path.join(packageRoot, cliPath),
+      'generate-shared-patch',
+      '--from',
+      'codex',
+      '--name',
+      '9001-package-bytes.patch',
+      '--paths',
+      'latin.txt',
+    ],
+    temporaryRoot,
+  );
+  if (
+    !(await readFile(path.join(packageRoot, 'plugin-claude/latin.txt'))).equals(
+      rawText,
+    )
+  )
+    throw new Error('Packaged shared authoring changed non-UTF-8 file bytes.');
+  run(
+    process.execPath,
+    [path.join(packageRoot, cliPath), 'verify-patches', '--target', 'all'],
+    temporaryRoot,
+  );
   console.log(
     'Packed artifact verified: both standalone host plugins, native marketplace manifests, independent patch replay, common authoring materialization and pinned runtime, isolated setup lifecycle, fresh unresolved model choices, parent fallback cardinality, the nondefault Claude detect-to-run chain, and both external CLI stub transports without source files or development dependencies. User settings are preserved. The stubs do not prove authentication or live model execution. Native global install was not run.',
   );

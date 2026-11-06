@@ -11,7 +11,7 @@ import {
 } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import {
@@ -20,6 +20,7 @@ import {
 } from '../src/distribution/artifact.ts';
 import {
   generatePatch,
+  GitPatchConflict,
   runGit,
   verifyPatches,
 } from '../src/distribution/patches.ts';
@@ -202,15 +203,17 @@ test('invalid patch series and conflicts fail before artifact creation', async (
   await assert.rejects(
     buildPluginArtifact(project, path.join(root, 'bad')),
     (error) => {
-      assert.ok(error instanceof Error);
+      assert.ok(error instanceof GitPatchConflict);
+      assert.match(error.message, /0001-plugin-identity\.patch/);
       assert.match(error.message, /git apply failed/);
-      assert.doesNotMatch(error.message, /Patch conflict/);
+      assert.ok(error.cause instanceof GitPatchConflict);
+      assert.match(error.cause.message, /git apply failed/);
       return true;
     },
   );
 });
 
-test('Git execution failures remain operational errors in replay and candidates', async (t) => {
+test('Git application failures and interrupted execution retain their report and error contracts', async (t) => {
   const { root, project, upstream } = await fixture(t);
   const source = path.join(root, 'source');
   await copyTree(upstream, path.join(source, 'pstack'));
@@ -244,7 +247,7 @@ test('Git execution failures remain operational errors in replay and candidates'
       '#!/usr/bin/env node',
       "const { spawnSync } = require('node:child_process');",
       'const args = process.argv.slice(2);',
-      "if (args[0] === 'apply') { process.stdout.write('Fixture Git backend unavailable\\n'); process.exit(2); }",
+      "if (args[0] === 'apply') { if (process.env.PSTACK_TEST_GIT_RESULT === 'signal') process.kill(process.pid, 'SIGKILL'); process.stdout.write('Fixture Git apply failure\\n'); process.exit(2); }",
       "const result = spawnSync('git', args, { stdio: 'inherit', env: { ...process.env, PATH: process.env.PSTACK_TEST_GIT_PATH } });",
       'if (result.error) throw result.error;',
       'process.exit(result.status ?? 1);',
@@ -252,42 +255,156 @@ test('Git execution failures remain operational errors in replay and candidates'
     { mode: 0o755 },
   );
   const cli = path.join(project, 'src/cli.ts');
-  const output = path.join(root, 'failed-candidate');
-  const results = [
-    ['verify-patches'],
+  const outcomes = [];
+  for (const mode of ['signal', 'reported-failure']) {
+    const output = path.join(root, `${mode}-candidate`);
+    const env = {
+      ...process.env,
+      PSTACK_TEST_GIT_PATH: process.env.PATH,
+      PSTACK_TEST_GIT_RESULT: mode,
+      PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+    };
+    const results = [
+      ['verify-patches'],
+      [
+        'upstream-candidate',
+        '--source',
+        source,
+        '--revision',
+        revision,
+        '--output',
+        output,
+      ],
+    ].map((args) =>
+      spawnSync(process.execPath, [cli, ...args], {
+        encoding: 'utf8',
+        env,
+      }),
+    );
+    outcomes.push({
+      mode,
+      commands: results.map((result) => ({
+        status: result.status,
+        conflict: /[Pp]atch.conflict/.test(result.stdout + result.stderr),
+        patch: result.stderr.includes('0001-plugin-identity.patch'),
+      })),
+    });
+    if (mode === 'signal') {
+      await assert.rejects(
+        readFile(path.join(output, 'candidate-report.json')),
+        { code: 'ENOENT' },
+      );
+      assert.ok(results.every((result) => result.stderr.includes('SIGKILL')));
+    } else {
+      const report = JSON.parse(
+        await readFile(path.join(output, 'candidate-report.json'), 'utf8'),
+      );
+      assert.equal(report.status, 'patch-conflict');
+      assert.equal(report.failedPatch, '0001-plugin-identity.patch');
+      assert.match(report.conflict, /Fixture Git apply failure/);
+    }
+  }
+  const diagnostic = spawnSync(
+    process.execPath,
     [
-      'upstream-candidate',
-      '--source',
-      source,
-      '--revision',
-      revision,
-      '--output',
-      output,
+      '--input-type=module',
+      '-e',
+      `import { verifyPatches } from ${JSON.stringify(pathToFileURL(path.join(project, 'src/distribution/patches.ts')).href)};
+try { await verifyPatches(${JSON.stringify(project)}); process.exitCode = 1; }
+catch (error) { console.log(JSON.stringify({ message: error.message, cause: error.cause?.message })); }`,
     ],
-  ].map((args) =>
-    spawnSync(process.execPath, [cli, ...args], {
+    {
       encoding: 'utf8',
       env: {
         ...process.env,
         PSTACK_TEST_GIT_PATH: process.env.PATH,
+        PSTACK_TEST_GIT_RESULT: 'signal',
         PATH: `${bin}${path.delimiter}${process.env.PATH}`,
       },
-    }),
+    },
   );
-  assert.deepEqual(
-    results.map((result) => ({
-      status: result.status,
-      operational: result.stderr.includes('Fixture Git backend unavailable'),
-      conflict: /[Pp]atch.conflict/.test(result.stdout + result.stderr),
-    })),
+  assert.equal(diagnostic.status, 0, diagnostic.stderr);
+  const error = JSON.parse(diagnostic.stdout);
+  assert.match(error.message, /0001-plugin-identity\.patch/);
+  assert.match(error.cause, /SIGKILL/);
+  assert.doesNotMatch(error.message, /Patch conflict/);
+  assert.deepEqual(outcomes, [
+    {
+      mode: 'signal',
+      commands: [
+        { status: 1, conflict: false, patch: true },
+        { status: 1, conflict: false, patch: true },
+      ],
+    },
+    {
+      mode: 'reported-failure',
+      commands: [
+        { status: 1, conflict: true, patch: true },
+        { status: 1, conflict: true, patch: false },
+      ],
+    },
+  ]);
+});
+
+test('upstream candidates report an ancestor-file patch failure with the failed patch name', async (t) => {
+  const { root, project, upstream, plugin } = await fixture(t);
+  await mkdir(path.join(plugin, 'addon'));
+  await writeFile(path.join(plugin, 'addon/child.txt'), 'Local addition\n');
+  await generatePatch(project, '0002-child.patch', ['addon']);
+  await copyTree(
+    fileURLToPath(new URL('../src', import.meta.url)),
+    path.join(project, 'src'),
+  );
+  const before = await inspectTree(project);
+  const source = path.join(root, 'source');
+  await copyTree(upstream, path.join(source, 'pstack'));
+  await writeFile(path.join(source, 'pstack/addon'), 'Upstream file\n');
+  runGit(source, ['init', '--quiet']);
+  runGit(source, [
+    'remote',
+    'add',
+    'origin',
+    'https://github.com/cursor/plugins',
+  ]);
+  runGit(source, ['add', '--all']);
+  runGit(source, [
+    '-c',
+    'user.name=Test',
+    '-c',
+    'user.email=test@example.invalid',
+    'commit',
+    '--no-gpg-sign',
+    '--quiet',
+    '-m',
+    'source',
+  ]);
+  const output = path.join(root, 'candidate');
+  const cli = path.join(project, 'src/cli.ts');
+  const result = spawnSync(
+    process.execPath,
     [
-      { status: 1, operational: true, conflict: false },
-      { status: 1, operational: true, conflict: false },
+      cli,
+      'upstream-candidate',
+      '--source',
+      source,
+      '--revision',
+      runGit(source, ['rev-parse', 'HEAD']).trim(),
+      '--output',
+      output,
     ],
+    { encoding: 'utf8' },
   );
-  await assert.rejects(readFile(path.join(output, 'candidate-report.json')), {
-    code: 'ENOENT',
-  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stdout, /^Candidate patch-conflict:/);
+  assert.equal(result.stderr, '');
+  const report = JSON.parse(
+    await readFile(path.join(output, 'candidate-report.json'), 'utf8'),
+  );
+  assert.equal(report.status, 'patch-conflict');
+  assert.equal(report.failedPatch, '0002-child.patch');
+  assert.deepEqual(report.unappliedPatches, ['0002-child.patch']);
+  assert.match(report.conflict, /addon\/child\.txt/);
+  assert.deepEqual(await inspectTree(project), before);
 });
 
 test('upstream candidates preserve current pin and record both ready and conflict outcomes', async (t) => {
@@ -365,6 +482,21 @@ test('upstream candidates preserve current pin and record both ready and conflic
     await readFile(path.join(project, 'upstream.lock.json')),
     before,
   );
+  await writeFile(
+    path.join(project, 'patches', '0001-plugin-identity.patch'),
+    'invalid patch\n',
+  );
+  const malformed = path.join(root, 'malformed');
+  assert.equal(
+    (await createUpstreamCandidate(project, source, revision, malformed))
+      .status,
+    'patch-conflict',
+  );
+  const malformedReport = JSON.parse(
+    await readFile(path.join(malformed, 'candidate-report.json'), 'utf8'),
+  );
+  assert.equal(malformedReport.failedPatch, '0001-plugin-identity.patch');
+  assert.match(malformedReport.conflict, /0001-plugin-identity\.patch/);
   await assert.rejects(
     createUpstreamCandidate(
       project,

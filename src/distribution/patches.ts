@@ -65,7 +65,7 @@ function runGitBytes(
     if (result.error) throw result.error;
     if (result.status !== 0) {
       const message = `git ${args[0]} failed: ${result.stderr.toString('utf8') || result.stdout.toString('utf8') || result.signal || result.status}`;
-      if (args[0] === 'apply' && result.status === 1)
+      if (args[0] === 'apply' && result.status !== null)
         throw new GitPatchConflict(message);
       throw new Error(message);
     }
@@ -313,9 +313,14 @@ export async function applyPatchSeries(
     try {
       applyPatchBytes(destination, bytes);
     } catch (error) {
-      if (!(error instanceof GitPatchConflict)) throw error;
-      throw new GitPatchConflict(
-        `Patch conflict in ${patch.name}: ${error.message}`,
+      if (error instanceof GitPatchConflict)
+        throw new GitPatchConflict(
+          `Patch conflict in ${patch.name}: ${error.message}`,
+          { cause: error },
+        );
+      throw new Error(
+        `Cannot apply ${patch.name}: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
       );
     }
   }

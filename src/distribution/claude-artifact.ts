@@ -18,7 +18,7 @@ import {
   verifyDistributionPolicy,
 } from './policy.ts';
 import type { DistributionPolicy } from './policy.ts';
-import { verifyPatches } from './patches.ts';
+import { isPatchName, verifyPatches } from './patches.ts';
 import type { PatchRecord } from './patches.ts';
 import {
   assertPhysicalDirectory,
@@ -145,8 +145,7 @@ export async function verifyClaudePluginArtifact(
     value.patches.some(
       (patch: PatchRecord) =>
         !patch ||
-        typeof patch.name !== 'string' ||
-        !/^\d{4}-[a-z0-9-]+\.patch$/.test(patch.name) ||
+        !isPatchName(patch.name) ||
         typeof patch.sha256 !== 'string' ||
         !/^[a-f0-9]{64}$/.test(patch.sha256),
     ) ||

@@ -8,7 +8,11 @@ import {
   buildDistributionArtifact,
   verifyDistributionArtifact,
 } from './distribution/products.ts';
-import { generatePatch, verifyPatches } from './distribution/patches.ts';
+import {
+  generatePatch,
+  generateSharedPatch,
+  verifyPatches,
+} from './distribution/patches.ts';
 import { createUpstreamCandidate } from './upstream/candidate.ts';
 import { readDependencyLock } from './upstream/dependencies.ts';
 import path from 'node:path';
@@ -64,7 +68,7 @@ try {
   switch (command) {
     case '--help':
       console.log(
-        'pstack maintainer CLI\n\nCommands:\n  verify-upstream  Verify pinned source integrity and manifest version\n  verify-patches [--project ABSOLUTE_DIRECTORY] [--target codex|claude-code|all]\n                  Replay every patch and compare plugin bytes and modes\n  check-upstream   Read public GitHub revisions and report changes\n  build-plugin --output ABSOLUTE_NEW_DIRECTORY [--target codex|claude-code] [--project ABSOLUTE_DIRECTORY] [--marketplace ABSOLUTE_DIRECTORY]\n                  Build and verify; --marketplace then selects the verified child artifact\n  promote-plugin --artifact ABSOLUTE_DIRECTORY --marketplace ABSOLUTE_DIRECTORY\n                  Verify an existing child artifact and select it for the fixed native marketplace\n  verify-plugin --artifact ABSOLUTE_DIRECTORY\n  generate-patch --name NNNN-lowercase-name.patch [--target codex|claude-code] [--paths FILE_OR_DIRECTORY[,..]] [--project ABSOLUTE_DIRECTORY]\n  regenerate-patches --candidate ABSOLUTE_DIRECTORY --output ABSOLUTE_NEW_DIRECTORY\n  upstream-candidate --source ABSOLUTE_GIT_CHECKOUT --revision FULL_SHA --output ABSOLUTE_NEW_DIRECTORY\n  --help           Show this usage\n\nThese commands do not install or activate plugins, skills, or agents. An omitted target selects Codex; all is accepted only for patch verification. Marketplace selection verifies artifact integrity, not Codex runtime compatibility or release approval. Candidates never replace the pinned source.',
+        'pstack maintainer CLI\n\nCommands:\n  verify-upstream  Verify pinned source integrity and manifest version\n  verify-patches [--project ABSOLUTE_DIRECTORY] [--target codex|claude-code|all]\n                  Replay every patch and compare plugin bytes and modes\n  check-upstream   Read public GitHub revisions and report changes\n  build-plugin --output ABSOLUTE_NEW_DIRECTORY [--target codex|claude-code] [--project ABSOLUTE_DIRECTORY] [--marketplace ABSOLUTE_DIRECTORY]\n                  Build and verify; --marketplace then selects the verified child artifact\n  promote-plugin --artifact ABSOLUTE_DIRECTORY --marketplace ABSOLUTE_DIRECTORY\n                  Verify an existing child artifact and select it for the fixed native marketplace\n  verify-plugin --artifact ABSOLUTE_DIRECTORY\n  generate-patch --name NNNN-lowercase-name.patch [--target codex|claude-code] [--paths FILE_OR_DIRECTORY[,..]] [--project ABSOLUTE_DIRECTORY]\n  generate-shared-patch --from codex|claude-code --name NNNN-lowercase-name.patch --paths FILE_OR_DIRECTORY[,..] [--project ABSOLUTE_DIRECTORY]\n  regenerate-patches --candidate ABSOLUTE_DIRECTORY --output ABSOLUTE_NEW_DIRECTORY\n  upstream-candidate --source ABSOLUTE_GIT_CHECKOUT --revision FULL_SHA --output ABSOLUTE_NEW_DIRECTORY\n  --help           Show this usage\n\nThese commands do not install or activate plugins, skills, or agents. An omitted target selects Codex; all is accepted only for patch verification. Marketplace selection verifies artifact integrity, not Codex runtime compatibility or release approval. Candidates never replace the pinned source.',
       );
       break;
     case 'verify-patches': {
@@ -132,6 +136,21 @@ try {
       );
       console.log(
         `Recorded ${await generatePatch(selectedProject(options), options['--name']!, options['--paths']?.split(','), parseTarget(options['--target']))}. Run verify-patches before building.`,
+      );
+      break;
+    }
+    case 'generate-shared-patch': {
+      const options = optionsFor(
+        ['--from', '--name', '--paths'],
+        ['--project'],
+      );
+      const name = await generateSharedPatch(selectedProject(options), {
+        from: parseTarget(options['--from']),
+        name: options['--name']!,
+        paths: options['--paths']!.split(','),
+      });
+      console.log(
+        `Recorded ${name} and materialized both host outputs. Run verify-patches --target all before building.`,
       );
       break;
     }

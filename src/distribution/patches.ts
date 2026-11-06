@@ -1,7 +1,8 @@
-import { distributionTarget } from './targets.ts';
+import { distributionTarget, projectTargets } from './targets.ts';
 import type { TargetId } from './targets.ts';
 import { spawnSync } from 'node:child_process';
 import {
+  appendFile,
   chmod,
   lstat,
   copyFile,
@@ -49,40 +50,66 @@ export function runGit(
   return result.stdout;
 }
 
+export type PatchReference =
+  { scope: 'target'; name: string } | { scope: 'shared'; name: string };
+
+export type FileImage =
+  { kind: 'absent' } | { kind: 'file'; bytes: Buffer; mode: number };
+
+export function isPatchName(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    /^(shared\/)?\d{4}-[a-z0-9-]+\.patch$/.test(value)
+  );
+}
+
+export function parsePatchReference(value: string): PatchReference {
+  if (!isPatchName(value))
+    throw new Error(
+      'Patch series must contain unique numbered patch basenames or shared/NNNN-name.patch references.',
+    );
+  return value.startsWith('shared/')
+    ? { scope: 'shared', name: value.slice('shared/'.length) }
+    : { scope: 'target', name: value };
+}
+
+export function patchFile(
+  projectRoot: string,
+  target: TargetId,
+  name: string,
+): string {
+  const reference = parsePatchReference(name);
+  return path.join(
+    projectRoot,
+    reference.scope === 'shared'
+      ? 'patches/shared'
+      : distributionTarget(target).patchDirectory,
+    reference.name,
+  );
+}
+
 export async function readPatchSeries(
   projectRoot: string,
   target: TargetId = 'codex',
 ): Promise<PatchRecord[]> {
-  await assertPhysicalDirectory(
-    path.join(projectRoot, distributionTarget(target).patchDirectory),
+  const directory = path.join(
+    projectRoot,
+    distributionTarget(target).patchDirectory,
   );
-  const names = (
-    await readFile(
-      path.join(
-        projectRoot,
-        distributionTarget(target).patchDirectory,
-        'series',
-      ),
-      'utf8',
-    )
-  )
+  await assertPhysicalDirectory(directory);
+  const names = (await readFile(path.join(directory, 'series'), 'utf8'))
     .split(/\r?\n/)
     .filter((name) => name && !name.startsWith('#'));
-  if (
-    new Set(names).size !== names.length ||
-    names.some((name) => !/^\d{4}-[a-z0-9-]+\.patch$/.test(name))
-  ) {
+  if (new Set(names).size !== names.length)
     throw new Error(
-      'Patch series must contain unique numbered patch basenames.',
+      'Patch series must contain unique numbered patch basenames or shared references.',
     );
-  }
+  const files = names.map((name) => patchFile(projectRoot, target, name));
+  for (const directory of new Set(files.map((file) => path.dirname(file))))
+    await assertPhysicalDirectory(directory);
   return Promise.all(
-    names.map(async (name) => {
-      const file = path.join(
-        projectRoot,
-        distributionTarget(target).patchDirectory,
-        name,
-      );
+    names.map(async (name, index) => {
+      const file = files[index]!;
       const stat = await lstat(file);
       if (stat.isSymbolicLink() || !stat.isFile())
         throw new Error(`Patch must be a physical file: ${name}`);
@@ -91,27 +118,126 @@ export async function readPatchSeries(
   );
 }
 
+export function applyPatchBytes(
+  destination: string,
+  bytes: Uint8Array,
+  reverse = false,
+): void {
+  const env = {
+    ...process.env,
+    GIT_CEILING_DIRECTORIES: path.dirname(path.resolve(destination)),
+  };
+  const args = ['apply', '--binary', ...(reverse ? ['--reverse'] : [])];
+  runGit(destination, [...args, '--check', '-'], bytes, env);
+  runGit(destination, [...args, '-'], bytes, env);
+}
+
+export function validatePatchPaths(files: readonly string[]): void {
+  if (
+    !files.length ||
+    files.some(
+      (file) =>
+        !file ||
+        path.posix.isAbsolute(file) ||
+        file
+          .split('/')
+          .some(
+            (part) => !part || part === '..' || part === '.' || part === '.git',
+          ),
+    )
+  )
+    throw new Error(
+      'Selected patch paths must be relative files or directories inside plugin/.',
+    );
+}
+
+export function patchPaths(root: string, bytes: Uint8Array): string[] {
+  const records = runGit(root, ['apply', '--numstat', '-z', '-'], bytes).split(
+    '\0',
+  );
+  const files: string[] = [];
+  for (let index = 0; index < records.length - 1; index++) {
+    const file = records[index]!.split('\t').slice(2).join('\t');
+    if (file) files.push(file);
+    else files.push(records[++index]!, records[++index]!);
+  }
+  validatePatchPaths(files);
+  return [...new Set(files)];
+}
+
+export function patchAdditions(root: string, bytes: Uint8Array): string[] {
+  const files = patchPaths(root, bytes);
+  const chunks = Buffer.from(bytes)
+    .toString('utf8')
+    .split(/(?=^diff --git )/m)
+    .filter((chunk) => chunk.startsWith('diff --git '));
+  return chunks.length === files.length
+    ? files.filter((_, index) => /^new file mode /m.test(chunks[index]!))
+    : [];
+}
+
+export async function readFileImages(
+  root: string,
+  files: readonly string[],
+): Promise<Map<string, FileImage>> {
+  const images = new Map<string, FileImage>();
+  for (const file of files) {
+    try {
+      const absolute = path.join(root, file);
+      const stat = await lstat(absolute);
+      if (!stat.isFile() || stat.isSymbolicLink())
+        throw new Error(`Expected physical file: ${file}`);
+      images.set(file, {
+        kind: 'file',
+        bytes: await readFile(absolute),
+        mode: stat.mode & 0o777,
+      });
+    } catch (error) {
+      if (!(
+        error instanceof Error &&
+        'code' in error &&
+        error.code === 'ENOENT'
+      ))
+        throw error;
+      images.set(file, { kind: 'absent' });
+    }
+  }
+  return images;
+}
+
+export async function writeFileImages(
+  root: string,
+  images: ReadonlyMap<string, FileImage>,
+): Promise<void> {
+  for (const [file, image] of images) {
+    const absolute = path.join(root, file);
+    if (image.kind === 'absent') await rm(absolute, { force: true });
+    else {
+      await mkdir(path.dirname(absolute), { recursive: true });
+      await writeFile(absolute, image.bytes);
+      await chmod(absolute, image.mode);
+    }
+  }
+}
+
+export function sameFileImage(left: FileImage, right: FileImage): boolean {
+  return left.kind === 'absent'
+    ? right.kind === 'absent'
+    : right.kind === 'file' &&
+        left.mode === right.mode &&
+        left.bytes.equals(right.bytes);
+}
+
 export async function applyPatchSeries(
   projectRoot: string,
   destination: string,
   target: TargetId = 'codex',
 ): Promise<PatchRecord[]> {
   const patches = await readPatchSeries(projectRoot, target);
-  const env = {
-    ...process.env,
-    GIT_CEILING_DIRECTORIES: path.dirname(path.resolve(destination)),
-  };
   for (const patch of patches) {
-    const bytes = await readFile(
-      path.join(
-        projectRoot,
-        distributionTarget(target).patchDirectory,
-        patch.name,
-      ),
-    );
+    const bytes = await readFile(patchFile(projectRoot, target, patch.name));
     try {
-      runGit(destination, ['apply', '--check', '--binary', '-'], bytes, env);
-      runGit(destination, ['apply', '--binary', '-'], bytes, env);
+      applyPatchBytes(destination, bytes);
     } catch (error) {
       throw new Error(
         `Patch conflict in ${patch.name}: ${error instanceof Error ? error.message : String(error)}`,
@@ -164,44 +290,32 @@ export async function verifyPatches(
   }
 }
 
-export async function generatePatch(
+async function appendReference(
   projectRoot: string,
+  target: TargetId,
   name: string,
-  selectedPaths?: string[],
-  target: TargetId = 'codex',
-): Promise<string> {
-  if (!/^\d{4}-[a-z0-9-]+\.patch$/.test(name))
-    throw new Error('Patch name must be NNNN-lowercase-name.patch.');
-  await verifySnapshot(projectRoot);
-  const patches = await readPatchSeries(projectRoot, target);
-  if (patches.some((patch) => patch.name === name))
-    throw new Error('Existing patches are immutable; use a new name.');
-  if (patches.length && name <= patches.at(-1)!.name)
-    throw new Error('New patch must sort after the current series.');
-  if (
-    selectedPaths &&
-    (!selectedPaths.length ||
-      selectedPaths.some(
-        (file) =>
-          !file ||
-          path.posix.isAbsolute(file) ||
-          file
-            .split('/')
-            .some(
-              (part) =>
-                !part || part === '..' || part === '.' || part === '.git',
-            ),
-      ))
-  )
-    throw new Error(
-      'Selected patch paths must be relative files or directories inside plugin/.',
-    );
-  const temporary = await mkdtemp(
-    path.join(os.tmpdir(), 'pstack-patch-generate-'),
+): Promise<void> {
+  const series = path.join(
+    projectRoot,
+    distributionTarget(target).patchDirectory,
+    'series',
   );
+  const previous = await readFile(series, 'utf8');
+  await appendFile(
+    series,
+    `${previous && !previous.endsWith('\n') ? '\n' : ''}${name}\n`,
+  );
+}
+
+export async function diffPluginTrees(
+  previous: string,
+  next: string,
+  selectedPaths?: readonly string[],
+): Promise<string> {
+  if (selectedPaths) validatePatchPaths(selectedPaths);
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'pstack-tree-diff-'));
   try {
-    await copyPristinePlugin(projectRoot, temporary, target);
-    await applyPatchSeries(projectRoot, temporary, target);
+    await copyTree(previous, temporary);
     const previousFiles = new Set(
       (await inspectTree(temporary))
         .filter((entry) => entry.kind === 'file')
@@ -216,37 +330,25 @@ export async function generatePatch(
             recursive: true,
             force: true,
           });
-      await copyTree(
-        path.join(projectRoot, distributionTarget(target).pluginDirectory),
-        temporary,
-      );
+      await copyTree(next, temporary);
     } else {
       for (const file of selectedPaths)
         await rm(path.join(temporary, file), { recursive: true, force: true });
-      for (const entry of await inspectTree(
-        path.join(projectRoot, distributionTarget(target).pluginDirectory),
-      )) {
+      for (const entry of await inspectTree(next)) {
         if (
           !selectedPaths.some(
             (file) => entry.path === file || entry.path.startsWith(`${file}/`),
           )
         )
           continue;
-        const destinationFile = path.join(temporary, entry.path);
+        const destination = path.join(temporary, entry.path);
         if (entry.kind === 'directory')
-          await mkdir(destinationFile, { recursive: true });
+          await mkdir(destination, { recursive: true });
         else {
-          await mkdir(path.dirname(destinationFile), { recursive: true });
-          await copyFile(
-            path.join(
-              projectRoot,
-              distributionTarget(target).pluginDirectory,
-              entry.path,
-            ),
-            destinationFile,
-          );
+          await mkdir(path.dirname(destination), { recursive: true });
+          await copyFile(path.join(next, entry.path), destination);
         }
-        await chmod(destinationFile, entry.mode);
+        await chmod(destination, entry.mode);
       }
     }
     const newFiles = (await inspectTree(temporary))
@@ -265,29 +367,145 @@ export async function generatePatch(
         '--',
         ...newFiles,
       ]);
-    const patch = runGit(temporary, [
+    return runGit(temporary, [
       '-c',
       'core.fileMode=true',
       'diff',
       '--binary',
+      '--no-renames',
       '--no-ext-diff',
     ]);
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+}
+
+export async function generatePatch(
+  projectRoot: string,
+  name: string,
+  selectedPaths?: string[],
+  target: TargetId = 'codex',
+): Promise<string> {
+  if (!/^\d{4}-[a-z0-9-]+\.patch$/.test(name))
+    throw new Error('Patch name must be NNNN-lowercase-name.patch.');
+  await verifySnapshot(projectRoot);
+  const patches = await readPatchSeries(projectRoot, target);
+  const local = patches.filter(
+    (patch) => parsePatchReference(patch.name).scope === 'target',
+  );
+  if (local.some((patch) => patch.name === name))
+    throw new Error('Existing patches are immutable; use a new name.');
+  if (local.length && name <= local.at(-1)!.name)
+    throw new Error('New patch must sort after the current series.');
+  const temporary = await mkdtemp(
+    path.join(os.tmpdir(), 'pstack-patch-generate-'),
+  );
+  try {
+    await copyPristinePlugin(projectRoot, temporary, target);
+    await applyPatchSeries(projectRoot, temporary, target);
+    const patch = await diffPluginTrees(
+      temporary,
+      path.join(projectRoot, distributionTarget(target).pluginDirectory),
+      selectedPaths,
+    );
     if (!patch.trim()) throw new Error('No new plugin changes to record.');
-    await writeFile(
-      path.join(projectRoot, distributionTarget(target).patchDirectory, name),
-      patch,
-      {
-        flag: 'wx',
-      },
+    await writeFile(patchFile(projectRoot, target, name), patch, {
+      flag: 'wx',
+    });
+    await appendReference(projectRoot, target, name);
+    return name;
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+}
+
+export async function generateSharedPatch(
+  projectRoot: string,
+  input: { from: TargetId; name: string; paths: readonly string[] },
+): Promise<string> {
+  if (!/^\d{4}-[a-z0-9-]+\.patch$/.test(input.name))
+    throw new Error('Patch name must be NNNN-lowercase-name.patch.');
+  validatePatchPaths(input.paths);
+  await verifySnapshot(projectRoot);
+  const targets = await projectTargets(projectRoot);
+  if (targets.length < 2 || !targets.includes(input.from))
+    throw new Error(
+      'Shared patches require both complete host targets and an explicit source target.',
     );
-    await writeFile(
-      path.join(
-        projectRoot,
-        distributionTarget(target).patchDirectory,
-        'series',
-      ),
-      `${[...patches.map((patch) => patch.name), name].join('\n')}\n`,
+  const plans = await Promise.all(
+    targets.map((target) => readPatchSeries(projectRoot, target)),
+  );
+  const shared = plans.map((plan) =>
+    plan
+      .filter((patch) => parsePatchReference(patch.name).scope === 'shared')
+      .map((patch) => patch.name),
+  );
+  if (shared.some((plan) => JSON.stringify(plan) !== JSON.stringify(shared[0])))
+    throw new Error('Shared patch order differs between host series.');
+  const name = `shared/${input.name}`;
+  if (shared[0]!.includes(name))
+    throw new Error('Existing patches are immutable; use a new name.');
+  if (shared[0]!.length && name <= shared[0]!.at(-1)!)
+    throw new Error(
+      'New shared patch must sort after the current shared series.',
     );
+  const temporary = await mkdtemp(
+    path.join(os.tmpdir(), 'pstack-shared-patch-'),
+  );
+  try {
+    const baselines = new Map<TargetId, string>();
+    for (const target of targets) {
+      await inspectTree(
+        path.join(projectRoot, distributionTarget(target).pluginDirectory),
+      );
+      const baseline = path.join(temporary, target);
+      await copyPristinePlugin(projectRoot, baseline, target);
+      await applyPatchSeries(projectRoot, baseline, target);
+      baselines.set(target, baseline);
+    }
+    const source = path.join(
+      projectRoot,
+      distributionTarget(input.from).pluginDirectory,
+    );
+    const patch = await diffPluginTrees(
+      baselines.get(input.from)!,
+      source,
+      input.paths,
+    );
+    if (!patch.trim()) throw new Error('No new plugin changes to record.');
+    const bytes = Buffer.from(patch);
+    const files = patchPaths(temporary, bytes);
+    for (const target of targets) {
+      const baseline = baselines.get(target)!;
+      const before = await readFileImages(baseline, files);
+      applyPatchBytes(baseline, bytes);
+      const after = await readFileImages(baseline, files);
+      const actual = await readFileImages(
+        path.join(projectRoot, distributionTarget(target).pluginDirectory),
+        files,
+      );
+      for (const file of files)
+        if (
+          !sameFileImage(actual.get(file)!, before.get(file)!) &&
+          !sameFileImage(actual.get(file)!, after.get(file)!)
+        )
+          throw new Error(
+            `Unrecorded ${target} edit conflicts with shared patch: ${file}`,
+          );
+    }
+    await mkdir(path.join(projectRoot, 'patches/shared'), { recursive: true });
+    await assertPhysicalDirectory(path.join(projectRoot, 'patches/shared'));
+    await writeFile(patchFile(projectRoot, input.from, name), bytes, {
+      flag: 'wx',
+    });
+    for (const target of targets) {
+      if (target !== input.from)
+        await writeFileImages(
+          path.join(projectRoot, distributionTarget(target).pluginDirectory),
+          await readFileImages(baselines.get(target)!, files),
+        );
+      await appendReference(projectRoot, target, name);
+    }
     return name;
   } finally {
     await rm(temporary, { recursive: true, force: true });

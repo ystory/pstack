@@ -2,7 +2,7 @@
 
 Invoked at the end of every other playbook.
 
-**Worktree.** Work from an exclusive Git worktree at the workflow's resolved base ref. Each independent writer gets its own branch and checkout. The coordinator prepares and verifies any scoped working-tree transfer before dispatch through [Claude Code execution](../references/claude-execution.md). Preserve unrelated dirty work and review the actual diff before integration.
+**Worktree.** Work from an exclusive Git worktree at the workflow's resolved base ref. Each independent writer gets its own branch and checkout. The coordinator prepares and verifies any scoped working-tree transfer before dispatch through [Claude Code execution](../references/execution.md). Preserve unrelated dirty work and review the actual diff before integration.
 
 **Commits.** Commit liberally. Rebase into small, ordered commits before opening PRs. Each commit is a future PR: landable, ordered to tell the story. Amend when the fix belongs in a just-made commit. New commit when separable. Commit bodies don't restate the subject.
 

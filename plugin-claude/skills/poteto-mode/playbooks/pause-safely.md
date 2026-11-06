@@ -1,6 +1,6 @@
 ### Pause safely
 
-Use [Claude Code execution](../references/claude-execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
+Use [Claude Code execution](../references/execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
 
 **You own a clean stop. Leave a checkpoint a cold-start agent can resume from.** This is explicit only. On "keep going", "going to bed, keep going", or "don't stop", do not pause.
 

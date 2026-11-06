@@ -21,11 +21,13 @@ import {
   versionAtLeast,
 } from './claude-capabilities.mjs';
 
+const EXECUTOR = 'claude-code';
+
 const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const USAGE = `Usage:
   node run-claude.mjs detect [--executable /absolute/claude]
   node run-claude.mjs run --cwd /absolute/worktree --run-dir /absolute/local-run \\
-    --model EXACT_MODEL_ID --effort xhigh --instruction /absolute/AGENTS.md --skill /absolute/SKILL.md \\
+    --model EXACT_MODEL_ID [--effort LEVEL] [--instruction /absolute/AGENTS.md] [--skill /absolute/SKILL.md] \\
     [--role /absolute/role.md] [--resume session-uuid] [--allowed-tool tool] \\
     [--executable /absolute/claude] < task.txt
 
@@ -141,7 +143,7 @@ async function detect(options) {
     )
       throw error;
     return {
-      executor: 'claude-code',
+      executor: EXECUTOR,
       available: false,
       compatible: false,
       modelExecutionVerified: false,
@@ -190,7 +192,7 @@ async function detect(options) {
   const loggedIn = typeof auth?.loggedIn === 'boolean' ? auth.loggedIn : null;
   const method = auth?.authMethod ?? auth?.method;
   return {
-    executor: 'claude-code',
+    executor: EXECUTOR,
     available: true,
     auth: {
       verified: loggedIn !== null,
@@ -251,11 +253,11 @@ async function run(options) {
   const runDir = absolute(options.runDir, '--run-dir');
   if (contains(PLUGIN_ROOT, runDir))
     throw new Error('--run-dir must be outside the plugin');
-  if (!CLAUDE_CLI_EFFORTS.includes(options.effort))
+  if (
+    options.effort !== undefined &&
+    !CLAUDE_CLI_EFFORTS.includes(options.effort)
+  )
     throw new Error(`--effort must be one of ${CLAUDE_CLI_EFFORTS.join(', ')}`);
-  if (options.instruction.length === 0 || options.skill.length === 0) {
-    throw new Error('run requires at least one --instruction and --skill path');
-  }
   if (
     options.resume &&
     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -278,6 +280,7 @@ async function run(options) {
     ...context.map(
       (file) => `## ${file.kind}: ${file.path}\n\n${file.content}`,
     ),
+    `Receiving executor is ${EXECUTOR}.\n\n${await readFile(new URL('../references/worker-context.md', import.meta.url), 'utf8')}`,
     `## Assigned task\n\n${task}`,
   ].join('\n\n');
   if (contains(await realpath(PLUGIN_ROOT), await canonicalPath(runDir))) {
@@ -293,8 +296,7 @@ async function run(options) {
     '-p',
     '--model',
     model,
-    '--effort',
-    options.effort,
+    ...(options.effort === undefined ? [] : ['--effort', options.effort]),
     '--output-format',
     'stream-json',
     '--verbose',
@@ -308,13 +310,13 @@ async function run(options) {
     args.push('--allowedTools', tool);
   }
   const request = {
-    executor: 'claude-code',
+    executor: EXECUTOR,
     executable,
     args,
     cwd,
     model,
     modelSelection: 'explicit',
-    reasoningEffort: options.effort,
+    reasoningEffort: options.effort ?? null,
     resumeSessionId: options.resume ?? null,
     context: context.map(({ kind, path: sourcePath }) => ({
       kind,

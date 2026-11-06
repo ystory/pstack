@@ -5,6 +5,8 @@ import { spawnSync } from 'node:child_process';
 import { CodexAppServerClient } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs';
 import { runAppServerTurn } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs';
 
+const EXECUTOR = 'codex';
+
 const usage = `Usage: node run-codex.mjs detect [--executable ABS]
        node run-codex.mjs catalog [--cwd ABS --executable ABS]
        node run-codex.mjs run --cwd ABS --run-dir ABS --model ID [--effort VALUE]
@@ -181,6 +183,7 @@ async function run(options) {
     ...bodies.map(
       (file) => `Required ${file.kind} file ${file.path}\n\n${file.body}`,
     ),
+    `Receiving executor is ${EXECUTOR}.\n\n${fs.readFileSync(new URL('../references/worker-context.md', import.meta.url), 'utf8')}`,
     `Task\n\n${task}`,
   ]
     .join('\n\n')
@@ -201,7 +204,7 @@ async function run(options) {
   const requested = { model: options.model, effort: options.effort ?? null };
   const request = {
     schemaVersion: 1,
-    executor: 'codex',
+    executor: EXECUTOR,
     cwd: options.cwd,
     requested,
     resumeThreadId: options.resume ?? null,
@@ -338,7 +341,7 @@ async function run(options) {
           : 1;
   const receipt = {
     schemaVersion: 1,
-    executor: 'codex',
+    executor: EXECUTOR,
     cwd: options.cwd,
     sandbox: request.sandbox,
     threadId,

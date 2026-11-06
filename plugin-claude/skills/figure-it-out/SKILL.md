@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Figure it out
 
-For any delegates, use [Claude Code execution](../poteto-mode/references/claude-execution.md) with the calling workflow's role and worker kind.
+For any delegates, use [Claude Code execution](../poteto-mode/references/execution.md) with the calling workflow's role and worker kind.
 
 When the task matches no playbook, design one. The deliverable before any code is the workflow itself: a sequence of phases that scales rigor to the task, runs the scientific method, and leaves a decision trail a human can audit after stepping away.
 

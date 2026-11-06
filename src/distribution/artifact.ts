@@ -13,7 +13,7 @@ import {
   verifyDistributionPolicy,
 } from './policy.ts';
 import type { DistributionPolicy } from './policy.ts';
-import { verifyPatches } from './patches.ts';
+import { isPatchName, verifyPatches } from './patches.ts';
 import type { PatchRecord } from './patches.ts';
 import {
   copyTree,
@@ -112,6 +112,15 @@ export async function verifyPluginArtifact(
     !value.version ||
     !Array.isArray(value.entries) ||
     !Array.isArray(value.patches) ||
+    value.patches.some(
+      (patch: PatchRecord) =>
+        !patch ||
+        !isPatchName(patch.name) ||
+        typeof patch.sha256 !== 'string' ||
+        !/^[a-f0-9]{64}$/.test(patch.sha256),
+    ) ||
+    new Set(value.patches.map((patch: PatchRecord) => patch.name)).size !==
+      value.patches.length ||
     typeof value.treeSha256 !== 'string'
   )
     throw new Error('Invalid artifact.json.');

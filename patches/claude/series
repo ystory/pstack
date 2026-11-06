@@ -13,3 +13,12 @@
 0013-choice-first-setup.patch
 0014-review-binding-fixes.patch
 0015-restore-host-workflow-fidelity.patch
+0016-share-workflow-bodies.patch
+shared/0001-portable-workflows.patch
+0017-clarify-execution-policy.patch
+shared/0002-receiving-worker-context.patch
+shared/0003-clarify-receiving-aliases.patch
+0018-receiving-executor-context.patch
+0019-document-receiving-context.patch
+0020-native-async-mapping.patch
+shared/0004-preserve-native-async.patch

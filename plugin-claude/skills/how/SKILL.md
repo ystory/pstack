@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
 
-Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Every seat uses worker kind `read-only` and a no-edits brief. Explorers resolve `how explorer`; every explainer resolves `how explainer`. Use the selected executor, exact model, supported task effort, and its returned `agentType` for native Claude seats. A rejected model follows the execution binding and the closest valid model of the same family from the error. Disclose each fallback. Parent aliases bind the actual native parent. Pass absolute paths to this skill and the selected templates.
+Read [Host execution](../poteto-mode/references/execution.md) before delegation. Keep every explorer and explainer read-only and include a no-edits instruction in every brief. Use the binding's `read-only` worker kind where available, otherwise its `general-purpose` kind. Explorers resolve `how explorer`; every explainer resolves `how explainer` through the sibling setup helper as the binding specifies. Preserve the selected executor, model, task effort, and native role or returned agent identity. Parent aliases use the actual native parent. Follow the binding's rejected-model rules and disclose fallbacks. Pass absolute paths to this skill and the selected templates. Pick reasoning and speed through poteto-mode's Subagents guidance.
 
 ## 1. Assess complexity
 
@@ -21,7 +21,7 @@ When in doubt, take the simple path.
 
 ## 2. Explore (complex only)
 
-Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers in a single message, each with `references/explorer-prompt.md` and its angle filled in.
+Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers without waiting between them, each with `references/explorer-prompt.md` and its angle filled in.
 
 ## 3. Synthesize (complex only)
 

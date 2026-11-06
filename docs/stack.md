@@ -15,7 +15,7 @@ corepack pnpm verify
 
 Use affected checks while iterating. Documentation-only changes need formatting and link checks; distribution changes need source, patch, and artifact verification. Run the full `verify` pipeline before preparing a release artifact. Read [package.json](../package.json) for individual check scripts and run `node dist/cli.js --help` for maintainer CLI options.
 
-The code is a single ESM TypeScript package with no Node runtime dependencies. `src/cli.ts` handles commands, `src/upstream/` handles source contracts and candidates, and `src/distribution/` handles policy, patches, artifacts, and marketplace selection. TypeScript emits the distributable JavaScript; `node:test` and Prettier provide tests and formatting. The formatting configuration excludes imported snapshots and target trees. Each product's adaptation series owns its output.
+The code is a single ESM TypeScript package with no Node runtime dependencies. `src/cli.ts` handles commands, `src/upstream/` handles source contracts and candidates, and `src/distribution/` handles policy, patches, artifacts, and marketplace selection. TypeScript emits the distributable JavaScript; `node:test` and Prettier provide tests and formatting. The formatting configuration excludes imported snapshots and target trees. Each product's series orders its host adaptations and explicit references to shared patches.
 
 ## Record an adaptation
 
@@ -36,6 +36,21 @@ node dist/cli.js verify-patches --target all
 Replace `NNNN` with the next unused four-digit number in the selected target's series. Codex uses `patches/series`; Claude uses `patches/claude/series`. Omitting `--target` retains the Codex command behavior. `--paths` accepts comma-separated files or directories relative to the selected target tree; omitting it includes all unrecorded changes. Existing patches are not overwritten. Replay applies the ordered series to a temporary copy of the combined upstream baseline and must reproduce every plugin byte, file type, and permission.
 
 Before publishing changes to `plugin-claude/`, increment the version in `plugin-claude/.claude-plugin/plugin.json`. Claude's native updater can retain cached plugin bytes when only the Git revision changes. Record the version bump in a new Claude patch. The Codex manifest and maintainer package have independent versions.
+
+## Record a shared adaptation
+
+How, its explainer template, and No comments have common workflow bodies. Their source changes live once under `patches/shared/`; both target series reference the same `shared/NNNN-name.patch` at the intended point. Each target's `skills/poteto-mode/references/execution.md` supplies native calls, registration, paths, and worker transports. Personal preferences remain independent.
+
+Edit a common file in one target, then record that edit once:
+
+```sh
+node dist/cli.js generate-shared-patch --from codex --name NNNN-next-shared-adaptation.patch --paths skills/how/SKILL.md
+node dist/cli.js verify-patches --target all
+```
+
+`--from`, `--name`, and `--paths` are required. `--from claude-code` reads the Claude output instead. This selects the edited input, not a preferred host or model. The command verifies one patch against both replayed inputs, materializes the other output, and appends both series references. Unrelated working changes remain. A conflicting unrecorded edit in the selected other files is reported before the patch is recorded.
+
+Commit the shared patch, both series references, and both materialized outputs. Keep native changes in target patches. Initial transfer uses target-specific deletion patches followed by one shared addition, so different old host bodies do not have to match. Those full-file deletion inputs also expose upstream changes during candidate replay. Do not replace the locked original or add a third whole skill tree.
 
 ## Build and select an artifact
 
@@ -117,7 +132,7 @@ Keep candidates, artifacts, and verification receipts in ignored `.local/` stora
    node dist/cli.js regenerate-patches --candidate "$PWD/.local/candidates/update" --output "$PWD/.local/regenerated-patches"
    ```
 
-   Read `regeneration-report.json` and every changed patch before copying the generated series into the candidate's `patches/`. The helper groups changes by existing patch paths and can add a final remainder patch. Shared paths do not justify moving a later adaptation into an earlier patch.
+   Read `regeneration-report.json` and every changed patch before copying the generated series into the candidate's `patches/`. For local-only candidates, the helper groups changes by existing patch paths. Shared candidates preserve per-patch intermediate file states and regenerate each shared node once for both targets. Edited shared bodies stay in shared patches. An original patch that still produces its intended node output retains its exact bytes. If a suffix cannot be reversed, an actually replayable original prefix can establish its prior state. If neither establishes the state, the helper reports the exact node and paths instead of inferring intent. Resolve that patch in the reviewed candidate before rerunning. Unowned changes can become an explicit target remainder. Shared paths do not justify moving a later adaptation into an earlier patch.
 
 6. Verify the candidate's source policy and integrity, then verify patch replay and a fresh artifact:
 

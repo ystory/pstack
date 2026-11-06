@@ -130,9 +130,7 @@ test('actual readonly callers retain native file-tool restrictions and Why and R
     assert.ok((await text(caller)).includes('`general-purpose`'), caller);
     assert.ok(!(await text(caller)).includes('kind `read-only`'), caller);
   }
-  const binding = await text(
-    'skills/poteto-mode/references/claude-execution.md',
-  );
+  const binding = await text('skills/poteto-mode/references/execution.md');
   assert.match(binding, /git status/);
   assert.match(binding, /Bash/);
 });

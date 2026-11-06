@@ -982,8 +982,38 @@ lines.on('close', () => process.exit(0));
     ],
     temporaryRoot,
   );
+  const commonFile = 'skills/how/SKILL.md';
+  const editedCommon = path.join(packageRoot, 'plugin-claude', commonFile);
+  const commonBytes = `${await readFile(editedCommon, 'utf8')}\nPackaged shared-authoring fixture.\n`;
+  await writeFile(editedCommon, commonBytes);
+  run(
+    process.execPath,
+    [
+      path.join(packageRoot, cliPath),
+      'generate-shared-patch',
+      '--from',
+      'claude-code',
+      '--name',
+      '9000-package-common.patch',
+      '--paths',
+      commonFile,
+    ],
+    temporaryRoot,
+  );
+  if (
+    (await readFile(path.join(packageRoot, 'plugin', commonFile), 'utf8')) !==
+    commonBytes
+  )
+    throw new Error(
+      'Packaged shared command did not materialize the other output.',
+    );
+  run(
+    process.execPath,
+    [path.join(packageRoot, cliPath), 'verify-patches', '--target', 'all'],
+    temporaryRoot,
+  );
   console.log(
-    'Packed artifact verified: both standalone host plugins, native marketplace manifests, independent patch replay and pinned runtime, isolated setup lifecycle, fresh unresolved model choices, parent fallback cardinality, the nondefault Claude detect-to-run chain, and both external CLI stub transports without source files or development dependencies. User settings are preserved. The stubs do not prove authentication or live model execution. Native global install was not run.',
+    'Packed artifact verified: both standalone host plugins, native marketplace manifests, independent patch replay, common authoring materialization and pinned runtime, isolated setup lifecycle, fresh unresolved model choices, parent fallback cardinality, the nondefault Claude detect-to-run chain, and both external CLI stub transports without source files or development dependencies. User settings are preserved. The stubs do not prove authentication or live model execution. Native global install was not run.',
   );
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });

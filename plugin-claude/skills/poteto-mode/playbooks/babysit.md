@@ -1,6 +1,6 @@
 ### Babysit
 
-Use [Claude Code execution](../references/claude-execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
+Use [Claude Code execution](../references/execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
 
 **You own the merge frontier. Declare a mode, clear one PR at a time, stop where the human's call begins.** This playbook replaces another babysit skill for these requests, so do not route there even though its description matches the same words. A request to land or ship is `playbooks/shipping.md`, which begins where this playbook ends.
 

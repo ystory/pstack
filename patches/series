@@ -32,3 +32,12 @@
 0032-review-binding-fixes.patch
 0033-native-binding-limits.patch
 0034-restore-host-workflow-fidelity.patch
+0035-share-workflow-bodies.patch
+shared/0001-portable-workflows.patch
+0036-clarify-execution-policy.patch
+shared/0002-receiving-worker-context.patch
+shared/0003-clarify-receiving-aliases.patch
+0037-receiving-executor-context.patch
+0038-document-receiving-context.patch
+0039-async-context-version.patch
+shared/0004-preserve-native-async.patch

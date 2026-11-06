@@ -21,7 +21,7 @@ Check `node --version`. Helpers require Node.js 24.12 or newer. Codex registrati
 
 For selected Claude Code workers, run the sibling `poteto-mode/scripts/run-claude.mjs detect`. Report its executable, version, compatibility, safe auth status, and guidance. If missing, guide the authorized CLI installation. If logged out, guide human login in the user's terminal. Rerun detection afterward. Reuse existing authentication and configuration. Never copy credentials into a test home or setup file. Detection does not install tools, authenticate, or prove model access. If login status cannot be established, inspect the selected CLI's normal status flow with the user before choosing its models.
 
-The [execution binding](../poteto-mode/references/codex-execution.md) describes runtime capability checks. A global CLI effort list proves syntax only. It supplies no default model or account entitlement.
+The [execution binding](../poteto-mode/references/execution.md) describes runtime capability checks. A global CLI effort list proves syntax only. It supplies no default model or account entitlement.
 
 ## 3. Load choices and collect supported models
 
@@ -44,7 +44,7 @@ Use an already specified budget. Otherwise offer these original four targets.
 - `medium` targets `high` reasoning.
 - `small` targets `medium` reasoning.
 
-`scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_JSON` previews supported efforts for saved choices. It preserves model IDs, executors, ordered duplicates, and aliases. Choose the highest supported effort at or below the target. The preview does not write. Parent aliases keep the parent's actual settings. A consuming workflow's explicit task effort still applies.
+`scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_JSON` previews supported efforts for saved choices. It preserves model IDs, executors, ordered duplicates, and aliases. Choose the highest supported effort at or below the target. The preview does not write. Parent aliases keep the parent's actual model and effort. Task-level effort adjustments apply to exact model selections.
 
 Keep these original role names and initial counts.
 
@@ -80,9 +80,9 @@ Read the receipt's file-based `agents`, `metadataRoles`, and config declaration 
 
 After registration succeeds, run the same model write without `--dry-run`. A stale hash requires reloading and reviewing current state. Saving is atomic and identical bytes stay untouched. Both native and mixed settings use the current schema 1 under the new identity.
 
-## 6. Verify a first task
+## 6. Finish setup
 
-Report the saved path, budget, selected executors, registration, and source evidence. Start a fresh Codex session so normal native discovery loads the roles. Use the installed namespace with a small task and the selected worker. Record requested and observed model separately, and distinguish saved settings, fixture evidence, native CLI execution, and Desktop UI evidence. Installation or helper success alone does not prove worker execution.
+Report the saved path, budget, selected executors, registration, and source evidence. Explain that a fresh Codex session loads the registered roles. When the user requests execution verification, use the installed namespace with a small task and the selected worker. Record requested and observed model separately, and distinguish saved settings, fixture evidence, native CLI execution, and Desktop UI evidence. Saving setup does not itself verify worker execution.
 
 ## Optional project verification
 

@@ -4,7 +4,7 @@ Use this binding wherever a playbook says to loop. The predicate, event wake, fa
 
 ## Arm
 
-Record the done predicate, authorized scope, standing orders, current branch/head, trail, and resume point in the run's local task store. Use the installed absolute paths from [Codex execution](codex-execution.md) for the playbook and helpers. Re-read those paths each audit. When a skill is owned by the current project and tracked on its trunk, read its actual repository-relative path from trunk; an installed plugin is a versioned bundle, not a `pstack/` directory inside the target repository.
+Record the done predicate, authorized scope, standing orders, current branch/head, trail, and resume point in the run's local task store. Use the installed absolute paths from [Codex execution](execution.md) for the playbook and helpers. Re-read those paths each audit. When a skill is owned by the current project and tracked on its trunk, read its actual repository-relative path from trunk; an installed plugin is a versioned bundle, not a `pstack/` directory inside the target repository.
 
 For an event, start one watcher with `poteto-agent` instructions for a playbook step, or an execution session, using **Codex execution** for its selected model and parent-alias binding. Its command waits for the event and reports the observed state. For GitHub PRs, run the installed `scripts/watch-pr/watch-pr`; for Origin, use its watch commands. An active coordinator waits through native agent or execution-session tools, drains the result, acts on that verdict, and rearms after each push wave or acted-on verdict. The watcher owns polling. Keep the coordinator out of a second sleep loop.
 

@@ -1,0 +1,48 @@
+diff --git a/skills/poteto-mode/scripts/run-claude.mjs b/skills/poteto-mode/scripts/run-claude.mjs
+index a753a9f..b119ca3 100644
+--- a/skills/poteto-mode/scripts/run-claude.mjs
++++ b/skills/poteto-mode/scripts/run-claude.mjs
+@@ -21,6 +21,8 @@ import {
+   versionAtLeast,
+ } from './claude-capabilities.mjs';
+ 
++const EXECUTOR = 'claude-code';
++
+ const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+ const USAGE = `Usage:
+   node run-claude.mjs detect [--executable /absolute/claude]
+@@ -141,7 +143,7 @@ async function detect(options) {
+     )
+       throw error;
+     return {
+-      executor: 'claude-code',
++      executor: EXECUTOR,
+       available: false,
+       compatible: false,
+       modelExecutionVerified: false,
+@@ -190,7 +192,7 @@ async function detect(options) {
+   const loggedIn = typeof auth?.loggedIn === 'boolean' ? auth.loggedIn : null;
+   const method = auth?.authMethod ?? auth?.method;
+   return {
+-    executor: 'claude-code',
++    executor: EXECUTOR,
+     available: true,
+     auth: {
+       verified: loggedIn !== null,
+@@ -278,6 +280,7 @@ async function run(options) {
+     ...context.map(
+       (file) => `## ${file.kind}: ${file.path}\n\n${file.content}`,
+     ),
++    `Receiving executor is ${EXECUTOR}.\n\n${await readFile(new URL('../references/worker-context.md', import.meta.url), 'utf8')}`,
+     `## Assigned task\n\n${task}`,
+   ].join('\n\n');
+   if (contains(await realpath(PLUGIN_ROOT), await canonicalPath(runDir))) {
+@@ -307,7 +310,7 @@ async function run(options) {
+     args.push('--allowedTools', tool);
+   }
+   const request = {
+-    executor: 'claude-code',
++    executor: EXECUTOR,
+     executable,
+     args,
+     cwd,

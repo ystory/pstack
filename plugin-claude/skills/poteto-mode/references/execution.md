@@ -24,7 +24,7 @@ Validate required different-model or different-family relationships before the a
 
 ## Native Claude workers
 
-For `executor: "claude-code"`, use the native `Agent` tool with the returned `agentType` as `subagent_type`. Setup owns generated definitions for each exact Claude model and worker kind. Saved exact selections omit invocation model overrides. Pass supported per-invocation `effort` for an exact model. Inherited aliases omit both overrides. Preserve the returned identity and inspect actual settings when the host exposes them.
+For `executor: "claude-code"`, use the exposed native `Agent` or `Task` delegation tool with the returned `agentType` as `subagent_type`, following its actual schema. Setup owns generated definitions for each exact Claude model and worker kind. Saved exact selections omit invocation model overrides. Pass supported per-invocation `effort` for an exact model. Inherited aliases omit both overrides. Preserve the returned identity and inspect actual settings when the host exposes them.
 
 The [Claude subagent reference](https://code.claude.com/docs/en/sub-agents) documents exact model IDs in definitions, invocation effort, completion, and stateful messaging. Host policy can substitute models. Requested settings are not observed settings.
 
@@ -32,7 +32,7 @@ The brief names the goal, owned files or slice, forbidden changes, assigned chec
 
 Pass the absolute `poteto-mode/SKILL.md` path to every poteto-agent. Its first action is an actual full Read of that file, including the Principles index. Copying the body into a prompt does not establish that read. Require reads of applied principle leaves as upstream specifies, and inspect the worker transcript when chain-following matters.
 
-Use the current Agent schema's asynchronous controls. Current Claude subagents normally run in the background. Launch independent seats without waiting between them and keep every agent ID. Native completion delivers a result. Use the exposed result or task retrieval tool when needed. An acknowledgement or completed status without its report is not a result. A concurrency limit queues work, not permission to omit required seats.
+Use the exposed native `Agent` or `Task` schema's asynchronous controls. Set `run_in_background: true` when that field is supported, including a steer or resume, as upstream requires. Follow the actual host's asynchronous mechanism when the field differs instead of assuming a background default. Launch independent seats without waiting between them and keep every agent ID. Native completion delivers a result. Use the exposed result or task retrieval tool when needed. An acknowledgement or completed status without its report is not a result. A concurrency limit queues work, not permission to omit required seats.
 
 ## Codex workers
 
@@ -53,6 +53,8 @@ Use `--role` for the selected original role body. `general-purpose` seats pass t
 Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. Never resume the latest thread or infer identity from a directory name. The runner uses the existing Codex CLI and authentication. Claude tools, MCP servers, conversation history, and permissions do not automatically become Codex tools or state. Verify the external executor has the capabilities needed for its assigned task.
 
 Track the native Bash task ID and collect its terminal outcome through the host's task-result controls. Read `<run-dir>/result.json` and `<run-dir>/final.txt` for the retained receipt and final answer. Bash stdout can truncate. Inspect the actual exit outcome, exact Codex thread identity, terminal status, result, requested and observed settings, and evidence paths. A final-answer item before a later failed terminal event is not success. Read the retained prompt, request, progress, diagnostics, and result when investigating failure. Review the worker's files and verification evidence under the calling workflow's rules.
+
+The outbound runner automatically includes the shared [receiving-worker execution context](worker-context.md) in its task payload. It keeps the launching configuration authority and distinguishes native receiving tools from parent launch recipes. The task still supplies its original role, selected model and effort, scope, and permissions.
 
 ## Worktrees and state transfer
 

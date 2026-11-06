@@ -1,0 +1,13 @@
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 376629f..7794a30 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -73,6 +73,8 @@ The runner invokes the existing Claude Code installation with `claude -p --model
+ 
+ Start each independent seat or new round with a distinct run directory and a fresh Claude session. Only the stateful reuse exception in poteto-mode permits `--resume "<exact-session-uuid>"` on a subsequent run. Pass the original `request.json.model` explicitly when resuming, including for a nondefault model. A running command is asynchronous work; track its command identity and collect its terminal receipt. Do not wait for one independent seat before launching the next.
+ 
++The outbound runner automatically includes the shared [receiving-worker execution context](worker-context.md) in its task payload. It keeps the launching configuration authority and distinguishes native receiving tools from parent launch recipes. The task still supplies its original role, selected model and effort, scope, and permissions.
++
+ ## Local worktrees
+ 
+ Workers run on the current host through their selected executor. Give each independent worker an exclusive Git worktree and branch when it writes code. Use native managed-worktree tools when exposed, waiting for creation to complete, or `git worktree add` with an explicit base ref and a local `codex/` branch. The worker's prompt names its absolute checkout, branch, and resolved starting SHA; every shell command runs in that checkout. Keep the coordinator's checkout separate.

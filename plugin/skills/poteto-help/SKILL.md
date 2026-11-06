@@ -43,7 +43,7 @@ When the model rule is missing and it matters, ask whether the user wants to pic
 
 If cost is the worry, say where the tokens go and how to spend fewer. pstack spends extra tokens on subagents and review panels. Rerun `$pstack-codex:setup-pstack` and pick a smaller budget or cheaper models. A role set to `auto` or `inherit-parent` runs on the chat's actual model through the parent-selection binding in **Codex execution**; omitted native parameters alone do not prove inheritance. A shorter panel list runs fewer subagents, one for each entry. Save `$pstack-codex:poteto-mode` for work that needs rigor.
 
-This distribution uses saved worker choices or the actual native parent for unconfigured roles. Setup chooses executors before checking their CLI and login requirements, then models, roles, and budget. Shared role configuration, project-scoped history, and event-watch/heartbeat continuation bind workers to this host. Read [Codex execution](../poteto-mode/references/codex-execution.md) for these bindings and permission boundaries. Worktrees replace cloud placement and share machine resources. Different-model and different-family requirements apply at the workflow step that needs them.
+This distribution uses saved worker choices or the actual native parent for unconfigured roles. Setup chooses executors before checking their CLI and login requirements, then models, roles, and budget. Shared role configuration, project-scoped history, and event-watch/heartbeat continuation bind workers to this host. Read [Codex execution](../poteto-mode/references/execution.md) for these bindings and permission boundaries. Worktrees replace cloud placement and share machine resources. Different-model and different-family requirements apply at the workflow step that needs them.
 
 ## Start a task with `$pstack-codex:poteto-mode`
 
@@ -53,7 +53,7 @@ Load the mode for each task:
 - Invoke `$pstack-codex:poteto-mode` explicitly at the start of each task. Its instructions remain part of this task's context; a fresh task gets a fresh invocation.
 - Codex supports explicit skill references, not Cursor Custom Modes. Persisting this mode in project guidance is a separate activation choice.
 
-Mid-chat, "new task" makes the mode match a fresh playbook. `$pstack-codex:poteto-mode` already uses `poteto-agent` for its playbook delegates. For a subagent of your own, select `agent_type: "poteto-agent"` on the native path or pass its original instruction file on the Claude Code path through [Codex execution](../poteto-mode/references/codex-execution.md).
+Mid-chat, "new task" makes the mode match a fresh playbook. `$pstack-codex:poteto-mode` already uses `poteto-agent` for its playbook delegates. For a subagent of your own, select `agent_type: "poteto-agent"` on the native path or pass its original instruction file on the Claude Code path through [Codex execution](../poteto-mode/references/execution.md).
 
 ## Pick a skill
 

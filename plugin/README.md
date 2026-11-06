@@ -216,7 +216,7 @@ help:              $pstack-codex:poteto-help which skill should i use to review 
 
 [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) runs in the chat that receives it. that chat owns the playbook, the todo list, and every subagent spawn.
 
-pstack also ships [`poteto-agent`](./agents/poteto-agent.md) as the delegate wrapper. Its original instructions read `poteto-mode` in full, including the inline principles index, before doing work. Setup registers its native Codex definition; custom-type dispatch requires a runtime that exposes that capability. The [Codex execution contract](./skills/poteto-mode/references/codex-execution.md) defines the supported delegation path.
+pstack also ships [`poteto-agent`](./agents/poteto-agent.md) as the delegate wrapper. Its original instructions read `poteto-mode` in full, including the inline principles index, before doing work. Setup registers its native Codex definition; custom-type dispatch requires a runtime that exposes that capability. The [Codex execution contract](./skills/poteto-mode/references/execution.md) defines the supported delegation path.
 
 [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) and [`poteto-agent`](./agents/poteto-agent.md) route through the same wrapper.
 
@@ -262,7 +262,7 @@ twenty-four short skills, one principle each. `poteto-mode` indexes them inline 
 
 [`$pstack-codex:deslop`](./skills/deslop/SKILL.md), [`control-cli`](./skills/control-cli/SKILL.md), and [`control-ui`](./skills/control-ui/SKILL.md) are bundled from cursor-team-kit with its [MIT license](./licenses/cursor-team-kit/LICENSE). Their original sources are tracked and updated with this distribution.
 
-The [Claude Code worker guide](./docs/harness/claude-code.md) describes running selected Claude workers from a Codex parent. This distribution uses its [Claude CLI bridge](./skills/poteto-mode/references/codex-execution.md). The separate `pstack-cc` distribution supports Claude Code as the parent.
+The [Claude Code worker guide](./docs/harness/claude-code.md) describes running selected Claude workers from a Codex parent. This distribution uses its [Claude CLI bridge](./skills/poteto-mode/references/execution.md). The separate `pstack-cc` distribution supports Claude Code as the parent.
 
 Use the installed `$skill-creator` for skill authoring. Inside `poteto-mode`, the [babysit playbook](./skills/poteto-mode/playbooks/babysit.md) handles PR status requests.
 

@@ -1,6 +1,6 @@
 ### Bug fix
 
-Read [Claude Code execution](../references/claude-execution.md). Resolve `bug-fix` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
+Read [Claude Code execution](../references/execution.md). Resolve `bug-fix` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
 
 **You own this task. Plan, review, verify.** Delegate investigation and the fix to subagents, stay in the lead. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
 

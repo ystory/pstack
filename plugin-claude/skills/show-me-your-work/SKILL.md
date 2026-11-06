@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Show me your work
 
-Read [Claude Code execution](../poteto-mode/references/claude-execution.md) and resolve `judgment and prose` with worker kind `general-purpose` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
+Read [Claude Code execution](../poteto-mode/references/execution.md) and resolve `judgment and prose` with worker kind `general-purpose` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
 
 Keep one canonical log.
 

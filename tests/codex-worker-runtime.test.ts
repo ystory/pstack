@@ -86,6 +86,18 @@ async function fixture(t: TestContext) {
     ),
     runner,
   );
+  const workerContext = path.join(
+    plugin,
+    'skills/poteto-mode/references/worker-context.md',
+  );
+  await mkdir(path.dirname(workerContext), { recursive: true });
+  await cp(
+    path.join(
+      project,
+      'plugin-claude/skills/poteto-mode/references/worker-context.md',
+    ),
+    workerContext,
+  );
   const executable = path.join(root, 'fake codex');
   await writeFile(executable, fakeSource, { mode: 0o755 });
   const cwd = path.join(root, 'assigned worktree');
@@ -144,7 +156,18 @@ async function fixture(t: TestContext) {
       .trim()
       .split('\n')
       .map((line) => JSON.parse(line));
-  return { root, runner, executable, cwd, env, args, run, receipt, events };
+  return {
+    workerContext,
+    root,
+    runner,
+    executable,
+    cwd,
+    env,
+    args,
+    run,
+    receipt,
+    events,
+  };
 }
 
 test('locked selected source has a complete executable import closure and exact source mappings', async () => {
@@ -440,5 +463,41 @@ test('explicit sandbox selection is recorded without changing the default or wri
     f.run('invalid-access', 'Synthetic task.', ['--sandbox', 'invented'])
       .status,
     1,
+  );
+});
+
+test('Codex transport injects its receiving executor and the bundled shared context', async (t) => {
+  const f = await fixture(t);
+  await writeFile(f.workerContext, 'Shared receiving fixture context.');
+  const result = f.run('receiving-context');
+  assert.equal(result.status, 0, result.stderr);
+  const request = JSON.parse(
+    await readFile(path.join(f.root, 'receiving-context/request.json'), 'utf8'),
+  );
+  const prompt = await readFile(
+    path.join(f.root, 'receiving-context/prompt.txt'),
+    'utf8',
+  );
+  assert.equal(request.executor, 'codex');
+  assert.deepEqual(request.requested, {
+    model: 'selected-model',
+    effort: 'xhigh',
+  });
+  assert.equal(request.sandbox, 'read-only');
+  const events = await f.events();
+  const start = events.find(
+    (event) => event.request?.method === 'thread/start',
+  );
+  const turn = events.find((event) => event.request?.method === 'turn/start');
+  assert.equal(start.request.params.sandbox, 'read-only');
+  assert.equal(turn.request.params.model, 'selected-model');
+  assert.equal(turn.request.params.effort, 'xhigh');
+  assert.equal(turn.request.params.input[0].text, prompt);
+  assert.ok(prompt.includes('Full role instructions.'));
+  assert.ok(prompt.includes(`Receiving executor is ${request.executor}.`));
+  assert.ok(prompt.includes('Shared receiving fixture context.'));
+  assert.ok(
+    prompt.indexOf('Shared receiving fixture context.') <
+      prompt.indexOf('Task\n\n'),
   );
 });

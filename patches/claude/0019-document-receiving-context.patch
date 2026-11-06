@@ -1,0 +1,13 @@
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index bf895ef..9c6f8ce 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -54,6 +54,8 @@ Each independent seat and new round gets a unique run directory and fresh Codex
+ 
+ Track the native Bash task ID and collect its terminal outcome through the host's task-result controls. Read `<run-dir>/result.json` and `<run-dir>/final.txt` for the retained receipt and final answer. Bash stdout can truncate. Inspect the actual exit outcome, exact Codex thread identity, terminal status, result, requested and observed settings, and evidence paths. A final-answer item before a later failed terminal event is not success. Read the retained prompt, request, progress, diagnostics, and result when investigating failure. Review the worker's files and verification evidence under the calling workflow's rules.
+ 
++The outbound runner automatically includes the shared [receiving-worker execution context](worker-context.md) in its task payload. It keeps the launching configuration authority and distinguishes native receiving tools from parent launch recipes. The task still supplies its original role, selected model and effort, scope, and permissions.
++
+ ## Worktrees and state transfer
+ 
+ Native `isolation: "worktree"` is available when its base and copy behavior meet the workflow. Otherwise create an explicit Git worktree at the resolved base commit before dispatch. Every independent writer owns a branch and checkout. A Cursor cloud-agent instruction maps to an exclusive local worktree, not a new machine. For a task that needs a remote host, use a real configured remote environment and identify it.

@@ -28,7 +28,7 @@ Skip Phase A only when the work is genuinely greenfield with no surrounding syst
 
 Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt.
 
-Resolve the ordered `architect runners` list through [Claude Code execution](../poteto-mode/references/claude-execution.md), in place of `arena runners`. Preserve every seat, including duplicates and parent aliases. Use worker kind `general-purpose` and pass this skill's absolute path plus `references/runner-prompt.md`. Alias, rejected-entry, and dropout handling follow Arena Phase A.
+Resolve the ordered `architect runners` list through [Claude Code execution](../poteto-mode/references/execution.md), in place of `arena runners`. Preserve every seat, including duplicates and parent aliases. Use worker kind `general-purpose` and pass this skill's absolute path plus `references/runner-prompt.md`. Alias, rejected-entry, and dropout handling follow Arena Phase A.
 
 Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
 

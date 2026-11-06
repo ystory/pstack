@@ -39,7 +39,7 @@
     {
       "path": "skills/automate-me/SKILL.md",
       "classification": "configured",
-      "roles": ["judgment and prose"],
+      "roles": ["swarm workers"],
       "workerKind": "general-purpose",
       "binding": "skills/poteto-mode/references/claude-execution.md"
     },
@@ -288,7 +288,7 @@
     {
       "path": "skills/recall/SKILL.md",
       "classification": "configured",
-      "roles": ["judgment and prose"],
+      "roles": ["swarm workers"],
       "workerKind": "general-purpose",
       "binding": "skills/poteto-mode/references/claude-execution.md"
     },

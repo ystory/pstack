@@ -1,0 +1,163 @@
+diff --git a/.claude-plugin/plugin.json b/.claude-plugin/plugin.json
+index f3fcea9..7e44923 100644
+--- a/.claude-plugin/plugin.json
++++ b/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pstack-cc",
+-  "version": "0.1.0-dev.7",
++  "version": "0.1.0-dev.8",
+   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+   "author": {
+     "name": "pstack contributors"
+diff --git a/skills/automate-me/SKILL.md b/skills/automate-me/SKILL.md
+index a5a042e..b6886ce 100644
+--- a/skills/automate-me/SKILL.md
++++ b/skills/automate-me/SKILL.md
+@@ -28,7 +28,7 @@ Update mode changes the rest of the flow:
+ 
+ ### 1. Mine their history
+ 
+-Read [Claude history](../recall/references/claude-history.md). Use the project-scoped helper to list and read only the active repository's sessions and worktrees. Confirm exact session IDs and skip unrelated chats. For delegated mining, resolve `judgment and prose` with worker kind `general-purpose` through [Claude Code execution](../poteto-mode/references/claude-execution.md).
++Read [Claude history](../recall/references/claude-history.md). Use the project-scoped helper to list and read only the active repository's sessions and worktrees. Confirm exact session IDs and skip unrelated chats. For delegated mining, resolve `swarm workers` with worker kind `general-purpose` through [Claude Code execution](../poteto-mode/references/claude-execution.md).
+ 
+ Survey recent agent conversations within that scope for recurring patterns. Run multiple parallel subagents across slices of history (e.g. last 2-4 weeks, split into 3 slices so each has enough material). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill. Each slice mining subagent reads transcripts from the workspace-scoped path the parent provides, looks for the signals below, and returns a short structured list of patterns it saw with evidence pointers. Default signals worth hunting:
+ 
+@@ -45,7 +45,7 @@ Cross-check across slices before elevating a signal. Patterns seen in 2+ slices
+ 
+ Mining misses intent that hasn't come up yet. Use the `AskUserQuestion` tool (structured multi-choice) rather than asking the user to type from scratch.
+ 
+-Shape: one or two questions with 4-6 options each, `allow_multiple: true` for category questions. Start broad ("Which areas matter most?"), then follow up on selected areas with specific options. After the structured rounds, one free-form chat question catches anything the options missed.
++Shape: one or two questions with 2-4 options each. Use `multiSelect: true` for category questions and retain the free-form answer. Start broad ("Which areas matter most?"), then follow up on selected areas with specific options. After the structured rounds, one free-form chat question catches anything the options missed.
+ 
+ Don't dump 20 questions.
+ 
+diff --git a/skills/no-comments/SKILL.md b/skills/no-comments/SKILL.md
+index 86bdc2d..6b0c74c 100644
+--- a/skills/no-comments/SKILL.md
++++ b/skills/no-comments/SKILL.md
+@@ -16,4 +16,9 @@ Use the caller's files or diff. Otherwise use the current diff against the base
+ 
+ ## Steps
+ 
+-1. Read [Claude Code execution](../poteto-mode/references/claude-execution.md), resolve `judgment and prose` with worker kind `comment-sicko`, and dispatch its original agent instructions through the selected executor. Pass the scope and use poteto-mode's task effort and speed guidance. Do not restate its rules.
+\ No newline at end of file
++1. Read [Claude Code execution](../poteto-mode/references/claude-execution.md), resolve `judgment and prose` with worker kind `comment-sicko`, and dispatch its original agent instructions through the selected executor. Pass the scope and use poteto-mode's task effort and speed guidance. Do not restate its rules.
++2. Inspect its report and diff. Reject application-code edits, scope escapes, exception-protected deletions, misstated `MUST KILL` reasons, and flags that treat kept intentional code as guilty. Reshape flags on our-code surprises stay actionable. Do not restore those comments. A keep survives only with proof it is about something we cannot change. Audit missed scoped lint and TypeScript suppressions. Correctness or safety suppressions stay actionable `MUST KILL`s. Restore deletions only with exact exceptions and scoped proof. Before accepting thin `IMPORTANT` or `do not remove` kills or keeps, run `/how` or `/why` on their symbol. If a kill is ambiguous, do not restore. If a keep is refuted or still ambiguous, delete it. Revert and rerun one rejected report with the failure named. Reject a second, report it open, and fail `/no-comments`.
++3. Fix trivial accepted flags directly by deleting a dead path, dropping a parameter, or using the real API. If any fix needs a shape, run `/architect` once for the accepted set and surrounding code. Stop at the sketch. Architect shapes. Step 4 implements.
++4. Implement the smallest root-cause fix in scope. Remove every named workaround. If the root cause is out of scope, land the smallest in-scope fix and report the rest open. The **principle-fix-root-causes** and **principle-redesign-from-first-principles** skills guide intent only. Neither authorizes widening the fence nor fixing instances outside it. Never bolt on symptom guards.
++5. Constraint comments say `do not remove`, `do not change wording`, or `talk to X before changing`. Leave keeps about things we cannot change. Offer the cheapest in-scope type, runtime, test, or CI lint. Wait for interactive approval. Unattended and eval require caller pre-approval. If approved, encode then delete. Otherwise delete, report the constraint open, and sketch out-of-scope work.
++6. Report the deletion count, restored comments, reruns, architect sketch, fixes, encoding offers, encodings, unenforced constraints, and other open work.
+diff --git a/skills/poteto-mode/playbooks/autopilot-full.md b/skills/poteto-mode/playbooks/autopilot-full.md
+index 1d7d477..cf1dae2 100644
+--- a/skills/poteto-mode/playbooks/autopilot-full.md
++++ b/skills/poteto-mode/playbooks/autopilot-full.md
+@@ -7,11 +7,11 @@ Read [Claude Code execution](../references/claude-execution.md) and resolve `fea
+ A verdict covers one patch and green CI covers one head. Step 4 runs a full swarm once, and again only for a major change. The patch-id rule in `playbooks/shipping.md` can carry a lane's result, and every new head needs its own green CI.
+ 
+ 1. **The operator's gates come first.** The grant covers only the queue's items, so items the operator names as theirs and PRs outside the queue stop at merge-ready. A request to state the plan is not a go.
+-2. **Spawn one owner per PR, and keep its work where a replacement can find it.** Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). Each owner is an independent worker in an exclusive worktree that builds, opens its PR per `playbooks/opening-a-pr.md`, proves the change on the real artifact, babysits to green per `playbooks/babysit.md`, and merges once steps 4 and 5 clear it.
++2. **Spawn one owner per PR, and keep its work where a replacement can find it.** Resolve, create, and record one absolute local task-store path before spawning owners or arming a heartbeat. Use the caller's explicit path or `<project>/.local/pstack/orchestrate/<project-slug>/` per [Orchestrate's Store layout](orchestrate.md#store-layout). Pass that same path in every owner, replacement, and resume brief and the heartbeat prompt. Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). Each owner is an independent worker in an exclusive worktree that builds, opens its PR per `playbooks/opening-a-pr.md`, proves the change on the real artifact, babysits to green per `playbooks/babysit.md`, and merges once steps 4 and 5 clear it.
+ 
+    Open the PR early so CI and bots run alongside the work. The code is ready only after the slop-strip (the bundled **deslop** skill) and the `/no-comments` pass, so the full swarm runs on finished code. Then rebase onto current trunk and report the code-ready head before self-proof, so verification runs on the base the patch lands on. Report every later head, and merge-ready once self-proof, CI, and babysit are done. Fix rounds stay on that base unless trunk conflicts, breaks CI, or lands a known concurrent change to the same files, because each rebase restarts CI. Run the repo's checks for the touched paths on the committed head before the code-ready push and before a later push that needs a verifier.
+ 
+-   Assume the worker process dies. Soon after starting, push and start a decision trail in the explicitly assigned root agent's local project store per the **show-me-your-work** skill, then push each finished unit before you start the next. Whoever spawns a subagent records its id, state, and a stuck-after runtime from past runs of its kind in that store, so the root can probe it if the parent dies. Force-push only your own branch, with `--force-with-lease` pinned to the SHA you last pushed or took over, and on any push you did not make, stop and report to the root.
++   Assume the worker process dies. Soon after starting, push and start a decision trail in that resolved local task store per the **show-me-your-work** skill, then push each finished unit before you start the next. Whoever spawns a subagent records its id, state, and a stuck-after runtime from past runs of its kind in that store, so the root can probe it if the parent dies. Force-push only your own branch, with `--force-with-lease` pinned to the SHA you last pushed or took over, and on any push you did not make, stop and report to the root.
+ 3. **Run owners in parallel off trunk, never stacked,** so each PR lands on its own.
+ 4. **Swarm-verify once.** A full swarm runs once, at the code-ready head. Another full swarm runs only for new behavior, a redesign, or a large new diff. A rebase, a merge-conflict resolution, or a minor fix gets a single verifier at the new head, and a wording-only change gets none. Fan out independent verifiers at the code-ready SHA per the **swarm** skill. They re-run the gates, prove the load-bearing behavior live on the real surface through its control skill (such as `control-ui` or `control-cli` from `cursor-team-kit`) or a named driver, and audit the diff. The verdict is not clean without the live lane, or before you audit the merge-ready report's receipts, because no lane trusts a claim it has not checked.
+ 
+diff --git a/skills/poteto-mode/playbooks/orchestrate.md b/skills/poteto-mode/playbooks/orchestrate.md
+index 055a298..33486e5 100644
+--- a/skills/poteto-mode/playbooks/orchestrate.md
++++ b/skills/poteto-mode/playbooks/orchestrate.md
+@@ -2,12 +2,16 @@
+ 
+ **You run the program, never the code. Decide which agent does each piece of work, then check what each one produces.** For a standing project handed to one coordinator chat: multi-day, many stacked PRs, dozens to hundreds of subagents, few human turns. One task driven to a predicate is Autonomous run. One ambitious run that needs a bespoke workflow is figure-it-out. Work that one agent could finish inside the session's budget is not a program.
+ 
+-Run it with the native Claude Code tools through [Claude Code execution](../references/claude-execution.md). Keep state in a local project tracker (`notes.md`) and an explicitly named project store under the run's ignored local directory. Watch each PR with real PR and CI event subscriptions when the host exposes them. Native child-completion events are not PR subscriptions. Call no orchestration scripts, run no polling loops, and never relay messages or status between agents. The foreground Codex task command is an executor binding, not an orchestration service. When PR subscriptions are absent, owners report completion and the coordinator checks forge state at workflow checkpoints without inventing a poller.
++Run it with the native Claude Code tools through [Claude Code execution](../references/claude-execution.md). Keep state in a local project tracker (`notes.md`) and the local project store below. Watch each PR with real PR and CI event subscriptions when the host exposes them. Native child-completion events are not PR subscriptions. Call no orchestration scripts, run no polling loops, and never relay messages or status between agents. The foreground Codex task command is an executor binding, not an orchestration service. When PR subscriptions are absent, owners report completion and the coordinator checks forge state at workflow checkpoints without inventing a poller.
++
++#### Store layout
++
++Resolve, create, and record one absolute local task-store path before spawning. Use the caller's explicit path or `<project>/.local/pstack/orchestrate/<project-slug>/`. Keep `notes.md`, briefs, reports, and required evidence there, outside the installed plugin cache, and pass the same absolute path to every owner and replacement. Each mutable file has one writer. Choose the tracker shape for this program.
+ 
+ #### Topology
+ 
+ - **One owner per PR.** The owner is the only writer of its branch and carries the PR from build to merge. Only the owner pushes, rebases, or retargets it. Closing or retargeting a base PR orphans every PR above it, so the owner does that only on your call. You never author or edit code. Conflicted merges, chain rebases, and fixes go to owners.
+-- **A fresh worker for each independent task.** Its kickoff carries everything it needs, including each upstream report it depends on, pasted in full. Workers cannot see their siblings. Assign an exclusive local worktree and branch through Claude Code execution. A worktree does not provide a cloud VM. Keep local transcripts, authentication, simulators, and control checks on their actual host, and separate shared machine resources. If a task truly requires a remote machine, use an available configured remote environment and report its identity. Apply poteto-mode's reasoning and speed guidance.
++- **A fresh worker for each independent task.** Its kickoff carries everything it needs, including the complete upstream reports it depends on. Pass their absolute paths and required skill paths through Claude Code execution, with the applicable constraints in the consolidated brief. Workers do not inherit their siblings' conversations. Assign an exclusive local worktree and branch through Claude Code execution. A worktree does not provide a cloud VM. Keep local transcripts, authentication, simulators, and control checks on their actual host, and separate shared machine resources. If a task truly requires a remote machine, use an available configured remote environment and report its identity. Apply poteto-mode's reasoning and speed guidance.
+ - **A sub-coordinator only when one area has many parallel workers.** It owns that area's workers and kickoffs and sends you one rollup, never raw worker reports. Stop at three levels: you, sub-coordinators, and workers. Keep about ten workers in flight per coordinator, and start the next one as each finishes instead of waiting on a whole batch.
+ - **Use a fresh worker when new work needs a completed worker's built state.** Transfer its checkout and uncommitted changes coherently into an exclusive worktree, or hand off the stopped writer's checkout. A history fork does not copy files or processes. Reuse the existing worker only for poteto-mode's costly-state exception, including a process it still runs. Message a worker only for a follow-up on the same work, never as a status probe.
+ - **Each PR gets a verifier that isn't its author,** on a different model family. The owner merges only on that verifier's pass at the current head.
+diff --git a/skills/poteto-mode/references/delegation-sites.json b/skills/poteto-mode/references/delegation-sites.json
+index 9e09277..1abd6c3 100644
+--- a/skills/poteto-mode/references/delegation-sites.json
++++ b/skills/poteto-mode/references/delegation-sites.json
+@@ -39,7 +39,7 @@
+     {
+       "path": "skills/automate-me/SKILL.md",
+       "classification": "configured",
+-      "roles": ["judgment and prose"],
++      "roles": ["swarm workers"],
+       "workerKind": "general-purpose",
+       "binding": "skills/poteto-mode/references/claude-execution.md"
+     },
+@@ -288,7 +288,7 @@
+     {
+       "path": "skills/recall/SKILL.md",
+       "classification": "configured",
+-      "roles": ["judgment and prose"],
++      "roles": ["swarm workers"],
+       "workerKind": "general-purpose",
+       "binding": "skills/poteto-mode/references/claude-execution.md"
+     },
+diff --git a/skills/recall/SKILL.md b/skills/recall/SKILL.md
+index 26a1a05..e73d6fd 100644
+--- a/skills/recall/SKILL.md
++++ b/skills/recall/SKILL.md
+@@ -16,7 +16,7 @@ Read [Claude history](references/claude-history.md) and use its project-scoped h
+ 
+ 1. Classify, then route. One specific prior chat to resume is the `session-pickup` playbook, not this. Turning habits into a durable skill is `automate-me`. A human-readable summary of your work is a different task. Recall loads working context across recent chats before you act. If the user already gave you a full state capsule (paths, branch, the change), use it and skip the mining.
+ 2. Lock the scope before searching. Pin the window ("recent" is a real range, default the last 7 days), the topic if named, and the workspace (default the active one. Never read another project's transcripts without being asked). State the scope back. Never quietly turn "all" into "recent N".
+-3. Fan out across your chat history. Read [Claude Code execution](../poteto-mode/references/claude-execution.md), resolve `judgment and prose` with worker kind `general-purpose`, and launch parallel workers through their selected executors, each taking a slice of the corpus. Tell every subagent to order candidates by real modification time (`ls -t`) and never by UUID name, grep the topic first and then read only the matching chats and only their relevant regions, and skip the current chat plus obvious noise (subagent, eval, and test chats). Each returns the same schema, one block per chat: topic, the user's goal, decisions, open threads, struggles and corrections, and artifacts (PRs, tickets, branches), each citing the chat UUID. For one or two chats, skip the fan-out and search directly. The raw transcripts stay in the subagents. The main thread gets only their findings. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
++3. Fan out across your chat history. Read [Claude Code execution](../poteto-mode/references/claude-execution.md), resolve `swarm workers` with worker kind `general-purpose`, and launch parallel workers through their selected executors, each taking a slice of the corpus. Tell every subagent to order candidates by real modification time (`ls -t`) and never by UUID name, grep the topic first and then read only the matching chats and only their relevant regions, and skip the current chat plus obvious noise (subagent, eval, and test chats). Each returns the same schema, one block per chat: topic, the user's goal, decisions, open threads, struggles and corrections, and artifacts (PRs, tickets, branches), each citing the chat UUID. For one or two chats, skip the fan-out and search directly. The raw transcripts stay in the subagents. The main thread gets only their findings. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+ 4. Sweep the shared record whenever the topic names a feature, file, subsystem, area, or bug. This is the default, not a judgment call, and "my work on X" does not exempt it. Hand it to the **why** skill's source investigators, but steer their question from "why was this built this way" to "what's the current state, what's been tried and didn't hold, and what are users still reporting". Reuse its per-source playbooks, run the investigators in parallel with the chat-history mining, and inherit its posture: one investigator per source, null results are findings, skip an unavailable MCP and say so. Fold what comes back into the brief. Skip this step only for pure activity recall with no named target ("what did I do this week"), where your own history and live state are the entire answer.
+ 5. Verify against live state. Take the PRs, branches, and tickets that the mining and the sweep surfaced and check them with `git` and `gh`. When the answer hinges on what an agent actually did (the tools it ran, files it read, errors it hit), read the full transcript, not just a trimmed local copy.
+ 6. Write the brief to the contract below. Group by thread. Stay on the named topic.
+diff --git a/skills/setup-pstack/scripts/models.mjs b/skills/setup-pstack/scripts/models.mjs
+index 5209778..35052ad 100644
+--- a/skills/setup-pstack/scripts/models.mjs
++++ b/skills/setup-pstack/scripts/models.mjs
+@@ -36,6 +36,10 @@ const nativeAliases = new Set([
+   'opusplan',
+   'inherit',
+ ]);
++const executorEfforts = {
++  'claude-code': new Set(['low', 'medium', 'high', 'xhigh', 'max']),
++  codex: new Set(efforts),
++};
+ const keyFor = (entry) => `${entry.executor}\0${entry.model}`;
+ 
+ function isNativeAlias(model) {
+@@ -70,6 +74,10 @@ function entryFor(value, role) {
+     );
+   if (typeof value.reasoningEffort !== 'string' || !value.reasoningEffort)
+     throw new Error(`Role ${role} must declare a separate reasoningEffort.`);
++  if (!executorEfforts[executor].has(value.reasoningEffort))
++    throw new Error(
++      `Unsupported reasoning effort for ${executor}: ${value.reasoningEffort}`,
++    );
+   return {
+     executor,
+     model: value.model,
+@@ -189,7 +197,9 @@ export function normalizeCatalog(input, native) {
+       aliases.has(model) ||
+       !Array.isArray(supportedReasoningEfforts) ||
+       !supportedReasoningEfforts.length ||
+-      supportedReasoningEfforts.some((effort) => !efforts.includes(effort))
++      supportedReasoningEfforts.some(
++        (effort) => !executorEfforts[executor].has(effort),
++      )
+     )
+       throw new Error(
+         'Catalog entries require an executor, exact model ID, and supported reasoning efforts.',

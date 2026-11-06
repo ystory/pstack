@@ -1,0 +1,78 @@
+diff --git a/plugin.json b/plugin.json
+index b738746..92c16ba 100644
+--- a/plugin.json
++++ b/plugin.json
+@@ -1,7 +1,7 @@
+ {
+   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+   "name": "pstack-codex",
+-  "version": "0.1.0-dev.4",
++  "version": "0.1.0-dev.5",
+   "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
+   "author": {
+     "name": "Lauren Tan"
+diff --git a/skills/automate-me/SKILL.md b/skills/automate-me/SKILL.md
+index 65db96a..b17e679 100644
+--- a/skills/automate-me/SKILL.md
++++ b/skills/automate-me/SKILL.md
+@@ -16,7 +16,7 @@ This skill orchestrates three others: an inline mining pass (see step 1), Codex'
+ 
+ ### 0. Check for an existing skill
+ 
+-Look recursively for `.agents/skills/**/*-mode/SKILL.md` and `$CODEX_HOME/skills/*-mode/SKILL.md` (`~/.codex/skills` when unset) matching the user's handle. Mode skills can live in a personal category directory (`.agents/skills/<handle>/`), not only at the top level. If one exists, confirm intent with `request_user_input` when the current host exposes it, otherwise ask the same choice in chat and wait (unless they already said "update my skill" or similar):
++Look recursively for matching `*-mode/SKILL.md` files under the project's `.agents/skills/` and the personal roots `~/.agents/skills/` and `$CODEX_HOME/skills/` (`~/.codex/skills/` when unset). Mode skills can live in a personal category directory (`.agents/skills/<handle>/`), not only at the top level. If one exists, confirm intent with `request_user_input` when the current host exposes it, otherwise ask the same choice in chat and wait (unless they already said "update my skill" or similar):
+ 
+ - Update the existing skill (default for repeat runs)
+ - Start fresh (rare, ask why before doing it)
+diff --git a/skills/how/SKILL.md b/skills/how/SKILL.md
+index 5de90a2..38b8860 100644
+--- a/skills/how/SKILL.md
++++ b/skills/how/SKILL.md
+@@ -8,7 +8,7 @@ disable-model-invocation: true
+ 
+ Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
+ 
+-Read [Codex execution](../poteto-mode/references/codex-execution.md) before delegation. Use general-purpose delegates through each selected executor, with `agent_type: "pstack-general-purpose"` on the native path, and supply absolute paths to this skill and the selected templates. Explorers resolve the `how explorer` role and every explainer resolves `how explainer` through the sibling setup helper. Pass the selected model and task effort through Codex execution; inherited aliases use the parent-selection binding in Codex execution. If the host rejects a selected model, follow the execution binding and disclose any supported same-family selection from its error message. Pick reasoning and speed for the job using poteto-mode's Subagents guidance.
++Read [Codex execution](../poteto-mode/references/codex-execution.md) before delegation. Keep every explorer and explainer read-only. Include a no-edits instruction in every brief. Use general-purpose delegates through each selected executor, with `agent_type: "pstack-general-purpose"` on the native path, and supply absolute paths to this skill and the selected templates. Explorers resolve the `how explorer` role and every explainer resolves `how explainer` through the sibling setup helper. Pass the selected model and task effort through Codex execution; inherited aliases use the parent-selection binding in Codex execution. If the host rejects a selected model, follow the execution binding and disclose any supported same-family selection from its error message. Pick reasoning and speed for the job using poteto-mode's Subagents guidance.
+ 
+ ## 1. Assess complexity
+ 
+diff --git a/skills/how/references/explainer-prompt.md b/skills/how/references/explainer-prompt.md
+index 6f6fb8e..6b443ac 100644
+--- a/skills/how/references/explainer-prompt.md
++++ b/skills/how/references/explainer-prompt.md
+@@ -20,7 +20,7 @@ The explorers each investigated a different angle of the same subsystem. Their f
+ 
+ Write an explanation a senior engineer unfamiliar with this area could read and walk away with a solid mental model, understanding the architecture well enough to start working in it confidently.
+ 
+-Inspect the codebase to check anything, clarify a detail, or fill a gap. Use the current runtime's file-reading and search tools, such as shell reads and `rg`, as needed. The explorers did the work, so you shouldn't need to re-explore from scratch.
++Inspect the codebase without editing files to check anything, clarify a detail, or fill a gap. Use the current runtime's file-reading and search tools, such as shell reads and `rg`, as needed. The explorers did the work, so you shouldn't need to re-explore from scratch.
+ 
+ ## Output Format
+ 
+diff --git a/skills/poteto-mode/playbooks/opening-a-pr.md b/skills/poteto-mode/playbooks/opening-a-pr.md
+index 649ac7c..a4a9916 100644
+--- a/skills/poteto-mode/playbooks/opening-a-pr.md
++++ b/skills/poteto-mode/playbooks/opening-a-pr.md
+@@ -2,7 +2,7 @@
+ 
+ Invoked at the end of every other playbook.
+ 
+-**Worktree.** Work from a git worktree off main. Subagents inherit it. Multiple delegate calls on the same branch each get their own worktree, or `git fetch && git reset --hard origin/<branch>` between them. Dirty branch with unrelated work: patch out, fresh worktree, apply. Snarled worktree: reset from main, redo minimally.
++**Worktree.** Work from a Git worktree off main. Each independent writer gets an exclusive worktree and branch. A native history fork copies conversation, not uncommitted files or running processes. Prepare scoped working-tree inputs through [Codex execution](../references/codex-execution.md) before dispatch. Dirty branch with unrelated work: patch out, fresh worktree, apply. Snarled worktree: preserve required changes, reset your own worktree from main, redo minimally.
+ 
+ **Commits.** Commit liberally. Rebase into small, ordered commits before opening PRs. Each commit is a future PR: landable, ordered to tell the story. Amend when the fix belongs in a just-made commit. New commit when separable. Commit bodies don't restate the subject.
+ 
+diff --git a/skills/reflect/SKILL.md b/skills/reflect/SKILL.md
+index e65dcec..1d424f7 100644
+--- a/skills/reflect/SKILL.md
++++ b/skills/reflect/SKILL.md
+@@ -44,7 +44,7 @@ Present the synthesizer's full Accepted / Rejected / Backlog output and wait for
+ 
+ File each Backlog item to your team's devex or backlog tracker without waiting. Only the Accepted list waits for approval.
+ 
+-Never edit a skill under `plugins/cache/`. Before approval, show its destination, `.agents/skills/<skill>/` or `~/.agents/skills/<skill>/`. After approval, copy the skill folder there and edit the copy. Never open a PR or push.
++Find existing editable skills under the project's `.agents/skills/`, `~/.agents/skills/`, and `$CODEX_HOME/skills/` (`~/.codex/skills/` when unset). Preserve the discovered path. Never edit a skill under `plugins/cache/`. Before approval, show the destination. For a new personal copy, default to `$CODEX_HOME/skills/<skill>/`, or `~/.codex/skills/<skill>/` when unset. After approval, edit the existing skill in place or copy a cached skill folder to that destination and edit the copy. Never open a PR or push.
+ 
+ Follow each approved row's Routing exactly:
+ 

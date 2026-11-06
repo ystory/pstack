@@ -31,3 +31,4 @@
 0031-choice-first-setup.patch
 0032-review-binding-fixes.patch
 0033-native-binding-limits.patch
+0034-restore-host-workflow-fidelity.patch

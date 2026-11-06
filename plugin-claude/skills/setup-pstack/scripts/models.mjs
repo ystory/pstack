@@ -36,6 +36,10 @@ const nativeAliases = new Set([
   'opusplan',
   'inherit',
 ]);
+const executorEfforts = {
+  'claude-code': new Set(['low', 'medium', 'high', 'xhigh', 'max']),
+  codex: new Set(efforts),
+};
 const keyFor = (entry) => `${entry.executor}\0${entry.model}`;
 
 function isNativeAlias(model) {
@@ -70,6 +74,10 @@ function entryFor(value, role) {
     );
   if (typeof value.reasoningEffort !== 'string' || !value.reasoningEffort)
     throw new Error(`Role ${role} must declare a separate reasoningEffort.`);
+  if (!executorEfforts[executor].has(value.reasoningEffort))
+    throw new Error(
+      `Unsupported reasoning effort for ${executor}: ${value.reasoningEffort}`,
+    );
   return {
     executor,
     model: value.model,
@@ -189,7 +197,9 @@ export function normalizeCatalog(input, native) {
       aliases.has(model) ||
       !Array.isArray(supportedReasoningEfforts) ||
       !supportedReasoningEfforts.length ||
-      supportedReasoningEfforts.some((effort) => !efforts.includes(effort))
+      supportedReasoningEfforts.some(
+        (effort) => !executorEfforts[executor].has(effort),
+      )
     )
       throw new Error(
         'Catalog entries require an executor, exact model ID, and supported reasoning efforts.',

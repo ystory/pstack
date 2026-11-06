@@ -12,3 +12,4 @@
 0012-exact-native-model-aliases.patch
 0013-choice-first-setup.patch
 0014-review-binding-fixes.patch
+0015-restore-host-workflow-fidelity.patch

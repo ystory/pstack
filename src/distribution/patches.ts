@@ -199,6 +199,10 @@ export async function readFileImages(
     try {
       const absolute = path.join(root, file);
       const stat = await lstat(absolute);
+      if (stat.isDirectory()) {
+        images.set(file, { kind: 'absent' });
+        continue;
+      }
       if (!stat.isFile() || stat.isSymbolicLink())
         throw new Error(`Expected physical file: ${file}`);
       images.set(file, {
@@ -210,7 +214,7 @@ export async function readFileImages(
       if (!(
         error instanceof Error &&
         'code' in error &&
-        error.code === 'ENOENT'
+        (error.code === 'ENOENT' || error.code === 'ENOTDIR')
       ))
         throw error;
       images.set(file, { kind: 'absent' });
@@ -224,26 +228,41 @@ export async function writeFileImages(
   images: ReadonlyMap<string, FileImage>,
 ): Promise<void> {
   const boundary = path.resolve(root);
+  const actual = await readFileImages(boundary, [...images.keys()]);
   for (const [file, image] of images) {
-    const absolute = path.join(boundary, file);
-    if (image.kind === 'absent') {
-      await rm(absolute, { force: true });
-      let parent = path.dirname(absolute);
-      while (parent !== boundary) {
-        try {
-          await rmdir(parent);
-        } catch (error) {
-          if (!(error instanceof Error && 'code' in error)) throw error;
-          if (error.code === 'ENOTEMPTY') break;
-          if (error.code !== 'ENOENT') throw error;
-        }
-        parent = path.dirname(parent);
-      }
-    } else {
-      await mkdir(path.dirname(absolute), { recursive: true });
-      await writeFile(absolute, image.bytes);
-      await chmod(absolute, image.mode);
+    if (image.kind !== 'absent') continue;
+    let directory = path.join(boundary, file);
+    if (actual.get(file)!.kind === 'file') {
+      await rm(directory, { force: true });
+      directory = path.dirname(directory);
     }
+    while (directory !== boundary) {
+      try {
+        await rmdir(directory);
+      } catch (error) {
+        if (!(error instanceof Error && 'code' in error)) throw error;
+        if (error.code === 'ENOTEMPTY' || error.code === 'ENOTDIR') break;
+        if (error.code !== 'ENOENT') throw error;
+      }
+      directory = path.dirname(directory);
+    }
+  }
+  for (const [file, image] of images) {
+    if (image.kind !== 'file') continue;
+    const absolute = path.join(boundary, file);
+    await mkdir(path.dirname(absolute), { recursive: true });
+    try {
+      await rmdir(absolute);
+    } catch (error) {
+      if (!(
+        error instanceof Error &&
+        'code' in error &&
+        (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+      ))
+        throw error;
+    }
+    await writeFile(absolute, image.bytes);
+    await chmod(absolute, image.mode);
   }
 }
 
@@ -340,17 +359,21 @@ export async function diffPluginTrees(
   selectedPaths?: readonly string[],
 ): Promise<string> {
   if (selectedPaths) validatePatchPaths(selectedPaths);
+  const paths = selectedPaths
+    ? [...new Set(selectedPaths)].filter(
+        (file, _, files) =>
+          !files.some(
+            (parent) => file !== parent && file.startsWith(`${parent}/`),
+          ),
+      )
+    : undefined;
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'pstack-tree-diff-'));
   try {
     await copyTree(previous, temporary);
-    const previousFiles = new Set(
-      (await inspectTree(temporary))
-        .filter((entry) => entry.kind === 'file')
-        .map((entry) => entry.path),
-    );
     runGit(temporary, ['init', '--quiet']);
     runGit(temporary, ['-c', 'core.fileMode=true', 'add', '--force', '--all']);
-    if (!selectedPaths) {
+    const previousTree = runGit(temporary, ['write-tree']).trim();
+    if (!paths) {
       for (const entry of await readdir(temporary))
         if (entry !== '.git')
           await rm(path.join(temporary, entry), {
@@ -359,11 +382,11 @@ export async function diffPluginTrees(
           });
       await copyTree(next, temporary);
     } else {
-      for (const file of selectedPaths)
+      for (const file of paths)
         await rm(path.join(temporary, file), { recursive: true, force: true });
       for (const entry of await inspectTree(next)) {
         if (
-          !selectedPaths.some(
+          !paths.some(
             (file) => entry.path === file || entry.path.startsWith(`${file}/`),
           )
         )
@@ -378,26 +401,13 @@ export async function diffPluginTrees(
         await chmod(destination, entry.mode);
       }
     }
-    const newFiles = (await inspectTree(temporary))
-      .filter(
-        (entry) =>
-          entry.kind === 'file' &&
-          !entry.path.startsWith('.git/') &&
-          !previousFiles.has(entry.path),
-      )
-      .map((entry) => entry.path);
-    if (newFiles.length)
-      runGit(temporary, [
-        'add',
-        '--intent-to-add',
-        '--force',
-        '--',
-        ...newFiles,
-      ]);
+    runGit(temporary, ['-c', 'core.fileMode=true', 'add', '--force', '--all']);
     return runGit(temporary, [
       '-c',
       'core.fileMode=true',
       'diff',
+      '--cached',
+      previousTree,
       '--binary',
       '--no-renames',
       '--no-ext-diff',
@@ -519,6 +529,12 @@ export async function generateSharedPatch(
           throw new Error(
             `Unrecorded ${target} edit conflicts with shared patch: ${file}`,
           );
+      const staged = path.join(temporary, `actual-${target}`);
+      await copyTree(
+        path.join(projectRoot, distributionTarget(target).pluginDirectory),
+        staged,
+      );
+      await writeFileImages(staged, after);
     }
     await mkdir(path.join(projectRoot, 'patches/shared'), { recursive: true });
     await assertPhysicalDirectory(path.join(projectRoot, 'patches/shared'));

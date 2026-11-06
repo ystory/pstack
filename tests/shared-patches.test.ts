@@ -1,14 +1,17 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import {
   chmod,
   mkdir,
   mkdtemp,
   readFile,
+  readdir,
   rm,
   writeFile,
 } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import {
@@ -488,4 +491,152 @@ test('unresolvable intermediate intent names the shared node and leaves candidat
     readFile(path.join(output, 'regeneration-report.json')),
     /ENOENT/,
   );
+});
+
+for (const removeDirectory of [true, false]) {
+  test(`shared deletion prunes empty ancestors in both outputs after source ${removeDirectory ? 'directory removal' : 'file removal'}`, async (t) => {
+    const { project } = await fixture(t);
+    const source = outputFor(project, 'codex');
+    const file = 'skills/review-fixture/deep/only.md';
+    await mkdir(path.dirname(path.join(source, file)), { recursive: true });
+    await writeFile(path.join(source, file), 'Shared nested file\n');
+    if (!removeDirectory)
+      await writeFile(
+        path.join(source, 'skills/retained.md'),
+        'Keep sibling\n',
+      );
+    await generateSharedPatch(project, {
+      from: 'codex',
+      name: '0001-nested.patch',
+      paths: ['skills'],
+    });
+    if (removeDirectory)
+      await rm(path.join(source, 'skills/review-fixture'), { recursive: true });
+    else await rm(path.join(source, file));
+    await generateSharedPatch(project, {
+      from: 'codex',
+      name: '0002-remove-nested.patch',
+      paths: ['skills/review-fixture'],
+    });
+    for (const target of targets) {
+      const output = outputFor(project, target);
+      await assert.rejects(
+        readdir(path.join(output, 'skills/review-fixture')),
+        {
+          code: 'ENOENT',
+        },
+      );
+      if (removeDirectory)
+        await assert.rejects(readdir(path.join(output, 'skills')), {
+          code: 'ENOENT',
+        });
+      else
+        assert.equal(
+          await readFile(path.join(output, 'skills/retained.md'), 'utf8'),
+          'Keep sibling\n',
+        );
+      await verifyPatches(project, target);
+    }
+  });
+}
+
+test('shared CLI generation and regeneration work with a temporary directory inside a Git repository', async (t) => {
+  const { project, root } = await fixture(t);
+  const repository = path.join(root, 'temporary-repository');
+  const temporary = path.join(repository, '.local/tmp');
+  await mkdir(temporary, { recursive: true });
+  runGit(repository, ['init', '--quiet']);
+  const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
+  const invoke = (args: string[]) =>
+    spawnSync(process.execPath, [cli, ...args], {
+      cwd: repository,
+      env: { ...process.env, TMPDIR: temporary },
+      encoding: 'utf8',
+    });
+  await writeFile(
+    path.join(outputFor(project, 'codex'), 'portable.md'),
+    'Shared portable steps\n',
+  );
+  const generated = invoke([
+    'generate-shared-patch',
+    '--project',
+    project,
+    '--from',
+    'codex',
+    '--name',
+    '0001-portable.patch',
+    '--paths',
+    'portable.md',
+  ]);
+  assert.equal(generated.status, 0, generated.stderr);
+  for (const target of targets) await verifyPatches(project, target);
+  const candidate = await candidateFixture(project, root);
+  const regenerated = path.join(root, 'regenerated-in-repository');
+  const result = invoke([
+    'regenerate-patches',
+    '--candidate',
+    candidate,
+    '--output',
+    regenerated,
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  await rm(path.join(candidate, 'patches'), { recursive: true });
+  await copyTree(
+    path.join(regenerated, 'patches'),
+    path.join(candidate, 'patches'),
+  );
+  for (const target of targets) await verifyPatches(candidate, target);
+});
+
+test('candidate conflict attribution keeps distinct local and shared patch identities with the same basename', async (t) => {
+  const { project, root, upstream } = await fixture(t);
+  await writeFile(
+    path.join(outputFor(project, 'codex'), 'portable.md'),
+    'Shared portable steps\n',
+  );
+  await generateSharedPatch(project, {
+    from: 'codex',
+    name: '0001-native.patch',
+    paths: ['portable.md'],
+  });
+  const source = path.join(root, 'same-name-source');
+  await copyTree(upstream, path.join(source, 'pstack'));
+  await writeFile(
+    path.join(source, 'pstack/portable.md'),
+    'Changed upstream portable steps\n',
+  );
+  runGit(source, ['init', '--quiet']);
+  runGit(source, [
+    'remote',
+    'add',
+    'origin',
+    'https://github.com/cursor/plugins.git',
+  ]);
+  runGit(source, ['add', '--all']);
+  runGit(source, [
+    '-c',
+    'user.name=Test',
+    '-c',
+    'user.email=test@example.invalid',
+    'commit',
+    '--no-gpg-sign',
+    '--quiet',
+    '-m',
+    'changed portable source',
+  ]);
+  const output = path.join(root, 'same-name-candidate');
+  await createUpstreamCandidate(
+    project,
+    source,
+    runGit(source, ['rev-parse', 'HEAD']).trim(),
+    output,
+  );
+  const report = JSON.parse(
+    await readFile(path.join(output, 'candidate-report.json'), 'utf8'),
+  );
+  for (const target of report.targets) {
+    assert.equal(target.failedPatch, 'shared/0001-native.patch');
+    assert.deepEqual(target.appliedPatches, ['0001-native.patch']);
+    assert.deepEqual(target.unappliedPatches, ['shared/0001-native.patch']);
+  }
 });

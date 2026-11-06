@@ -14,7 +14,7 @@ The scope is what the user names. Otherwise it is the branch diff from its merge
 
 ## Fan out
 
-Read [Claude Code execution](../poteto-mode/references/claude-execution.md). Run Phase A steps 3 and 4 and Phase B of the **arena** skill, with four changes. Resolve `interrogate reviewers` instead of `arena runners`. Before dispatch, transfer the scoped tracked and untracked working-tree changes into each exclusive worktree and compare the inputs as Claude Code execution describes. Use worker kind `general-purpose` for every adversary. In place of the arena task and rationale, give each adversary the scope, the intent, and this brief:
+Read [Claude Code execution](../poteto-mode/references/execution.md). Run Phase A steps 3 and 4 and Phase B of the **arena** skill, with four changes. Resolve `interrogate reviewers` instead of `arena runners`. Before dispatch, transfer the scoped tracked and untracked working-tree changes into each exclusive worktree and compare the inputs as Claude Code execution describes. Use worker kind `general-purpose` for every adversary. In place of the arena task and rationale, give each adversary the scope, the intent, and this brief:
 
 > Break this change. Prove each finding with a run against the real code, such as a failing test, a repro script, or command output that shows the wrong behavior. For a design or plan, run a prototype or probe the current tree. Keep repros in your own worktree. Report each finding with a title, the exact command, the output it printed, and the output the intent requires. Leave out anything you did not run. That covers style, naming, structure, and risks that need a future change to matter. No findings is a valid result.
 

@@ -31,6 +31,8 @@ export interface PatchRecord {
   sha256: string;
 }
 
+export class GitPatchConflict extends Error {}
+
 export function runGit(
   root: string,
   args: string[],
@@ -45,8 +47,12 @@ export function runGit(
     env,
   });
   if (result.error) throw result.error;
-  if (result.status !== 0)
-    throw new Error(`git ${args[0]} failed: ${result.stderr || result.stdout}`);
+  if (result.status !== 0) {
+    const message = `git ${args[0]} failed: ${result.stderr || result.stdout || result.signal || result.status}`;
+    if (args[0] === 'apply' && result.status === 1)
+      throw new GitPatchConflict(message);
+    throw new Error(message);
+  }
   return result.stdout;
 }
 

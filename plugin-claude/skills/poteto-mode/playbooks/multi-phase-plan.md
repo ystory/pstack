@@ -1,6 +1,6 @@
 ### Multi-phase or multi-PR plan
 
-Read [Claude Code execution](../references/claude-execution.md) and resolve `judgment and prose` with worker kind `poteto-agent` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
+Read [Claude Code execution](../references/execution.md) and resolve `judgment and prose` with worker kind `poteto-agent` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
 
 **You own the plan, not the code. The plan is a checklist an owner runs box by box and the operator audits from the evidence.** The plan is the deliverable. Do not implement.
 
@@ -70,7 +70,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 ### Boot recipe, for every live lane
 
-Each live lane runs in its own local Git worktree at the PR head. Local worktrees share the machine, so allocate independent ports, data directories, and app or terminal sessions. Serialize a resource that cannot be isolated. Follow [Claude Code execution](../references/claude-execution.md). Drive through the bundled control-ui or control-cli skill.
+Each live lane runs in its own local Git worktree at the PR head. Local worktrees share the machine, so allocate independent ports, data directories, and app or terminal sessions. Serialize a resource that cannot be isolated. Follow [Claude Code execution](../references/execution.md). Drive through the bundled control-ui or control-cli skill.
 
 - [ ] Fetch the head branch, create the lane's dedicated worktree at `<head SHA>`, and confirm its exact HEAD. Bind every lane command to that worktree.
 - [ ] <Start the backend and the surface. Wait for ready.>

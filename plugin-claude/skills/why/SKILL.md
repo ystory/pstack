@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
 
-Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Investigators resolve `why investigators`; the synthesizer resolves `why synthesizer`. A rejected model follows the execution binding, using a valid same-family choice from the error when available, with disclosure. Parent aliases bind the actual native parent. Use poteto-mode's reasoning and speed guidance.
+Read [Claude Code execution](../poteto-mode/references/execution.md) before delegation. Investigators resolve `why investigators`; the synthesizer resolves `why synthesizer`. A rejected model follows the execution binding, using a valid same-family choice from the error when available, with disclosure. Parent aliases bind the actual native parent. Use poteto-mode's reasoning and speed guidance.
 
 Every seat uses worker kind `general-purpose` with the selected executor's configured MCP tools. Investigators receive a no-edits brief. Do not substitute a restricted Explore or Plan agent for a configured worker, since that changes its model, instructions, and available tools.
 

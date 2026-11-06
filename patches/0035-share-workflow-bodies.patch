@@ -1,0 +1,771 @@
+diff --git a/README.md b/README.md
+index 406db99..d23e662 100644
+--- a/README.md
++++ b/README.md
+@@ -216,7 +216,7 @@ help:              $pstack-codex:poteto-help which skill should i use to review
+ 
+ [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) runs in the chat that receives it. that chat owns the playbook, the todo list, and every subagent spawn.
+ 
+-pstack also ships [`poteto-agent`](./agents/poteto-agent.md) as the delegate wrapper. Its original instructions read `poteto-mode` in full, including the inline principles index, before doing work. Setup registers its native Codex definition; custom-type dispatch requires a runtime that exposes that capability. The [Codex execution contract](./skills/poteto-mode/references/codex-execution.md) defines the supported delegation path.
++pstack also ships [`poteto-agent`](./agents/poteto-agent.md) as the delegate wrapper. Its original instructions read `poteto-mode` in full, including the inline principles index, before doing work. Setup registers its native Codex definition; custom-type dispatch requires a runtime that exposes that capability. The [Codex execution contract](./skills/poteto-mode/references/execution.md) defines the supported delegation path.
+ 
+ [`$pstack-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) and [`poteto-agent`](./agents/poteto-agent.md) route through the same wrapper.
+ 
+@@ -262,7 +262,7 @@ twenty-four short skills, one principle each. `poteto-mode` indexes them inline
+ 
+ [`$pstack-codex:deslop`](./skills/deslop/SKILL.md), [`control-cli`](./skills/control-cli/SKILL.md), and [`control-ui`](./skills/control-ui/SKILL.md) are bundled from cursor-team-kit with its [MIT license](./licenses/cursor-team-kit/LICENSE). Their original sources are tracked and updated with this distribution.
+ 
+-The [Claude Code worker guide](./docs/harness/claude-code.md) describes running selected Claude workers from a Codex parent. This distribution uses its [Claude CLI bridge](./skills/poteto-mode/references/codex-execution.md). The separate `pstack-cc` distribution supports Claude Code as the parent.
++The [Claude Code worker guide](./docs/harness/claude-code.md) describes running selected Claude workers from a Codex parent. This distribution uses its [Claude CLI bridge](./skills/poteto-mode/references/execution.md). The separate `pstack-cc` distribution supports Claude Code as the parent.
+ 
+ Use the installed `$skill-creator` for skill authoring. Inside `poteto-mode`, the [babysit playbook](./skills/poteto-mode/playbooks/babysit.md) handles PR status requests.
+ 
+diff --git a/docs/guide/10-recipes-and-pitfalls.md b/docs/guide/10-recipes-and-pitfalls.md
+index c61fab1..6f19c78 100644
+--- a/docs/guide/10-recipes-and-pitfalls.md
++++ b/docs/guide/10-recipes-and-pitfalls.md
+@@ -173,7 +173,7 @@ To watch the catch-up instead, run [`$pstack-codex:ketchup-video`](../../skills/
+ - **Correcting the same mistake by hand.** A correction in chat helps one run. `$pstack-codex:correct` fixes the repo so no later run repeats it.
+ - **Using `$pstack-codex:arena` for coverage.** `$pstack-codex:arena` repeats one design or code brief, then picks a base and grafts the best parts. `$pstack-codex:swarm` partitions slices or declared race arms and aggregates one report.
+ - **Accepting every review comment.** Bots and humans both file real catches and noise in one list. `$pstack-codex:interrogate` keeps only the findings a rerun proves and lists what it dropped and why, and you can override either way.
+-- **Treating `auto` as a model slug.** `auto` and `inherit-parent` select the current parent chat's model and reasoning settings. The [Codex execution binding](../../skills/poteto-mode/references/codex-execution.md#roles-models-and-effort) preserves that selection through confirmed inheritance or observed explicit settings, and reports it unresolved when neither can be established. [Setup](./01-setup.md) covers the roles.
++- **Treating `auto` as a model slug.** `auto` and `inherit-parent` select the current parent chat's model and reasoning settings. The [Codex execution binding](../../skills/poteto-mode/references/execution.md#roles-models-and-effort) preserves that selection through confirmed inheritance or observed explicit settings, and reports it unresolved when neither can be established. [Setup](./01-setup.md) covers the roles.
+ - **Reporting success off a green build.** A build proves it compiles. Ask for the real command, flow, stored value, or profile, and expect the evidence in the reply.
+ - **Writing a `SKILL.md` freehand.** Route it through the [Authoring or modifying a skill playbook](../../skills/poteto-mode/playbooks/authoring-a-skill.md) so validation and review happen.
+ 
+diff --git a/docs/harness/claude-code.md b/docs/harness/claude-code.md
+index 28140b2..76835e8 100644
+--- a/docs/harness/claude-code.md
++++ b/docs/harness/claude-code.md
+@@ -1,6 +1,6 @@
+ # Claude Code workers from Codex
+ 
+-This Codex product runs selected Claude Code workers through its [execution binding](../../skills/poteto-mode/references/codex-execution.md). Invoke [setup](../../skills/setup-pstack/SKILL.md) to choose worker executors first. When Claude is selected, setup checks installation and login before exact models, role assignments, and budget. Codex-only setup needs no Claude CLI.
++This Codex product runs selected Claude Code workers through its [execution binding](../../skills/poteto-mode/references/execution.md). Invoke [setup](../../skills/setup-pstack/SKILL.md) to choose worker executors first. When Claude is selected, setup checks installation and login before exact models, role assignments, and budget. Codex-only setup needs no Claude CLI.
+ 
+ Each external entry carries an exact supported model and a separate effort. The runner requires an explicit `--model`. It reuses the existing Claude CLI environment and authentication. Native Codex role definitions and conversation history do not automatically become Claude instructions. The caller supplies the original role body, relevant skills, task context, and authorized tools through the runner.
+ 
+diff --git a/plugin.json b/plugin.json
+index 92c16ba..9ffbed0 100644
+--- a/plugin.json
++++ b/plugin.json
+@@ -1,7 +1,7 @@
+ {
+   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+   "name": "pstack-codex",
+-  "version": "0.1.0-dev.5",
++  "version": "0.1.0-dev.6",
+   "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
+   "author": {
+     "name": "Lauren Tan"
+diff --git a/skills/architect/SKILL.md b/skills/architect/SKILL.md
+index d601e9f..bd6553b 100644
+--- a/skills/architect/SKILL.md
++++ b/skills/architect/SKILL.md
+@@ -28,7 +28,7 @@ Skip Phase A only when the work is genuinely greenfield with no surrounding syst
+ 
+ Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt.
+ 
+-Resolve the `architect runners` role using [Codex execution](../poteto-mode/references/codex-execution.md), in place of `arena runners`. Preserve every configured ordered seat, including duplicates, dispatch each through its executor as a general-purpose arena runner, and pass this skill's absolute path with `references/runner-prompt.md`. Alias and rejected entries follow the runner rules in the **arena** skill's Phase A.
++Resolve the `architect runners` role using [Codex execution](../poteto-mode/references/execution.md), in place of `arena runners`. Preserve every configured ordered seat, including duplicates, dispatch each through its executor as a general-purpose arena runner, and pass this skill's absolute path with `references/runner-prompt.md`. Alias and rejected entries follow the runner rules in the **arena** skill's Phase A.
+ 
+ Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
+ 
+diff --git a/skills/arena/SKILL.md b/skills/arena/SKILL.md
+index 01181d5..ef46aef 100644
+--- a/skills/arena/SKILL.md
++++ b/skills/arena/SKILL.md
+@@ -14,7 +14,7 @@ Every candidate gets the same prompt, so the prompt is the contract.
+ 
+ 1. State the artifact each candidate is producing.
+ 2. Derive the rubric, 3-6 concrete gradeable criteria for what success looks like on *this* task. It is the picker's tool in Phase D. Candidates only see the task.
+-3. Pick the runners using [Codex execution](../poteto-mode/references/codex-execution.md). Resolve the `arena runners` role with the sibling setup helper. An unconfigured list has two native-parent seats. Preserve the ordered entries, including duplicates. An `auto` or `inherit-parent` entry means the parent model. Bind it through Codex execution's parent-selection rules. Families follow model prefixes such as `gpt-*` and `claude-*`. If the selected executor rejects a configured model, use the closest valid model of the same family from its error message and disclose it. Drop the seat and say so when none is available. Do not retry a model already rejected by that executor. If dropped seats leave fewer than two runners, add runners until there are two, or one when the configured role has one entry. Run each added runner on a surviving runner's model and executor, or use Codex execution's parent-selection binding when none remain, and say so. An unavailable executor makes that seat unavailable. Disclose it and apply the dropped-seat rule without claiming that executor ran. Spawn more runners when the arena covers multiple design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
++3. Pick the runners using [Codex execution](../poteto-mode/references/execution.md). Resolve the `arena runners` role with the sibling setup helper. An unconfigured list has two native-parent seats. Preserve the ordered entries, including duplicates. An `auto` or `inherit-parent` entry means the parent model. Bind it through Codex execution's parent-selection rules. Families follow model prefixes such as `gpt-*` and `claude-*`. If the selected executor rejects a configured model, use the closest valid model of the same family from its error message and disclose it. Drop the seat and say so when none is available. Do not retry a model already rejected by that executor. If dropped seats leave fewer than two runners, add runners until there are two, or one when the configured role has one entry. Run each added runner on a surviving runner's model and executor, or use Codex execution's parent-selection binding when none remain, and say so. An unavailable executor makes that seat unavailable. Disclose it and apply the dropped-seat rule without claiming that executor ran. Spawn more runners when the arena covers multiple design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+ 4. Give each candidate its own output location, per the **separate-before-serializing-shared-state** principle skill. Code-writing candidates get exclusive local Git worktrees and branches through Codex execution. Other artifacts can use `/tmp/arena-<slug>/candidate-<n>/`.
+ 
+ ## Phase B: Fan out
+diff --git a/skills/automate-me/SKILL.md b/skills/automate-me/SKILL.md
+index b17e679..9b5f7ce 100644
+--- a/skills/automate-me/SKILL.md
++++ b/skills/automate-me/SKILL.md
+@@ -6,7 +6,7 @@ disable-model-invocation: true
+ 
+ # Automate me
+ 
+-Read [Codex execution](../poteto-mode/references/codex-execution.md) for installed paths, model settings, and subagent calls.
++Read [Codex execution](../poteto-mode/references/execution.md) for installed paths, model settings, and subagent calls.
+ 
+ A guided flow for turning the user's working conventions into a skill agents will follow. The output is one `-mode` skill tailored to them (e.g. `jay-mode`, `priya-mode`).
+ 
+diff --git a/skills/how/SKILL.md b/skills/how/SKILL.md
+deleted file mode 100644
+index 38b8860..0000000
+--- a/skills/how/SKILL.md
++++ /dev/null
+@@ -1,36 +0,0 @@
+----
+-name: how
+-description: "Use for \"how does X work\", code walkthroughs before changing something, and placement / ownership / layering questions (\"where should this live\", \"which package owns this\", \"is this the right layer\"). Explains subsystem architecture, runtime flow, onboarding mental models. Use why for motivation."
+-disable-model-invocation: true
+----
+-
+-# How
+-
+-Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
+-
+-Read [Codex execution](../poteto-mode/references/codex-execution.md) before delegation. Keep every explorer and explainer read-only. Include a no-edits instruction in every brief. Use general-purpose delegates through each selected executor, with `agent_type: "pstack-general-purpose"` on the native path, and supply absolute paths to this skill and the selected templates. Explorers resolve the `how explorer` role and every explainer resolves `how explainer` through the sibling setup helper. Pass the selected model and task effort through Codex execution; inherited aliases use the parent-selection binding in Codex execution. If the host rejects a selected model, follow the execution binding and disclose any supported same-family selection from its error message. Pick reasoning and speed for the job using poteto-mode's Subagents guidance.
+-
+-## 1. Assess complexity
+-
+-If the scope is ambiguous, state your interpretation and explore. The user can redirect.
+-
+-- **Simple** (a single module, a small utility, a narrow question such as "how does function X work"): no explorers. Spawn one explainer that explores and explains in one pass, built from `references/explainer-prompt.md` without the explorer-findings section. Go to step 4.
+-- **Complex** (a subsystem spanning multiple files or services, a cross-cutting feature, a full architectural overview): go to step 2.
+-
+-When in doubt, take the simple path.
+-
+-## 2. Explore (complex only)
+-
+-Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers without waiting between them, each with `references/explorer-prompt.md` and its angle filled in.
+-
+-## 3. Synthesize (complex only)
+-
+-Once all explorers have returned, spawn one explainer with `references/explainer-prompt.md` and every explorer's findings filled in.
+-
+-## 4. Present
+-
+-Present the explainer's output. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.
+-
+-## Output format
+-
+-The explanation uses the sections defined in `references/explainer-prompt.md`, dropping any that do not apply: Overview, Key Concepts, How It Works, Where Things Live, Gotchas.
+diff --git a/skills/how/references/explainer-prompt.md b/skills/how/references/explainer-prompt.md
+deleted file mode 100644
+index 6b443ac..0000000
+--- a/skills/how/references/explainer-prompt.md
++++ /dev/null
+@@ -1,55 +0,0 @@
+-# Explainer Prompt Template
+-
+-Build the explainer subagent's prompt from this template. Fill in the placeholders.
+-
+----
+-
+-You are writing an architectural explanation for a senior engineer. Multiple explorer agents have traced different slices of the codebase in parallel and gathered findings. Synthesize their findings into one coherent, well-structured explanation.
+-
+-## Original Question
+-
+-> {QUESTION}
+-
+-## Explorer Findings
+-
+-{EXPLORER_FINDINGS_ALL}
+-
+-## Instructions
+-
+-The explorers each investigated a different angle of the same subsystem. Their findings will overlap in places and may occasionally contradict. Reconcile them. Merge overlapping descriptions, resolve contradictions by checking the code yourself, and combine the separate slices into a unified picture.
+-
+-Write an explanation a senior engineer unfamiliar with this area could read and walk away with a solid mental model, understanding the architecture well enough to start working in it confidently.
+-
+-Inspect the codebase without editing files to check anything, clarify a detail, or fill a gap. Use the current runtime's file-reading and search tools, such as shell reads and `rg`, as needed. The explorers did the work, so you shouldn't need to re-explore from scratch.
+-
+-## Output Format
+-
+-Use this structure, adapted to what makes sense for the question. Not every section is needed for every question.
+-
+-### Overview
+-1-2 paragraphs. What is this thing, what does it do, why does it exist. Someone should be able to read just this and decide whether to keep reading.
+-
+-### Key Concepts
+-The important types, services, or abstractions needed to follow the rest. Brief definitions, not exhaustive.
+-
+-### How It Works
+-The core of the explanation, and the longest section. Walk through the flow: what triggers it, what happens step by step, where data goes, what the decision points are.
+-
+-Use prose, not pseudocode. Reference specific files and functions so the reader knows where to look, but don't dump large code blocks unless a snippet is essential to a point.
+-
+-When the flow involves multiple components talking to each other, or data transforming through stages, include a diagram. Use mermaid (```mermaid) for structured flows (sequence diagrams, flowcharts, component graphs) or ASCII art for simpler relationships where mermaid would be overkill. Use your judgment. A diagram should clarify, not decorate. If prose covers the flow, skip the diagram.
+-
+-### Where Things Live
+-A brief file/directory map. Just the ones someone would need to start working here.
+-
+-### Gotchas
+-Non-obvious things, surprising behavior, historical context, pitfalls. Skip this section if there's nothing worth calling out.
+-
+-## Communication Style
+-
+-- Use concrete language, not abstractions-about-abstractions
+-- Say "the `UserService` calls `AuthClient.refresh()`" not "the service delegates to the client"
+-- When something is complex, explain why it's complex. Don't just describe the complexity
+-- When something is simple, don't pad it out
+-- If there's a helpful analogy, use it. If there isn't, don't force one
+-- If the explorers flagged open questions or gaps, acknowledge them rather than hiding them
+diff --git a/skills/interrogate/SKILL.md b/skills/interrogate/SKILL.md
+index bd18443..3dcd9a6 100644
+--- a/skills/interrogate/SKILL.md
++++ b/skills/interrogate/SKILL.md
+@@ -14,7 +14,7 @@ The scope is what the user names. Otherwise it is the branch diff from its merge
+ 
+ ## Fan out
+ 
+-Run Phase A steps 3 and 4 and Phase B of the **arena** skill, with four changes. Resolve the `interrogate reviewers` role in place of `arena runners` through [Codex execution](../poteto-mode/references/codex-execution.md). Preserve saved entries, ordered duplicate seats, and Arena's runner fallback. Start each adversary's exclusive local worktree at the scope's exact source HEAD. Copy the scope's actual uncommitted changes into every worktree through Codex execution's working-tree transfer, including scoped staged, unstaged, and untracked files. A supplied diff or a conversation fork does not copy those files. Launch each adversary through its selected executor, using `agent_type: "pstack-general-purpose"` on the native path. Pass absolute paths to this skill, the assigned worktree, required source files, and runnable tools. In place of the arena task and rationale, give each adversary the scope, the intent, and this brief:
++Run Phase A steps 3 and 4 and Phase B of the **arena** skill, with four changes. Resolve the `interrogate reviewers` role in place of `arena runners` through [Codex execution](../poteto-mode/references/execution.md). Preserve saved entries, ordered duplicate seats, and Arena's runner fallback. Start each adversary's exclusive local worktree at the scope's exact source HEAD. Copy the scope's actual uncommitted changes into every worktree through Codex execution's working-tree transfer, including scoped staged, unstaged, and untracked files. A supplied diff or a conversation fork does not copy those files. Launch each adversary through its selected executor, using `agent_type: "pstack-general-purpose"` on the native path. Pass absolute paths to this skill, the assigned worktree, required source files, and runnable tools. In place of the arena task and rationale, give each adversary the scope, the intent, and this brief:
+ 
+ > Break this change. Prove each finding with a run against the real code, such as a failing test, a repro script, or command output that shows the wrong behavior. For a design or plan, run a prototype or probe the current tree. Keep repros in your own worktree. Report each finding with a title, the exact command, the output it printed, and the output the intent requires. Leave out anything you did not run. That covers style, naming, structure, and risks that need a future change to matter. No findings is a valid result.
+ 
+diff --git a/skills/maintain-verification-skill/SKILL.md b/skills/maintain-verification-skill/SKILL.md
+index b86af75..d60474f 100644
+--- a/skills/maintain-verification-skill/SKILL.md
++++ b/skills/maintain-verification-skill/SKILL.md
+@@ -6,7 +6,7 @@ disable-model-invocation: true
+ 
+ # Maintain a verification skill
+ 
+-Read [Codex execution](../poteto-mode/references/codex-execution.md) before dispatching the read-only source wave.
++Read [Codex execution](../poteto-mode/references/execution.md) before dispatching the read-only source wave.
+ 
+ A feature map rots the moment the app changes. This skill is the upkeep loop for a skill generated by `/create-verification-skill` (or any project-local verification skill with a feature map). The unit of rigor is the feature, not every sentence: cover every feature file from source and exercise every feature live, without terminalising every bullet.
+ 
+diff --git a/skills/no-comments/SKILL.md b/skills/no-comments/SKILL.md
+deleted file mode 100644
+index d38da0a..0000000
+--- a/skills/no-comments/SKILL.md
++++ /dev/null
+@@ -1,24 +0,0 @@
+----
+-name: no-comments
+-description: "Spawn Comment Sicko, fix accepted findings, and offer encodings for claimed constraints."
+-disable-model-invocation: true
+----
+-
+-# No comments
+-
+-Spawn Comment Sicko. Act on accepted findings.
+-
+-Defer to Comment Sicko's fresh perspective.
+-
+-## Scope
+-
+-Use the caller's files or diff. Otherwise use the current diff against the base branch, default `main`, including the working tree.
+-
+-## Steps
+-
+-1. Read [Codex execution](../poteto-mode/references/codex-execution.md). Launch Comment Sicko through the selected executor. Native calls select the registered `comment-sicko` custom role; Claude Code calls pass the original `agents/comment-sicko.md` file through the shared runner. Pass the scope, this skill's absolute path, and the absolute `poteto-mode/SKILL.md` path for shared execution guidance. Resolve its task model from `judgment and prose`. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill. Do not restate its rules.
+-2. Inspect its report and diff. Reject application-code edits, scope escapes, exception-protected deletions, misstated `MUST KILL` reasons, and flags that treat kept intentional code as guilty. Reshape flags on our-code surprises stay actionable. Do not restore those comments. A keep survives only with proof it is about something we cannot change. Audit missed scoped lint and TypeScript suppressions. Correctness or safety suppressions stay actionable `MUST KILL`s. Restore deletions only with exact exceptions and scoped proof. Before accepting thin `IMPORTANT` or `do not remove` kills or keeps, run `/how` or `/why` on their symbol. If a kill is ambiguous, do not restore. If a keep is refuted or still ambiguous, delete it. Revert and rerun one rejected report with the failure named. Reject a second, report it open, and fail `/no-comments`.
+-3. Fix trivial accepted flags directly by deleting a dead path, dropping a parameter, or using the real API. If any fix needs a shape, run `/architect` once for the accepted set and surrounding code. Stop at the sketch. Architect shapes. Step 4 implements.
+-4. Implement the smallest root-cause fix in scope. Remove every named workaround. If the root cause is out of scope, land the smallest in-scope fix and report the rest open. The **principle-fix-root-causes** and **principle-redesign-from-first-principles** skills guide intent only. Neither authorizes widening the fence nor fixing instances outside it. Never bolt on symptom guards.
+-5. Constraint comments say `do not remove`, `do not change wording`, or `talk to X before changing`. Leave keeps about things we cannot change. Offer the cheapest in-scope type, runtime, test, or CI lint. Wait for interactive approval. Unattended and eval require caller pre-approval. If approved, encode then delete. Otherwise delete, report the constraint open, and sketch out-of-scope work.
+-6. Report the deletion count, restored comments, reruns, architect sketch, fixes, encoding offers, encodings, unenforced constraints, and other open work.
+diff --git a/skills/poteto-help/SKILL.md b/skills/poteto-help/SKILL.md
+index f692ce3..8e35fb9 100644
+--- a/skills/poteto-help/SKILL.md
++++ b/skills/poteto-help/SKILL.md
+@@ -43,7 +43,7 @@ When the model rule is missing and it matters, ask whether the user wants to pic
+ 
+ If cost is the worry, say where the tokens go and how to spend fewer. pstack spends extra tokens on subagents and review panels. Rerun `$pstack-codex:setup-pstack` and pick a smaller budget or cheaper models. A role set to `auto` or `inherit-parent` runs on the chat's actual model through the parent-selection binding in **Codex execution**; omitted native parameters alone do not prove inheritance. A shorter panel list runs fewer subagents, one for each entry. Save `$pstack-codex:poteto-mode` for work that needs rigor.
+ 
+-This distribution uses saved worker choices or the actual native parent for unconfigured roles. Setup chooses executors before checking their CLI and login requirements, then models, roles, and budget. Shared role configuration, project-scoped history, and event-watch/heartbeat continuation bind workers to this host. Read [Codex execution](../poteto-mode/references/codex-execution.md) for these bindings and permission boundaries. Worktrees replace cloud placement and share machine resources. Different-model and different-family requirements apply at the workflow step that needs them.
++This distribution uses saved worker choices or the actual native parent for unconfigured roles. Setup chooses executors before checking their CLI and login requirements, then models, roles, and budget. Shared role configuration, project-scoped history, and event-watch/heartbeat continuation bind workers to this host. Read [Codex execution](../poteto-mode/references/execution.md) for these bindings and permission boundaries. Worktrees replace cloud placement and share machine resources. Different-model and different-family requirements apply at the workflow step that needs them.
+ 
+ ## Start a task with `$pstack-codex:poteto-mode`
+ 
+@@ -53,7 +53,7 @@ Load the mode for each task:
+ - Invoke `$pstack-codex:poteto-mode` explicitly at the start of each task. Its instructions remain part of this task's context; a fresh task gets a fresh invocation.
+ - Codex supports explicit skill references, not Cursor Custom Modes. Persisting this mode in project guidance is a separate activation choice.
+ 
+-Mid-chat, "new task" makes the mode match a fresh playbook. `$pstack-codex:poteto-mode` already uses `poteto-agent` for its playbook delegates. For a subagent of your own, select `agent_type: "poteto-agent"` on the native path or pass its original instruction file on the Claude Code path through [Codex execution](../poteto-mode/references/codex-execution.md).
++Mid-chat, "new task" makes the mode match a fresh playbook. `$pstack-codex:poteto-mode` already uses `poteto-agent` for its playbook delegates. For a subagent of your own, select `agent_type: "poteto-agent"` on the native path or pass its original instruction file on the Claude Code path through [Codex execution](../poteto-mode/references/execution.md).
+ 
+ ## Pick a skill
+ 
+diff --git a/skills/poteto-mode/SKILL.md b/skills/poteto-mode/SKILL.md
+index 1930c98..9bc85fa 100644
+--- a/skills/poteto-mode/SKILL.md
++++ b/skills/poteto-mode/SKILL.md
+@@ -8,7 +8,7 @@ color: yellow
+ 
+ # Poteto mode
+ 
+-Bundled skills live at `../<name>/SKILL.md` from this file, so put this file's absolute path in every `poteto-agent` prompt. Read [Codex execution](references/codex-execution.md) before every delegate call and route each selected entry through its executor.
++Bundled skills live at `../<name>/SKILL.md` from this file, so put this file's absolute path in every `poteto-agent` prompt. Read [Codex execution](references/execution.md) before every delegate call and route each selected entry through its executor.
+ 
+ ## Non-negotiables
+ 
+@@ -95,7 +95,7 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
+ 
+ **Choices for every delegate call.** Execute asynchronously through the selected executor, including when steering or continuing a running agent. Pass file pointers rather than inlined context. Resolve each role through `/setup-pstack`'s helper before dispatch. Saved exact choices override routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A missing role, `inherit-parent`, or `auto` uses the actual native parent selection with disclosure. Scalars keep one entry and initial panels or pools keep two. Each code playbook resolves `feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`. The hardest changes use `hardest tasks`. Prose and judgment use `judgment and prose`. No bundled exact model is an execution default.
+ 
+-**Match the model to the job.** Before each spawn, start from the resolved role entry and pick the reasoning level and speed the job needs. Resolve the starting reasoning level from the role entry saved for `/setup-pstack`'s global budget. Parent aliases keep the actual parent's effort. Preserve an explicit task-level effort. Raise it one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more steps for routine work. Use fast mode only when the job is urgent, meaning CI or trunk is red or a person is blocked on the result right now. Otherwise use standard speed. Verification is the exception and stays on the `swarm workers` model and configured speed, except where the calling workflow requires a different model or family from the worker. Select that counterpart through Codex execution. Keep the selected model ID unchanged and pass reasoning effort and speed separately through the execution host's supported controls; do not construct model IDs by adding effort or `-fast` suffixes. If the model does not support the chosen effort, use its highest supported effort at or below that level. A role on `auto` or `inherit-parent` stays on the parent model. If the host rejects an adjusted setting, return to the role's supported starting setting and say so. If it rejects that too, follow the calling skill's fallback through Codex execution. Record rejected model IDs per executor, never resubmit one, and skip fallbacks that use one. When the caller has no fallback, try the closest valid model of the role's family from the error's list. If none remains, or the caller exhausts its fallback without another outcome, use Codex execution's parent-selection binding and say so. An unavailable executor or an unresolved parent alias stays an explicit capability gap. Preserve any required different-model or different-family gate and Arena's disclosed judge skip.
++**Match the model to the job.** Parent aliases keep the actual parent's model and effort. For an exact model, preserve an explicit task effort or start from the role's saved reasoning budget. Raise it one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more for routine work. Use fast mode only when CI or trunk is red or a person is blocked on the result now. Otherwise use standard speed through the host's available controls. Verification stays on the `swarm workers` model and available host speed, except where the caller requires another model or family. Select that counterpart through the execution binding. Keep the selected exact model ID unchanged and pass supported effort and speed separately. Do not append effort or `-fast` suffixes. Use the highest supported effort at or below the requested level. If an adjusted setting is rejected, return to the role's supported starting setting and say so. If that fails, follow the caller's fallback through the execution binding. Record rejected model IDs per executor and never resubmit them, including in fallbacks. When the caller has no fallback, try the closest valid model of the role's family from the error's list. If none remains, or the caller exhausts its fallback without another outcome, bind to the actual native parent and disclose it. An unavailable executor or unresolved parent stays a capability gap. Preserve every required different-model or different-family gate and Arena's disclosed judge skip.
+ 
+ You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. A second opinion is the same prompt against a different model. Agreement is high-signal.
+ 
+diff --git a/skills/poteto-mode/playbooks/autopilot-full.md b/skills/poteto-mode/playbooks/autopilot-full.md
+index 439948f..1f8a0db 100644
+--- a/skills/poteto-mode/playbooks/autopilot-full.md
++++ b/skills/poteto-mode/playbooks/autopilot-full.md
+@@ -5,7 +5,7 @@
+ A verdict covers one patch and green CI covers one head. Step 4 runs a full swarm once, and again only for a major change. The patch-id rule in `playbooks/shipping.md` can carry a lane's result, and every new head needs its own green CI.
+ 
+ 1. **The operator's gates come first.** The grant covers only the queue's items, so items the operator names as theirs and PRs outside the queue stop at merge-ready. A request to state the plan is not a go.
+-2. **Spawn one owner per PR, and keep its work where a replacement can find it.** Resolve, create, and record one absolute local task-store path before spawning owners or arming a heartbeat: use the caller's explicit path or `<project>/.local/pstack/orchestrate/<project-slug>/` per [Orchestrate's Store layout](orchestrate.md#store-layout). Pass that same path in every owner, replacement, and resume brief and the heartbeat prompt. Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). Each owner is a delegate through its selected executor in a dedicated local Git worktree per `references/codex-execution.md` that builds, opens its PR per `playbooks/opening-a-pr.md`, proves the change on the real artifact, babysits to green per `playbooks/babysit.md`, and merges once steps 4 and 5 clear it.
++2. **Spawn one owner per PR, and keep its work where a replacement can find it.** Resolve, create, and record one absolute local task-store path before spawning owners or arming a heartbeat: use the caller's explicit path or `<project>/.local/pstack/orchestrate/<project-slug>/` per [Orchestrate's Store layout](orchestrate.md#store-layout). Pass that same path in every owner, replacement, and resume brief and the heartbeat prompt. Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). Each owner is a delegate through its selected executor in a dedicated local Git worktree per `references/execution.md` that builds, opens its PR per `playbooks/opening-a-pr.md`, proves the change on the real artifact, babysits to green per `playbooks/babysit.md`, and merges once steps 4 and 5 clear it.
+ 
+    Open the PR early so CI and bots run alongside the work. The code is ready only after the slop-strip (the bundled `deslop` skill from the pinned `cursor-team-kit` source (`/deslop`)) and the `/no-comments` pass, so the full swarm runs on finished code. Then rebase onto current trunk and report the code-ready head before self-proof, so verification runs on the base the patch lands on. Report every later head, and merge-ready once self-proof, CI, and babysit are done. Fix rounds stay on that base unless trunk conflicts, breaks CI, or lands a known concurrent change to the same files, because each rebase restarts CI. Run the repo's checks for the touched paths on the committed head before the code-ready push and before a later push that needs a verifier.
+ 
+diff --git a/skills/poteto-mode/playbooks/multi-phase-plan.md b/skills/poteto-mode/playbooks/multi-phase-plan.md
+index 323e49d..ecdd600 100644
+--- a/skills/poteto-mode/playbooks/multi-phase-plan.md
++++ b/skills/poteto-mode/playbooks/multi-phase-plan.md
+@@ -68,7 +68,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
+ 
+ ### Boot recipe, for every live lane
+ 
+-Each live lane runs in its own local Git worktree at the PR head. Local worktrees share the machine, so allocate independent ports, data directories, and app/terminal sessions; serialize a surface that cannot be isolated. Follow `references/codex-execution.md`. Drive through `control-ui` or `control-cli` bundled from the pinned `cursor-team-kit` source.
++Each live lane runs in its own local Git worktree at the PR head. Local worktrees share the machine, so allocate independent ports, data directories, and app/terminal sessions; serialize a surface that cannot be isolated. Follow `references/execution.md`. Drive through `control-ui` or `control-cli` bundled from the pinned `cursor-team-kit` source.
+ 
+ - [ ] Fetch the head branch, create the lane's dedicated worktree at `<head SHA>`, and confirm its exact HEAD. Bind all lane commands to that worktree.
+ - [ ] <Start the backend and the surface. Wait for ready.>
+diff --git a/skills/poteto-mode/playbooks/opening-a-pr.md b/skills/poteto-mode/playbooks/opening-a-pr.md
+index a4a9916..5e2a230 100644
+--- a/skills/poteto-mode/playbooks/opening-a-pr.md
++++ b/skills/poteto-mode/playbooks/opening-a-pr.md
+@@ -2,7 +2,7 @@
+ 
+ Invoked at the end of every other playbook.
+ 
+-**Worktree.** Work from a Git worktree off main. Each independent writer gets an exclusive worktree and branch. A native history fork copies conversation, not uncommitted files or running processes. Prepare scoped working-tree inputs through [Codex execution](../references/codex-execution.md) before dispatch. Dirty branch with unrelated work: patch out, fresh worktree, apply. Snarled worktree: preserve required changes, reset your own worktree from main, redo minimally.
++**Worktree.** Work from a Git worktree off main. Each independent writer gets an exclusive worktree and branch. A native history fork copies conversation, not uncommitted files or running processes. Prepare scoped working-tree inputs through [Codex execution](../references/execution.md) before dispatch. Dirty branch with unrelated work: patch out, fresh worktree, apply. Snarled worktree: preserve required changes, reset your own worktree from main, redo minimally.
+ 
+ **Commits.** Commit liberally. Rebase into small, ordered commits before opening PRs. Each commit is a future PR: landable, ordered to tell the story. Amend when the fix belongs in a just-made commit. New commit when separable. Commit bodies don't restate the subject.
+ 
+diff --git a/skills/poteto-mode/playbooks/orchestrate.md b/skills/poteto-mode/playbooks/orchestrate.md
+index dc77d15..4e98764 100644
+--- a/skills/poteto-mode/playbooks/orchestrate.md
++++ b/skills/poteto-mode/playbooks/orchestrate.md
+@@ -2,7 +2,7 @@
+ 
+ **You run the program, never the code. Decide which agent does each piece of work, then check what each one produces.** For a standing project handed to one coordinator chat: multi-day, many stacked PRs, dozens to hundreds of subagents, few human turns. One task driven to a predicate is Autonomous run. One ambitious run that needs a bespoke workflow is figure-it-out. Work that one agent could finish inside the session's budget is not a program.
+ 
+-Run it with your own tools. Spawn workers through their selected executor per `references/codex-execution.md`, using native collaboration controls on the Codex path. Keep the program's state in the local task tracker (`notes.md`) and the local task store below. Watch each PR with PR and CI event subscriptions when the host exposes them. Native child completion events and waits cover delegates. If the host has no PR subscription, report that capability as unavailable and inspect PR state at decision points. Run no orchestration scripts or polling loops, and never relay messages or status between agents. The existing role-selection helper and Claude executor runner in Codex execution remain the execution bridge, not a bookkeeping runtime or watcher.
++Run it with your own tools. Spawn workers through their selected executor per `references/execution.md`, using native collaboration controls on the Codex path. Keep the program's state in the local task tracker (`notes.md`) and the local task store below. Watch each PR with PR and CI event subscriptions when the host exposes them. Native child completion events and waits cover delegates. If the host has no PR subscription, report that capability as unavailable and inspect PR state at decision points. Run no orchestration scripts or polling loops, and never relay messages or status between agents. The existing role-selection helper and Claude executor runner in Codex execution remain the execution bridge, not a bookkeeping runtime or watcher.
+ 
+ #### Store layout
+ 
+diff --git a/skills/poteto-mode/playbooks/shipping.md b/skills/poteto-mode/playbooks/shipping.md
+index 9ff18d2..dac24f5 100644
+--- a/skills/poteto-mode/playbooks/shipping.md
++++ b/skills/poteto-mode/playbooks/shipping.md
+@@ -2,7 +2,7 @@
+ 
+ **You own what lands. Verify each PR independently, land only the verified run from the root, then keep your hands off the stack.**
+ 
+-1. **Resolve the forge, then verify each PR independently before it lands.** GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). One verifier per PR, each a delegate through its selected executor in its own local Git worktree with independent app state per `references/codex-execution.md`, runs the change the way a user would with the matching control skill (such as `control-ui` or `control-cli` bundled from the pinned `cursor-team-kit` source), parent against head, and posts `PASS`, `PASS+NOTES`, or `FAIL` on that PR. Only a verdict from an agent that did not write the code counts, because an author checks what it meant to build. Green CI and an approving bot review are not verdicts, because neither runs the change as a user would.
++1. **Resolve the forge, then verify each PR independently before it lands.** GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). One verifier per PR, each a delegate through its selected executor in its own local Git worktree with independent app state per `references/execution.md`, runs the change the way a user would with the matching control skill (such as `control-ui` or `control-cli` bundled from the pinned `cursor-team-kit` source), parent against head, and posts `PASS`, `PASS+NOTES`, or `FAIL` on that PR. Only a verdict from an agent that did not write the code counts, because an author checks what it meant to build. Green CI and an approving bot review are not verdicts, because neither runs the change as a user would.
+ 2. **Land only the contiguous verified run rooted at the bottom.** Walk up from the lowest unmerged PR and stop at the first one without `PASS` or `PASS+NOTES`. The PRs below it are the run, and the top one is the ceiling. A verified PR above an unverified one waits, because it cannot land without the code below it. One whose branch neither holds nor needs that code can move onto trunk and land on its own. It needs a fresh verdict first, because its old one ran with that code beneath it and trunk does not have it.
+ 3. **Re-check that the verdicts still describe the code.** A verdict covers a patch, and a chain rebase moves every PR above it to a new SHA without failing any check. Compare `git patch-id` at the verdict SHA with the current head before trusting an older verdict. When the patches differ only in tests, docs, or lint config, a lane's result stands if what it ran builds the same at both SHAs apart from noise. Noise is a difference that also shows up between two builds of the verdict SHA, or an embedded commit SHA. Report each kind of noise with its files, so a reader can check the call. The change itself still gets fresh checks and a review, because the old verdict never saw it. A lane with no build output, such as a dev server, cannot show this, so rerun it, and re-verify anything else that drifted.
+ 4. **Land bottom-up, one PR at a time.** Always merge the run's lowest unmerged PR, with `origin pr merge <pr>` or `gh pr merge <pr> --squash`. On Origin the plain command also merges every PR below the one you name, and on GitHub a PR whose base is still its parent's branch merges into that branch, not trunk. Read the PR back for the result (`origin pr view <pr>` or `gh pr view <pr> --json state,mergedAt,baseRefName`), because a merge command can report success when a merge queue only queued the PR, and a requested auto-merge is not a merge. A landed PR reads merged with trunk as its base, not its parent's branch. Arm `--auto` (Origin merge-when-ready or GitHub auto-merge) only on a PR whose verdict covers its current head, because it lands whatever head is ready. After a merge lands, retarget the PR whose base was the merged branch to trunk (`origin pr edit <pr> --base <trunk>` or `gh pr edit <pr> --base <trunk>`), move its patch onto the merge result, and push with `--force-with-lease`. The verdict covers the patch, not its commits, so step 3's patch-id rule decides whether the verdict survives. Merge it once its checks pass and its verdict survives.
+diff --git a/skills/poteto-mode/references/codex-execution.md b/skills/poteto-mode/references/codex-execution.md
+deleted file mode 100644
+index c935b50..0000000
+--- a/skills/poteto-mode/references/codex-execution.md
++++ /dev/null
+@@ -1,114 +0,0 @@
+-# Codex execution
+-
+-Read this reference before launching, steering, waiting for, or collecting pstack delegates. Resolve every bundled path from the directory containing the actual installed `SKILL.md`, not from the workspace or a guessed installation directory.
+-
+-## Roles, models, and effort
+-
+-Run the sibling setup helper with its absolute path:
+-
+-```text
+-node <skills>/setup-pstack/scripts/models.mjs resolve --role "<role>"
+-```
+-
+-It reads `$CODEX_HOME/pstack-codex/models.json`, or `~/.codex/pstack-codex/models.json` when `CODEX_HOME` is unset. The response contains `role`, ordered `entries`, `source`, and `file`. Each entry supplies `model`, its saved budget's starting `reasoningEffort`, and an optional `executor`. An absent executor or `"codex"` uses native Codex delegation. `"claude-code"` uses the bundled Claude Code runner with that entry's exact model ID. Pass it explicitly as `--model ENTRY.MODEL`.
+-
+-A missing role resolves to `inherit-parent` with source `unconfigured`. Scalar roles yield one entry, and the four list roles yield two initial entries. Disclose the native-parent resolution. Saved exact choices remain authoritative. No bundled model or external CLI is required before setup.
+-
+-Preserve ordered entries and their multiplicity. Equal entries remain separate executions. Saved role selections override defaults. For an explicit model, use the task's explicit effort when given; otherwise adjust the entry's starting effort for the job using poteto-mode's Subagents guidance and the selected executor's confirmed model capabilities. Pass model and effort separately. A refused model follows the caller's documented fallback, and every fallback is reported. A rejected adjusted effort returns to the role's supported starting effort and is reported. Never invent a model ID or attach effort or speed suffixes.
+-
+-`auto` and `inherit-parent` both select the current native Codex parent model. Budget changes preserve these aliases. Check the active native subagent defaults and selected role before binding them: an omitted model or effort can select `[agents]` defaults, and an omitted agent type can apply the configured `default` role. Omit model and effort only when they will preserve the parent selection. Otherwise pass the observed parent model and effort explicitly through supported fields, using a fresh-context brief when the host requires it. If the parent settings or effective inheritance cannot be established, report the alias as unresolved. An alias is not a refused model and does not use a fallback model.
+-
+-Keep a per-executor record of rejected model IDs during the run. A model is rejected when the executor reports it invalid or omits it from an explicit list of valid models. Never submit an already rejected model to that executor again, including through a fallback. After a rejected adjusted effort or speed, try the role's supported starting setting unless its model is already rejected, then follow the calling skill's fallback. When the caller has no fallback, use the closest valid model of the role's family from the error's list. If that list has none, or the caller exhausts its fallbacks without another outcome, bind a native execution to the actual parent selection and disclose the loss of the requested model. An unresolved parent selection remains unresolved. Explicit different-model or different-family gates still apply, as do Arena's judge skip rules. An unavailable executor is a capability gap, not evidence that a model was rejected.
+-
+-Speed uses a separate executor control when one is exposed. Native subagents inherit the root session's service tier when no per-agent speed control is available. Report an urgent fast request that the selected executor cannot express independently.
+-
+-Record the actual model and effort for each execution when the executor exposes them; otherwise distinguish requested settings from unknown effective settings. Validate required distinct models or families before launching the affected step; report a configuration error when the selected entries cannot satisfy it. A distinct-model or distinct-family requirement remains a requirement. Repeated seats on one model do not satisfy it. Keep a source preference distinct from a requirement and report an unmet preference accurately. Arena has its own different-family-or-skip rule for its judge, rather than a stop on an unavailable judge.
+-
+-Required trail reviews and verifiers use eligible exact choices already resolved by the calling workflow, in their existing order, or an explicitly supplied task counterpart. Do not scan unrelated roles or add a verifier role, priority ranking, or fixed counterpart. Disclose the chosen entry and its source. Parent aliases and unknown families cannot establish a different-family relationship. Sonnet and Opus belong to the same Claude family. If no eligible counterpart can run, preserve that step's existing unmet or capability-gap outcome. Arena compares its judge with the parent. It uses only its ordered selected pool, skips with disclosure if no eligible judge runs, and retains its unknown-parent rule. That skip does not waive another workflow's required verifier. Orchestrate's tool-error retry needs a different model, without adding a different-family requirement. Preserve each caller's dropout and retry rules.
+-
+-## Native delegation
+-
+-Inspect the tools exposed by the current runtime and use their actual schemas. Use native Codex subagent tools for entries whose executor is absent or `"codex"`, not Cursor `Task` parameters. On a runtime exposing `collaboration`:
+-
+-- Spawn with `spawn_agent`, a unique `task_name`, and a complete `message`.
+-- The message includes the goal, owned files or slice, boundaries, exact verification, required report, and absolute skill/reference/artifact paths. For writers, say they are not alone and must accommodate others' edits.
+-- General-purpose workflow seats select `agent_type: "pstack-general-purpose"` when that registered role is available. Setup registers this pstack routing role with a description only, without a config file or instruction body. It preserves the parent-derived instructions and selected model/effort instead of applying the user's configured `default` role. If the role is unavailable and the resolved seat has `source: "unconfigured"`, use the host-supported native general-purpose or default path instead, including for callers that name `pstack-general-purpose`. Explicit task-native counterparts and arms keep their exact selected model and effort on this path. Bind the actual native parent model and effort only when the selected entry is a parent alias, under the parent-selection rules above. Supply the complete task brief and workflow instructions. Disclose the unconfigured seat, native role path, and requested settings. Do not infer parent inheritance from an omitted role, model, or effort. If the host cannot express that binding, report that specific capability gap. Saved selections retain the registered-role path. Inspect the actual schema and role precedence. Check effective settings when the host exposes them; otherwise record them as unknown instead of inferring missing response fields.
+-- Playbook delegates select the registered `poteto-agent` custom role through `agent_type`. Comment cleanup selects `comment-sicko`. Both custom roles require setup registration before use. Pass the absolute `poteto-mode/SKILL.md` path to every `poteto-agent`; its preserved instruction body uses that path to find the bundled principles.
+-- Resolve custom roles through native discovery after setup. Confirm both the loaded role and a role-selector field in the actual spawn schema. If either is unavailable, inspect registration, enabled config layers and project trust, and the host's tool capabilities; report the specific gap. For an unconfigured general-purpose seat, use the native path above when it can preserve the selected model and effort. Otherwise use the authorized setup path for missing registration and start a new Codex session before retrying, as setup requires. Preserve the requested custom role's instructions.
+-- Explicit `model` and `reasoning_effort` overrides use `fork_turns: "none"` on schemas that require it. Supply all task context in the message. Inherited aliases use the parent-selection binding above; a fresh brief can still use `fork_turns: "none"`.
+-
+-`fork_turns: "all"` copies conversation history into a subagent. It does not create an independent checkout, copy uncommitted files, or clone running processes. `fork_turns: "none"` starts from the complete brief. Neither field supplies worktree isolation. Use the local-worktree and working-tree transfer rules below for filesystem state. These collaboration schemas have no worker-fork operation that copies a live environment. Use the stateful reuse exception below when the required state cannot be moved, rather than creating a separate user task to simulate a worker fork.
+-
+-Launch independent seats consecutively without waiting between them. A concurrency limit affects how many run at once, not how many seats the workflow requires. Queue remaining seats and drain them; preserve every required result.
+-
+-## Claude Code delegation
+-
+-For an entry with `executor: "claude-code"`, resolve `scripts/run-claude.mjs` from the installed `poteto-mode` directory. Write the consolidated task brief to an absolute local file, then launch the runner through the host's command tool. The process remains governed by that tool's OS permissions and environment. Use the host's standard execution and approval mechanism for access to the existing Claude authentication and runtime state. On a Codex host exposing `exec_command` with `sandbox_permissions`, request `sandbox_permissions: "require_escalated"` with a task-specific `justification` when that access requires it, and set `workdir` to the assigned checkout.
+-
+-For a task that edits `index.mjs` and verifies it with `node --test index.test.mjs`, include the corresponding file and command rules:
+-
+-```sh
+-node "<poteto-mode>/scripts/run-claude.mjs" run \
+-  --cwd "/absolute/assigned-worktree" \
+-  --run-dir "/absolute/local-run-directory" \
+-  --model "<resolved-entry.model>" \
+-  --effort xhigh \
+-  --instruction "/absolute/applicable/AGENTS.md" \
+-  --skill "<absolute/relevant/SKILL.md>" \
+-  --allowed-tool 'Read(//absolute/plugin/skills/principle-prove-it-works/SKILL.md)' \
+-  --allowed-tool 'Edit(//absolute/assigned-worktree/index.mjs)' \
+-  --allowed-tool 'Bash(node --test index.test.mjs)' \
+-  < "/absolute/task-prompt.txt"
+-```
+-
+-Use the resolved exact model ID and task effort. Repeat `--instruction` for the applicable project instructions and selected source references, templates, and rubrics, and `--skill` for the relevant skill bodies. The runner reads these absolute files, sends their contents with the task to Claude Code, and grants standard exact-file `Read` access to each supplied context file. The caller also supplies `--allowed-tool` rules for required linked source files and already-authorized task operations, including edits and verification commands. Use exact files or the required source subtree for `Read`, scoped `Edit` rules for owned files whether the delegate uses Edit or Write, and the task's command for `Bash`. Claude Code absolute file rules begin with two slashes, as in `Edit(//absolute/project/new-file.md)`. Keep task edits in the assigned cwd/worktree. Gather these rules from the task and its source references before launching.
+-
+-Claude Code's [file permission rules](https://code.claude.com/docs/en/permissions#writepath-notebookeditpath-and-globpath-rules-never-match) match file creation and editing through `Edit(path)`. A path-scoped `Write(path)` rule is accepted but never matches. `--allowedTools` preapproves matching calls; it does not restrict the available tool set or create a filesystem boundary. An allowed shell or interpreter can perform operations beyond another tool's rule, so retain the host's OS permissions and the task's ownership scope.
+-
+-The brief carries the original task, later directives, owned scope, cwd and branch, exact input SHAs, required tools and constraints, verification, artifact locations including this runner's run directory, and output contract. Filled template fields belong in that brief. Preserve judge blinding by using sanitized candidate labels and paths in the judge's files and brief.
+-
+-When the original dispatcher calls for `poteto-agent` or `comment-sicko`, add `--role "<plugin>/agents/poteto-agent.md"` or `--role "<plugin>/agents/comment-sicko.md"`. Pass `poteto-mode/SKILL.md` with `poteto-agent`. General-purpose reviewers, candidates, investigators, and explainers use their own workflow sources without a `--role` file. Native role registration does not load instructions into Claude Code.
+-
+-The runner invokes the existing Claude Code installation with `claude -p --model SELECTED_EXACT_ID`, the chosen effort, and stream JSON output. CLI detection reports global effort syntax, not per-model availability. Setup's model-specific source evidence remains separate from the result of a real run. `request.json.model` records the requested ID, while `observedModel` comes only from the stream and may differ or be null. Every run requires `--model EXACT_ID` and reports `modelSelection: "explicit"`. An omitted model fails before launching a worker. It uses Claude Code's existing authentication and configured harness, tools, and MCPs. The Codex parent's native role configuration, MCP inventory, and thread state do not automatically load into Claude Code.
+-
+-Start each independent seat or new round with a distinct run directory and a fresh Claude session. Only the stateful reuse exception in poteto-mode permits `--resume "<exact-session-uuid>"` on a subsequent run. Pass the original `request.json.model` explicitly when resuming, including for a nondefault model. A running command is asynchronous work; track its command identity and collect its terminal receipt. Do not wait for one independent seat before launching the next.
+-
+-## Local worktrees
+-
+-Workers run on the current host through their selected executor. Give each independent worker an exclusive Git worktree and branch when it writes code. Use native managed-worktree tools when exposed, waiting for creation to complete, or `git worktree add` with an explicit base ref and a local `codex/` branch. The worker's prompt names its absolute checkout, branch, and resolved starting SHA; every shell command runs in that checkout. Keep the coordinator's checkout separate.
+-
+-For workflows that previously started from the repository's default branch, resolve the actual default ref and SHA before creating the worker checkouts. A caller-supplied non-default ref replaces that base. Measurements and verification pin the exact SHAs required by their brief. Local uncommitted changes enter a worker's input only when the brief explicitly includes them.
+-
+-The coordinator creates and removes worktrees and coordinates shared repository metadata. Each branch owner performs the pushes, rebases, and PR operations its calling workflow assigns. Workers own their assigned checkout and output only. Worktrees isolate files and indexes; they share the host, repository metadata, credentials, and other machine resources. Assign distinct ports, temporary/cache/data directories, simulator/device resources, and output locations for work that uses them. Serialize a machine resource that cannot be separated. Restrict the brief's commands to the assigned resources.
+-
+-After collecting and verifying artifacts, integrate accepted work deliberately. Retain any unintegrated changes and evidence. Remove temporary worktrees and local branches only after their needed work has been integrated or preserved, following the worktree cleanup playbook. A completed worker alone does not authorize discarding its checkout.
+-
+-### Working-tree transfer
+-
+-When a workflow includes uncommitted changes, record the source checkout and its exact HEAD, then create every receiving worktree at that HEAD. Capture the scoped tracked working-tree contents with `git diff --binary HEAD -- <scope>` in a local patch file. This includes the final staged and unstaged contents, additions, deletions, and executable-mode changes. Inventory scoped untracked files separately and copy their file types, bytes or symlink targets, and executable modes to the same relative paths in every receiving worktree. Include ignored input only when the task explicitly needs it. Do not copy the source's Git metadata or unrelated personal state.
+-
+-Apply the tracked patch in each clean receiving worktree and copy the untracked files before launching its worker. Compare the resulting scoped file bytes, file types, executable modes, and deletions against the source. Record the source SHA, scope, patch, untracked inventory, and comparison result in the brief or its artifacts. If the input changes during capture, recapture a coherent input before dispatch. A diff in the prompt or inherited chat history is context, not this transfer.
+-
+-For new work that needs a completed worker's built state, give a fresh worker the consolidated brief and reports. Transfer its committed or uncommitted checkout state to an exclusive worktree, or hand over the existing checkout after the prior writer stops. Preserve branch ownership and resource assignments. Reuse the existing worker only under poteto-mode's exception for a costly-to-move checkout, uncommitted changes, or a process it still runs. There is no implied copy of a running process. Name the process and host resources if that state is needed.
+-
+-## Wait, results, and continuation
+-
+-Track every returned agent or command identity, executor, and slice. For native delegates, use `wait_agent` for an event and `list_agents` for status on runtimes with those tools. The final-answer notification contains the result. Use a result/retrieval tool when the runtime exposes one. A spawn acknowledgement or a completed status without its report is not a result.
+-
+-For Claude Code, collect the command's terminal receipt and inspect its `result`, `resultEvent`, `sessionId`, `exitCode`, and `signal`, plus the artifacts named by `promptPath`, `requestPath`, `stdoutPath`, `stderrPath`, and `resultPath`. The receipt preserves the process outcome and raw stream. Review the reported work and artifacts under the calling workflow's normal result and failure rules.
+-
+-Wait for every required terminal result before synthesis. Record failures and missing reports as gaps under the calling workflow's dropout rule. Review changed artifacts and verification evidence yourself.
+-
+-Spawns, steering, and continuation remain asynchronous. Use the exposed native controls without inventing a `run_in_background` field, and keep a long-running external command under the host's asynchronous process controls. Collect its terminal receipt later while other independent work proceeds.
+-
+-Fresh agents take new rounds with the consolidated brief. Reuse an existing agent only for the stateful exceptions in poteto-mode. For native delegates, use `send_message` to steer a running agent, `followup_task` to continue an idle agent, and `interrupt_agent` for a stop/hold on runtimes exposing those controls. Use a native resume control only when present. Claude Code's stateful continuation uses its recorded session ID with the runner's `--resume`. Keep a stop order separate from a new work brief.
+-
+-For a repeated watcher or work that must resume after the active turn, read [Codex loops](codex-loops.md) and use its native event or heartbeat controls.
+-
+-## Permissions and MCP access
+-
+-Native v2 delegates use the parent's sandbox, approvals, and available tools. Route the role and its normal task procedures through native delegation. MCP-backed native `why` and `reflect` delegates use the inherited tools for investigation and citation checks. Claude Code delegates use their existing configured execution environment and receive the same applicable task instructions and source bodies through the runner.
+-
+-## References
+-
+-[Codex subagents and custom-agent permissions](https://learn.chatgpt.com/docs/agent-configuration/subagents).
+diff --git a/skills/poteto-mode/references/codex-loops.md b/skills/poteto-mode/references/codex-loops.md
+index 7491b2a..0e5569d 100644
+--- a/skills/poteto-mode/references/codex-loops.md
++++ b/skills/poteto-mode/references/codex-loops.md
+@@ -4,7 +4,7 @@ Use this binding wherever a playbook says to loop. The predicate, event wake, fa
+ 
+ ## Arm
+ 
+-Record the done predicate, authorized scope, standing orders, current branch/head, trail, and resume point in the run's local task store. Use the installed absolute paths from [Codex execution](codex-execution.md) for the playbook and helpers. Re-read those paths each audit. When a skill is owned by the current project and tracked on its trunk, read its actual repository-relative path from trunk; an installed plugin is a versioned bundle, not a `pstack/` directory inside the target repository.
++Record the done predicate, authorized scope, standing orders, current branch/head, trail, and resume point in the run's local task store. Use the installed absolute paths from [Codex execution](execution.md) for the playbook and helpers. Re-read those paths each audit. When a skill is owned by the current project and tracked on its trunk, read its actual repository-relative path from trunk; an installed plugin is a versioned bundle, not a `pstack/` directory inside the target repository.
+ 
+ For an event, start one watcher with `poteto-agent` instructions for a playbook step, or an execution session, using **Codex execution** for its selected model and parent-alias binding. Its command waits for the event and reports the observed state. For GitHub PRs, run the installed `scripts/watch-pr/watch-pr`; for Origin, use its watch commands. An active coordinator waits through native agent or execution-session tools, drains the result, acts on that verdict, and rearms after each push wave or acted-on verdict. The watcher owns polling. Keep the coordinator out of a second sleep loop.
+ 
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+new file mode 100644
+index 0000000..376629f
+--- /dev/null
++++ b/skills/poteto-mode/references/execution.md
+@@ -0,0 +1,114 @@
++# Codex execution
++
++Read this reference before launching, steering, waiting for, or collecting pstack delegates. Resolve every bundled path from the directory containing the actual installed `SKILL.md`, not from the workspace or a guessed installation directory.
++
++## Roles, models, and effort
++
++Run the sibling setup helper with its absolute path:
++
++```text
++node <skills>/setup-pstack/scripts/models.mjs resolve --role "<role>"
++```
++
++It reads `$CODEX_HOME/pstack-codex/models.json`, or `~/.codex/pstack-codex/models.json` when `CODEX_HOME` is unset. The response contains `role`, ordered `entries`, `source`, and `file`. Each entry supplies `model`, its saved budget's starting `reasoningEffort`, and an optional `executor`. An absent executor or `"codex"` uses native Codex delegation. `"claude-code"` uses the bundled Claude Code runner with that entry's exact model ID. Pass it explicitly as `--model ENTRY.MODEL`.
++
++A missing role resolves to `inherit-parent` with source `unconfigured`. Scalar roles yield one entry, and the four list roles yield two initial entries. Disclose the native-parent resolution. Saved exact choices remain authoritative. No bundled model or external CLI is required before setup.
++
++Preserve ordered entries and their multiplicity. Equal entries remain separate executions. Saved role selections override defaults. For an explicit model, use the task's explicit effort when given; otherwise adjust the entry's starting effort for the job using poteto-mode's Subagents guidance and the selected executor's confirmed model capabilities. Pass model and effort separately. A refused model follows the caller's documented fallback, and every fallback is reported. A rejected adjusted effort returns to the role's supported starting effort and is reported. Never invent a model ID or attach effort or speed suffixes.
++
++`auto` and `inherit-parent` both select the current native Codex parent model. Budget changes preserve these aliases. Check the active native subagent defaults and selected role before binding them: an omitted model or effort can select `[agents]` defaults, and an omitted agent type can apply the configured `default` role. Omit model and effort only when they will preserve the parent selection. Otherwise pass the observed parent model and effort explicitly through supported fields, using a fresh-context brief when the host requires it. If the parent settings or effective inheritance cannot be established, report the alias as unresolved. An alias is not a refused model and does not use a fallback model.
++
++Keep a per-executor record of rejected model IDs during the run. A model is rejected when the executor reports it invalid or omits it from an explicit list of valid models. Never submit an already rejected model to that executor again, including through a fallback. After a rejected adjusted effort or speed, try the role's supported starting setting unless its model is already rejected, then follow the calling skill's fallback. When the caller has no fallback, use the closest valid model of the role's family from the error's list. If that list has none, or the caller exhausts its fallbacks without another outcome, bind a native execution to the actual parent selection and disclose the loss of the requested model. An unresolved parent selection remains unresolved. Explicit different-model or different-family gates still apply, as do Arena's judge skip rules. An unavailable executor is a capability gap, not evidence that a model was rejected.
++
++Speed uses a separate executor control when one is exposed. Native subagents inherit the root session's service tier when no per-agent speed control is available. Report an urgent fast request that the selected executor cannot express independently.
++
++Record the actual model and effort for each execution when the executor exposes them; otherwise distinguish requested settings from unknown effective settings. Validate required distinct models or families before launching the affected step; report a configuration error when the selected entries cannot satisfy it. A distinct-model or distinct-family requirement remains a requirement. Repeated seats on one model do not satisfy it. Keep a source preference distinct from a requirement and report an unmet preference accurately. Arena has its own different-family-or-skip rule for its judge, rather than a stop on an unavailable judge.
++
++Required trail reviews and verifiers use eligible exact choices already resolved by the calling workflow, in their existing order, or an explicitly supplied task counterpart. Do not scan unrelated roles or add a verifier role, priority ranking, or fixed counterpart. Disclose the chosen entry and its source. Parent aliases and unknown families cannot establish a different-family relationship. Sonnet and Opus belong to the same Claude family. If no eligible counterpart can run, preserve that step's existing unmet or capability-gap outcome. Arena compares its judge with the parent. It uses only its ordered selected pool, skips with disclosure if no eligible judge runs, and retains its unknown-parent rule. That skip does not waive another workflow's required verifier. Orchestrate's tool-error retry needs a different model, without adding a different-family requirement. Preserve each caller's dropout and retry rules.
++
++## Native delegation
++
++Inspect the tools exposed by the current runtime and use their actual schemas. Use native Codex subagent tools for entries whose executor is absent or `"codex"`, not Cursor `Task` parameters. On a runtime exposing `collaboration`:
++
++- Spawn with `spawn_agent`, a unique `task_name`, and a complete `message`.
++- The message includes the goal, owned files or slice, boundaries, exact verification, required report, and absolute skill/reference/artifact paths. For writers, say they are not alone and must accommodate others' edits.
++- Read-only workflow seats, including How, use an explicit no-edits brief and the general-purpose path below; Codex does not gain a separate OS-readonly role. General-purpose workflow seats select `agent_type: "pstack-general-purpose"` when that registered role is available. Setup registers this pstack routing role with a description only, without a config file or instruction body. It preserves the parent-derived instructions and selected model/effort instead of applying the user's configured `default` role. If the role is unavailable and the resolved seat has `source: "unconfigured"`, use the host-supported native general-purpose or default path instead, including for callers that name `pstack-general-purpose`. Explicit task-native counterparts and arms keep their exact selected model and effort on this path. Bind the actual native parent model and effort only when the selected entry is a parent alias, under the parent-selection rules above. Supply the complete task brief and workflow instructions. Disclose the unconfigured seat, native role path, and requested settings. Do not infer parent inheritance from an omitted role, model, or effort. If the host cannot express that binding, report that specific capability gap. Saved selections retain the registered-role path. Inspect the actual schema and role precedence. Check effective settings when the host exposes them; otherwise record them as unknown instead of inferring missing response fields.
++- Playbook delegates select the registered `poteto-agent` custom role through `agent_type`. Comment cleanup selects `comment-sicko`. Both custom roles require setup registration before use. Pass the absolute `poteto-mode/SKILL.md` path to every `poteto-agent`; its preserved instruction body uses that path to find the bundled principles.
++- Resolve custom roles through native discovery after setup. Confirm both the loaded role and a role-selector field in the actual spawn schema. If either is unavailable, inspect registration, enabled config layers and project trust, and the host's tool capabilities; report the specific gap. For an unconfigured general-purpose seat, use the native path above when it can preserve the selected model and effort. Otherwise use the authorized setup path for missing registration and start a new Codex session before retrying, as setup requires. Preserve the requested custom role's instructions.
++- Explicit `model` and `reasoning_effort` overrides use `fork_turns: "none"` on schemas that require it. Supply all task context in the message. Inherited aliases use the parent-selection binding above; a fresh brief can still use `fork_turns: "none"`.
++
++`fork_turns: "all"` copies conversation history into a subagent. It does not create an independent checkout, copy uncommitted files, or clone running processes. `fork_turns: "none"` starts from the complete brief. Neither field supplies worktree isolation. Use the local-worktree and working-tree transfer rules below for filesystem state. These collaboration schemas have no worker-fork operation that copies a live environment. Use the stateful reuse exception below when the required state cannot be moved, rather than creating a separate user task to simulate a worker fork.
++
++Launch independent seats consecutively without waiting between them. A concurrency limit affects how many run at once, not how many seats the workflow requires. Queue remaining seats and drain them; preserve every required result.
++
++## Claude Code delegation
++
++For an entry with `executor: "claude-code"`, resolve `scripts/run-claude.mjs` from the installed `poteto-mode` directory. Write the consolidated task brief to an absolute local file, then launch the runner through the host's command tool. The process remains governed by that tool's OS permissions and environment. Use the host's standard execution and approval mechanism for access to the existing Claude authentication and runtime state. On a Codex host exposing `exec_command` with `sandbox_permissions`, request `sandbox_permissions: "require_escalated"` with a task-specific `justification` when that access requires it, and set `workdir` to the assigned checkout.
++
++For a task that edits `index.mjs` and verifies it with `node --test index.test.mjs`, include the corresponding file and command rules:
++
++```sh
++node "<poteto-mode>/scripts/run-claude.mjs" run \
++  --cwd "/absolute/assigned-worktree" \
++  --run-dir "/absolute/local-run-directory" \
++  --model "<resolved-entry.model>" \
++  --effort xhigh \
++  --instruction "/absolute/applicable/AGENTS.md" \
++  --skill "<absolute/relevant/SKILL.md>" \
++  --allowed-tool 'Read(//absolute/plugin/skills/principle-prove-it-works/SKILL.md)' \
++  --allowed-tool 'Edit(//absolute/assigned-worktree/index.mjs)' \
++  --allowed-tool 'Bash(node --test index.test.mjs)' \
++  < "/absolute/task-prompt.txt"
++```
++
++Use the resolved exact model ID and task effort for workflow delegates. The raw runner also accepts a self-contained prompt without context files; supplied context paths remain absolute and are read as requested. Omitted effort uses the Claude CLI default and is recorded as `null`, without a bundled fallback. Repeat `--instruction` for the applicable project instructions and selected source references, templates, and rubrics, and `--skill` for the relevant skill bodies. The runner reads these absolute files, sends their contents with the task to Claude Code, and grants standard exact-file `Read` access to each supplied context file. The caller also supplies `--allowed-tool` rules for required linked source files and already-authorized task operations, including edits and verification commands. Use exact files or the required source subtree for `Read`, scoped `Edit` rules for owned files whether the delegate uses Edit or Write, and the task's command for `Bash`. Claude Code absolute file rules begin with two slashes, as in `Edit(//absolute/project/new-file.md)`. Keep task edits in the assigned cwd/worktree. Gather these rules from the task and its source references before launching.
++
++Claude Code's [file permission rules](https://code.claude.com/docs/en/permissions#writepath-notebookeditpath-and-globpath-rules-never-match) match file creation and editing through `Edit(path)`. A path-scoped `Write(path)` rule is accepted but never matches. `--allowedTools` preapproves matching calls; it does not restrict the available tool set or create a filesystem boundary. An allowed shell or interpreter can perform operations beyond another tool's rule, so retain the host's OS permissions and the task's ownership scope.
++
++The brief carries the original task, later directives, owned scope, cwd and branch, exact input SHAs, required tools and constraints, verification, artifact locations including this runner's run directory, and output contract. Filled template fields belong in that brief. Preserve judge blinding by using sanitized candidate labels and paths in the judge's files and brief.
++
++When the original dispatcher calls for `poteto-agent` or `comment-sicko`, add `--role "<plugin>/agents/poteto-agent.md"` or `--role "<plugin>/agents/comment-sicko.md"`. Pass `poteto-mode/SKILL.md` with `poteto-agent`. General-purpose reviewers, candidates, investigators, and explainers use their own workflow sources without a `--role` file. Native role registration does not load instructions into Claude Code.
++
++The runner invokes the existing Claude Code installation with `claude -p --model SELECTED_EXACT_ID`, the chosen effort, and stream JSON output. CLI detection reports global effort syntax, not per-model availability. Setup's model-specific source evidence remains separate from the result of a real run. `request.json.model` records the requested ID, while `observedModel` comes only from the stream and may differ or be null. Every run requires `--model EXACT_ID` and reports `modelSelection: "explicit"`. An omitted model fails before launching a worker. It uses Claude Code's existing authentication and configured harness, tools, and MCPs. The Codex parent's native role configuration, MCP inventory, and thread state do not automatically load into Claude Code.
++
++Start each independent seat or new round with a distinct run directory and a fresh Claude session. Only the stateful reuse exception in poteto-mode permits `--resume "<exact-session-uuid>"` on a subsequent run. Pass the original `request.json.model` explicitly when resuming, including for a nondefault model. A running command is asynchronous work; track its command identity and collect its terminal receipt. Do not wait for one independent seat before launching the next.
++
++## Local worktrees
++
++Workers run on the current host through their selected executor. Give each independent worker an exclusive Git worktree and branch when it writes code. Use native managed-worktree tools when exposed, waiting for creation to complete, or `git worktree add` with an explicit base ref and a local `codex/` branch. The worker's prompt names its absolute checkout, branch, and resolved starting SHA; every shell command runs in that checkout. Keep the coordinator's checkout separate.
++
++For workflows that previously started from the repository's default branch, resolve the actual default ref and SHA before creating the worker checkouts. A caller-supplied non-default ref replaces that base. Measurements and verification pin the exact SHAs required by their brief. Local uncommitted changes enter a worker's input only when the brief explicitly includes them.
++
++The coordinator creates and removes worktrees and coordinates shared repository metadata. Each branch owner performs the pushes, rebases, and PR operations its calling workflow assigns. Workers own their assigned checkout and output only. Worktrees isolate files and indexes; they share the host, repository metadata, credentials, and other machine resources. Assign distinct ports, temporary/cache/data directories, simulator/device resources, and output locations for work that uses them. Serialize a machine resource that cannot be separated. Restrict the brief's commands to the assigned resources.
++
++After collecting and verifying artifacts, integrate accepted work deliberately. Retain any unintegrated changes and evidence. Remove temporary worktrees and local branches only after their needed work has been integrated or preserved, following the worktree cleanup playbook. A completed worker alone does not authorize discarding its checkout.
++
++### Working-tree transfer
++
++When a workflow includes uncommitted changes, record the source checkout and its exact HEAD, then create every receiving worktree at that HEAD. Capture the scoped tracked working-tree contents with `git diff --binary HEAD -- <scope>` in a local patch file. This includes the final staged and unstaged contents, additions, deletions, and executable-mode changes. Inventory scoped untracked files separately and copy their file types, bytes or symlink targets, and executable modes to the same relative paths in every receiving worktree. Include ignored input only when the task explicitly needs it. Do not copy the source's Git metadata or unrelated personal state.
++
++Apply the tracked patch in each clean receiving worktree and copy the untracked files before launching its worker. Compare the resulting scoped file bytes, file types, executable modes, and deletions against the source. Record the source SHA, scope, patch, untracked inventory, and comparison result in the brief or its artifacts. If the input changes during capture, recapture a coherent input before dispatch. A diff in the prompt or inherited chat history is context, not this transfer.
++
++For new work that needs a completed worker's built state, give a fresh worker the consolidated brief and reports. Transfer its committed or uncommitted checkout state to an exclusive worktree, or hand over the existing checkout after the prior writer stops. Preserve branch ownership and resource assignments. Reuse the existing worker only under poteto-mode's exception for a costly-to-move checkout, uncommitted changes, or a process it still runs. There is no implied copy of a running process. Name the process and host resources if that state is needed.
++
++## Wait, results, and continuation
++
++Track every returned agent or command identity, executor, and slice. For native delegates, use `wait_agent` for an event and `list_agents` for status on runtimes with those tools. The final-answer notification contains the result. Use a result/retrieval tool when the runtime exposes one. A spawn acknowledgement or a completed status without its report is not a result.
++
++For Claude Code, collect the command's terminal receipt and inspect its `result`, `resultEvent`, `sessionId`, `exitCode`, and `signal`, plus the artifacts named by `promptPath`, `requestPath`, `stdoutPath`, `stderrPath`, and `resultPath`. The receipt preserves the process outcome and raw stream. Review the reported work and artifacts under the calling workflow's normal result and failure rules.
++
++Wait for every required terminal result before synthesis. Record failures and missing reports as gaps under the calling workflow's dropout rule. Review changed artifacts and verification evidence yourself.
++
++Spawns, steering, and continuation remain asynchronous. Use the exposed native controls without inventing a `run_in_background` field, and keep a long-running external command under the host's asynchronous process controls. Collect its terminal receipt later while other independent work proceeds.
++
++Fresh agents take new rounds with the consolidated brief. Reuse an existing agent only for the stateful exceptions in poteto-mode. For native delegates, use `send_message` to steer a running agent, `followup_task` to continue an idle agent, and `interrupt_agent` for a stop/hold on runtimes exposing those controls. Use a native resume control only when present. Claude Code's stateful continuation uses its recorded session ID with the runner's `--resume`. Keep a stop order separate from a new work brief.
++
++For a repeated watcher or work that must resume after the active turn, read [Codex loops](codex-loops.md) and use its native event or heartbeat controls.
++
++## Permissions and MCP access
++
++Native v2 delegates use the parent's sandbox, approvals, and available tools. Route the role and its normal task procedures through native delegation. MCP-backed native `why` and `reflect` delegates use the inherited tools for investigation and citation checks. Claude Code delegates use their existing configured execution environment and receive the same applicable task instructions and source bodies through the runner.
++
++## References
++
++[Codex subagents and custom-agent permissions](https://learn.chatgpt.com/docs/agent-configuration/subagents).
+diff --git a/skills/poteto-mode/scripts/run-claude.mjs b/skills/poteto-mode/scripts/run-claude.mjs
+index 15e612d..e0fd805 100644
+--- a/skills/poteto-mode/scripts/run-claude.mjs
++++ b/skills/poteto-mode/scripts/run-claude.mjs
+@@ -251,11 +251,8 @@ async function run(options) {
+   const runDir = absolute(options.runDir, '--run-dir');
+   if (contains(PLUGIN_ROOT, runDir))
+     throw new Error('--run-dir must be outside the plugin');
+-  if (!CLAUDE_CLI_EFFORTS.includes(options.effort))
++  if (options.effort !== undefined && !CLAUDE_CLI_EFFORTS.includes(options.effort))
+     throw new Error(`--effort must be one of ${CLAUDE_CLI_EFFORTS.join(', ')}`);
+-  if (options.instruction.length === 0 || options.skill.length === 0) {
+-    throw new Error('run requires at least one --instruction and --skill path');
+-  }
+   if (
+     options.resume &&
+     !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+@@ -293,8 +290,7 @@ async function run(options) {
+     '-p',
+     '--model',
+     model,
+-    '--effort',
+-    options.effort,
++    ...(options.effort === undefined ? [] : ['--effort', options.effort]),
+     '--output-format',
+     'stream-json',
+     '--verbose',
+@@ -314,7 +310,7 @@ async function run(options) {
+     cwd,
+     model,
+     modelSelection: 'explicit',
+-    reasoningEffort: options.effort,
++    reasoningEffort: options.effort ?? null,
+     resumeSessionId: options.resume ?? null,
+     context: context.map(({ kind, path: sourcePath }) => ({
+       kind,
+diff --git a/skills/recall/SKILL.md b/skills/recall/SKILL.md
+index b412c1a..16852c8 100644
+--- a/skills/recall/SKILL.md
++++ b/skills/recall/SKILL.md
+@@ -12,7 +12,7 @@ Keep it tight and on-topic. Read only what the in-scope threads need, then stop.
+ 
+ Your context lives in two records. Your own chat history holds what you did and decided. The shared record holds everything that happened around the same code under other names: the symptoms users keep reporting, the fixes that shipped and got reverted, the errors still firing in prod. That second record is what the **why** skill searches, across source control, the issue tracker, chat and issue channels, long-form docs, and error tracking. A feature with a long bug tail keeps most of its story there, so don't reconstruct it from your transcripts alone.
+ 
+-Read [Codex execution](../poteto-mode/references/codex-execution.md) before dispatching subagents. For history, resolve `scripts/codex-history.mjs` from this skill's installed directory, then run `node "<absolute-helper>" list --project "<active-project>" --since "<window-start>"`. It scopes Codex rollouts by `session_meta.cwd`, including this repository's current worktrees and archived sessions. Each UUID selects its current rollout; superseded files remain available for inherited prefixes. Results use the selected rollout's modification time. Use `--query "<topic>"` to search that same reconstructed conversation, including older inherited content, and `read --project "<active-project>" --id <uuid>` for its full JSONL. A JSONL line is a metadata, message, tool, or event record, not always a chat message. If a required prefix is missing, use the host's full thread-history API instead of claiming a complete transcript.
++Read [Codex execution](../poteto-mode/references/execution.md) before dispatching subagents. For history, resolve `scripts/codex-history.mjs` from this skill's installed directory, then run `node "<absolute-helper>" list --project "<active-project>" --since "<window-start>"`. It scopes Codex rollouts by `session_meta.cwd`, including this repository's current worktrees and archived sessions. Each UUID selects its current rollout; superseded files remain available for inherited prefixes. Results use the selected rollout's modification time. Use `--query "<topic>"` to search that same reconstructed conversation, including older inherited content, and `read --project "<active-project>" --id <uuid>` for its full JSONL. A JSONL line is a metadata, message, tool, or event record, not always a chat message. If a required prefix is missing, use the host's full thread-history API instead of claiming a complete transcript.
+ 
+ Include existing Claude runner evidence by repeating `--claude-runs "<absolute-known-run-directory-or-root>"` on the list command. Find those locations in task artifacts and the project's existing `.local/` run directories; the runner has no universal run root. Only supplied roots inside the project or its worktrees are searched, and `request.json.cwd` must also match that scope before result or transcript content is read. `--query` searches the prompt, raw stdout, and receipt. Results identify the executor, session UUID, exact receipt path, cwd, time, and raw artifact paths. Read an exact run with `read --project "<active-project>" --source claude-code --claude-runs "<known-root>" --receipt "<exact-result.json>"`, then open its returned `requestPath`, `promptPath`, `stdoutPath`, and `stderrPath` as needed. Read the raw stream when reconstructing attempts, failures, or tool use; the final result alone can omit them. Resumed runs retain distinct receipt paths even when their session UUID matches. Keep the executor and receipt path with each finding. Scope metadata before topic searches; do not scan Codex or Claude home directories for unrelated transcript bodies.
+ 
+diff --git a/skills/reflect/SKILL.md b/skills/reflect/SKILL.md
+index 1d424f7..b76e17c 100644
+--- a/skills/reflect/SKILL.md
++++ b/skills/reflect/SKILL.md
+@@ -18,7 +18,7 @@ If the active transcript cannot be matched, pass a tight digest of this conversa
+ 
+ ## 2. Spawn three reviewers in parallel
+ 
+-Read [Codex execution](../poteto-mode/references/codex-execution.md). Launch three general-purpose reviewers through each selected executor without waiting between them, selecting `agent_type: "pstack-general-purpose"` on the native path. Native reviewers retain the parent's MCP access; Claude Code reviewers use its configured MCPs to look up tickets, chat threads, and observability traces.
++Read [Codex execution](../poteto-mode/references/execution.md). Launch three general-purpose reviewers through each selected executor without waiting between them, selecting `agent_type: "pstack-general-purpose"` on the native path. Native reviewers retain the parent's MCP access; Claude Code reviewers use its configured MCPs to look up tickets, chat threads, and observability traces.
+ 
+ Resolve each table role with the sibling setup helper. Apply task effort and budget guidance from poteto-mode. Pass absolute paths to this skill, each template, and the scoped transcript or digest.
+ 
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index c44c3f1..ecdbdbe 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -21,7 +21,7 @@ Check `node --version`. Helpers require Node.js 24.12 or newer. Codex registrati
+ 
+ For selected Claude Code workers, run the sibling `poteto-mode/scripts/run-claude.mjs detect`. Report its executable, version, compatibility, safe auth status, and guidance. If missing, guide the authorized CLI installation. If logged out, guide human login in the user's terminal. Rerun detection afterward. Reuse existing authentication and configuration. Never copy credentials into a test home or setup file. Detection does not install tools, authenticate, or prove model access. If login status cannot be established, inspect the selected CLI's normal status flow with the user before choosing its models.
+ 
+-The [execution binding](../poteto-mode/references/codex-execution.md) describes runtime capability checks. A global CLI effort list proves syntax only. It supplies no default model or account entitlement.
++The [execution binding](../poteto-mode/references/execution.md) describes runtime capability checks. A global CLI effort list proves syntax only. It supplies no default model or account entitlement.
+ 
+ ## 3. Load choices and collect supported models
+ 
+@@ -44,7 +44,7 @@ Use an already specified budget. Otherwise offer these original four targets.
+ - `medium` targets `high` reasoning.
+ - `small` targets `medium` reasoning.
+ 
+-`scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_JSON` previews supported efforts for saved choices. It preserves model IDs, executors, ordered duplicates, and aliases. Choose the highest supported effort at or below the target. The preview does not write. Parent aliases keep the parent's actual settings. A consuming workflow's explicit task effort still applies.
++`scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_JSON` previews supported efforts for saved choices. It preserves model IDs, executors, ordered duplicates, and aliases. Choose the highest supported effort at or below the target. The preview does not write. Parent aliases keep the parent's actual model and effort. Task-level effort adjustments apply to exact model selections.
+ 
+ Keep these original role names and initial counts.
+ 
+@@ -80,9 +80,9 @@ Read the receipt's file-based `agents`, `metadataRoles`, and config declaration
+ 
+ After registration succeeds, run the same model write without `--dry-run`. A stale hash requires reloading and reviewing current state. Saving is atomic and identical bytes stay untouched. Both native and mixed settings use the current schema 1 under the new identity.
+ 
+-## 6. Verify a first task
++## 6. Finish setup
+ 
+-Report the saved path, budget, selected executors, registration, and source evidence. Start a fresh Codex session so normal native discovery loads the roles. Use the installed namespace with a small task and the selected worker. Record requested and observed model separately, and distinguish saved settings, fixture evidence, native CLI execution, and Desktop UI evidence. Installation or helper success alone does not prove worker execution.
++Report the saved path, budget, selected executors, registration, and source evidence. Explain that a fresh Codex session loads the registered roles. When the user requests execution verification, use the installed namespace with a small task and the selected worker. Record requested and observed model separately, and distinguish saved settings, fixture evidence, native CLI execution, and Desktop UI evidence. Saving setup does not itself verify worker execution.
+ 
+ ## Optional project verification
+ 
+diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
+index a3c621c..e6630a8 100644
+--- a/skills/setup-pstack/references/models-contract.md
++++ b/skills/setup-pstack/references/models-contract.md
+@@ -64,9 +64,9 @@ If a later catalog lacks a saved nondefault model, budget reports `needsChoice`,
+ 
+ ## Invocation precedence
+ 
+-The saved model entry is authoritative for the consuming role. `reasoningEffort` is that role's resolved default under the selected global budget. A skill's explicit task-specific effort remains a deliberate override; validate it against the selected executor's supported efforts. Do not append an effort to a model ID. Follow the shared [execution binding](../../poteto-mode/references/codex-execution.md) for the selected route. Claude entries use the shared runner with `--model ENTRY.MODEL`, the chosen separate `--effort`, task and role instructions, and absolute installed skill paths. Read and resolve work offline and preserve saved IDs without a current catalog; they do not confirm current access. They do not use Codex agent TOMLs or require another Claude plugin installation.
++The saved model entry is authoritative for the consuming role. `reasoningEffort` is that role's resolved default under the selected global budget. A skill's explicit task-specific effort remains a deliberate override; validate it against the selected executor's supported efforts. Do not append an effort to a model ID. Follow the shared [execution binding](../../poteto-mode/references/execution.md) for the selected route. Claude entries use the shared runner with `--model ENTRY.MODEL`, the chosen separate `--effort`, task and role instructions, and absolute installed skill paths. Read and resolve work offline and preserve saved IDs without a current catalog; they do not confirm current access. They do not use Codex agent TOMLs or require another Claude plugin installation.
+ 
+-For native entries, both aliases select the literal parent model and effort and remain unchanged when the budget changes. Native `[agents]` defaults can replace omitted settings. For parent aliases, omit override fields only when true parent inheritance has been established. Otherwise bind the observed parent model and effort explicitly. If those values or that binding cannot be established, report the unresolved selection before dispatching. Follow the shared [execution binding](../../poteto-mode/references/codex-execution.md) for native role selection, including its supported path for unconfigured generic seats before setup. Saved selections for generic delegates use the registered `pstack-general-purpose` role. The `poteto-agent` and `comment-sicko` custom roles require setup registration.
++For native entries, both aliases select the literal parent model and effort and remain unchanged when the budget changes. Native `[agents]` defaults can replace omitted settings. For parent aliases, omit override fields only when true parent inheritance has been established. Otherwise bind the observed parent model and effort explicitly. If those values or that binding cannot be established, report the unresolved selection before dispatching. Follow the shared [execution binding](../../poteto-mode/references/execution.md) for native role selection, including its supported path for unconfigured generic seats before setup. Saved selections for generic delegates use the registered `pstack-general-purpose` role. The `poteto-agent` and `comment-sicko` custom roles require setup registration.
+ 
+ Native subagent tool names and argument names vary by Codex version. Bind the resolved values to the fields actually exposed in the current session; in the native spawn interface these are `model` and `reasoning_effort`. A full-history fork inherits the parent model; use a fresh-context task when the native tool requires it for explicit overrides and pass the needed evidence and absolute installed skill paths in that task.
+ 
+diff --git a/skills/show-me-your-work/SKILL.md b/skills/show-me-your-work/SKILL.md
+index 675f356..7df59c4 100644
+--- a/skills/show-me-your-work/SKILL.md
++++ b/skills/show-me-your-work/SKILL.md
+@@ -6,7 +6,7 @@ disable-model-invocation: true
+ 
+ # Show me your work
+ 
+-Read [Codex execution](../poteto-mode/references/codex-execution.md) and resolve `judgment and prose` through the sibling setup helper before dispatching the trail reviewer. Select an eligible exact different-family entry already resolved by this workflow or an explicit task counterpart under that binding. Parent aliases and unknown families do not satisfy the required review.
++Read [Codex execution](../poteto-mode/references/execution.md) and resolve `judgment and prose` through the sibling setup helper before dispatching the trail reviewer. Select an eligible exact different-family entry already resolved by this workflow or an explicit task counterpart under that binding. Parent aliases and unknown families do not satisfy the required review.
+ 
+ Keep one canonical log.
+ 
+diff --git a/skills/swarm/SKILL.md b/skills/swarm/SKILL.md
+index 5d1ae49..c85bc36 100644
+--- a/skills/swarm/SKILL.md
++++ b/skills/swarm/SKILL.md
+@@ -19,7 +19,7 @@ Open a todolist with one entry per phase before launching anything.
+ 
+ 1. State the done predicate and the artifact or report the swarm must return.
+ 2. Choose the shape. Partition into slices, race N workers on identical briefs, or mix both. For a race or mixed shape, declare `first pass`, `rank all`, or `best-of` before spawning.
+-3. Read [Codex execution](../poteto-mode/references/codex-execution.md) and resolve the `swarm workers` role with the sibling setup helper. A missing role uses the actual native parent with disclosure. For `auto` or `inherit-parent`, use Codex execution's parent-selection binding so the workers run on the parent model. If the selected executor rejects a model, follow the execution binding and disclose a supported same-family choice from its error message. For a model race, name each arm's configured model and executor up front; an explicit race uses the configured participants and their exact models. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
++3. Read [Codex execution](../poteto-mode/references/execution.md) and resolve the `swarm workers` role with the sibling setup helper. A missing role uses the actual native parent with disclosure. For `auto` or `inherit-parent`, use Codex execution's parent-selection binding so the workers run on the parent model. If the selected executor rejects a model, follow the execution binding and disclose a supported same-family choice from its error message. For a model race, name each arm's configured model and executor up front; an explicit race uses the configured participants and their exact models. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+ 4. Give every code-writing worker an exclusive local worktree, branch, and writable output as described in Codex execution. Assign distinct machine resources, such as ports and data directories, when its verification uses them. When workers verify or measure commits, each brief names the exact SHAs. A measurement brief also names the method (sample count, what one sample is, order). The worker records both in its result.
+ 
+ ## Phase B: Fan out
+diff --git a/skills/why/SKILL.md b/skills/why/SKILL.md
+index c3aa3fd..85b6a06 100644
+--- a/skills/why/SKILL.md
++++ b/skills/why/SKILL.md
+@@ -8,7 +8,7 @@ disable-model-invocation: true
+ 
+ Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
+ 
+-Read [Codex execution](../poteto-mode/references/codex-execution.md) before delegation. Resolve the `why investigators` and `why synthesizer` roles with the sibling setup helper. Missing roles and inherited aliases use Codex execution's native parent-selection binding. Use general-purpose delegates through each selected executor, with `agent_type: "pstack-general-purpose"` on the native path, and supply absolute paths to this skill and each selected reference.
++Read [Codex execution](../poteto-mode/references/execution.md) before delegation. Resolve the `why investigators` and `why synthesizer` roles with the sibling setup helper. Missing roles and inherited aliases use Codex execution's native parent-selection binding. Use general-purpose delegates through each selected executor, with `agent_type: "pstack-general-purpose"` on the native path, and supply absolute paths to this skill and each selected reference.
+ 
+ Native investigators and the synthesizer use the parent's MCP access and sandbox for investigation and citation spot-checks. Claude Code uses its configured tools and MCPs through Codex execution. Investigators still shouldn't write anything.
+ 

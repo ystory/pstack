@@ -1,6 +1,6 @@
 ### Eval
 
-Read [Claude Code execution](../references/claude-execution.md) and resolve `arena runners` with worker kind `general-purpose` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
+Read [Claude Code execution](../references/execution.md) and resolve `arena runners` with worker kind `general-purpose` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
 
 **You own the experiment design. Plan, blind, run, synthesize.**
 

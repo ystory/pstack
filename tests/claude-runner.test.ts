@@ -79,6 +79,14 @@ async function fixture(t: TestContext) {
   await mkdir(scripts, { recursive: true });
   await mkdir(cwd);
   await cp(path.dirname(source), scripts, { recursive: true });
+  const references = path.join(plugin, 'skills/poteto-mode/references');
+  await mkdir(references);
+  const workerContext = path.join(references, 'worker-context.md');
+  await cp(
+    path.join(path.dirname(source), '../references/worker-context.md'),
+    workerContext,
+  );
+  await chmod(workerContext, 0o444);
   const instructionBytes = 'Use the project terminology.\r\n';
   const skillBytes =
     '---\nname: source-skill\n---\nRead the assigned evidence.\n';
@@ -135,6 +143,7 @@ if (args[0] === '--version') {
   );
   await chmod(runner, 0o444);
   const directories = [
+    references,
     scripts,
     path.dirname(scripts),
     path.join(plugin, 'skills'),
@@ -197,6 +206,7 @@ if (args[0] === '--version') {
     skillBytes,
     roleBytes,
     roleBody,
+    workerContext,
     invoke,
     runArgs,
   };
@@ -640,4 +650,85 @@ test('selected Claude detection reports missing installation and safe login guid
   assert.ok(!loggedOut.stdout.includes('private-fixture'));
   assert.ok(!loggedOut.stdout.includes('private@example'));
   await assert.rejects(access(f.callPath));
+});
+
+test('a self-contained prompt runs with an explicit model and effort without context files', async (t) => {
+  const f = await fixture(t);
+  const result = f.invoke([
+    'run',
+    '--cwd',
+    f.cwd,
+    '--run-dir',
+    f.runDir,
+    '--model',
+    'claude-opus-5-5',
+    '--effort',
+    'high',
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  const call = JSON.parse(await readFile(f.callPath, 'utf8'));
+  assert.ok(call.input.includes('Apply this assignment only.'));
+  assert.ok(!call.args.includes('--allowedTools'));
+  const request = JSON.parse(
+    await readFile(path.join(f.runDir, 'request.json'), 'utf8'),
+  );
+  assert.equal(request.reasoningEffort, 'high');
+  assert.deepEqual(request.context, []);
+});
+
+test('omitted effort uses the CLI default with zero or one supplied context category', async (t) => {
+  for (const category of ['none', 'instruction', 'skill']) {
+    const f = await fixture(t);
+    const context =
+      category === 'instruction'
+        ? ['--instruction', f.instruction]
+        : category === 'skill'
+          ? ['--skill', f.skill]
+          : [];
+    const result = f.invoke([
+      'run',
+      '--cwd',
+      f.cwd,
+      '--run-dir',
+      f.runDir,
+      '--model',
+      'claude-opus-5-5',
+      ...context,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    const call = JSON.parse(await readFile(f.callPath, 'utf8'));
+    assert.ok(!call.args.includes('--effort'));
+    const request = JSON.parse(
+      await readFile(path.join(f.runDir, 'request.json'), 'utf8'),
+    );
+    assert.equal(request.reasoningEffort, null);
+    assert.deepEqual(
+      request.context.map((entry: { kind: string }) => entry.kind),
+      category === 'none' ? [] : [category],
+    );
+  }
+});
+
+test('Claude transport injects its receiving executor and the bundled shared context', async (t) => {
+  const f = await fixture(t);
+  await chmod(f.workerContext, 0o644);
+  await writeFile(f.workerContext, 'Shared receiving fixture context.');
+  await chmod(f.workerContext, 0o444);
+  const result = f.invoke([...f.runArgs, '--role', f.role]);
+  assert.equal(result.status, 0, result.stderr);
+  const call = JSON.parse(await readFile(f.callPath, 'utf8'));
+  const request = JSON.parse(
+    await readFile(path.join(f.runDir, 'request.json'), 'utf8'),
+  );
+  assert.equal(request.executor, 'claude-code');
+  assert.equal(request.model, 'claude-opus-5-5');
+  assert.equal(request.reasoningEffort, 'xhigh');
+  assert.ok(call.input.includes(f.roleBody));
+  assert.ok(!call.args.includes('--dangerously-skip-permissions'));
+  assert.ok(call.input.includes(`Receiving executor is ${request.executor}.`));
+  assert.ok(call.input.includes('Shared receiving fixture context.'));
+  assert.ok(
+    call.input.indexOf('Shared receiving fixture context.') <
+      call.input.indexOf('## Assigned task'),
+  );
 });

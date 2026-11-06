@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Ketchup
 
-For any delegates, use [Claude Code execution](../poteto-mode/references/claude-execution.md) with the calling workflow's role and worker kind.
+For any delegates, use [Claude Code execution](../poteto-mode/references/execution.md) with the calling workflow's role and worker kind.
 
 Catch the user up on what changed in this chat since the last message they wrote before `/ketchup`, and help them understand each change, not only where it stands. Then lay out every call waiting on them so they can make it from your reply alone. Notifications and subagent results are not their messages. Assume the user remembers their last message and nothing after it.
 

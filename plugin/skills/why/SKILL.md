@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
 
-Read [Codex execution](../poteto-mode/references/codex-execution.md) before delegation. Resolve the `why investigators` and `why synthesizer` roles with the sibling setup helper. Missing roles and inherited aliases use Codex execution's native parent-selection binding. Use general-purpose delegates through each selected executor, with `agent_type: "pstack-general-purpose"` on the native path, and supply absolute paths to this skill and each selected reference.
+Read [Codex execution](../poteto-mode/references/execution.md) before delegation. Resolve the `why investigators` and `why synthesizer` roles with the sibling setup helper. Missing roles and inherited aliases use Codex execution's native parent-selection binding. Use general-purpose delegates through each selected executor, with `agent_type: "pstack-general-purpose"` on the native path, and supply absolute paths to this skill and each selected reference.
 
 Native investigators and the synthesizer use the parent's MCP access and sandbox for investigation and citation spot-checks. Claude Code uses its configured tools and MCPs through Codex execution. Investigators still shouldn't write anything.
 

@@ -1,6 +1,6 @@
 ### Autopilot-stack
 
-Use [Claude Code execution](../references/claude-execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
+Use [Claude Code execution](../references/execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
 
 Run the Autopilot-full playbook, but do not merge.
 

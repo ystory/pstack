@@ -51,7 +51,7 @@ This distribution runs in Claude Code as `pstack-cc`. Use `/pstack-cc:setup-psta
 
 Start each new task with `/pstack-cc:poteto-mode`. Follow-ups continue the active playbook. Claude Code does not offer Cursor's Custom Mode shortcut.
 
-Link the [Claude Code skills docs](https://code.claude.com/docs/en/skills) when this comes up. Mid-chat, "new task" makes the mode match a fresh playbook. `/pstack-cc:poteto-mode` already uses `poteto-agent` for the subagents its playbook steps spawn. To get the same style from a subagent of your own, resolve its role with worker kind `poteto-agent` through [Claude Code execution](../poteto-mode/references/claude-execution.md).
+Link the [Claude Code skills docs](https://code.claude.com/docs/en/skills) when this comes up. Mid-chat, "new task" makes the mode match a fresh playbook. `/pstack-cc:poteto-mode` already uses `poteto-agent` for the subagents its playbook steps spawn. To get the same style from a subagent of your own, resolve its role with worker kind `poteto-agent` through [Claude Code execution](../poteto-mode/references/execution.md).
 
 ## Pick a skill
 

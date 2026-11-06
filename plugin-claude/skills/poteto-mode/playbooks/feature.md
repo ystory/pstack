@@ -1,6 +1,6 @@
 ### Feature
 
-Read [Claude Code execution](../references/claude-execution.md). Resolve `feature, refactoring` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
+Read [Claude Code execution](../references/execution.md). Resolve `feature, refactoring` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
 
 **You own the design. Plan, review, verify.** Delegate implementation. Stay in the lead.
 

@@ -1,6 +1,6 @@
 ### Autopilot-full
 
-Read [Claude Code execution](../references/claude-execution.md) and resolve `feature, refactoring` with worker kind `poteto-agent` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
+Read [Claude Code execution](../references/execution.md) and resolve `feature, refactoring` with worker kind `poteto-agent` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
 
 **You own the verdicts, never the PRs. One owner carries each PR from build to merge, and nothing merges until your swarm, which never wrote the code, has proven the code that lands.**
 

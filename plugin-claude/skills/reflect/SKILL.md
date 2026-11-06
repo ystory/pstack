@@ -18,7 +18,7 @@ Read [Claude history](../recall/references/claude-history.md). List project-scop
 
 ## 2. Spawn three reviewers in parallel
 
-Read [Claude Code execution](../poteto-mode/references/claude-execution.md). Launch three `general-purpose` reviewers through their selected executors without waiting between launches. Reviewers use the executor's configured MCP tools to check tickets, chat threads, and observability traces. Keep their no-edits scope explicit.
+Read [Claude Code execution](../poteto-mode/references/execution.md). Launch three `general-purpose` reviewers through their selected executors without waiting between launches. Reviewers use the executor's configured MCP tools to check tickets, chat threads, and observability traces. Keep their no-edits scope explicit.
 
 Resolve each table role through the sibling setup helper with worker kind `general-purpose`. Use the selected exact model and supported task effort. A rejected model follows the execution binding, using a valid same-family choice from the error when available, with disclosure. Parent aliases bind the actual native parent. Apply poteto-mode's reasoning and speed guidance.
 

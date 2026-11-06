@@ -28,7 +28,7 @@ Update mode changes the rest of the flow:
 
 ### 1. Mine their history
 
-Read [Claude history](../recall/references/claude-history.md). Use the project-scoped helper to list and read only the active repository's sessions and worktrees. Confirm exact session IDs and skip unrelated chats. For delegated mining, resolve `swarm workers` with worker kind `general-purpose` through [Claude Code execution](../poteto-mode/references/claude-execution.md).
+Read [Claude history](../recall/references/claude-history.md). Use the project-scoped helper to list and read only the active repository's sessions and worktrees. Confirm exact session IDs and skip unrelated chats. For delegated mining, resolve `swarm workers` with worker kind `general-purpose` through [Claude Code execution](../poteto-mode/references/execution.md).
 
 Survey recent agent conversations within that scope for recurring patterns. Run multiple parallel subagents across slices of history (e.g. last 2-4 weeks, split into 3 slices so each has enough material). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill. Each slice mining subagent reads transcripts from the workspace-scoped path the parent provides, looks for the signals below, and returns a short structured list of patterns it saw with evidence pointers. Default signals worth hunting:
 

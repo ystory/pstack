@@ -1,0 +1,1252 @@
+diff --git a/.claude-plugin/plugin.json b/.claude-plugin/plugin.json
+index 7e44923..66affc1 100644
+--- a/.claude-plugin/plugin.json
++++ b/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pstack-cc",
+-  "version": "0.1.0-dev.8",
++  "version": "0.1.0-dev.9",
+   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+   "author": {
+     "name": "pstack contributors"
+diff --git a/docs/guide/01-setup.md b/docs/guide/01-setup.md
+index e613b51..64a4b8e 100644
+--- a/docs/guide/01-setup.md
++++ b/docs/guide/01-setup.md
+@@ -91,7 +91,7 @@ Start a new session after registration so Claude discovers exact-model agent var
+ 
+ Replace `src/cli.ts` with a real module in your project. The simple How path uses one explainer and no explorers. To try one Codex worker, first select Codex for `how explainer` in setup. A healthy run identifies the selected executor and model, completes the worker, and returns an explanation based on the project's files. Codex workers run as background tasks whose results Claude collects.
+ 
+-For implementation, start each new task with `/pstack-cc:poteto-mode` and name the goal and its done check. Follow-ups continue the selected playbook. Read [Claude Code execution](../../skills/poteto-mode/references/claude-execution.md) for actual tool and model bindings. Claude Code has no Cursor Custom Mode keyboard shortcut.
++For implementation, start each new task with `/pstack-cc:poteto-mode` and name the goal and its done check. Follow-ups continue the selected playbook. Read [Claude Code execution](../../skills/poteto-mode/references/execution.md) for actual tool and model bindings. Claude Code has no Cursor Custom Mode keyboard shortcut.
+ 
+ ## Update or remove
+ 
+diff --git a/docs/harness/claude-code.md b/docs/harness/claude-code.md
+index a20e68b..05039ae 100644
+--- a/docs/harness/claude-code.md
++++ b/docs/harness/claude-code.md
+@@ -1,6 +1,6 @@
+ # pstack in Claude Code
+ 
+-This target uses native Claude Code skills and agents, with setup-selected Claude or Codex workers. Read [Claude Code execution](../../skills/poteto-mode/references/claude-execution.md) for the binding shared by every workflow. It preserves exact selected models, ordered panels, worker instructions, stateful continuation, and caller-specific review and failure rules.
++This target uses native Claude Code skills and agents, with setup-selected Claude or Codex workers. Read [Claude Code execution](../../skills/poteto-mode/references/execution.md) for the binding shared by every workflow. It preserves exact selected models, ordered panels, worker instructions, stateful continuation, and caller-specific review and failure rules.
+ 
+ Before setup, missing roles inherit the actual native parent with disclosure and original cardinality. Setup proposals start unresolved, and saved exact entries take precedence. Run `/pstack-cc:setup-pstack` to select exact models and executors, then start a new session. User commands use `/pstack-cc:<skill>`. Internally, read installed skill files by their actual path. The [setup guide](../guide/01-setup.md) covers independent preferences and CLI authentication. The [delegation inventory](../../skills/poteto-mode/references/delegation-sites.json) records the affected source sites.
+ 
+diff --git a/skills/architect/SKILL.md b/skills/architect/SKILL.md
+index 3308241..a5bb25b 100644
+--- a/skills/architect/SKILL.md
++++ b/skills/architect/SKILL.md
+@@ -28,7 +28,7 @@ Skip Phase A only when the work is genuinely greenfield with no surrounding syst
+ 
+ Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt.
+ 
+-Resolve the ordered `architect runners` list through [Claude Code execution](../poteto-mode/references/claude-execution.md), in place of `arena runners`. Preserve every seat, including duplicates and parent aliases. Use worker kind `general-purpose` and pass this skill's absolute path plus `references/runner-prompt.md`. Alias, rejected-entry, and dropout handling follow Arena Phase A.
++Resolve the ordered `architect runners` list through [Claude Code execution](../poteto-mode/references/execution.md), in place of `arena runners`. Preserve every seat, including duplicates and parent aliases. Use worker kind `general-purpose` and pass this skill's absolute path plus `references/runner-prompt.md`. Alias, rejected-entry, and dropout handling follow Arena Phase A.
+ 
+ Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
+ 
+diff --git a/skills/arena/SKILL.md b/skills/arena/SKILL.md
+index fd02465..20b340e 100644
+--- a/skills/arena/SKILL.md
++++ b/skills/arena/SKILL.md
+@@ -14,12 +14,12 @@ Every candidate gets the same prompt, so the prompt is the contract.
+ 
+ 1. State the artifact each candidate is producing.
+ 2. Derive the rubric, 3-6 concrete gradeable criteria for what success looks like on *this* task. It is the picker's tool in Phase D. Candidates only see the task.
+-3. Pick the runners. Read [Claude Code execution](../poteto-mode/references/claude-execution.md) and resolve the ordered `arena runners` list with worker kind `general-purpose`. Run one seat per entry, including duplicates and aliases. A parent alias binds to the actual native Claude parent. Families go by model prefix, such as `claude-*`, `gpt-*`, and `grok-*`, with `cursor-grok-*` and `composer-*` in Grok's family. If the selected executor rejects a model, try the closest valid model of the same family from its error, or drop the seat and say so. Never resubmit a rejected model. If dropouts leave fewer than two runners, add runners until there are two, or one when the configured list has one entry. Use a remaining runner's model for additions, or bind to the actual native parent when none remain, and say so. Spawn more runners when the arena covers multiple design directions. Use the same model N times when generation capacity matters more than judgment diversity. Apply poteto-mode's task effort and speed guidance.
++3. Pick the runners. Read [Claude Code execution](../poteto-mode/references/execution.md) and resolve the ordered `arena runners` list with worker kind `general-purpose`. Run one seat per entry, including duplicates and aliases. A parent alias binds to the actual native Claude parent. Families go by model prefix, such as `claude-*`, `gpt-*`, and `grok-*`, with `cursor-grok-*` and `composer-*` in Grok's family. If the selected executor rejects a model, try the closest valid model of the same family from its error, or drop the seat and say so. Never resubmit a rejected model. If dropouts leave fewer than two runners, add runners until there are two, or one when the configured list has one entry. Use a remaining runner's model for additions, or bind to the actual native parent when none remain, and say so. Spawn more runners when the arena covers multiple design directions. Use the same model N times when generation capacity matters more than judgment diversity. Apply poteto-mode's task effort and speed guidance.
+ 4. Give each candidate its own output location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`), per the **separate-before-serializing-shared-state** principle skill.
+ 
+ ## Phase B: Fan out
+ 
+-Spawn all N workers asynchronously through [Claude Code execution](../poteto-mode/references/claude-execution.md), with worker kind `general-purpose`. Each gets the task, shared grounding path, its exclusive worktree or output path, and instructions to produce the artifact and a short rationale naming alternatives considered and rejected.
++Spawn all N workers asynchronously through [Claude Code execution](../poteto-mode/references/execution.md), with worker kind `general-purpose`. Each gets the task, shared grounding path, its exclusive worktree or output path, and instructions to produce the artifact and a short rationale naming alternatives considered and rejected.
+ 
+ If a candidate produces no output, proceed with N-1 and note the dropout.
+ 
+diff --git a/skills/automate-me/SKILL.md b/skills/automate-me/SKILL.md
+index b6886ce..95a5c67 100644
+--- a/skills/automate-me/SKILL.md
++++ b/skills/automate-me/SKILL.md
+@@ -28,7 +28,7 @@ Update mode changes the rest of the flow:
+ 
+ ### 1. Mine their history
+ 
+-Read [Claude history](../recall/references/claude-history.md). Use the project-scoped helper to list and read only the active repository's sessions and worktrees. Confirm exact session IDs and skip unrelated chats. For delegated mining, resolve `swarm workers` with worker kind `general-purpose` through [Claude Code execution](../poteto-mode/references/claude-execution.md).
++Read [Claude history](../recall/references/claude-history.md). Use the project-scoped helper to list and read only the active repository's sessions and worktrees. Confirm exact session IDs and skip unrelated chats. For delegated mining, resolve `swarm workers` with worker kind `general-purpose` through [Claude Code execution](../poteto-mode/references/execution.md).
+ 
+ Survey recent agent conversations within that scope for recurring patterns. Run multiple parallel subagents across slices of history (e.g. last 2-4 weeks, split into 3 slices so each has enough material). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill. Each slice mining subagent reads transcripts from the workspace-scoped path the parent provides, looks for the signals below, and returns a short structured list of patterns it saw with evidence pointers. Default signals worth hunting:
+ 
+diff --git a/skills/figure-it-out/SKILL.md b/skills/figure-it-out/SKILL.md
+index 8141172..ba33da9 100644
+--- a/skills/figure-it-out/SKILL.md
++++ b/skills/figure-it-out/SKILL.md
+@@ -6,7 +6,7 @@ disable-model-invocation: true
+ 
+ # Figure it out
+ 
+-For any delegates, use [Claude Code execution](../poteto-mode/references/claude-execution.md) with the calling workflow's role and worker kind.
++For any delegates, use [Claude Code execution](../poteto-mode/references/execution.md) with the calling workflow's role and worker kind.
+ 
+ When the task matches no playbook, design one. The deliverable before any code is the workflow itself: a sequence of phases that scales rigor to the task, runs the scientific method, and leaves a decision trail a human can audit after stepping away.
+ 
+diff --git a/skills/how/SKILL.md b/skills/how/SKILL.md
+deleted file mode 100644
+index 6c65c60..0000000
+--- a/skills/how/SKILL.md
++++ /dev/null
+@@ -1,36 +0,0 @@
+----
+-name: how
+-description: "Use for \"how does X work\", code walkthroughs before changing something, and placement / ownership / layering questions (\"where should this live\", \"which package owns this\", \"is this the right layer\"). Explains subsystem architecture, runtime flow, onboarding mental models. Use why for motivation."
+-disable-model-invocation: true
+----
+-
+-# How
+-
+-Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
+-
+-Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Every seat uses worker kind `read-only` and a no-edits brief. Explorers resolve `how explorer`; every explainer resolves `how explainer`. Use the selected executor, exact model, supported task effort, and its returned `agentType` for native Claude seats. A rejected model follows the execution binding and the closest valid model of the same family from the error. Disclose each fallback. Parent aliases bind the actual native parent. Pass absolute paths to this skill and the selected templates.
+-
+-## 1. Assess complexity
+-
+-If the scope is ambiguous, state your interpretation and explore. The user can redirect.
+-
+-- **Simple** (a single module, a small utility, a narrow question such as "how does function X work"): no explorers. Spawn one explainer that explores and explains in one pass, built from `references/explainer-prompt.md` without the explorer-findings section. Go to step 4.
+-- **Complex** (a subsystem spanning multiple files or services, a cross-cutting feature, a full architectural overview): go to step 2.
+-
+-When in doubt, take the simple path.
+-
+-## 2. Explore (complex only)
+-
+-Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers in a single message, each with `references/explorer-prompt.md` and its angle filled in.
+-
+-## 3. Synthesize (complex only)
+-
+-Once all explorers have returned, spawn one explainer with `references/explainer-prompt.md` and every explorer's findings filled in.
+-
+-## 4. Present
+-
+-Present the explainer's output. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.
+-
+-## Output format
+-
+-The explanation uses the sections defined in `references/explainer-prompt.md`, dropping any that do not apply: Overview, Key Concepts, How It Works, Where Things Live, Gotchas.
+diff --git a/skills/how/references/explainer-prompt.md b/skills/how/references/explainer-prompt.md
+deleted file mode 100644
+index 3a36fb6..0000000
+--- a/skills/how/references/explainer-prompt.md
++++ /dev/null
+@@ -1,55 +0,0 @@
+-# Explainer Prompt Template
+-
+-Build the explainer subagent's prompt from this template. Fill in the placeholders.
+-
+----
+-
+-You are writing an architectural explanation for a senior engineer. Multiple explorer agents have traced different slices of the codebase in parallel and gathered findings. Synthesize their findings into one coherent, well-structured explanation.
+-
+-## Original Question
+-
+-> {QUESTION}
+-
+-## Explorer Findings
+-
+-{EXPLORER_FINDINGS_ALL}
+-
+-## Instructions
+-
+-The explorers each investigated a different angle of the same subsystem. Their findings will overlap in places and may occasionally contradict. Reconcile them. Merge overlapping descriptions, resolve contradictions by checking the code yourself, and combine the separate slices into a unified picture.
+-
+-Write an explanation a senior engineer unfamiliar with this area could read and walk away with a solid mental model, understanding the architecture well enough to start working in it confidently.
+-
+-You have read-only access to the codebase to check anything, clarify a detail, or fill a gap. Use Read, Grep, and Glob as needed. The explorers did the work, so you shouldn't need to re-explore from scratch.
+-
+-## Output Format
+-
+-Use this structure, adapted to what makes sense for the question. Not every section is needed for every question.
+-
+-### Overview
+-1-2 paragraphs. What is this thing, what does it do, why does it exist. Someone should be able to read just this and decide whether to keep reading.
+-
+-### Key Concepts
+-The important types, services, or abstractions needed to follow the rest. Brief definitions, not exhaustive.
+-
+-### How It Works
+-The core of the explanation, and the longest section. Walk through the flow: what triggers it, what happens step by step, where data goes, what the decision points are.
+-
+-Use prose, not pseudocode. Reference specific files and functions so the reader knows where to look, but don't dump large code blocks unless a snippet is essential to a point.
+-
+-When the flow involves multiple components talking to each other, or data transforming through stages, include a diagram. Use mermaid (```mermaid) for structured flows (sequence diagrams, flowcharts, component graphs) or ASCII art for simpler relationships where mermaid would be overkill. Use your judgment. A diagram should clarify, not decorate. If prose covers the flow, skip the diagram.
+-
+-### Where Things Live
+-A brief file/directory map. Just the ones someone would need to start working here.
+-
+-### Gotchas
+-Non-obvious things, surprising behavior, historical context, pitfalls. Skip this section if there's nothing worth calling out.
+-
+-## Communication Style
+-
+-- Use concrete language, not abstractions-about-abstractions
+-- Say "the `UserService` calls `AuthClient.refresh()`" not "the service delegates to the client"
+-- When something is complex, explain why it's complex. Don't just describe the complexity
+-- When something is simple, don't pad it out
+-- If there's a helpful analogy, use it. If there isn't, don't force one
+-- If the explorers flagged open questions or gaps, acknowledge them rather than hiding them
+diff --git a/skills/interrogate/SKILL.md b/skills/interrogate/SKILL.md
+index d397e0a..ddc7174 100644
+--- a/skills/interrogate/SKILL.md
++++ b/skills/interrogate/SKILL.md
+@@ -14,7 +14,7 @@ The scope is what the user names. Otherwise it is the branch diff from its merge
+ 
+ ## Fan out
+ 
+-Read [Claude Code execution](../poteto-mode/references/claude-execution.md). Run Phase A steps 3 and 4 and Phase B of the **arena** skill, with four changes. Resolve `interrogate reviewers` instead of `arena runners`. Before dispatch, transfer the scoped tracked and untracked working-tree changes into each exclusive worktree and compare the inputs as Claude Code execution describes. Use worker kind `general-purpose` for every adversary. In place of the arena task and rationale, give each adversary the scope, the intent, and this brief:
++Read [Claude Code execution](../poteto-mode/references/execution.md). Run Phase A steps 3 and 4 and Phase B of the **arena** skill, with four changes. Resolve `interrogate reviewers` instead of `arena runners`. Before dispatch, transfer the scoped tracked and untracked working-tree changes into each exclusive worktree and compare the inputs as Claude Code execution describes. Use worker kind `general-purpose` for every adversary. In place of the arena task and rationale, give each adversary the scope, the intent, and this brief:
+ 
+ > Break this change. Prove each finding with a run against the real code, such as a failing test, a repro script, or command output that shows the wrong behavior. For a design or plan, run a prototype or probe the current tree. Keep repros in your own worktree. Report each finding with a title, the exact command, the output it printed, and the output the intent requires. Leave out anything you did not run. That covers style, naming, structure, and risks that need a future change to matter. No findings is a valid result.
+ 
+diff --git a/skills/ketchup/SKILL.md b/skills/ketchup/SKILL.md
+index 9af1a84..70c0bca 100644
+--- a/skills/ketchup/SKILL.md
++++ b/skills/ketchup/SKILL.md
+@@ -6,7 +6,7 @@ disable-model-invocation: true
+ 
+ # Ketchup
+ 
+-For any delegates, use [Claude Code execution](../poteto-mode/references/claude-execution.md) with the calling workflow's role and worker kind.
++For any delegates, use [Claude Code execution](../poteto-mode/references/execution.md) with the calling workflow's role and worker kind.
+ 
+ Catch the user up on what changed in this chat since the last message they wrote before `/ketchup`, and help them understand each change, not only where it stands. Then lay out every call waiting on them so they can make it from your reply alone. Notifications and subagent results are not their messages. Assume the user remembers their last message and nothing after it.
+ 
+diff --git a/skills/maintain-verification-skill/SKILL.md b/skills/maintain-verification-skill/SKILL.md
+index 530ab58..5dbb376 100644
+--- a/skills/maintain-verification-skill/SKILL.md
++++ b/skills/maintain-verification-skill/SKILL.md
+@@ -26,7 +26,7 @@ Only edit the verification skill's own directory (its SKILL.md, features/, and a
+ 
+ 1. **Index hygiene.** Read the feature map README and glob its sibling files. Fix missing, extra, duplicate, or dead entries. Lightweight; no generated inventory.
+ 
+-2. **Source wave.** Read [Claude Code execution](../poteto-mode/references/claude-execution.md). Launch one read-only subagent per feature file concurrently, using the caller-selected role and worker kind `read-only`. Each explains "how does this user-facing feature work?" from source, flags likely doc drift with citations, and returns one concise live-verification recipe. Children never drive the app and never edit files. Return shape: feature summary / source entry points / likely drift or none / one recipe.
++2. **Source wave.** Read [Claude Code execution](../poteto-mode/references/execution.md). Launch one read-only subagent per feature file concurrently, using the caller-selected role and worker kind `read-only`. Each explains "how does this user-facing feature work?" from source, flags likely doc drift with citations, and returns one concise live-verification recipe. Children never drive the app and never edit files. Return shape: feature summary / source entry points / likely drift or none / one recipe.
+ 
+ 3. **Reconcile.** Every feature file has a returned summary. Merge overlapping recipes into as few app states as practical. Spot-check cited drift; don't re-prove clean claims. Sweep recent churn for user-facing surfaces missing from the map — require a concrete source path before calling one missing.
+ 
+diff --git a/skills/no-comments/SKILL.md b/skills/no-comments/SKILL.md
+deleted file mode 100644
+index 6b0c74c..0000000
+--- a/skills/no-comments/SKILL.md
++++ /dev/null
+@@ -1,24 +0,0 @@
+----
+-name: no-comments
+-description: "Spawn Comment Sicko, fix accepted findings, and offer encodings for claimed constraints."
+-disable-model-invocation: true
+----
+-
+-# No comments
+-
+-Spawn Comment Sicko. Act on accepted findings.
+-
+-Defer to Comment Sicko's fresh perspective.
+-
+-## Scope
+-
+-Use the caller's files or diff. Otherwise use the current diff against the base branch, default `main`, including the working tree.
+-
+-## Steps
+-
+-1. Read [Claude Code execution](../poteto-mode/references/claude-execution.md), resolve `judgment and prose` with worker kind `comment-sicko`, and dispatch its original agent instructions through the selected executor. Pass the scope and use poteto-mode's task effort and speed guidance. Do not restate its rules.
+-2. Inspect its report and diff. Reject application-code edits, scope escapes, exception-protected deletions, misstated `MUST KILL` reasons, and flags that treat kept intentional code as guilty. Reshape flags on our-code surprises stay actionable. Do not restore those comments. A keep survives only with proof it is about something we cannot change. Audit missed scoped lint and TypeScript suppressions. Correctness or safety suppressions stay actionable `MUST KILL`s. Restore deletions only with exact exceptions and scoped proof. Before accepting thin `IMPORTANT` or `do not remove` kills or keeps, run `/how` or `/why` on their symbol. If a kill is ambiguous, do not restore. If a keep is refuted or still ambiguous, delete it. Revert and rerun one rejected report with the failure named. Reject a second, report it open, and fail `/no-comments`.
+-3. Fix trivial accepted flags directly by deleting a dead path, dropping a parameter, or using the real API. If any fix needs a shape, run `/architect` once for the accepted set and surrounding code. Stop at the sketch. Architect shapes. Step 4 implements.
+-4. Implement the smallest root-cause fix in scope. Remove every named workaround. If the root cause is out of scope, land the smallest in-scope fix and report the rest open. The **principle-fix-root-causes** and **principle-redesign-from-first-principles** skills guide intent only. Neither authorizes widening the fence nor fixing instances outside it. Never bolt on symptom guards.
+-5. Constraint comments say `do not remove`, `do not change wording`, or `talk to X before changing`. Leave keeps about things we cannot change. Offer the cheapest in-scope type, runtime, test, or CI lint. Wait for interactive approval. Unattended and eval require caller pre-approval. If approved, encode then delete. Otherwise delete, report the constraint open, and sketch out-of-scope work.
+-6. Report the deletion count, restored comments, reruns, architect sketch, fixes, encoding offers, encodings, unenforced constraints, and other open work.
+diff --git a/skills/poteto-help/SKILL.md b/skills/poteto-help/SKILL.md
+index e335b8c..b501abd 100644
+--- a/skills/poteto-help/SKILL.md
++++ b/skills/poteto-help/SKILL.md
+@@ -51,7 +51,7 @@ This distribution runs in Claude Code as `pstack-cc`. Use `/pstack-cc:setup-psta
+ 
+ Start each new task with `/pstack-cc:poteto-mode`. Follow-ups continue the active playbook. Claude Code does not offer Cursor's Custom Mode shortcut.
+ 
+-Link the [Claude Code skills docs](https://code.claude.com/docs/en/skills) when this comes up. Mid-chat, "new task" makes the mode match a fresh playbook. `/pstack-cc:poteto-mode` already uses `poteto-agent` for the subagents its playbook steps spawn. To get the same style from a subagent of your own, resolve its role with worker kind `poteto-agent` through [Claude Code execution](../poteto-mode/references/claude-execution.md).
++Link the [Claude Code skills docs](https://code.claude.com/docs/en/skills) when this comes up. Mid-chat, "new task" makes the mode match a fresh playbook. `/pstack-cc:poteto-mode` already uses `poteto-agent` for the subagents its playbook steps spawn. To get the same style from a subagent of your own, resolve its role with worker kind `poteto-agent` through [Claude Code execution](../poteto-mode/references/execution.md).
+ 
+ ## Pick a skill
+ 
+diff --git a/skills/poteto-mode/SKILL.md b/skills/poteto-mode/SKILL.md
+index 8d1daa3..3df08ef 100644
+--- a/skills/poteto-mode/SKILL.md
++++ b/skills/poteto-mode/SKILL.md
+@@ -8,7 +8,7 @@ color: yellow
+ 
+ # Poteto mode
+ 
+-Bundled skills live at `../<name>/SKILL.md` from this file. Read [Claude Code execution](references/claude-execution.md) before every delegate call and route each selected entry through its executor.
++Bundled skills live at `../<name>/SKILL.md` from this file. Read [Claude Code execution](references/execution.md) before every delegate call and route each selected entry through its executor.
+ 
+ Bundled skills live at `../<name>/SKILL.md` from this file, so put this file's absolute path in every `poteto-agent` prompt.
+ 
+@@ -97,7 +97,7 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
+ 
+ **Defaults for every delegate call.** Execute asynchronously through the selected executor, including steering and continuation. Use file pointers rather than inlined context. Resolve an explicit model per role through `/setup-pstack`. Setup presents unresolved choices for missing roles. No bundled exact model is an execution default. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) use `hardest tasks`, whether the task needs judgment on vague intent or follows a precise specification. Trivial mechanical edits use the fast code choice. Saved per-role entries override the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A missing role uses the actual native parent selection with disclosure and preserves its original cardinality. `inherit-parent` and `auto` select the actual native Claude parent. Each code playbook resolves its role (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`). Prose and judgment resolve `judgment and prose`.
+ 
+-**Match the model to the job.** Start from the role's entry and saved reasoning budget, xhigh by default. Preserve explicit task effort. Raise effort one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more for routine work. Use fast mode only when CI or trunk is red or a person is blocked on the result now. Otherwise use standard speed. Verification stays on `swarm workers` and its configured speed, except when the caller requires another model or family. Keep the selected exact model ID unchanged and pass supported effort and speed separately. Use the highest supported effort at or below the requested level. Parent aliases stay on the actual parent. If an adjusted setting is rejected, return to the role's supported starting setting and say so. If that fails, follow the caller's fallback through Claude Code execution. Record rejected model IDs per executor and never resubmit them, including in fallbacks. When the caller has no fallback, try the closest valid model of the role's family from the error's list. If none remains, or the caller exhausts its fallback without another outcome, bind to the actual native parent and disclose it. An unavailable executor or unresolved parent stays a capability gap. Preserve every required different-model or different-family gate and Arena's disclosed judge skip.
++**Match the model to the job.** Parent aliases keep the actual parent's model and effort. For an exact model, preserve an explicit task effort or start from the role's saved reasoning budget. Raise it one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more for routine work. Use fast mode only when CI or trunk is red or a person is blocked on the result now. Otherwise use standard speed through the host's available controls. Verification stays on the `swarm workers` model and available host speed, except where the caller requires another model or family. Select that counterpart through the execution binding. Keep the selected exact model ID unchanged and pass supported effort and speed separately. Do not append effort or `-fast` suffixes. Use the highest supported effort at or below the requested level. If an adjusted setting is rejected, return to the role's supported starting setting and say so. If that fails, follow the caller's fallback through the execution binding. Record rejected model IDs per executor and never resubmit them, including in fallbacks. When the caller has no fallback, try the closest valid model of the role's family from the error's list. If none remains, or the caller exhausts its fallback without another outcome, bind to the actual native parent and disclose it. An unavailable executor or unresolved parent stays a capability gap. Preserve every required different-model or different-family gate and Arena's disclosed judge skip.
+ 
+ You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. A second opinion is the same prompt against a different model. Agreement is high-signal.
+ 
+diff --git a/skills/poteto-mode/playbooks/autopilot-full.md b/skills/poteto-mode/playbooks/autopilot-full.md
+index cf1dae2..8712997 100644
+--- a/skills/poteto-mode/playbooks/autopilot-full.md
++++ b/skills/poteto-mode/playbooks/autopilot-full.md
+@@ -1,6 +1,6 @@
+ ### Autopilot-full
+ 
+-Read [Claude Code execution](../references/claude-execution.md) and resolve `feature, refactoring` with worker kind `poteto-agent` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
++Read [Claude Code execution](../references/execution.md) and resolve `feature, refactoring` with worker kind `poteto-agent` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
+ 
+ **You own the verdicts, never the PRs. One owner carries each PR from build to merge, and nothing merges until your swarm, which never wrote the code, has proven the code that lands.**
+ 
+diff --git a/skills/poteto-mode/playbooks/autopilot-stack.md b/skills/poteto-mode/playbooks/autopilot-stack.md
+index ec663e9..472a6b1 100644
+--- a/skills/poteto-mode/playbooks/autopilot-stack.md
++++ b/skills/poteto-mode/playbooks/autopilot-stack.md
+@@ -1,6 +1,6 @@
+ ### Autopilot-stack
+ 
+-Use [Claude Code execution](../references/claude-execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
++Use [Claude Code execution](../references/execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
+ 
+ Run the Autopilot-full playbook, but do not merge.
+ 
+diff --git a/skills/poteto-mode/playbooks/babysit.md b/skills/poteto-mode/playbooks/babysit.md
+index 5eaf857..bcc4198 100644
+--- a/skills/poteto-mode/playbooks/babysit.md
++++ b/skills/poteto-mode/playbooks/babysit.md
+@@ -1,6 +1,6 @@
+ ### Babysit
+ 
+-Use [Claude Code execution](../references/claude-execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
++Use [Claude Code execution](../references/execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
+ 
+ **You own the merge frontier. Declare a mode, clear one PR at a time, stop where the human's call begins.** This playbook replaces another babysit skill for these requests, so do not route there even though its description matches the same words. A request to land or ship is `playbooks/shipping.md`, which begins where this playbook ends.
+ 
+diff --git a/skills/poteto-mode/playbooks/bug-fix.md b/skills/poteto-mode/playbooks/bug-fix.md
+index ccf89a3..8f31c32 100644
+--- a/skills/poteto-mode/playbooks/bug-fix.md
++++ b/skills/poteto-mode/playbooks/bug-fix.md
+@@ -1,6 +1,6 @@
+ ### Bug fix
+ 
+-Read [Claude Code execution](../references/claude-execution.md). Resolve `bug-fix` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
++Read [Claude Code execution](../references/execution.md). Resolve `bug-fix` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
+ 
+ **You own this task. Plan, review, verify.** Delegate investigation and the fix to subagents, stay in the lead. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+ 
+diff --git a/skills/poteto-mode/playbooks/eval.md b/skills/poteto-mode/playbooks/eval.md
+index 9486d1a..7a4e1e5 100644
+--- a/skills/poteto-mode/playbooks/eval.md
++++ b/skills/poteto-mode/playbooks/eval.md
+@@ -1,6 +1,6 @@
+ ### Eval
+ 
+-Read [Claude Code execution](../references/claude-execution.md) and resolve `arena runners` with worker kind `general-purpose` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
++Read [Claude Code execution](../references/execution.md) and resolve `arena runners` with worker kind `general-purpose` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
+ 
+ **You own the experiment design. Plan, blind, run, synthesize.**
+ 
+diff --git a/skills/poteto-mode/playbooks/feature.md b/skills/poteto-mode/playbooks/feature.md
+index a18ca4f..f16eecf 100644
+--- a/skills/poteto-mode/playbooks/feature.md
++++ b/skills/poteto-mode/playbooks/feature.md
+@@ -1,6 +1,6 @@
+ ### Feature
+ 
+-Read [Claude Code execution](../references/claude-execution.md). Resolve `feature, refactoring` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
++Read [Claude Code execution](../references/execution.md). Resolve `feature, refactoring` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
+ 
+ **You own the design. Plan, review, verify.** Delegate implementation. Stay in the lead.
+ 
+diff --git a/skills/poteto-mode/playbooks/hillclimb.md b/skills/poteto-mode/playbooks/hillclimb.md
+index 478f283..9c8d917 100644
+--- a/skills/poteto-mode/playbooks/hillclimb.md
++++ b/skills/poteto-mode/playbooks/hillclimb.md
+@@ -1,6 +1,6 @@
+ ### Hillclimb
+ 
+-Read [Claude Code execution](../references/claude-execution.md). Resolve `hillclimb` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
++Read [Claude Code execution](../references/execution.md). Resolve `hillclimb` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
+ 
+ **You own the metric and the experiment's integrity. Supervise and review. Delegate the attempts.** For sustained, iterative improvement of one measurable thing against a target. A one-off fix is Bug fix or Perf issue. This is the loop.
+ 
+diff --git a/skills/poteto-mode/playbooks/multi-phase-plan.md b/skills/poteto-mode/playbooks/multi-phase-plan.md
+index 197249b..a9b0d8f 100644
+--- a/skills/poteto-mode/playbooks/multi-phase-plan.md
++++ b/skills/poteto-mode/playbooks/multi-phase-plan.md
+@@ -1,6 +1,6 @@
+ ### Multi-phase or multi-PR plan
+ 
+-Read [Claude Code execution](../references/claude-execution.md) and resolve `judgment and prose` with worker kind `poteto-agent` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
++Read [Claude Code execution](../references/execution.md) and resolve `judgment and prose` with worker kind `poteto-agent` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
+ 
+ **You own the plan, not the code. The plan is a checklist an owner runs box by box and the operator audits from the evidence.** The plan is the deliverable. Do not implement.
+ 
+@@ -70,7 +70,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
+ 
+ ### Boot recipe, for every live lane
+ 
+-Each live lane runs in its own local Git worktree at the PR head. Local worktrees share the machine, so allocate independent ports, data directories, and app or terminal sessions. Serialize a resource that cannot be isolated. Follow [Claude Code execution](../references/claude-execution.md). Drive through the bundled control-ui or control-cli skill.
++Each live lane runs in its own local Git worktree at the PR head. Local worktrees share the machine, so allocate independent ports, data directories, and app or terminal sessions. Serialize a resource that cannot be isolated. Follow [Claude Code execution](../references/execution.md). Drive through the bundled control-ui or control-cli skill.
+ 
+ - [ ] Fetch the head branch, create the lane's dedicated worktree at `<head SHA>`, and confirm its exact HEAD. Bind every lane command to that worktree.
+ - [ ] <Start the backend and the surface. Wait for ready.>
+diff --git a/skills/poteto-mode/playbooks/opening-a-pr.md b/skills/poteto-mode/playbooks/opening-a-pr.md
+index 7c2192a..e7cafb2 100644
+--- a/skills/poteto-mode/playbooks/opening-a-pr.md
++++ b/skills/poteto-mode/playbooks/opening-a-pr.md
+@@ -2,7 +2,7 @@
+ 
+ Invoked at the end of every other playbook.
+ 
+-**Worktree.** Work from an exclusive Git worktree at the workflow's resolved base ref. Each independent writer gets its own branch and checkout. The coordinator prepares and verifies any scoped working-tree transfer before dispatch through [Claude Code execution](../references/claude-execution.md). Preserve unrelated dirty work and review the actual diff before integration.
++**Worktree.** Work from an exclusive Git worktree at the workflow's resolved base ref. Each independent writer gets its own branch and checkout. The coordinator prepares and verifies any scoped working-tree transfer before dispatch through [Claude Code execution](../references/execution.md). Preserve unrelated dirty work and review the actual diff before integration.
+ 
+ **Commits.** Commit liberally. Rebase into small, ordered commits before opening PRs. Each commit is a future PR: landable, ordered to tell the story. Amend when the fix belongs in a just-made commit. New commit when separable. Commit bodies don't restate the subject.
+ 
+diff --git a/skills/poteto-mode/playbooks/orchestrate.md b/skills/poteto-mode/playbooks/orchestrate.md
+index 33486e5..97c210f 100644
+--- a/skills/poteto-mode/playbooks/orchestrate.md
++++ b/skills/poteto-mode/playbooks/orchestrate.md
+@@ -2,7 +2,7 @@
+ 
+ **You run the program, never the code. Decide which agent does each piece of work, then check what each one produces.** For a standing project handed to one coordinator chat: multi-day, many stacked PRs, dozens to hundreds of subagents, few human turns. One task driven to a predicate is Autonomous run. One ambitious run that needs a bespoke workflow is figure-it-out. Work that one agent could finish inside the session's budget is not a program.
+ 
+-Run it with the native Claude Code tools through [Claude Code execution](../references/claude-execution.md). Keep state in a local project tracker (`notes.md`) and the local project store below. Watch each PR with real PR and CI event subscriptions when the host exposes them. Native child-completion events are not PR subscriptions. Call no orchestration scripts, run no polling loops, and never relay messages or status between agents. The foreground Codex task command is an executor binding, not an orchestration service. When PR subscriptions are absent, owners report completion and the coordinator checks forge state at workflow checkpoints without inventing a poller.
++Run it with the native Claude Code tools through [Claude Code execution](../references/execution.md). Keep state in a local project tracker (`notes.md`) and the local project store below. Watch each PR with real PR and CI event subscriptions when the host exposes them. Native child-completion events are not PR subscriptions. Call no orchestration scripts, run no polling loops, and never relay messages or status between agents. The foreground Codex task command is an executor binding, not an orchestration service. When PR subscriptions are absent, owners report completion and the coordinator checks forge state at workflow checkpoints without inventing a poller.
+ 
+ #### Store layout
+ 
+diff --git a/skills/poteto-mode/playbooks/pause-safely.md b/skills/poteto-mode/playbooks/pause-safely.md
+index a831816..934c361 100644
+--- a/skills/poteto-mode/playbooks/pause-safely.md
++++ b/skills/poteto-mode/playbooks/pause-safely.md
+@@ -1,6 +1,6 @@
+ ### Pause safely
+ 
+-Use [Claude Code execution](../references/claude-execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
++Use [Claude Code execution](../references/execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
+ 
+ **You own a clean stop. Leave a checkpoint a cold-start agent can resume from.** This is explicit only. On "keep going", "going to bed, keep going", or "don't stop", do not pause.
+ 
+diff --git a/skills/poteto-mode/playbooks/perf-issue.md b/skills/poteto-mode/playbooks/perf-issue.md
+index d6a7f6f..3e927c4 100644
+--- a/skills/poteto-mode/playbooks/perf-issue.md
++++ b/skills/poteto-mode/playbooks/perf-issue.md
+@@ -1,6 +1,6 @@
+ ### Perf issue
+ 
+-Read [Claude Code execution](../references/claude-execution.md). Resolve `perf-issue` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
++Read [Claude Code execution](../references/execution.md). Resolve `perf-issue` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
+ 
+ **You own the measurement story. Plan, review, verify the numbers.** Tie every fix to a measurement, don't read source instead of measuring.
+ 
+diff --git a/skills/poteto-mode/playbooks/refactoring.md b/skills/poteto-mode/playbooks/refactoring.md
+index 5d3029e..d405435 100644
+--- a/skills/poteto-mode/playbooks/refactoring.md
++++ b/skills/poteto-mode/playbooks/refactoring.md
+@@ -1,6 +1,6 @@
+ ### Refactoring
+ 
+-Read [Claude Code execution](../references/claude-execution.md). Resolve `feature, refactoring` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
++Read [Claude Code execution](../references/execution.md). Resolve `feature, refactoring` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
+ 
+ **You own the contract. The structure changes. The behavior does not.** Distinct from Feature, which adds behavior, and Bug fix, which corrects it.
+ 
+diff --git a/skills/poteto-mode/playbooks/runtime-forensics.md b/skills/poteto-mode/playbooks/runtime-forensics.md
+index 304a3ca..08a66f4 100644
+--- a/skills/poteto-mode/playbooks/runtime-forensics.md
++++ b/skills/poteto-mode/playbooks/runtime-forensics.md
+@@ -1,6 +1,6 @@
+ ### Runtime forensics
+ 
+-For any delegates, use [Claude Code execution](../references/claude-execution.md) with the calling workflow's role and worker kind.
++For any delegates, use [Claude Code execution](../references/execution.md) with the calling workflow's role and worker kind.
+ 
+ **You own the diagnosis. Instrument the live process, don't theorize from source.** The deliverable is a cited diagnosis, not a fix.
+ 
+diff --git a/skills/poteto-mode/playbooks/session-pickup.md b/skills/poteto-mode/playbooks/session-pickup.md
+index 13b3175..a51b479 100644
+--- a/skills/poteto-mode/playbooks/session-pickup.md
++++ b/skills/poteto-mode/playbooks/session-pickup.md
+@@ -2,7 +2,7 @@
+ 
+ **You own the resume point. Read the prior trail, don't redo it.**
+ 
+-1. Locate the prior trail. Use [Claude history](../../recall/references/claude-history.md) for an exact project-scoped session, a supplied remote-agent URL, or a pushed branch. For a Codex worker, inspect its retained run receipt and exact thread. Read metadata and last messages first, then scan back for decision points. Parse a long transcript in a subagent through [Claude Code execution](../references/claude-execution.md) and keep the reduced timeline in the parent, per **principle-guard-the-context-window**. Apply poteto-mode's reasoning and speed guidance.
++1. Locate the prior trail. Use [Claude history](../../recall/references/claude-history.md) for an exact project-scoped session, a supplied remote-agent URL, or a pushed branch. For a Codex worker, inspect its retained run receipt and exact thread. Read metadata and last messages first, then scan back for decision points. Parse a long transcript in a subagent through [Claude Code execution](../references/execution.md) and keep the reduced timeline in the parent, per **principle-guard-the-context-window**. Apply poteto-mode's reasoning and speed guidance.
+ 2. Reconstruct operational state. The branch and worktree, what already landed (`git log`, `git diff` against the base), the open todos, the decisions made. The prior trail is authoritative input. Resist the bias to re-derive it.
+ 3. Diff done vs pending. Compare what shipped against what was planned, name the resume point, do not re-run the prior repro or redo completed work. A "let me verify from scratch" pass means you're treating the trail as untrustworthy when it's authoritative.
+ 4. Route the remaining work to the matching playbook and pick the verdict: continue the execution, ship a finished recommendation, ratify or override a prior conclusion, or postmortem a failed run. The pickup playbook ends here. The routed playbook owns the rest.
+diff --git a/skills/poteto-mode/playbooks/shipping.md b/skills/poteto-mode/playbooks/shipping.md
+index b3f6b15..8db9c79 100644
+--- a/skills/poteto-mode/playbooks/shipping.md
++++ b/skills/poteto-mode/playbooks/shipping.md
+@@ -1,6 +1,6 @@
+ ### Shipping
+ 
+-Read [Claude Code execution](../references/claude-execution.md) and resolve `swarm workers` with worker kind `poteto-agent` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
++Read [Claude Code execution](../references/execution.md) and resolve `swarm workers` with worker kind `poteto-agent` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
+ 
+ **You own what lands. Verify each PR independently, land only the verified run from the root, then keep your hands off the stack.**
+ 
+diff --git a/skills/poteto-mode/playbooks/trace-forensics.md b/skills/poteto-mode/playbooks/trace-forensics.md
+index 54d8aa8..d75fa37 100644
+--- a/skills/poteto-mode/playbooks/trace-forensics.md
++++ b/skills/poteto-mode/playbooks/trace-forensics.md
+@@ -1,6 +1,6 @@
+ ### Trace forensics
+ 
+-For any delegates, use [Claude Code execution](../references/claude-execution.md) with the calling workflow's role and worker kind.
++For any delegates, use [Claude Code execution](../references/execution.md) with the calling workflow's role and worker kind.
+ 
+ **You own the diagnosis from the artifact.**
+ 
+diff --git a/skills/poteto-mode/references/claude-execution.md b/skills/poteto-mode/references/claude-execution.md
+deleted file mode 100644
+index a89fdde..0000000
+--- a/skills/poteto-mode/references/claude-execution.md
++++ /dev/null
+@@ -1,77 +0,0 @@
+-# Claude Code execution
+-
+-Read this reference before launching, steering, waiting for, or collecting pstack workers. Resolve bundled files from the actual installed skill path. This reference binds the upstream workflow to Claude Code. The calling workflow still owns its scope, roles, retries, dropouts, model-diversity rules, fresh-worker rules, and parent review.
+-
+-## Resolve roles and models
+-
+-Run the sibling setup helper by absolute path:
+-
+-```sh
+-node "<skills>/setup-pstack/scripts/models.mjs" resolve --role "<role>" --kind general-purpose
+-```
+-
+-The worker kinds are `general-purpose`, `poteto-agent`, `comment-sicko`, and `read-only`. Use `poteto-agent` inside playbook steps, `comment-sicko` for no-comments, and `general-purpose` for routed investigation, candidate, review, and synthesis seats. Use `read-only` where the caller requires `readonly: true`, including How, Arena judges, and maintain-verification source-wave children. Why and Reflect retain `general-purpose` and their MCP access. Pass the relevant skill, template, rubric, and project instructions in every brief.
+-
+-The helper reads `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`. Explicit entries preserve their executor, exact model, and reasoning effort. Scalar roles stay scalar. `arena runners`, `architect runners`, and `interrogate reviewers` are ordered panels. Run every seat, including duplicate selections and parent aliases. `arena cross-judge pool` is an ordered selection pool, so it launches one eligible judge rather than the whole list. `swarm workers` is scalar unless an explicit race assigns models per arm.
+-
+-A missing role returns native `inherit-parent` entries with source `unconfigured`, without setup or generated definitions. Scalars yield one entry and panels or pools yield two initial entries. Their `agentType` uses the static inherited plugin definition. Disclose the native-parent resolution. Setup proposals remain unresolved until accepted. Saved exact choices remain authoritative. There is no hidden family default or default-pool retry.
+-
+-For a real model, use the caller's explicit task effort when given. Otherwise adjust its saved starting effort through poteto-mode's Subagents guidance. Keep the exact model ID and send effort and speed as separate supported controls. Report unavailable independent speed controls. Do not append effort or `-fast` to model IDs. Keep a rejected-model record per executor and never resubmit a rejected ID. Follow the caller's fallback and dropout rules, with disclosure. An unavailable executor is a capability gap, not a rejected model.
+-
+-`auto` and `inherit-parent` bind to the actual native Claude parent, regardless of the other workers' executors. Their returned `agentType` selects the plugin's inherited base definition. Omit invocation model and effort overrides. Never translate a parent alias to Codex or to an assumed Claude alias. Inspect host configuration if inheritance is overridden. Report unresolved or substituted effective settings rather than claiming the requested model ran.
+-
+-Validate required different-model or different-family relationships before the affected step. A repeated seat is still a seat, but it does not establish diversity. Use eligible exact choices already resolved by that workflow in their existing order, or an explicitly supplied task counterpart, for a required non-author verifier or final audit. Do not scan unrelated roles or add a verifier role or ranking. Parent aliases and unknown families cannot establish a different-family relationship. Sonnet and Opus belong to the same Claude family. A configuration that cannot satisfy a required gate remains a configuration gap. Arena alone permits its disclosed different-family judge skip and unknown-parent behavior. Orchestrate's tool-error retry needs a different model, not necessarily another family.
+-
+-## Native Claude workers
+-
+-For `executor: "claude-code"`, use the native `Agent` tool with the returned `agentType` as `subagent_type`. Setup owns generated definitions for each exact Claude model and worker kind. Saved exact selections omit invocation model overrides. Pass supported per-invocation `effort` for an exact model. Inherited aliases omit both overrides. Preserve the returned identity and inspect actual settings when the host exposes them.
+-
+-The [Claude subagent reference](https://code.claude.com/docs/en/sub-agents) documents exact model IDs in definitions, invocation effort, completion, and stateful messaging. Host policy can substitute models. Requested settings are not observed settings.
+-
+-The brief names the goal, owned files or slice, forbidden changes, assigned checkout and branch, resolved starting SHA, exact verification, output contract, and absolute skill and artifact paths. Writers are not alone in the repository and must accommodate others' changes. A readonly caller uses kind `read-only` and an explicit "do not edit files" brief. Its native definition disallows `Write`, `Edit`, and `NotebookEdit`, while retaining Bash and the selected model. Check `git status --short` before dispatch and after completion for unexpected changes. This restricts file tools, not OS writes through Bash or interpreters. Other no-edits tasks keep their caller's kind. Do not substitute Explore, since it can change the selected model and role body.
+-
+-Pass the absolute `poteto-mode/SKILL.md` path to every poteto-agent. Its first action is an actual full Read of that file, including the Principles index. Copying the body into a prompt does not establish that read. Require reads of applied principle leaves as upstream specifies, and inspect the worker transcript when chain-following matters.
+-
+-Use the current Agent schema's asynchronous controls. Current Claude subagents normally run in the background. Launch independent seats without waiting between them and keep every agent ID. Native completion delivers a result. Use the exposed result or task retrieval tool when needed. An acknowledgement or completed status without its report is not a result. A concurrency limit queues work, not permission to omit required seats.
+-
+-## Codex workers
+-
+-For `executor: "codex"`, write the consolidated task to a local prompt file. The workflow's main conversation launches and owns the native Bash task. Run the foreground runner in background Bash with `run_in_background: true` and `timeout: 7200000` when the actual schema supports that maximum. Current native Bash defaults background tasks to 600000 ms and caps them at 7200000 ms. Honor the exposed host limit if it differs and report it. Do not shell-background the command with `&`, detach it, or add a relay agent. The foreground command remains active until the actual Codex turn terminates or the host stops it, allowing the host to deliver its completion event.
+-
+-Pass this launch request to native Bash:
+-
+-```json
+-{
+-  "command": "node \"<poteto-mode>/scripts/run-codex.mjs\" run --cwd \"/absolute/assigned-worktree\" --run-dir \"/absolute/unique-local-run-directory\" --model \"<selected-exact-model>\" --effort \"<supported-task-effort>\" --instruction \"/absolute/applicable/AGENTS.md\" --skill \"/absolute/relevant/SKILL.md\" --role \"<plugin>/agents/poteto-agent.md\" --write --prompt-file \"/absolute/consolidated-task.txt\"",
+-  "run_in_background": true,
+-  "timeout": 7200000
+-}
+-```
+-
+-Use `--role` for the selected original role body. `general-purpose` seats pass their body plus the workflow templates. Repeat `--instruction` for project rules, source references, rubrics, and templates, and `--skill` for selected skill bodies. Use `--write` only for authorized `workspace-write` tasks. Without it, the runner defaults to `read-only`. An explicit `--sandbox` must match the authorized task scope. Never silently broaden it after a denial. A poteto-agent also receives the absolute poteto-mode skill and the instruction to read it before work. The runner includes supplied bodies in its task input. Required actual reads still need transcript evidence.
+-
+-Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. Never resume the latest thread or infer identity from a directory name. The runner uses the existing Codex CLI and authentication. Claude tools, MCP servers, conversation history, and permissions do not automatically become Codex tools or state. Verify the external executor has the capabilities needed for its assigned task.
+-
+-Track the native Bash task ID and collect its terminal outcome through the host's task-result controls. Read `<run-dir>/result.json` and `<run-dir>/final.txt` for the retained receipt and final answer. Bash stdout can truncate. Inspect the actual exit outcome, exact Codex thread identity, terminal status, result, requested and observed settings, and evidence paths. A final-answer item before a later failed terminal event is not success. Read the retained prompt, request, progress, diagnostics, and result when investigating failure. Review the worker's files and verification evidence under the calling workflow's rules.
+-
+-## Worktrees and state transfer
+-
+-Native `isolation: "worktree"` is available when its base and copy behavior meet the workflow. Otherwise create an explicit Git worktree at the resolved base commit before dispatch. Every independent writer owns a branch and checkout. A Cursor cloud-agent instruction maps to an exclusive local worktree, not a new machine. For a task that needs a remote host, use a real configured remote environment and identify it.
+-
+-Workers share the machine, repository metadata, credentials, and devices. Assign separate ports, cache and data directories, temporary paths, and output files. Serialize a resource that cannot be separated. The parent prepares worktrees and reviews accepted artifacts before integration. Retain unintegrated work and diagnostic evidence.
+-
+-Conversation history is not filesystem state. When a review includes uncommitted changes, record the source checkout and exact HEAD. Create all receiving worktrees at that HEAD. Capture scoped tracked final contents with `git diff --binary HEAD -- <scope>`. Inventory and copy scoped untracked files separately, preserving bytes, file types, symlink targets, and executable modes. Include ignored input only when the task needs it. Apply that same captured input to each receiver and compare its files, modes, deletions, and untracked inventory with the source before launch. Recapture if the source changes during the transfer.
+-
+-A fresh worker can receive a stopped writer's checkout or a copied committed and uncommitted state. A history fork copies no process. Reuse a worker only when its costly checkout state, uncommitted changes, or live process meets poteto-mode's exception. A role outlives an individual worker. New rounds otherwise get a fresh consolidated brief with every later directive and prior report.
+-
+-## Steering, results, and host features
+-
+-Use the exposed native messaging control, such as `SendMessage`, for a running Claude worker's steering or a permitted stateful resume by exact agent ID. Keep stop orders distinct from new briefs. Stop a Codex Bash task through the host's actual task-stop control and collect the resulting receipt. Do not equate interrupt delivery with observed process death. Retain exact thread identity for a later permitted continuation.
+-
+-Wait for all required terminal results before synthesis. Account for every seat and apply only the calling workflow's failure or dropout rule. The parent reviews diffs and reruns load-bearing claims. Never accept an author summary as a non-author verdict.
+-
+-Read [Claude Code wakeups](claude-wakeups.md) for repeated watchers and schedules, and [Claude history](../../recall/references/claude-history.md) for transcripts. Use native TodoWrite or task tools when offered, otherwise maintain the workflow's list in its local tracker. Inspect the live schemas rather than assuming a Project store or a PR-event subscription exists.
+-
+-For another pstack skill, Read its installed `SKILL.md` and follow it. Most pstack skills are explicit-only, so the Skill tool may refuse them. User invocation is `/pstack-cc:<name>`. User-authored skills live in `.claude/skills/` or `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/`. Follow [skill authoring](skill-authoring.md) for a create-skill reference. Use native AskUserQuestion when available, or a plain question when it is absent.
+-
+-Claude Code reads `CLAUDE.md` and supports `AGENTS.md` under its [project instruction rules](https://code.claude.com/docs/en/memory#agentsmd). Do not rewrite unrelated instruction files or global settings to force a match. Read applicable project rules explicitly for external Codex tasks. Bugbot comments remain ordinary forge review threads. Use the calling workflow's `gh` or Origin commands. Cursor-specific configuration is not an instruction to install Cursor.
+diff --git a/skills/poteto-mode/references/delegation-sites.json b/skills/poteto-mode/references/delegation-sites.json
+index 1abd6c3..c9f8121 100644
+--- a/skills/poteto-mode/references/delegation-sites.json
++++ b/skills/poteto-mode/references/delegation-sites.json
+@@ -1,7 +1,7 @@
+ {
+   "schemaVersion": 1,
+   "host": "claude-code",
+-  "binding": "skills/poteto-mode/references/claude-execution.md",
++  "binding": "skills/poteto-mode/references/execution.md",
+   "roleShapes": {
+     "feature, refactoring": "scalar",
+     "bug-fix": "scalar",
+@@ -25,93 +25,110 @@
+     {
+       "path": "skills/architect/SKILL.md",
+       "classification": "configured",
+-      "roles": ["architect runners"],
++      "roles": [
++        "architect runners"
++      ],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/arena/SKILL.md",
+       "classification": "configured",
+-      "roles": ["arena runners", "arena cross-judge pool"],
+-      "workerKind": ["general-purpose", "read-only"],
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "roles": [
++        "arena runners",
++        "arena cross-judge pool"
++      ],
++      "workerKind": [
++        "general-purpose",
++        "read-only"
++      ],
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/automate-me/SKILL.md",
+       "classification": "configured",
+-      "roles": ["swarm workers"],
++      "roles": [
++        "swarm workers"
++      ],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/figure-it-out/SKILL.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/how/SKILL.md",
+       "classification": "configured",
+-      "roles": ["how explorer", "how explainer"],
++      "roles": [
++        "how explorer",
++        "how explainer"
++      ],
+       "workerKind": "read-only",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/how/references/explainer-prompt.md",
+       "classification": "context",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/how/references/explorer-prompt.md",
+       "classification": "context",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/interrogate/SKILL.md",
+       "classification": "configured",
+-      "roles": ["interrogate reviewers"],
++      "roles": [
++        "interrogate reviewers"
++      ],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/ketchup/SKILL.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/maintain-verification-skill/SKILL.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "read-only",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/no-comments/SKILL.md",
+       "classification": "configured",
+-      "roles": ["judgment and prose"],
++      "roles": [
++        "judgment and prose"
++      ],
+       "workerKind": "comment-sicko",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-help/SKILL.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-help/references/recipes.md",
+       "classification": "context",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/SKILL.md",
+@@ -136,217 +153,263 @@
+         "interrogate reviewers"
+       ],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/authoring-a-skill.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/autonomous-run.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/autopilot-full.md",
+       "classification": "configured",
+-      "roles": ["feature, refactoring", "swarm workers"],
++      "roles": [
++        "feature, refactoring",
++        "swarm workers"
++      ],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/bug-fix.md",
+       "classification": "configured",
+-      "roles": ["bug-fix", "hardest tasks", "swarm workers"],
++      "roles": [
++        "bug-fix",
++        "hardest tasks",
++        "swarm workers"
++      ],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/eval.md",
+       "classification": "configured",
+-      "roles": ["arena runners", "arena cross-judge pool"],
++      "roles": [
++        "arena runners",
++        "arena cross-judge pool"
++      ],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/feature.md",
+       "classification": "configured",
+-      "roles": ["feature, refactoring", "hardest tasks", "swarm workers"],
++      "roles": [
++        "feature, refactoring",
++        "hardest tasks",
++        "swarm workers"
++      ],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/hillclimb.md",
+       "classification": "configured",
+-      "roles": ["hillclimb", "hardest tasks", "swarm workers"],
++      "roles": [
++        "hillclimb",
++        "hardest tasks",
++        "swarm workers"
++      ],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/multi-phase-plan.md",
+       "classification": "configured",
+-      "roles": ["judgment and prose", "swarm workers"],
++      "roles": [
++        "judgment and prose",
++        "swarm workers"
++      ],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/opening-a-pr.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/orchestrate.md",
+       "classification": "configured",
+-      "roles": ["feature, refactoring", "swarm workers"],
++      "roles": [
++        "feature, refactoring",
++        "swarm workers"
++      ],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/pause-safely.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/perf-issue.md",
+       "classification": "configured",
+-      "roles": ["perf-issue", "hardest tasks", "swarm workers"],
++      "roles": [
++        "perf-issue",
++        "hardest tasks",
++        "swarm workers"
++      ],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/refactoring.md",
+       "classification": "configured",
+-      "roles": ["feature, refactoring", "hardest tasks", "swarm workers"],
++      "roles": [
++        "feature, refactoring",
++        "hardest tasks",
++        "swarm workers"
++      ],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/runtime-forensics.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/session-pickup.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/shipping.md",
+       "classification": "configured",
+-      "roles": ["swarm workers"],
++      "roles": [
++        "swarm workers"
++      ],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/trace-forensics.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/poteto-mode/playbooks/worktree-cleanup.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "poteto-agent",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/principle-build-the-lever/SKILL.md",
+       "classification": "context",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/principle-guard-the-context-window/SKILL.md",
+       "classification": "context",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/principle-separate-before-serializing-shared-state/SKILL.md",
+       "classification": "context",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/recall/SKILL.md",
+       "classification": "configured",
+-      "roles": ["swarm workers"],
++      "roles": [
++        "swarm workers"
++      ],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/reflect/SKILL.md",
+       "classification": "configured",
+-      "roles": ["reflect judgment, divergent, synthesizer", "reflect tooling"],
++      "roles": [
++        "reflect judgment, divergent, synthesizer",
++        "reflect tooling"
++      ],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/reflect/references/judgment-reviewer.md",
+       "classification": "context",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/setup-pstack/SKILL.md",
+       "classification": "configuration",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/show-me-your-work/SKILL.md",
+       "classification": "configured",
+-      "roles": ["judgment and prose"],
++      "roles": [
++        "judgment and prose"
++      ],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/statechart/SKILL.md",
+       "classification": "inherits-caller",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/swarm/SKILL.md",
+       "classification": "configured",
+-      "roles": ["swarm workers"],
++      "roles": [
++        "swarm workers"
++      ],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/why/SKILL.md",
+       "classification": "configured",
+-      "roles": ["why investigators", "why synthesizer"],
++      "roles": [
++        "why investigators",
++        "why synthesizer"
++      ],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+       "path": "skills/why/references/source-playbook.md",
+       "classification": "context",
+       "roles": [],
+       "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/claude-execution.md"
++      "binding": "skills/poteto-mode/references/execution.md"
+     }
+   ],
+   "sourceAdaptations": [
+@@ -613,9 +676,16 @@
+     {
+       "path": "skills/statechart/SKILL.md",
+       "reason": "Preserve the accepted absolute installed-path and quoting guidance for the CLI."
++    },
++    {
++      "path": "skills/how/references/explainer-prompt.md",
++      "reason": "Preserve the no-edits explanation brief with the actual execution host reading and search tools."
+     }
+   ],
+-  "omittedMetadata": ["plugin.json", ".cursor-plugin/plugin.json"],
++  "omittedMetadata": [
++    "plugin.json",
++    ".cursor-plugin/plugin.json"
++  ],
+   "preservedExecutionAdaptations": [
+     "skills/poteto-mode/scripts/bootstrap.ts",
+     "skills/poteto-mode/scripts/check-plan.mjs",
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+new file mode 100644
+index 0000000..bf895ef
+--- /dev/null
++++ b/skills/poteto-mode/references/execution.md
+@@ -0,0 +1,77 @@
++# Claude Code execution
++
++Read this reference before launching, steering, waiting for, or collecting pstack workers. Resolve bundled files from the actual installed skill path. This reference binds the upstream workflow to Claude Code. The calling workflow still owns its scope, roles, retries, dropouts, model-diversity rules, fresh-worker rules, and parent review.
++
++## Resolve roles and models
++
++Run the sibling setup helper by absolute path:
++
++```sh
++node "<skills>/setup-pstack/scripts/models.mjs" resolve --role "<role>" --kind general-purpose
++```
++
++The worker kinds are `general-purpose`, `poteto-agent`, `comment-sicko`, and `read-only`. Use `poteto-agent` inside playbook steps, `comment-sicko` for no-comments, and `general-purpose` for routed investigation, candidate, review, and synthesis seats. Use `read-only` where the caller requires `readonly: true`, including How, Arena judges, and maintain-verification source-wave children. Why and Reflect retain `general-purpose` and their MCP access. Pass the relevant skill, template, rubric, and project instructions in every brief.
++
++The helper reads `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`. Explicit entries preserve their executor, exact model, and reasoning effort. Scalar roles stay scalar. `arena runners`, `architect runners`, and `interrogate reviewers` are ordered panels. Run every seat, including duplicate selections and parent aliases. `arena cross-judge pool` is an ordered selection pool, so it launches one eligible judge rather than the whole list. `swarm workers` is scalar unless an explicit race assigns models per arm.
++
++A missing role returns native `inherit-parent` entries with source `unconfigured`, without setup or generated definitions. Scalars yield one entry and panels or pools yield two initial entries. Their `agentType` uses the static inherited plugin definition. Disclose the native-parent resolution. Setup proposals remain unresolved until accepted. Saved exact choices remain authoritative. There is no hidden family default or default-pool retry.
++
++For a real model, use the caller's explicit task effort when given. Otherwise adjust its saved starting effort through poteto-mode's Subagents guidance. Keep the exact model ID and send effort and speed as separate supported controls. Report unavailable independent speed controls. Do not append effort or `-fast` to model IDs. Keep a rejected-model record per executor and never resubmit a rejected ID. Follow the caller's fallback and dropout rules, with disclosure. An unavailable executor is a capability gap, not a rejected model.
++
++`auto` and `inherit-parent` bind to the actual native Claude parent, regardless of the other workers' executors. Their returned `agentType` selects the plugin's inherited base definition. Omit invocation model and effort overrides. Never translate a parent alias to Codex or to an assumed Claude alias. Inspect host configuration if inheritance is overridden. Report unresolved or substituted effective settings rather than claiming the requested model ran.
++
++Validate required different-model or different-family relationships before the affected step. A repeated seat is still a seat, but it does not establish diversity. Use eligible exact choices already resolved by that workflow in their existing order, or an explicitly supplied task counterpart, for a required non-author verifier or final audit. Do not scan unrelated roles or add a verifier role or ranking. Parent aliases and unknown families cannot establish a different-family relationship. Sonnet and Opus belong to the same Claude family. A configuration that cannot satisfy a required gate remains a configuration gap. Arena alone permits its disclosed different-family judge skip and unknown-parent behavior. Orchestrate's tool-error retry needs a different model, not necessarily another family.
++
++## Native Claude workers
++
++For `executor: "claude-code"`, use the exposed native `Agent` or `Task` delegation tool with the returned `agentType` as `subagent_type`, following its actual schema. Setup owns generated definitions for each exact Claude model and worker kind. Saved exact selections omit invocation model overrides. Pass supported per-invocation `effort` for an exact model. Inherited aliases omit both overrides. Preserve the returned identity and inspect actual settings when the host exposes them.
++
++The [Claude subagent reference](https://code.claude.com/docs/en/sub-agents) documents exact model IDs in definitions, invocation effort, completion, and stateful messaging. Host policy can substitute models. Requested settings are not observed settings.
++
++The brief names the goal, owned files or slice, forbidden changes, assigned checkout and branch, resolved starting SHA, exact verification, output contract, and absolute skill and artifact paths. Writers are not alone in the repository and must accommodate others' changes. A readonly caller uses kind `read-only` and an explicit "do not edit files" brief. Its native definition disallows `Write`, `Edit`, and `NotebookEdit`, while retaining Bash and the selected model. Check `git status --short` before dispatch and after completion for unexpected changes. This restricts file tools, not OS writes through Bash or interpreters. Other no-edits tasks keep their caller's kind. Do not substitute Explore, since it can change the selected model and role body.
++
++Pass the absolute `poteto-mode/SKILL.md` path to every poteto-agent. Its first action is an actual full Read of that file, including the Principles index. Copying the body into a prompt does not establish that read. Require reads of applied principle leaves as upstream specifies, and inspect the worker transcript when chain-following matters.
++
++Use the current Agent schema's asynchronous controls. Current Claude subagents normally run in the background. Launch independent seats without waiting between them and keep every agent ID. Native completion delivers a result. Use the exposed result or task retrieval tool when needed. An acknowledgement or completed status without its report is not a result. A concurrency limit queues work, not permission to omit required seats.
++
++## Codex workers
++
++For `executor: "codex"`, write the consolidated task to a local prompt file. The workflow's main conversation launches and owns the native Bash task. Run the foreground runner in background Bash with `run_in_background: true` and `timeout: 7200000` when the actual schema supports that maximum. Current native Bash defaults background tasks to 600000 ms and caps them at 7200000 ms. Honor the exposed host limit if it differs and report it. Do not shell-background the command with `&`, detach it, or add a relay agent. The foreground command remains active until the actual Codex turn terminates or the host stops it, allowing the host to deliver its completion event.
++
++Pass this launch request to native Bash:
++
++```json
++{
++  "command": "node \"<poteto-mode>/scripts/run-codex.mjs\" run --cwd \"/absolute/assigned-worktree\" --run-dir \"/absolute/unique-local-run-directory\" --model \"<selected-exact-model>\" --effort \"<supported-task-effort>\" --instruction \"/absolute/applicable/AGENTS.md\" --skill \"/absolute/relevant/SKILL.md\" --role \"<plugin>/agents/poteto-agent.md\" --write --prompt-file \"/absolute/consolidated-task.txt\"",
++  "run_in_background": true,
++  "timeout": 7200000
++}
++```
++
++Use `--role` for the selected original role body. `general-purpose` seats pass their body plus the workflow templates. Repeat `--instruction` for project rules, source references, rubrics, and templates, and `--skill` for selected skill bodies. Use `--write` only for authorized `workspace-write` tasks. Without it, the runner defaults to `read-only`. An explicit `--sandbox` must match the authorized task scope. Never silently broaden it after a denial. A poteto-agent also receives the absolute poteto-mode skill and the instruction to read it before work. The runner includes supplied bodies in its task input. Required actual reads still need transcript evidence.
++
++Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. Never resume the latest thread or infer identity from a directory name. The runner uses the existing Codex CLI and authentication. Claude tools, MCP servers, conversation history, and permissions do not automatically become Codex tools or state. Verify the external executor has the capabilities needed for its assigned task.
++
++Track the native Bash task ID and collect its terminal outcome through the host's task-result controls. Read `<run-dir>/result.json` and `<run-dir>/final.txt` for the retained receipt and final answer. Bash stdout can truncate. Inspect the actual exit outcome, exact Codex thread identity, terminal status, result, requested and observed settings, and evidence paths. A final-answer item before a later failed terminal event is not success. Read the retained prompt, request, progress, diagnostics, and result when investigating failure. Review the worker's files and verification evidence under the calling workflow's rules.
++
++## Worktrees and state transfer
++
++Native `isolation: "worktree"` is available when its base and copy behavior meet the workflow. Otherwise create an explicit Git worktree at the resolved base commit before dispatch. Every independent writer owns a branch and checkout. A Cursor cloud-agent instruction maps to an exclusive local worktree, not a new machine. For a task that needs a remote host, use a real configured remote environment and identify it.
++
++Workers share the machine, repository metadata, credentials, and devices. Assign separate ports, cache and data directories, temporary paths, and output files. Serialize a resource that cannot be separated. The parent prepares worktrees and reviews accepted artifacts before integration. Retain unintegrated work and diagnostic evidence.
++
++Conversation history is not filesystem state. When a review includes uncommitted changes, record the source checkout and exact HEAD. Create all receiving worktrees at that HEAD. Capture scoped tracked final contents with `git diff --binary HEAD -- <scope>`. Inventory and copy scoped untracked files separately, preserving bytes, file types, symlink targets, and executable modes. Include ignored input only when the task needs it. Apply that same captured input to each receiver and compare its files, modes, deletions, and untracked inventory with the source before launch. Recapture if the source changes during the transfer.
++
++A fresh worker can receive a stopped writer's checkout or a copied committed and uncommitted state. A history fork copies no process. Reuse a worker only when its costly checkout state, uncommitted changes, or live process meets poteto-mode's exception. A role outlives an individual worker. New rounds otherwise get a fresh consolidated brief with every later directive and prior report.
++
++## Steering, results, and host features
++
++Use the exposed native messaging control, such as `SendMessage`, for a running Claude worker's steering or a permitted stateful resume by exact agent ID. Keep stop orders distinct from new briefs. Stop a Codex Bash task through the host's actual task-stop control and collect the resulting receipt. Do not equate interrupt delivery with observed process death. Retain exact thread identity for a later permitted continuation.
++
++Wait for all required terminal results before synthesis. Account for every seat and apply only the calling workflow's failure or dropout rule. The parent reviews diffs and reruns load-bearing claims. Never accept an author summary as a non-author verdict.
++
++Read [Claude Code wakeups](claude-wakeups.md) for repeated watchers and schedules, and [Claude history](../../recall/references/claude-history.md) for transcripts. Use native TodoWrite or task tools when offered, otherwise maintain the workflow's list in its local tracker. Inspect the live schemas rather than assuming a Project store or a PR-event subscription exists.
++
++For another pstack skill, Read its installed `SKILL.md` and follow it. Most pstack skills are explicit-only, so the Skill tool may refuse them. User invocation is `/pstack-cc:<name>`. User-authored skills live in `.claude/skills/` or `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/`. Follow [skill authoring](skill-authoring.md) for a create-skill reference. Use native AskUserQuestion when available, or a plain question when it is absent.
++
++Claude Code reads `CLAUDE.md` and supports `AGENTS.md` under its [project instruction rules](https://code.claude.com/docs/en/memory#agentsmd). Do not rewrite unrelated instruction files or global settings to force a match. Read applicable project rules explicitly for external Codex tasks. Bugbot comments remain ordinary forge review threads. Use the calling workflow's `gh` or Origin commands. Cursor-specific configuration is not an instruction to install Cursor.
+diff --git a/skills/recall/SKILL.md b/skills/recall/SKILL.md
+index e73d6fd..5f309fd 100644
+--- a/skills/recall/SKILL.md
++++ b/skills/recall/SKILL.md
+@@ -16,7 +16,7 @@ Read [Claude history](references/claude-history.md) and use its project-scoped h
+ 
+ 1. Classify, then route. One specific prior chat to resume is the `session-pickup` playbook, not this. Turning habits into a durable skill is `automate-me`. A human-readable summary of your work is a different task. Recall loads working context across recent chats before you act. If the user already gave you a full state capsule (paths, branch, the change), use it and skip the mining.
+ 2. Lock the scope before searching. Pin the window ("recent" is a real range, default the last 7 days), the topic if named, and the workspace (default the active one. Never read another project's transcripts without being asked). State the scope back. Never quietly turn "all" into "recent N".
+-3. Fan out across your chat history. Read [Claude Code execution](../poteto-mode/references/claude-execution.md), resolve `swarm workers` with worker kind `general-purpose`, and launch parallel workers through their selected executors, each taking a slice of the corpus. Tell every subagent to order candidates by real modification time (`ls -t`) and never by UUID name, grep the topic first and then read only the matching chats and only their relevant regions, and skip the current chat plus obvious noise (subagent, eval, and test chats). Each returns the same schema, one block per chat: topic, the user's goal, decisions, open threads, struggles and corrections, and artifacts (PRs, tickets, branches), each citing the chat UUID. For one or two chats, skip the fan-out and search directly. The raw transcripts stay in the subagents. The main thread gets only their findings. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
++3. Fan out across your chat history. Read [Claude Code execution](../poteto-mode/references/execution.md), resolve `swarm workers` with worker kind `general-purpose`, and launch parallel workers through their selected executors, each taking a slice of the corpus. Tell every subagent to order candidates by real modification time (`ls -t`) and never by UUID name, grep the topic first and then read only the matching chats and only their relevant regions, and skip the current chat plus obvious noise (subagent, eval, and test chats). Each returns the same schema, one block per chat: topic, the user's goal, decisions, open threads, struggles and corrections, and artifacts (PRs, tickets, branches), each citing the chat UUID. For one or two chats, skip the fan-out and search directly. The raw transcripts stay in the subagents. The main thread gets only their findings. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+ 4. Sweep the shared record whenever the topic names a feature, file, subsystem, area, or bug. This is the default, not a judgment call, and "my work on X" does not exempt it. Hand it to the **why** skill's source investigators, but steer their question from "why was this built this way" to "what's the current state, what's been tried and didn't hold, and what are users still reporting". Reuse its per-source playbooks, run the investigators in parallel with the chat-history mining, and inherit its posture: one investigator per source, null results are findings, skip an unavailable MCP and say so. Fold what comes back into the brief. Skip this step only for pure activity recall with no named target ("what did I do this week"), where your own history and live state are the entire answer.
+ 5. Verify against live state. Take the PRs, branches, and tickets that the mining and the sweep surfaced and check them with `git` and `gh`. When the answer hinges on what an agent actually did (the tools it ran, files it read, errors it hit), read the full transcript, not just a trimmed local copy.
+ 6. Write the brief to the contract below. Group by thread. Stay on the named topic.
+diff --git a/skills/reflect/SKILL.md b/skills/reflect/SKILL.md
+index 9fd15c6..49ba9fc 100644
+--- a/skills/reflect/SKILL.md
++++ b/skills/reflect/SKILL.md
+@@ -18,7 +18,7 @@ Read [Claude history](../recall/references/claude-history.md). List project-scop
+ 
+ ## 2. Spawn three reviewers in parallel
+ 
+-Read [Claude Code execution](../poteto-mode/references/claude-execution.md). Launch three `general-purpose` reviewers through their selected executors without waiting between launches. Reviewers use the executor's configured MCP tools to check tickets, chat threads, and observability traces. Keep their no-edits scope explicit.
++Read [Claude Code execution](../poteto-mode/references/execution.md). Launch three `general-purpose` reviewers through their selected executors without waiting between launches. Reviewers use the executor's configured MCP tools to check tickets, chat threads, and observability traces. Keep their no-edits scope explicit.
+ 
+ Resolve each table role through the sibling setup helper with worker kind `general-purpose`. Use the selected exact model and supported task effort. A rejected model follows the execution binding, using a valid same-family choice from the error when available, with disclosure. Parent aliases bind the actual native parent. Apply poteto-mode's reasoning and speed guidance.
+ 
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 3e1f6a8..23928de 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -35,7 +35,7 @@ If the host cannot enumerate exact IDs and efforts, ask the user to confirm them
+ 
+ Normalize both routes with `scripts/models.mjs catalog --input ABSOLUTE_CODEX_RECEIPT --native-catalog ABSOLUTE_NATIVE_CATALOG`. Omit the Codex input for Claude-only setup. Every explicit selection must match its executor's catalog. A matching ID under another executor does not validate it.
+ 
+-`auto` and `inherit-parent` always mean the actual native Claude parent. They omit effort and executor overrides on invocation. They cannot select Codex. Use the [Claude execution binding](../poteto-mode/references/claude-execution.md) when dispatching.
++`auto` and `inherit-parent` always mean the actual native Claude parent. They omit effort and executor overrides on invocation. They cannot select Codex. Use the [Claude execution binding](../poteto-mode/references/execution.md) when dispatching.
+ 
+ ## 4. Load current choices
+ 
+@@ -72,9 +72,9 @@ Registration is idempotent. Updates and older plugin bundles refresh the propose
+ 
+ After registration succeeds, run the same `models.mjs write` command without `--dry-run`. A changed hash requires reloading the current choices before saving. The helper saves atomically and leaves identical bytes untouched.
+ 
+-## 7. Verify a first task
++## 7. Finish setup
+ 
+-Report the preferences path, selected executors, registered exact-model definitions, and detected CLI versions. State which choices came from a catalog or manual confirmation. A saved preference or definition does not verify execution. Start a new Claude Code session if its agent list has not refreshed, then use the emitted `agentType` with the selected effort. Use the installed namespace for a small task with the selected worker. Keep observed model identity separate from requested settings. Distinguish fixture checks, native CLI execution, and Desktop UI evidence. A helper-only check does not establish first-time onboarding.
++Report the preferences path, selected executors, registered exact-model definitions, and detected CLI versions. State which choices came from a catalog or manual confirmation. A saved preference or definition does not verify execution. Explain that a new Claude Code session refreshes the registered agent list when needed. When the user requests execution verification, use the emitted `agentType` with the selected effort and the installed namespace for a small task with the selected worker. Keep observed model identity separate from requested settings. Distinguish fixture checks, native CLI execution, and Desktop UI evidence. A helper-only check does not establish first-time onboarding.
+ 
+ When the user requests removal, run `scripts/register-agents.mjs --unregister` before uninstalling the plugin. It removes only unchanged owned definitions and their registration record. It retains model preferences and unrelated files.
+ 
+diff --git a/skills/show-me-your-work/SKILL.md b/skills/show-me-your-work/SKILL.md
+index c8cbe28..cfc9930 100644
+--- a/skills/show-me-your-work/SKILL.md
++++ b/skills/show-me-your-work/SKILL.md
+@@ -6,7 +6,7 @@ disable-model-invocation: true
+ 
+ # Show me your work
+ 
+-Read [Claude Code execution](../poteto-mode/references/claude-execution.md) and resolve `judgment and prose` with worker kind `general-purpose` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
++Read [Claude Code execution](../poteto-mode/references/execution.md) and resolve `judgment and prose` with worker kind `general-purpose` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
+ 
+ Keep one canonical log.
+ 
+diff --git a/skills/swarm/SKILL.md b/skills/swarm/SKILL.md
+index ec563f0..8171c6a 100644
+--- a/skills/swarm/SKILL.md
++++ b/skills/swarm/SKILL.md
+@@ -19,12 +19,12 @@ Open a todolist with one entry per phase before launching anything.
+ 
+ 1. State the done predicate and the artifact or report the swarm must return.
+ 2. Choose the shape. Partition into slices, race N workers on identical briefs, or mix both. For a race or mixed shape, declare `first pass`, `rank all`, or `best-of` before spawning.
+-3. Read [Claude Code execution](../poteto-mode/references/claude-execution.md) and resolve `swarm workers` with worker kind `general-purpose`. Each worker uses that scalar selection unless a model race or comparison assigns its arm another model. Name each race arm's model up front. Parent aliases bind the actual native parent. A rejected model follows the execution binding and the closest valid model of its family from the error. Say which fallback ran. Apply poteto-mode's reasoning and speed guidance.
++3. Read [Claude Code execution](../poteto-mode/references/execution.md) and resolve `swarm workers` with worker kind `general-purpose`. Each worker uses that scalar selection unless a model race or comparison assigns its arm another model. Name each race arm's model up front. Parent aliases bind the actual native parent. A rejected model follows the execution binding and the closest valid model of its family from the error. Say which fallback ran. Apply poteto-mode's reasoning and speed guidance.
+ 4. Give each worker its own writable output when it writes. When workers verify or measure commits, each brief names the exact SHAs. A measurement brief also names the method (sample count, what one sample is, order). The worker records both in its result.
+ 
+ ## Phase B: Fan out
+ 
+-Spawn all N workers asynchronously through their selected executors, each with worker kind `general-purpose` and its own worktree and output location. Use [Claude Code execution](../poteto-mode/references/claude-execution.md) for native Agent calls and foreground Codex commands in background Bash. Workers run locally. A worktree isolates files, not a cloud machine. Assign distinct ports, caches, devices, and data directories when needed.
++Spawn all N workers asynchronously through their selected executors, each with worker kind `general-purpose` and its own worktree and output location. Use [Claude Code execution](../poteto-mode/references/execution.md) for native Agent calls and foreground Codex commands in background Bash. Workers run locally. A worktree isolates files, not a cloud machine. Assign distinct ports, caches, devices, and data directories when needed.
+ 
+ When a worker must start from a non-default pushed branch, resolve that branch to a commit and create its worktree at that commit before dispatch.
+ 
+diff --git a/skills/why/SKILL.md b/skills/why/SKILL.md
+index e181703..5f72f37 100644
+--- a/skills/why/SKILL.md
++++ b/skills/why/SKILL.md
+@@ -8,7 +8,7 @@ disable-model-invocation: true
+ 
+ Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
+ 
+-Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Investigators resolve `why investigators`; the synthesizer resolves `why synthesizer`. A rejected model follows the execution binding, using a valid same-family choice from the error when available, with disclosure. Parent aliases bind the actual native parent. Use poteto-mode's reasoning and speed guidance.
++Read [Claude Code execution](../poteto-mode/references/execution.md) before delegation. Investigators resolve `why investigators`; the synthesizer resolves `why synthesizer`. A rejected model follows the execution binding, using a valid same-family choice from the error when available, with disclosure. Parent aliases bind the actual native parent. Use poteto-mode's reasoning and speed guidance.
+ 
+ Every seat uses worker kind `general-purpose` with the selected executor's configured MCP tools. Investigators receive a no-edits brief. Do not substitute a restricted Explore or Plan agent for a configured worker, since that changes its model, instructions, and available tools.
+ 

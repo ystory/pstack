@@ -1,6 +1,6 @@
 ### Runtime forensics
 
-For any delegates, use [Claude Code execution](../references/claude-execution.md) with the calling workflow's role and worker kind.
+For any delegates, use [Claude Code execution](../references/execution.md) with the calling workflow's role and worker kind.
 
 **You own the diagnosis. Instrument the live process, don't theorize from source.** The deliverable is a cited diagnosis, not a fix.
 

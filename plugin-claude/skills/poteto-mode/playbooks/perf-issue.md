@@ -1,6 +1,6 @@
 ### Perf issue
 
-Read [Claude Code execution](../references/claude-execution.md). Resolve `perf-issue` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
+Read [Claude Code execution](../references/execution.md). Resolve `perf-issue` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
 
 **You own the measurement story. Plan, review, verify the numbers.** Tie every fix to a measurement, don't read source instead of measuring.
 

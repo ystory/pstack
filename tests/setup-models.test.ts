@@ -78,6 +78,15 @@ async function fixture(t: TestContext) {
       path.join(bundledSkills, skill, 'scripts'),
       { recursive: true },
     );
+  const references = path.join(bundledSkills, 'poteto-mode/references');
+  await mkdir(references, { recursive: true });
+  await cp(
+    path.join(
+      projectRoot,
+      'plugin/skills/poteto-mode/references/worker-context.md',
+    ),
+    path.join(references, 'worker-context.md'),
+  );
   const bundledScript = path.join(
     bundledSkills,
     'setup-pstack/scripts/models.mjs',

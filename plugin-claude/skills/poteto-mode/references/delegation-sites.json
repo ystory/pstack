@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "host": "claude-code",
-  "binding": "skills/poteto-mode/references/claude-execution.md",
+  "binding": "skills/poteto-mode/references/execution.md",
   "roleShapes": {
     "feature, refactoring": "scalar",
     "bug-fix": "scalar",
@@ -25,93 +25,110 @@
     {
       "path": "skills/architect/SKILL.md",
       "classification": "configured",
-      "roles": ["architect runners"],
+      "roles": [
+        "architect runners"
+      ],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/arena/SKILL.md",
       "classification": "configured",
-      "roles": ["arena runners", "arena cross-judge pool"],
-      "workerKind": ["general-purpose", "read-only"],
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "roles": [
+        "arena runners",
+        "arena cross-judge pool"
+      ],
+      "workerKind": [
+        "general-purpose",
+        "read-only"
+      ],
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/automate-me/SKILL.md",
       "classification": "configured",
-      "roles": ["swarm workers"],
+      "roles": [
+        "swarm workers"
+      ],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/figure-it-out/SKILL.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/how/SKILL.md",
       "classification": "configured",
-      "roles": ["how explorer", "how explainer"],
+      "roles": [
+        "how explorer",
+        "how explainer"
+      ],
       "workerKind": "read-only",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/how/references/explainer-prompt.md",
       "classification": "context",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/how/references/explorer-prompt.md",
       "classification": "context",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/interrogate/SKILL.md",
       "classification": "configured",
-      "roles": ["interrogate reviewers"],
+      "roles": [
+        "interrogate reviewers"
+      ],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/ketchup/SKILL.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/maintain-verification-skill/SKILL.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "read-only",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/no-comments/SKILL.md",
       "classification": "configured",
-      "roles": ["judgment and prose"],
+      "roles": [
+        "judgment and prose"
+      ],
       "workerKind": "comment-sicko",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-help/SKILL.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-help/references/recipes.md",
       "classification": "context",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/SKILL.md",
@@ -136,217 +153,263 @@
         "interrogate reviewers"
       ],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/authoring-a-skill.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/autonomous-run.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/autopilot-full.md",
       "classification": "configured",
-      "roles": ["feature, refactoring", "swarm workers"],
+      "roles": [
+        "feature, refactoring",
+        "swarm workers"
+      ],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/bug-fix.md",
       "classification": "configured",
-      "roles": ["bug-fix", "hardest tasks", "swarm workers"],
+      "roles": [
+        "bug-fix",
+        "hardest tasks",
+        "swarm workers"
+      ],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/eval.md",
       "classification": "configured",
-      "roles": ["arena runners", "arena cross-judge pool"],
+      "roles": [
+        "arena runners",
+        "arena cross-judge pool"
+      ],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/feature.md",
       "classification": "configured",
-      "roles": ["feature, refactoring", "hardest tasks", "swarm workers"],
+      "roles": [
+        "feature, refactoring",
+        "hardest tasks",
+        "swarm workers"
+      ],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/hillclimb.md",
       "classification": "configured",
-      "roles": ["hillclimb", "hardest tasks", "swarm workers"],
+      "roles": [
+        "hillclimb",
+        "hardest tasks",
+        "swarm workers"
+      ],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/multi-phase-plan.md",
       "classification": "configured",
-      "roles": ["judgment and prose", "swarm workers"],
+      "roles": [
+        "judgment and prose",
+        "swarm workers"
+      ],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/opening-a-pr.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/orchestrate.md",
       "classification": "configured",
-      "roles": ["feature, refactoring", "swarm workers"],
+      "roles": [
+        "feature, refactoring",
+        "swarm workers"
+      ],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/pause-safely.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/perf-issue.md",
       "classification": "configured",
-      "roles": ["perf-issue", "hardest tasks", "swarm workers"],
+      "roles": [
+        "perf-issue",
+        "hardest tasks",
+        "swarm workers"
+      ],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/refactoring.md",
       "classification": "configured",
-      "roles": ["feature, refactoring", "hardest tasks", "swarm workers"],
+      "roles": [
+        "feature, refactoring",
+        "hardest tasks",
+        "swarm workers"
+      ],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/runtime-forensics.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/session-pickup.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/shipping.md",
       "classification": "configured",
-      "roles": ["swarm workers"],
+      "roles": [
+        "swarm workers"
+      ],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/trace-forensics.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/poteto-mode/playbooks/worktree-cleanup.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/principle-build-the-lever/SKILL.md",
       "classification": "context",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/principle-guard-the-context-window/SKILL.md",
       "classification": "context",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/principle-separate-before-serializing-shared-state/SKILL.md",
       "classification": "context",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/recall/SKILL.md",
       "classification": "configured",
-      "roles": ["swarm workers"],
+      "roles": [
+        "swarm workers"
+      ],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/reflect/SKILL.md",
       "classification": "configured",
-      "roles": ["reflect judgment, divergent, synthesizer", "reflect tooling"],
+      "roles": [
+        "reflect judgment, divergent, synthesizer",
+        "reflect tooling"
+      ],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/reflect/references/judgment-reviewer.md",
       "classification": "context",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/setup-pstack/SKILL.md",
       "classification": "configuration",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/show-me-your-work/SKILL.md",
       "classification": "configured",
-      "roles": ["judgment and prose"],
+      "roles": [
+        "judgment and prose"
+      ],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/statechart/SKILL.md",
       "classification": "inherits-caller",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/swarm/SKILL.md",
       "classification": "configured",
-      "roles": ["swarm workers"],
+      "roles": [
+        "swarm workers"
+      ],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/why/SKILL.md",
       "classification": "configured",
-      "roles": ["why investigators", "why synthesizer"],
+      "roles": [
+        "why investigators",
+        "why synthesizer"
+      ],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     },
     {
       "path": "skills/why/references/source-playbook.md",
       "classification": "context",
       "roles": [],
       "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/claude-execution.md"
+      "binding": "skills/poteto-mode/references/execution.md"
     }
   ],
   "sourceAdaptations": [
@@ -613,9 +676,16 @@
     {
       "path": "skills/statechart/SKILL.md",
       "reason": "Preserve the accepted absolute installed-path and quoting guidance for the CLI."
+    },
+    {
+      "path": "skills/how/references/explainer-prompt.md",
+      "reason": "Preserve the no-edits explanation brief with the actual execution host reading and search tools."
     }
   ],
-  "omittedMetadata": ["plugin.json", ".cursor-plugin/plugin.json"],
+  "omittedMetadata": [
+    "plugin.json",
+    ".cursor-plugin/plugin.json"
+  ],
   "preservedExecutionAdaptations": [
     "skills/poteto-mode/scripts/bootstrap.ts",
     "skills/poteto-mode/scripts/check-plan.mjs",

@@ -68,7 +68,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 ### Boot recipe, for every live lane
 
-Each live lane runs in its own local Git worktree at the PR head. Local worktrees share the machine, so allocate independent ports, data directories, and app/terminal sessions; serialize a surface that cannot be isolated. Follow `references/codex-execution.md`. Drive through `control-ui` or `control-cli` bundled from the pinned `cursor-team-kit` source.
+Each live lane runs in its own local Git worktree at the PR head. Local worktrees share the machine, so allocate independent ports, data directories, and app/terminal sessions; serialize a surface that cannot be isolated. Follow `references/execution.md`. Drive through `control-ui` or `control-cli` bundled from the pinned `cursor-team-kit` source.
 
 - [ ] Fetch the head branch, create the lane's dedicated worktree at `<head SHA>`, and confirm its exact HEAD. Bind all lane commands to that worktree.
 - [ ] <Start the backend and the surface. Wait for ready.>

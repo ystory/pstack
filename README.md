@@ -2,6 +2,8 @@
 
 pstack coordinates engineering work in Codex and Claude Code. Give it a goal and a way to check completion. `poteto-mode` selects a playbook, calls the skills and workers the task needs, and returns evidence for the result.
 
+This adaptation makes the original workflows available in both hosts while you choose workers through setup. Keep or change role assignments as model access and available quota change.
+
 This is an unofficial adaptation of [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack). It also bundles `control-ui`, `control-cli`, and `deslop` from [cursor-team-kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit).
 
 Choose your host to get started:
@@ -34,7 +36,7 @@ pstack reuses your host and official CLI authentication, including subscription 
 
 ## Install in Claude Code
 
-Use the Claude Code terminal client or Claude desktop's **Code** tab with a **Local** session. Ordinary Claude chat is not a pstack host. Setup needs Git, Node.js 24.12+, and the `claude` CLI. Native worker effort requires Claude Code 2.1.292+ with Agent effort support. Codex workers also need an authenticated Codex CLI. See the [setup guide](plugin-claude/docs/guide/01-setup.md) for CLI installation, login, and PATH troubleshooting.
+Use the Claude Code terminal client or Claude desktop's **Code** tab with a **Local** session. Ordinary Claude chat is not a pstack host. Setup needs Git, Node.js 24.12+, and the `claude` CLI. Native worker effort requires Claude Code 2.1.292+ with delegation effort support. Codex workers also need an authenticated Codex CLI. See the [setup guide](plugin-claude/docs/guide/01-setup.md) for CLI installation, login, and PATH troubleshooting.
 
 In your terminal, add the marketplace from the repository's default branch and install the plugin:
 
@@ -59,7 +61,7 @@ Start a new session after setup so Claude discovers the registered agents. Try a
 /pstack-cc:how explain how src/cli.ts handles --help. Use the simple path with one explainer. Do not edit files.
 ```
 
-Replace `src/cli.ts` with your module. A healthy run identifies the selected worker and returns an explanation based on the project's files. CLI discovery or login alone does not establish that a model can execute. The [execution binding](plugin-claude/skills/poteto-mode/references/claude-execution.md) describes the worker controls and host limits.
+Replace `src/cli.ts` with your module. A healthy run identifies the selected worker and returns an explanation based on the project's files. CLI discovery or login alone does not establish that a model can execute. The [execution binding](plugin-claude/skills/poteto-mode/references/execution.md) describes the worker controls and host limits.
 
 For updates and restores, follow [Update or remove](plugin-claude/docs/guide/01-setup.md#update-or-remove) and rerun setup. Before uninstalling, ask setup to unregister its owned agents while the plugin is still available. Native plugin removal does not clean up those registrations. Model preferences remain.
 
@@ -164,7 +166,7 @@ A single-model configuration cannot satisfy a required different-model or differ
 For contributions:
 
 1. Keep the pinned `upstream/` snapshots unchanged during adaptation work. Review source updates through the [upstream candidate workflow](docs/stack.md#review-an-upstream-update).
-2. Implement Codex adaptations in `plugin/` or Claude Code adaptations in `plugin-claude/`. Record each target's change in its own series and [verify patch replay](docs/stack.md#record-an-adaptation).
+2. Edit common workflows once and record a [shared adaptation](docs/stack.md#record-a-shared-adaptation). Keep host-specific changes in `plugin/` or `plugin-claude/` and their target series. Both complete trees remain committed for native Git installation.
 
 - [Design and compatibility](docs/spec.md): adaptation behavior, source invariants, and verified runtime scope.
 - [Development and maintenance](docs/stack.md): verification, patch management, upstream candidates, and artifact commands. The full verification workflow also requires `tar`.

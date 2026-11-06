@@ -1,0 +1,38 @@
+diff --git a/skills/poteto-mode/scripts/run-claude.mjs b/skills/poteto-mode/scripts/run-claude.mjs
+index e0fd805..a753a9f 100644
+--- a/skills/poteto-mode/scripts/run-claude.mjs
++++ b/skills/poteto-mode/scripts/run-claude.mjs
+@@ -25,7 +25,7 @@ const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+ const USAGE = `Usage:
+   node run-claude.mjs detect [--executable /absolute/claude]
+   node run-claude.mjs run --cwd /absolute/worktree --run-dir /absolute/local-run \\
+-    --model EXACT_MODEL_ID --effort xhigh --instruction /absolute/AGENTS.md --skill /absolute/SKILL.md \\
++    --model EXACT_MODEL_ID [--effort LEVEL] [--instruction /absolute/AGENTS.md] [--skill /absolute/SKILL.md] \\
+     [--role /absolute/role.md] [--resume session-uuid] [--allowed-tool tool] \\
+     [--executable /absolute/claude] < task.txt
+ 
+@@ -251,7 +251,10 @@ async function run(options) {
+   const runDir = absolute(options.runDir, '--run-dir');
+   if (contains(PLUGIN_ROOT, runDir))
+     throw new Error('--run-dir must be outside the plugin');
+-  if (options.effort !== undefined && !CLAUDE_CLI_EFFORTS.includes(options.effort))
++  if (
++    options.effort !== undefined &&
++    !CLAUDE_CLI_EFFORTS.includes(options.effort)
++  )
+     throw new Error(`--effort must be one of ${CLAUDE_CLI_EFFORTS.join(', ')}`);
+   if (
+     options.resume &&
+diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
+index e6630a8..34a793e 100644
+--- a/skills/setup-pstack/references/models-contract.md
++++ b/skills/setup-pstack/references/models-contract.md
+@@ -64,7 +64,7 @@ If a later catalog lacks a saved nondefault model, budget reports `needsChoice`,
+ 
+ ## Invocation precedence
+ 
+-The saved model entry is authoritative for the consuming role. `reasoningEffort` is that role's resolved default under the selected global budget. A skill's explicit task-specific effort remains a deliberate override; validate it against the selected executor's supported efforts. Do not append an effort to a model ID. Follow the shared [execution binding](../../poteto-mode/references/execution.md) for the selected route. Claude entries use the shared runner with `--model ENTRY.MODEL`, the chosen separate `--effort`, task and role instructions, and absolute installed skill paths. Read and resolve work offline and preserve saved IDs without a current catalog; they do not confirm current access. They do not use Codex agent TOMLs or require another Claude plugin installation.
++The saved model entry is authoritative for the consuming role. `reasoningEffort` is that role's resolved default under the selected global budget. For an exact selection, a skill's explicit task-specific effort remains a deliberate override; validate it against the selected executor's supported efforts. Do not append an effort to a model ID. Follow the shared [execution binding](../../poteto-mode/references/execution.md) for the selected route. Claude entries use the shared runner with `--model ENTRY.MODEL`, the chosen separate `--effort`, task and role instructions, and absolute installed skill paths. Read and resolve work offline and preserve saved IDs without a current catalog; they do not confirm current access. They do not use Codex agent TOMLs or require another Claude plugin installation.
+ 
+ For native entries, both aliases select the literal parent model and effort and remain unchanged when the budget changes. Native `[agents]` defaults can replace omitted settings. For parent aliases, omit override fields only when true parent inheritance has been established. Otherwise bind the observed parent model and effort explicitly. If those values or that binding cannot be established, report the unresolved selection before dispatching. Follow the shared [execution binding](../../poteto-mode/references/execution.md) for native role selection, including its supported path for unconfigured generic seats before setup. Saved selections for generic delegates use the registered `pstack-general-purpose` role. The `poteto-agent` and `comment-sicko` custom roles require setup registration.
+ 

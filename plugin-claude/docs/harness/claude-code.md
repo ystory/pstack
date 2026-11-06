@@ -1,6 +1,6 @@
 # pstack in Claude Code
 
-This target uses native Claude Code skills and agents, with setup-selected Claude or Codex workers. Read [Claude Code execution](../../skills/poteto-mode/references/claude-execution.md) for the binding shared by every workflow. It preserves exact selected models, ordered panels, worker instructions, stateful continuation, and caller-specific review and failure rules.
+This target uses native Claude Code skills and agents, with setup-selected Claude or Codex workers. Read [Claude Code execution](../../skills/poteto-mode/references/execution.md) for the binding shared by every workflow. It preserves exact selected models, ordered panels, worker instructions, stateful continuation, and caller-specific review and failure rules.
 
 Before setup, missing roles inherit the actual native parent with disclosure and original cardinality. Setup proposals start unresolved, and saved exact entries take precedence. Run `/pstack-cc:setup-pstack` to select exact models and executors, then start a new session. User commands use `/pstack-cc:<skill>`. Internally, read installed skill files by their actual path. The [setup guide](../guide/01-setup.md) covers independent preferences and CLI authentication. The [delegation inventory](../../skills/poteto-mode/references/delegation-sites.json) records the affected source sites.
 

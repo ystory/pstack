@@ -282,6 +282,14 @@ test('a conflicting shared edit writes no patch or series and preserves the othe
 
 test('candidate regeneration keeps edited whole workflow content in a single shared patch', async (t) => {
   const { project, root } = await fixture(t);
+  const localFile = path.join(project, 'patches/0001-native.patch');
+  await writeFile(
+    localFile,
+    (await readFile(localFile, 'utf8')).replace(
+      /^index [a-f0-9]+\.\.[a-f0-9]+/gm,
+      'index 1111111..2222222',
+    ),
+  );
   await shareProcedure(project);
   const candidate = await candidateFixture(project, root);
   for (const target of targets)

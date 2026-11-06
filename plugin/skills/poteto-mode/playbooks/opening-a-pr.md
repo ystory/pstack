@@ -2,7 +2,7 @@
 
 Invoked at the end of every other playbook.
 
-**Worktree.** Work from a Git worktree off main. Each independent writer gets an exclusive worktree and branch. A native history fork copies conversation, not uncommitted files or running processes. Prepare scoped working-tree inputs through [Codex execution](../references/codex-execution.md) before dispatch. Dirty branch with unrelated work: patch out, fresh worktree, apply. Snarled worktree: preserve required changes, reset your own worktree from main, redo minimally.
+**Worktree.** Work from a Git worktree off main. Each independent writer gets an exclusive worktree and branch. A native history fork copies conversation, not uncommitted files or running processes. Prepare scoped working-tree inputs through [Codex execution](../references/execution.md) before dispatch. Dirty branch with unrelated work: patch out, fresh worktree, apply. Snarled worktree: preserve required changes, reset your own worktree from main, redo minimally.
 
 **Commits.** Commit liberally. Rebase into small, ordered commits before opening PRs. Each commit is a future PR: landable, ordered to tell the story. Amend when the fix belongs in a just-made commit. New commit when separable. Commit bodies don't restate the subject.
 

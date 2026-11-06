@@ -18,7 +18,7 @@ If the active transcript cannot be matched, pass a tight digest of this conversa
 
 ## 2. Spawn three reviewers in parallel
 
-Read [Codex execution](../poteto-mode/references/codex-execution.md). Launch three general-purpose reviewers through each selected executor without waiting between them, selecting `agent_type: "pstack-general-purpose"` on the native path. Native reviewers retain the parent's MCP access; Claude Code reviewers use its configured MCPs to look up tickets, chat threads, and observability traces.
+Read [Codex execution](../poteto-mode/references/execution.md). Launch three general-purpose reviewers through each selected executor without waiting between them, selecting `agent_type: "pstack-general-purpose"` on the native path. Native reviewers retain the parent's MCP access; Claude Code reviewers use its configured MCPs to look up tickets, chat threads, and observability traces.
 
 Resolve each table role with the sibling setup helper. Apply task effort and budget guidance from poteto-mode. Pass absolute paths to this skill, each template, and the scoped transcript or digest.
 

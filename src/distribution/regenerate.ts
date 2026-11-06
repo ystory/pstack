@@ -19,6 +19,7 @@ import {
   applyPatchBytes,
   diffPluginTrees,
   generatePatch,
+  GitPatchConflict,
   parsePatchReference,
   patchAdditions,
   patchFile,
@@ -228,15 +229,31 @@ type RegenerationPlan = {
   groups: { name: string; status: 'generated' | 'no-remaining-changes' }[];
 };
 
-async function diffImages(
+async function patchForNode(
   directory: string,
-  images: ReadonlyMap<string, FileImage>,
-): Promise<string> {
+  node: RegenerationNode,
+): Promise<Buffer> {
   const next = await mkdtemp(path.join(os.tmpdir(), 'pstack-node-output-'));
   try {
     await copyTree(directory, next);
-    await writeFileImages(next, images);
-    return await diffPluginTrees(directory, next, [...images.keys()]);
+    let applied = false;
+    try {
+      applyPatchBytes(next, node.bytes);
+      applied = true;
+    } catch (error) {
+      if (!(error instanceof GitPatchConflict)) throw error;
+    }
+    if (applied) {
+      const actual = await readFileImages(next, node.paths);
+      if (
+        node.paths.every((file) =>
+          sameFileImage(actual.get(file)!, node.after.get(file)!),
+        )
+      )
+        return node.bytes;
+    }
+    await writeFileImages(next, node.after);
+    return Buffer.from(await diffPluginTrees(directory, next, node.paths));
   } finally {
     await rm(next, { recursive: true, force: true });
   }
@@ -267,19 +284,20 @@ async function reconstructNodes(
     for (let index = nodes.length - 1; index >= 0; index--) {
       const node = nodes[index]!;
       node.after = await readFileImages(backward, node.paths);
+      const additions = patchAdditions(backward, node.bytes);
+      if (additions.length === node.paths.length) {
+        await writeFileImages(
+          backward,
+          new Map(
+            node.paths.map((file) => [file, { kind: 'absent' } as const]),
+          ),
+        );
+        continue;
+      }
       try {
         applyPatchBytes(backward, node.bytes, true);
       } catch (inverseError) {
-        const additions = patchAdditions(backward, node.bytes);
-        if (additions.length === node.paths.length) {
-          await writeFileImages(
-            backward,
-            new Map(
-              node.paths.map((file) => [file, { kind: 'absent' } as const]),
-            ),
-          );
-          continue;
-        }
+        if (!(inverseError instanceof GitPatchConflict)) throw inverseError;
         try {
           await rm(prefix, { recursive: true, force: true });
           await copyPristinePlugin(candidate, prefix, target);
@@ -290,6 +308,7 @@ async function reconstructNodes(
             await readFileImages(prefix, node.paths),
           );
         } catch (prefixError) {
+          if (!(prefixError instanceof GitPatchConflict)) throw prefixError;
           throw new Error(
             `Cannot reconstruct candidate intermediate before ${node.name} for ${target} (${node.paths.join(', ')}). Refresh this reviewed candidate patch before regeneration. ${inverseError instanceof Error ? inverseError.message : String(inverseError)}; prefix: ${prefixError instanceof Error ? prefixError.message : String(prefixError)}`,
           );
@@ -396,17 +415,24 @@ async function regenerateSharedCandidate(
             'target'
         ) {
           const node = plan.nodes[plan.position++]!;
-          const bytes = await diffImages(plan.directory, node.after);
-          if (bytes.trim()) {
+          const bytes = await patchForNode(plan.directory, node);
+          if (bytes.length) {
             await writeFile(patchFile(project, plan.target, node.name), bytes, {
               flag: 'wx',
             });
-            applyPatchBytes(plan.directory, Buffer.from(bytes));
+            try {
+              applyPatchBytes(plan.directory, bytes);
+            } catch (error) {
+              throw new Error(
+                `Regeneration failed for ${plan.target} ${node.name} (${node.paths.join(', ')}): ${error instanceof Error ? error.message : String(error)}`,
+                { cause: error },
+              );
+            }
             await appendRegenerated(project, plan.target, node.name);
           }
           plan.groups.push({
             name: node.name,
-            status: bytes.trim() ? 'generated' : 'no-remaining-changes',
+            status: bytes.length ? 'generated' : 'no-remaining-changes',
           });
         }
       }
@@ -417,24 +443,24 @@ async function regenerateSharedCandidate(
         throw new Error(
           `Candidate shared node order cannot be reconciled at ${node.name}.`,
         );
-      const bytes = await diffImages(first.directory, node.after);
+      const bytes = await patchForNode(first.directory, node);
       for (const plan of plans) {
         const expected = plan.nodes[plan.position++]!;
-        if (bytes.trim()) applyPatchBytes(plan.directory, Buffer.from(bytes));
+        if (bytes.length) applyPatchBytes(plan.directory, bytes);
         const actual = await readFileImages(plan.directory, expected.paths);
         for (const file of expected.paths)
           if (!sameFileImage(actual.get(file)!, expected.after.get(file)!))
             throw new Error(
               `Shared candidate patch ${node.name} cannot express ${plan.target} output for ${file}.`,
             );
-        if (bytes.trim())
+        if (bytes.length)
           await appendRegenerated(project, plan.target, node.name);
         plan.groups.push({
           name: node.name,
-          status: bytes.trim() ? 'generated' : 'no-remaining-changes',
+          status: bytes.length ? 'generated' : 'no-remaining-changes',
         });
       }
-      if (bytes.trim())
+      if (bytes.length)
         await writeFile(patchFile(project, first.target, node.name), bytes, {
           flag: 'wx',
         });

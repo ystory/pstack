@@ -1,6 +1,6 @@
 ### Hillclimb
 
-Read [Claude Code execution](../references/claude-execution.md). Resolve `hillclimb` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
+Read [Claude Code execution](../references/execution.md). Resolve `hillclimb` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
 
 **You own the metric and the experiment's integrity. Supervise and review. Delegate the attempts.** For sustained, iterative improvement of one measurable thing against a target. A one-off fix is Bug fix or Perf issue. This is the loop.
 

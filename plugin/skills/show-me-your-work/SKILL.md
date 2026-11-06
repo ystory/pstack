@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Show me your work
 
-Read [Codex execution](../poteto-mode/references/codex-execution.md) and resolve `judgment and prose` through the sibling setup helper before dispatching the trail reviewer. Select an eligible exact different-family entry already resolved by this workflow or an explicit task counterpart under that binding. Parent aliases and unknown families do not satisfy the required review.
+Read [Codex execution](../poteto-mode/references/execution.md) and resolve `judgment and prose` through the sibling setup helper before dispatching the trail reviewer. Select an eligible exact different-family entry already resolved by this workflow or an explicit task counterpart under that binding. Parent aliases and unknown families do not satisfy the required review.
 
 Keep one canonical log.
 

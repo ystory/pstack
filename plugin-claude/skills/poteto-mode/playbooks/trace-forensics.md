@@ -1,6 +1,6 @@
 ### Trace forensics
 
-For any delegates, use [Claude Code execution](../references/claude-execution.md) with the calling workflow's role and worker kind.
+For any delegates, use [Claude Code execution](../references/execution.md) with the calling workflow's role and worker kind.
 
 **You own the diagnosis from the artifact.**
 

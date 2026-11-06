@@ -640,3 +640,128 @@ test('candidate conflict attribution keeps distinct local and shared patch ident
     assert.deepEqual(target.unappliedPatches, ['shared/0001-native.patch']);
   }
 });
+
+for (const from of targets) {
+  test(`shared CLI records file-directory transitions from ${from} and regenerates each intermediate patch`, async (t) => {
+    const { project, root } = await fixture(t);
+    const source = outputFor(project, from);
+    const other = outputFor(
+      project,
+      from === 'codex' ? 'claude-code' : 'codex',
+    );
+    const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
+    const record = (name: string, paths = 'transition') => {
+      const result = spawnSync(
+        process.execPath,
+        [
+          cli,
+          'generate-shared-patch',
+          '--project',
+          project,
+          '--from',
+          from,
+          '--name',
+          name,
+          '--paths',
+          paths,
+        ],
+        { encoding: 'utf8' },
+      );
+      assert.equal(result.status, 0, result.stderr);
+    };
+    const transition = path.join(source, 'transition');
+    await writeFile(transition, Buffer.from([0, 1, 255]));
+    await chmod(transition, 0o755);
+    record('0001-file.patch');
+    await rm(transition);
+    await mkdir(path.join(transition, 'nested'), { recursive: true });
+    const binary = Buffer.from([0, 2, 254, 10]);
+    await writeFile(path.join(transition, 'nested/child.bin'), binary);
+    await chmod(path.join(transition, 'nested/child.bin'), 0o755);
+    await writeFile(path.join(transition, 'second.md'), 'Second leaf\n');
+    if (from === 'claude-code') {
+      await rm(path.join(other, 'transition'));
+      await mkdir(path.join(other, 'transition/nested'), { recursive: true });
+      await writeFile(path.join(other, 'transition/nested/child.bin'), binary);
+      await chmod(path.join(other, 'transition/nested/child.bin'), 0o755);
+    }
+    record('0002-directory.patch');
+    for (const target of targets) {
+      assert.deepEqual(
+        await readFile(
+          path.join(outputFor(project, target), 'transition/nested/child.bin'),
+        ),
+        binary,
+      );
+      await verifyPatches(project, target);
+    }
+    await writeFile(
+      path.join(transition, 'nested/child.bin'),
+      Buffer.from([0, 3, 253, 10]),
+    );
+    await chmod(path.join(transition, 'nested/child.bin'), 0o644);
+    record('0003-child-edit.patch');
+    await rm(transition, { recursive: true });
+    await writeFile(transition, 'Returned file\n');
+    await chmod(transition, 0o755);
+    record('0004-file.patch', 'transition/nested/child.bin,transition');
+    await writeFile(transition, 'Final file\n');
+    record('0005-followup.patch');
+    for (const target of targets) {
+      assert.equal(
+        await readFile(
+          path.join(outputFor(project, target), 'transition'),
+          'utf8',
+        ),
+        'Final file\n',
+      );
+      await verifyPatches(project, target);
+    }
+    const before = await inspectTree(path.join(project, 'patches'));
+    const output = await installRegenerated(
+      await candidateFixture(project, root),
+      root,
+    );
+    assert.deepEqual(await inspectTree(path.join(output, 'patches')), before);
+  });
+
+  test(`shared directory-to-file transition from ${from} preserves a blocking unrecorded descendant before publication`, async (t) => {
+    const { project } = await fixture(t);
+    const source = outputFor(project, from);
+    const other = outputFor(
+      project,
+      from === 'codex' ? 'claude-code' : 'codex',
+    );
+    await mkdir(path.join(source, 'transition'));
+    await writeFile(path.join(source, 'transition/owned.md'), 'Recorded\n');
+    await generateSharedPatch(project, {
+      from,
+      name: '0001-directory.patch',
+      paths: ['transition'],
+    });
+    await writeFile(path.join(other, 'transition/personal.md'), 'Keep work\n');
+    await rm(path.join(source, 'transition'), { recursive: true });
+    await writeFile(path.join(source, 'transition'), 'Intended file\n');
+    const before = await inspectTree(project);
+    const cli = fileURLToPath(new URL('../src/cli.ts', import.meta.url));
+    const result = spawnSync(
+      process.execPath,
+      [
+        cli,
+        'generate-shared-patch',
+        '--project',
+        project,
+        '--from',
+        from,
+        '--name',
+        '0002-file.patch',
+        '--paths',
+        'transition',
+      ],
+      { encoding: 'utf8' },
+    );
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /ENOTEMPTY|not empty|conflict/i);
+    assert.deepEqual(await inspectTree(project), before);
+  });
+}

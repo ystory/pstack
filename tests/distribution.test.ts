@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import {
   chmod,
   mkdir,
@@ -10,6 +11,7 @@ import {
 } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import {
@@ -199,8 +201,93 @@ test('invalid patch series and conflicts fail before artifact creation', async (
   );
   await assert.rejects(
     buildPluginArtifact(project, path.join(root, 'bad')),
-    /Patch conflict/,
+    (error) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /git apply failed/);
+      assert.doesNotMatch(error.message, /Patch conflict/);
+      return true;
+    },
   );
+});
+
+test('Git execution failures remain operational errors in replay and candidates', async (t) => {
+  const { root, project, upstream } = await fixture(t);
+  const source = path.join(root, 'source');
+  await copyTree(upstream, path.join(source, 'pstack'));
+  runGit(source, ['init', '--quiet']);
+  runGit(source, [
+    'remote',
+    'add',
+    'origin',
+    'https://github.com/cursor/plugins',
+  ]);
+  runGit(source, ['add', '--all']);
+  runGit(source, [
+    '-c',
+    'user.name=Test',
+    '-c',
+    'user.email=test@example.invalid',
+    'commit',
+    '--no-gpg-sign',
+    '--quiet',
+    '-m',
+    'source',
+  ]);
+  const revision = runGit(source, ['rev-parse', 'HEAD']).trim();
+  const code = fileURLToPath(new URL('../src', import.meta.url));
+  await copyTree(code, path.join(project, 'src'));
+  const bin = path.join(root, 'bin');
+  await mkdir(bin);
+  await writeFile(
+    path.join(bin, 'git'),
+    [
+      '#!/usr/bin/env node',
+      "const { spawnSync } = require('node:child_process');",
+      'const args = process.argv.slice(2);',
+      "if (args[0] === 'apply') { process.stdout.write('Fixture Git backend unavailable\\n'); process.exit(2); }",
+      "const result = spawnSync('git', args, { stdio: 'inherit', env: { ...process.env, PATH: process.env.PSTACK_TEST_GIT_PATH } });",
+      'if (result.error) throw result.error;',
+      'process.exit(result.status ?? 1);',
+    ].join('\n') + '\n',
+    { mode: 0o755 },
+  );
+  const cli = path.join(project, 'src/cli.ts');
+  const output = path.join(root, 'failed-candidate');
+  const results = [
+    ['verify-patches'],
+    [
+      'upstream-candidate',
+      '--source',
+      source,
+      '--revision',
+      revision,
+      '--output',
+      output,
+    ],
+  ].map((args) =>
+    spawnSync(process.execPath, [cli, ...args], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PSTACK_TEST_GIT_PATH: process.env.PATH,
+        PATH: `${bin}${path.delimiter}${process.env.PATH}`,
+      },
+    }),
+  );
+  assert.deepEqual(
+    results.map((result) => ({
+      status: result.status,
+      operational: result.stderr.includes('Fixture Git backend unavailable'),
+      conflict: /[Pp]atch.conflict/.test(result.stdout + result.stderr),
+    })),
+    [
+      { status: 1, operational: true, conflict: false },
+      { status: 1, operational: true, conflict: false },
+    ],
+  );
+  await assert.rejects(readFile(path.join(output, 'candidate-report.json')), {
+    code: 'ENOENT',
+  });
 });
 
 test('upstream candidates preserve current pin and record both ready and conflict outcomes', async (t) => {
@@ -211,7 +298,7 @@ test('upstream candidates preserve current pin and record both ready and conflic
   await copyTree(upstream, path.join(source, 'pstack'));
   await writeFile(
     path.join(source, 'pstack', 'new-upstream.txt'),
-    'New source material\n',
+    Buffer.from([0x63, 0x61, 0x66, 0xe9, 0x0a]),
   );
   runGit(source, ['init', '--quiet']);
   runGit(source, [
@@ -247,9 +334,14 @@ test('upstream candidates preserve current pin and record both ready and conflic
     await readFile(path.join(ready, 'upstream-changes.diff'), 'utf8'),
     /new-upstream\.txt/,
   );
+  assert.ok(
+    (await readFile(path.join(ready, 'upstream-changes.diff'))).includes(
+      Buffer.from([0x2b, 0x63, 0x61, 0x66, 0xe9, 0x0a]),
+    ),
+  );
   await writeFile(
     path.join(project, 'patches', '0001-plugin-identity.patch'),
-    'invalid patch\n',
+    'diff --git a/runner.sh b/runner.sh\n--- a/runner.sh\n+++ b/runner.sh\n@@ -1 +1 @@\n-missing source context\n+changed\n',
   );
   const conflict = path.join(root, 'conflict');
   assert.equal(

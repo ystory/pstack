@@ -2,6 +2,13 @@ import { distributionTarget, projectTargets } from './targets.ts';
 import type { TargetId } from './targets.ts';
 import { spawnSync } from 'node:child_process';
 import {
+  closeSync,
+  mkdtempSync,
+  openSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import {
   appendFile,
   chmod,
   lstat,
@@ -34,27 +41,48 @@ export interface PatchRecord {
 
 export class GitPatchConflict extends Error {}
 
+function runGitBytes(
+  root: string,
+  args: string[],
+  input?: Uint8Array,
+  env?: NodeJS.ProcessEnv,
+): Buffer {
+  let temporary: string | undefined;
+  let descriptor: number | undefined;
+  try {
+    if (input !== undefined) {
+      temporary = mkdtempSync(path.join(os.tmpdir(), 'pstack-git-input-'));
+      const file = path.join(temporary, 'stdin');
+      writeFileSync(file, input);
+      descriptor = openSync(file, 'r');
+    }
+    const result = spawnSync('git', args, {
+      cwd: root,
+      timeout: 30000,
+      stdio: [descriptor ?? 'pipe', 'pipe', 'pipe'],
+      env,
+    });
+    if (result.error) throw result.error;
+    if (result.status !== 0) {
+      const message = `git ${args[0]} failed: ${result.stderr.toString('utf8') || result.stdout.toString('utf8') || result.signal || result.status}`;
+      if (args[0] === 'apply' && result.status === 1)
+        throw new GitPatchConflict(message);
+      throw new Error(message);
+    }
+    return result.stdout;
+  } finally {
+    if (descriptor !== undefined) closeSync(descriptor);
+    if (temporary) rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
 export function runGit(
   root: string,
   args: string[],
   input?: Uint8Array,
   env?: NodeJS.ProcessEnv,
 ): string {
-  const result = spawnSync('git', args, {
-    cwd: root,
-    encoding: 'utf8',
-    timeout: 30000,
-    input,
-    env,
-  });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    const message = `git ${args[0]} failed: ${result.stderr || result.stdout || result.signal || result.status}`;
-    if (args[0] === 'apply' && result.status === 1)
-      throw new GitPatchConflict(message);
-    throw new Error(message);
-  }
-  return result.stdout;
+  return runGitBytes(root, args, input, env).toString('utf8');
 }
 
 export type PatchReference =
@@ -285,8 +313,9 @@ export async function applyPatchSeries(
     try {
       applyPatchBytes(destination, bytes);
     } catch (error) {
-      throw new Error(
-        `Patch conflict in ${patch.name}: ${error instanceof Error ? error.message : String(error)}`,
+      if (!(error instanceof GitPatchConflict)) throw error;
+      throw new GitPatchConflict(
+        `Patch conflict in ${patch.name}: ${error.message}`,
       );
     }
   }
@@ -357,7 +386,7 @@ export async function diffPluginTrees(
   previous: string,
   next: string,
   selectedPaths?: readonly string[],
-): Promise<string> {
+): Promise<Buffer> {
   if (selectedPaths) validatePatchPaths(selectedPaths);
   const paths = selectedPaths
     ? [...new Set(selectedPaths)].filter(
@@ -402,7 +431,7 @@ export async function diffPluginTrees(
       }
     }
     runGit(temporary, ['-c', 'core.fileMode=true', 'add', '--force', '--all']);
-    return runGit(temporary, [
+    return runGitBytes(temporary, [
       '-c',
       'core.fileMode=true',
       'diff',
@@ -445,7 +474,7 @@ export async function generatePatch(
       path.join(projectRoot, distributionTarget(target).pluginDirectory),
       selectedPaths,
     );
-    if (!patch.trim()) throw new Error('No new plugin changes to record.');
+    if (!patch.length) throw new Error('No new plugin changes to record.');
     await writeFile(patchFile(projectRoot, target, name), patch, {
       flag: 'wx',
     });
@@ -504,13 +533,12 @@ export async function generateSharedPatch(
       projectRoot,
       distributionTarget(input.from).pluginDirectory,
     );
-    const patch = await diffPluginTrees(
+    const bytes = await diffPluginTrees(
       baselines.get(input.from)!,
       source,
       input.paths,
     );
-    if (!patch.trim()) throw new Error('No new plugin changes to record.');
-    const bytes = Buffer.from(patch);
+    if (!bytes.length) throw new Error('No new plugin changes to record.');
     const files = patchPaths(temporary, bytes);
     for (const target of targets) {
       const baseline = baselines.get(target)!;

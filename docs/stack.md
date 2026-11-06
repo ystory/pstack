@@ -17,6 +17,8 @@ Use affected checks while iterating. Documentation-only changes need formatting 
 
 The code is a single ESM TypeScript package with no Node runtime dependencies. `src/cli.ts` handles commands, `src/upstream/` handles source contracts and candidates, and `src/distribution/` handles policy, patches, artifacts, and marketplace selection. TypeScript emits the distributable JavaScript; `node:test` and Prettier provide tests and formatting. The formatting configuration excludes imported snapshots and target trees. Each product's series orders its host adaptations and explicit references to shared patches.
 
+Generated patches and candidate source diffs stay as bytes, including text that is not UTF-8. Finite Git input uses a temporary read-only file descriptor. This avoids the synchronous pipe EOF stall reproduced on Node.js 24.22.2 on macOS. A [Node.js issue](https://github.com/nodejs/node/issues/67280) reports a matching EOF failure. The internal runtime cause and a fixed Node.js release remain unconfirmed. The 30-second Git limit stays unchanged, and the runner does not retry. The command closes and removes its temporary input after each invocation. Git execution failures propagate as errors. Only actual patch or distribution-policy conflicts become candidate conflict reports.
+
 ## Record an adaptation
 
 Implement Codex changes in `plugin/` and Claude changes in `plugin-claude/`, preserving all locked source snapshots. Describe the upstream behavior and the intended difference for review. Record the change in a new patch:

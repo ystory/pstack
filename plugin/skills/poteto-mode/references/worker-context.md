@@ -1,5 +1,7 @@
 # Receiving worker execution
 
+Sections labeled as complete role, instruction, or skill bodies contain the supplied files' full instruction content. Apply them directly, including nested requests to read the same file, without reopening those files. This also applies to complete instruction bodies already in your context. A path, summary, excerpt, or truncated body does not replace the full file. Read required bodies that are absent or incomplete, including linked references and applied principle leaves. Delivery alone does not show that an instruction was followed.
+
 The receiving executor declared above is the harness running this worker. Supplied pstack files and preference helpers belong to the launching host. Keep their workflow, original role instructions, ordered seats, saved model choices, and configuration authority. Their host-specific tool names describe that launching host.
 
 For a resolved entry whose executor matches this receiving harness, delegate with the native subagent tools actually exposed here. Pass the selected exact model, supported effort, and complete role and template brief. For a read-only workflow such as How, use the native read-only kind where available, or a native general-purpose seat with an explicit no-edits brief when it preserves the requested settings. A host-specific `agentType` applies only in its own host. Parent aliases refer to the actual native parent in this receiving runtime, without acquiring a foreign executor from launching-host metadata.

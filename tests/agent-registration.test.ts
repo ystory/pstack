@@ -117,7 +117,7 @@ function codexBody(name: (typeof names)[number], upstream: string) {
   return upstream.replace(cursorSkillLookup, codexSkillLookup);
 }
 
-test('packaged agent metadata and instruction bodies preserve the pinned upstream', async () => {
+test('packaged agent metadata and original instructions survive the supplied-body adaptation', async () => {
   for (const name of names) {
     const original = await readFile(
       path.join(projectRoot, 'upstream/pstack/agents', `${name}.md`),
@@ -131,15 +131,25 @@ test('packaged agent metadata and instruction bodies preserve the pinned upstrea
     );
     assert.equal(parsed.name, name);
     assert.equal(parsed.description, description);
+    const markdown = await readFile(
+      path.join(pluginRoot, 'agents', `${name}.md`),
+      'utf8',
+    );
+    assert.ok(markdown.startsWith(header[0]));
     assert.equal(
       parsed.body,
-      codexBody(name, original.slice(header[0].length)),
+      codexBody(name, markdown.slice(header[0].length)),
     );
     assert.doesNotMatch(parsed.body, /\.cursor/);
-    assert.equal(
-      await readFile(path.join(pluginRoot, 'agents', `${name}.md`), 'utf8'),
-      original,
-    );
+    if (name === 'poteto-agent') {
+      assert.ok(
+        parsed.body.startsWith(
+          codexBody(name, original.slice(header[0].length)),
+        ),
+      );
+    } else {
+      assert.equal(markdown, original);
+    }
   }
 });
 

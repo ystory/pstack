@@ -24,3 +24,4 @@ shared/0003-clarify-receiving-aliases.patch
 shared/0004-preserve-native-async.patch
 0021-reviewed-worker-approvals.patch
 0022-clarify-reviewed-execution-boundary.patch
+0023-default-reviewed-worker-execution.patch

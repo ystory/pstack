@@ -72,6 +72,7 @@ function parse(argv) {
     options.sandbox !== 'workspace-write'
   )
     throw new Error('--write conflicts with --sandbox.');
+  if (command === 'run') options['approval-mode'] ??= 'auto-review';
   if (
     options['approval-mode'] !== undefined &&
     !['never', 'auto-review'].includes(options['approval-mode'])
@@ -219,7 +220,7 @@ async function run(options) {
     cwd: options.cwd,
     requested,
     resumeThreadId: options.resume ?? null,
-    approvalMode: options['approval-mode'] ?? 'never',
+    approvalMode: options['approval-mode'],
     sandbox:
       options.sandbox ?? (options.write ? 'workspace-write' : 'read-only'),
     instructions: bodies,

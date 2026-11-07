@@ -251,15 +251,18 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
   assert.equal(start.request.params.cwd, f.cwd);
   assert.equal(start.request.params.ephemeral, false);
   assert.equal(start.request.params.sandbox, 'read-only');
-  assert.equal(start.request.params.approvalPolicy, 'never');
-  assert(!('approvalsReviewer' in start.request.params));
+  assert.equal(start.request.params.approvalPolicy, 'on-request');
+  assert.equal(start.request.params.approvalsReviewer, 'auto_review');
   const request = JSON.parse(await readFile(receipt.files.request, 'utf8'));
-  assert.equal(request.approvalMode, 'never');
-  assert.equal(receipt.executionPolicy.requested.approvalMode, 'never');
-  assert.equal(
-    receipt.executionPolicy.observed.approvalsReviewer,
-    'auto_review',
-  );
+  assert.equal(request.approvalMode, 'auto-review');
+  assert.deepEqual(receipt.executionPolicy, {
+    requested: { approvalMode: 'auto-review', sandbox: 'read-only' },
+    observed: {
+      approvalPolicy: 'on-request',
+      approvalsReviewer: 'auto_review',
+      sandbox: { type: 'readOnly', networkAccess: false },
+    },
+  });
   const turn = events.find((event) => event.request?.method === 'turn/start');
   assert.equal(turn.request.params.model, 'selected-model');
   assert.equal(turn.request.params.effort, 'xhigh');
@@ -331,8 +334,16 @@ test('parallel workers and interleaved exact continuation retain separate identi
   assert.equal(resume.request.params.threadId, first.threadId);
   assert.equal(resume.request.params.cwd, f.cwd);
   assert.equal(resume.request.params.sandbox, 'workspace-write');
-  assert.equal(resume.request.params.approvalPolicy, 'never');
-  assert(!('approvalsReviewer' in resume.request.params));
+  assert.equal(resume.request.params.approvalPolicy, 'on-request');
+  assert.equal(resume.request.params.approvalsReviewer, 'auto_review');
+  assert.deepEqual(resumed.executionPolicy, {
+    requested: { approvalMode: 'auto-review', sandbox: 'workspace-write' },
+    observed: {
+      approvalPolicy: 'on-request',
+      approvalsReviewer: 'auto_review',
+      sandbox: { type: 'workspaceWrite', networkAccess: false },
+    },
+  });
 });
 
 for (const prompt of ['WAIT', 'EARLY WAIT'])
@@ -401,46 +412,71 @@ test('catalog walks every page and keeps authentication distinct from model exec
   );
 });
 
-test('prompt files and unknown effective settings stay explicit, and run records cannot be reused', async (t) => {
-  const f = await fixture(t);
-  const prompt = path.join(f.root, 'prompt file.txt');
-  await writeFile(prompt, 'Read this synthetic prompt file.\n');
-  const result = spawnSync(
-    process.execPath,
-    f.args('prompt-file', ['--prompt-file', prompt]),
-    {
-      env: {
-        ...f.env,
-        FAKE_UNKNOWN_SETTINGS: '1',
-        FAKE_POLICY_FIELDS: 'missing-all',
+for (const approvalMode of [undefined, 'never'])
+  test(`prompt files retain unknown model settings and ${approvalMode ?? 'default'} policy evidence without reusing run records`, async (t) => {
+    const f = await fixture(t);
+    const prompt = path.join(f.root, 'prompt file.txt');
+    await writeFile(prompt, 'Read this synthetic prompt file.\n');
+    const result = spawnSync(
+      process.execPath,
+      f.args('prompt-file', [
+        '--prompt-file',
+        prompt,
+        ...(approvalMode ? ['--approval-mode', approvalMode] : []),
+      ]),
+      {
+        env: {
+          ...f.env,
+          FAKE_UNKNOWN_SETTINGS: '1',
+          ...(approvalMode === 'never'
+            ? { FAKE_POLICY_FIELDS: 'missing-all' }
+            : {}),
+        },
+        encoding: 'utf8',
+        timeout: 10_000,
       },
-      encoding: 'utf8',
-      timeout: 10_000,
-    },
-  );
-  assert.equal(result.status, 0, result.stderr);
-  const receipt = await f.receipt('prompt-file');
-  assert.deepEqual(receipt.observed, { model: null, effort: null });
-  assert.deepEqual(receipt.executionPolicy.observed, {
-    approvalPolicy: null,
-    approvalsReviewer: null,
-    sandbox: null,
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = await f.receipt('prompt-file');
+    assert.deepEqual(receipt.observed, { model: null, effort: null });
+    assert.deepEqual(receipt.executionPolicy, {
+      requested: {
+        approvalMode: approvalMode ?? 'auto-review',
+        sandbox: 'read-only',
+      },
+      observed:
+        approvalMode === 'never'
+          ? { approvalPolicy: null, approvalsReviewer: null, sandbox: null }
+          : {
+              approvalPolicy: 'on-request',
+              approvalsReviewer: 'auto_review',
+              sandbox: { type: 'readOnly', networkAccess: false },
+            },
+    });
+    assert.deepEqual(receipt.threadSettings, {
+      model: 'observed-model',
+      effort: 'high',
+    });
+    const before = await readFile(receipt.files.result, 'utf8');
+    assert.equal(f.run('prompt-file').status, 1);
+    assert.equal(await readFile(receipt.files.result, 'utf8'), before);
+    const events = await f.events();
+    const start = events.find(
+      (event) => event.request?.method === 'thread/start',
+    );
+    assert.equal(
+      start.request.params.approvalPolicy,
+      approvalMode === 'never' ? 'never' : 'on-request',
+    );
+    if (approvalMode === 'never')
+      assert(!('approvalsReviewer' in start.request.params));
+    else assert.equal(start.request.params.approvalsReviewer, 'auto_review');
+    const turn = events.find((event) => event.request?.method === 'turn/start');
+    assert.equal(
+      await readFile(receipt.files.prompt, 'utf8'),
+      turn.request.params.input[0].text,
+    );
   });
-  assert.deepEqual(receipt.threadSettings, {
-    model: 'observed-model',
-    effort: 'high',
-  });
-  const before = await readFile(receipt.files.result, 'utf8');
-  assert.equal(f.run('prompt-file').status, 1);
-  assert.equal(await readFile(receipt.files.result, 'utf8'), before);
-  const turn = (await f.events()).find(
-    (event) => event.request?.method === 'turn/start',
-  );
-  assert.equal(
-    await readFile(receipt.files.prompt, 'utf8'),
-    turn.request.params.input[0].text,
-  );
-});
 
 for (const [method, variable] of [
   ['initialize', 'FAKE_HOLD_INITIALIZE'],
@@ -544,9 +580,9 @@ test('Codex transport injects its receiving executor and the bundled shared cont
 });
 
 for (const sandbox of ['read-only', 'workspace-write'])
-  test(`auto-review confirms ${sandbox} policy before both start and exact resume`, async (t) => {
+  test(`default auto-review confirms ${sandbox} policy before both start and exact resume`, async (t) => {
     const f = await fixture(t);
-    const extra = ['--approval-mode', 'auto-review', '--sandbox', sandbox];
+    const extra = sandbox === 'read-only' ? [] : ['--write'];
     const first = f.run('review-start', 'Synthetic reviewed task.', extra);
     assert.equal(first.status, 0, first.stderr);
     const started = await f.receipt('review-start');
@@ -586,31 +622,40 @@ for (const sandbox of ['read-only', 'workspace-write'])
       events.filter((event) => event.request?.method === 'turn/start').length,
       2,
     );
-    const defaultResume = f.run(
-      'default-resume',
-      'Return to the default policy.',
-      ['--resume', started.threadId],
+    const explicitResume = f.run(
+      'explicit-resume',
+      'Continue with an explicit reviewed policy.',
+      [
+        '--resume',
+        started.threadId,
+        '--approval-mode',
+        'auto-review',
+        '--sandbox',
+        sandbox,
+      ],
     );
-    assert.equal(defaultResume.status, 0, defaultResume.stderr);
-    const defaultReceipt = await f.receipt('default-resume');
-    assert.equal(
-      defaultReceipt.executionPolicy.requested.approvalMode,
-      'never',
-    );
-    assert.equal(
-      defaultReceipt.executionPolicy.observed.approvalPolicy,
-      'never',
-    );
+    assert.equal(explicitResume.status, 0, explicitResume.stderr);
+    const explicitReceipt = await f.receipt('explicit-resume');
+    assert.equal(explicitReceipt.threadId, started.threadId);
+    assert.deepEqual(explicitReceipt.executionPolicy, {
+      requested: { approvalMode: 'auto-review', sandbox },
+      observed,
+    });
     const resumes = (await f.events()).filter(
       (event) => event.request?.method === 'thread/resume',
     );
-    assert(!('approvalsReviewer' in resumes.at(-1).request.params));
+    assert.equal(resumes.at(-1).request.params.approvalPolicy, 'on-request');
+    assert.equal(
+      resumes.at(-1).request.params.approvalsReviewer,
+      'auto_review',
+    );
   });
 
 test('approval mode validation rejects unknown modes and unrestricted auto-review before launch', async (t) => {
   const f = await fixture(t);
   for (const extra of [
     ['--approval-mode', 'invented'],
+    ['--sandbox', 'danger-full-access'],
     ['--approval-mode', 'auto-review', '--sandbox', 'danger-full-access'],
   ]) {
     const result = f.run('invalid-policy', 'Synthetic task.', extra);
@@ -621,6 +666,7 @@ test('approval mode validation rejects unknown modes and unrestricted auto-revie
 });
 
 for (const altered of [
+  'missing-all',
   'missing-approval',
   'missing-reviewer',
   'missing-sandbox',
@@ -629,17 +675,12 @@ for (const altered of [
   'wrong-sandbox',
 ])
   for (const resumed of [false, true])
-    test(`auto-review rejects ${altered} on ${resumed ? 'resume' : 'start'} before task execution`, async (t) => {
+    test(`default auto-review rejects ${altered} on ${resumed ? 'resume' : 'start'} before task execution`, async (t) => {
       const f = await fixture(t);
       const result = f.run(
         'policy-mismatch',
         'Must never execute this task.',
-        [
-          '--write',
-          '--approval-mode',
-          'auto-review',
-          ...(resumed ? ['--resume', 'exact-existing-thread'] : []),
-        ],
+        ['--write', ...(resumed ? ['--resume', 'exact-existing-thread'] : [])],
         { FAKE_POLICY_FIELDS: altered },
       );
       assert.equal(result.status, 1, result.stderr);
@@ -656,7 +697,7 @@ for (const altered of [
       assert(observed);
       assert.equal(
         observed.approvalPolicy,
-        altered === 'missing-approval'
+        ['missing-all', 'missing-approval'].includes(altered)
           ? null
           : altered === 'wrong-approval'
             ? 'never'
@@ -664,7 +705,7 @@ for (const altered of [
       );
       assert.equal(
         observed.approvalsReviewer,
-        altered === 'missing-reviewer'
+        ['missing-all', 'missing-reviewer'].includes(altered)
           ? null
           : altered === 'wrong-reviewer'
             ? 'user'
@@ -672,7 +713,7 @@ for (const altered of [
       );
       assert.deepEqual(
         observed.sandbox,
-        altered === 'missing-sandbox'
+        ['missing-all', 'missing-sandbox'].includes(altered)
           ? null
           : altered === 'wrong-sandbox'
             ? { type: 'dangerFullAccess' }
@@ -692,7 +733,7 @@ test('managed auto-review rejection keeps policy evidence and never starts a tas
   const result = f.run(
     'managed-rejection',
     'Must never execute this task.',
-    ['--write', '--approval-mode', 'auto-review'],
+    ['--write'],
     { FAKE_MANAGED_REJECTION: '1' },
   );
   assert.equal(result.status, 1, result.stderr);
@@ -734,7 +775,11 @@ test('same numeric server request id is refused without consuming client respons
     },
   ]);
   assert(!('result' in refusal.request));
-  assert.equal(receipt.executionPolicy.observed.approvalPolicy, 'never');
+  assert.equal(receipt.executionPolicy.observed.approvalPolicy, 'on-request');
+  assert.equal(
+    receipt.executionPolicy.observed.approvalsReviewer,
+    'auto_review',
+  );
   const diagnostics = await readFile(receipt.files.diagnostics, 'utf8');
   assert(diagnostics.includes('synthetic unsupported command'));
 });

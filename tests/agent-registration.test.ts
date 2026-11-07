@@ -106,7 +106,7 @@ function decodePackagedAgent(toml: string) {
   };
 }
 
-test('packaged agent metadata and instruction bodies preserve the pinned upstream', async () => {
+test('packaged agent metadata and original instructions survive the supplied-body adaptation', async () => {
   for (const name of names) {
     const original = await readFile(
       path.join(projectRoot, 'upstream/pstack/agents', `${name}.md`),
@@ -120,11 +120,17 @@ test('packaged agent metadata and instruction bodies preserve the pinned upstrea
     );
     assert.equal(parsed.name, name);
     assert.equal(parsed.description, description);
-    assert.equal(parsed.body, original.slice(header[0].length));
-    assert.equal(
-      await readFile(path.join(pluginRoot, 'agents', `${name}.md`), 'utf8'),
-      original,
+    const markdown = await readFile(
+      path.join(pluginRoot, 'agents', `${name}.md`),
+      'utf8',
     );
+    assert.ok(markdown.startsWith(header[0]));
+    assert.equal(parsed.body, markdown.slice(header[0].length));
+    if (name === 'poteto-agent') {
+      assert.ok(parsed.body.startsWith(original.slice(header[0].length)));
+    } else {
+      assert.equal(markdown, original);
+    }
   }
 });
 

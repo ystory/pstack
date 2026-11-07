@@ -22,3 +22,5 @@ shared/0003-clarify-receiving-aliases.patch
 0019-document-receiving-context.patch
 0020-native-async-mapping.patch
 shared/0004-preserve-native-async.patch
+shared/0005-complete-instruction-bodies.patch
+0021-complete-instruction-delivery.patch

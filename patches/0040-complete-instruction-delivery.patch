@@ -1,0 +1,82 @@
+diff --git a/agents/poteto-agent.md b/agents/poteto-agent.md
+index e1d2df2..3810b71 100644
+--- a/agents/poteto-agent.md
++++ b/agents/poteto-agent.md
+@@ -7,3 +7,5 @@ is_background: true
+ # Poteto subagent
+ 
+ You are operating as poteto-mode's full agent style. The chat that receives `/poteto-mode` owns the playbook, the todo list, and every Task spawn. You are one of its delegates. Read the `poteto-mode` skill's `SKILL.md` in full before doing any work, including its inline Principles index. Use the absolute path your parent gave you. With no path, before any other work, search `~/.cursor/plugins/` for a file whose path ends in `skills/poteto-mode/SKILL.md`. If more than one file matches, use the copy whose `.cursor-plugin/plugin.json` has the highest `version`. Your skill catalog hides this skill, so a missing catalog entry does not mean pstack is absent. If no such file exists, stop and tell your parent. Navigate to a leaf `principle-*` skill whenever you apply that principle.
++
++Use complete instruction bodies already supplied in your context without reopening their files, even when those bodies say to read that file. A path, summary, excerpt, or truncated body does not replace the full file. Read any required body that is missing or incomplete, including referenced skills and applied principle leaves.
+diff --git a/agents/poteto-agent.toml b/agents/poteto-agent.toml
+index 21b6f9b..3fe3963 100644
+--- a/agents/poteto-agent.toml
++++ b/agents/poteto-agent.toml
+@@ -5,4 +5,6 @@ developer_instructions = '''
+ # Poteto subagent
+ 
+ You are operating as poteto-mode's full agent style. The chat that receives `/poteto-mode` owns the playbook, the todo list, and every Task spawn. You are one of its delegates. Read the `poteto-mode` skill's `SKILL.md` in full before doing any work, including its inline Principles index. Use the absolute path your parent gave you. With no path, before any other work, search `~/.cursor/plugins/` for a file whose path ends in `skills/poteto-mode/SKILL.md`. If more than one file matches, use the copy whose `.cursor-plugin/plugin.json` has the highest `version`. Your skill catalog hides this skill, so a missing catalog entry does not mean pstack is absent. If no such file exists, stop and tell your parent. Navigate to a leaf `principle-*` skill whenever you apply that principle.
++
++Use complete instruction bodies already supplied in your context without reopening their files, even when those bodies say to read that file. A path, summary, excerpt, or truncated body does not replace the full file. Read any required body that is missing or incomplete, including referenced skills and applied principle leaves.
+ '''
+diff --git a/plugin.json b/plugin.json
+index 8f726f3..9d1b55a 100644
+--- a/plugin.json
++++ b/plugin.json
+@@ -1,7 +1,7 @@
+ {
+   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+   "name": "pstack-codex",
+-  "version": "0.1.0-dev.7",
++  "version": "0.1.0-dev.8",
+   "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
+   "author": {
+     "name": "Lauren Tan"
+diff --git a/skills/poteto-mode/playbooks/eval.md b/skills/poteto-mode/playbooks/eval.md
+index 8ae7b0b..386b956 100644
+--- a/skills/poteto-mode/playbooks/eval.md
++++ b/skills/poteto-mode/playbooks/eval.md
+@@ -19,7 +19,7 @@
+ 3. **Author one organic prompt.** What a user would type. No leakage of what's being measured.
+ 4. **Spawn N parallel candidates** on different models per the **arena** skill's Phase B. Each works in its own sanitized dir. Same prompt to each. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+ 5. **Spawn one blinded judge** on a different model family per the **arena** skill's Phase C. Judge sees outputs by sanitized label and the rubric, never a model name.
+-6. **Verify the chain from transcripts, not self-report.** For native Codex candidates, read the exact chat UUID through the **recall** skill's project-scoped `codex-history.mjs` helper, scoped to its sanitized project. For Claude Code candidates, inspect the exact `sessionId` and the runner's `requestPath`, `promptPath`, and raw `stdoutPath` receipt for that sanitized project. Keep execution metadata outside the blinded judge inputs. Look at which files each candidate actually opened. Grade chain-following from the files it really read plus the shape of the code, never from the candidate's own claims.
++6. **Verify the chain from transcripts, not self-report.** For native Codex candidates, read the exact chat UUID through the **recall** skill's project-scoped `codex-history.mjs` helper, scoped to its sanitized project. For Claude Code candidates, inspect the exact `sessionId` and the runner's `requestPath`, `promptPath`, and raw `stdoutPath` receipt for that sanitized project. Keep execution metadata outside the blinded judge inputs. Inspect complete instruction bodies in the actual input and files each candidate actually opened. Required bodies absent from the input still need real reads. Grade chain-following from the candidate's actions and code shape, never from delivery alone or the candidate's own claims.
+ 7. **Read every candidate output yourself** end to end. Compare to the judge's verdict. Disagreement means a model is biased or the rubric is ambiguous. Synthesize.
+ 
+ **Reply:** variant under test, rubric, per-candidate notes, judge's verdict, your synthesis, and a recommendation for whether to promote the variant.
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 7794a30..cc575f3 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -33,7 +33,7 @@ Inspect the tools exposed by the current runtime and use their actual schemas. U
+ - Spawn with `spawn_agent`, a unique `task_name`, and a complete `message`.
+ - The message includes the goal, owned files or slice, boundaries, exact verification, required report, and absolute skill/reference/artifact paths. For writers, say they are not alone and must accommodate others' edits.
+ - Read-only workflow seats, including How, use an explicit no-edits brief and the general-purpose path below; Codex does not gain a separate OS-readonly role. General-purpose workflow seats select `agent_type: "pstack-general-purpose"` when that registered role is available. Setup registers this pstack routing role with a description only, without a config file or instruction body. It preserves the parent-derived instructions and selected model/effort instead of applying the user's configured `default` role. If the role is unavailable and the resolved seat has `source: "unconfigured"`, use the host-supported native general-purpose or default path instead, including for callers that name `pstack-general-purpose`. Explicit task-native counterparts and arms keep their exact selected model and effort on this path. Bind the actual native parent model and effort only when the selected entry is a parent alias, under the parent-selection rules above. Supply the complete task brief and workflow instructions. Disclose the unconfigured seat, native role path, and requested settings. Do not infer parent inheritance from an omitted role, model, or effort. If the host cannot express that binding, report that specific capability gap. Saved selections retain the registered-role path. Inspect the actual schema and role precedence. Check effective settings when the host exposes them; otherwise record them as unknown instead of inferring missing response fields.
+-- Playbook delegates select the registered `poteto-agent` custom role through `agent_type`. Comment cleanup selects `comment-sicko`. Both custom roles require setup registration before use. Pass the absolute `poteto-mode/SKILL.md` path to every `poteto-agent`; its preserved instruction body uses that path to find the bundled principles.
++- Playbook delegates select the registered `poteto-agent` custom role through `agent_type`. Comment cleanup selects `comment-sicko`. Both custom roles require setup registration before use. Pass the absolute `poteto-mode/SKILL.md` path to every `poteto-agent`; its preserved instruction body uses that path to find the bundled principles. Use its complete supplied body without reopening the file. Read required bodies that are missing or incomplete, including applied principle leaves.
+ - Resolve custom roles through native discovery after setup. Confirm both the loaded role and a role-selector field in the actual spawn schema. If either is unavailable, inspect registration, enabled config layers and project trust, and the host's tool capabilities; report the specific gap. For an unconfigured general-purpose seat, use the native path above when it can preserve the selected model and effort. Otherwise use the authorized setup path for missing registration and start a new Codex session before retrying, as setup requires. Preserve the requested custom role's instructions.
+ - Explicit `model` and `reasoning_effort` overrides use `fork_turns: "none"` on schemas that require it. Supply all task context in the message. Inherited aliases use the parent-selection binding above; a fresh brief can still use `fork_turns: "none"`.
+ 
+@@ -61,7 +61,7 @@ node "<poteto-mode>/scripts/run-claude.mjs" run \
+   < "/absolute/task-prompt.txt"
+ ```
+ 
+-Use the resolved exact model ID and task effort for workflow delegates. The raw runner also accepts a self-contained prompt without context files; supplied context paths remain absolute and are read as requested. Omitted effort uses the Claude CLI default and is recorded as `null`, without a bundled fallback. Repeat `--instruction` for the applicable project instructions and selected source references, templates, and rubrics, and `--skill` for the relevant skill bodies. The runner reads these absolute files, sends their contents with the task to Claude Code, and grants standard exact-file `Read` access to each supplied context file. The caller also supplies `--allowed-tool` rules for required linked source files and already-authorized task operations, including edits and verification commands. Use exact files or the required source subtree for `Read`, scoped `Edit` rules for owned files whether the delegate uses Edit or Write, and the task's command for `Bash`. Claude Code absolute file rules begin with two slashes, as in `Edit(//absolute/project/new-file.md)`. Keep task edits in the assigned cwd/worktree. Gather these rules from the task and its source references before launching.
++Use the resolved exact model ID and task effort for workflow delegates. The raw runner also accepts a self-contained prompt without context files; supplied context paths remain absolute and are read as requested. Omitted effort uses the Claude CLI default and is recorded as `null`, without a bundled fallback. Repeat `--instruction` for the applicable project instructions and selected source references, templates, and rubrics, and `--skill` for the relevant skill bodies. The runner reads these absolute files, sends their contents with the task to Claude Code, and grants standard exact-file `Read` access to each supplied context file. Pass these paths to the runner instead of reading and copying their bodies into the brief. The worker uses the complete supplied bodies under the [receiving-worker context rules](worker-context.md). The caller also supplies `--allowed-tool` rules for required linked source files and already-authorized task operations, including edits and verification commands. Use exact files or the required source subtree for `Read`, scoped `Edit` rules for owned files whether the delegate uses Edit or Write, and the task's command for `Bash`. Claude Code absolute file rules begin with two slashes, as in `Edit(//absolute/project/new-file.md)`. Keep task edits in the assigned cwd/worktree. Gather these rules from the task and its source references before launching.
+ 
+ Claude Code's [file permission rules](https://code.claude.com/docs/en/permissions#writepath-notebookeditpath-and-globpath-rules-never-match) match file creation and editing through `Edit(path)`. A path-scoped `Write(path)` rule is accepted but never matches. `--allowedTools` preapproves matching calls; it does not restrict the available tool set or create a filesystem boundary. An allowed shell or interpreter can perform operations beyond another tool's rule, so retain the host's OS permissions and the task's ownership scope.
+ 
+diff --git a/skills/poteto-mode/scripts/run-claude.mjs b/skills/poteto-mode/scripts/run-claude.mjs
+index b119ca3..74cf6dd 100644
+--- a/skills/poteto-mode/scripts/run-claude.mjs
++++ b/skills/poteto-mode/scripts/run-claude.mjs
+@@ -278,7 +278,7 @@ async function run(options) {
+   const prompt = [
+     `Working directory: ${cwd}\n\nApply the supplied project and role instructions to the assigned task. Use the supplied skill material for that task.`,
+     ...context.map(
+-      (file) => `## ${file.kind}: ${file.path}\n\n${file.content}`,
++      (file) => `## Complete ${file.kind} body from ${file.path}\n\n${file.content}`,
+     ),
+     `Receiving executor is ${EXECUTOR}.\n\n${await readFile(new URL('../references/worker-context.md', import.meta.url), 'utf8')}`,
+     `## Assigned task\n\n${task}`,

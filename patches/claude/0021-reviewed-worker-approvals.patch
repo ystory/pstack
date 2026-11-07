@@ -1,0 +1,250 @@
+diff --git a/.claude-plugin/plugin.json b/.claude-plugin/plugin.json
+index 8170f29..a04a1ea 100644
+--- a/.claude-plugin/plugin.json
++++ b/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pstack-cc",
+-  "version": "0.1.0-dev.10",
++  "version": "0.1.0-dev.11",
+   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+   "author": {
+     "name": "pstack contributors"
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index ac4edc0..4c6c69d 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -50,9 +50,13 @@ Pass this launch request to native Bash:
+ 
+ Use `--role` for the selected original role body. `general-purpose` seats pass their body plus the workflow templates. Repeat `--instruction` for project rules, source references, rubrics, and templates, and `--skill` for selected skill bodies. Use `--write` only for authorized `workspace-write` tasks. Without it, the runner defaults to `read-only`. An explicit `--sandbox` must match the authorized task scope. Never silently broaden it after a denial. A poteto-agent also receives the absolute poteto-mode skill and the instruction to read it before work. The runner includes supplied bodies in its task input. Required actual reads still need transcript evidence.
+ 
++The default `--approval-mode never` keeps approvals disabled. For a task that authorizes host capabilities, explicitly select `--approval-mode auto-review` while retaining `--write` or `--sandbox read-only`. The runner requests Codex's `on-request` policy and `auto_review` reviewer. It confirms the effective policy, reviewer, and restricted sandbox before starting the turn. Missing support or a substituted setting fails closed. Auto-review requires runtime and account support and can consume additional Codex usage. It does not authorize work outside the task. Do not combine it with `danger-full-access`.
++
++The brief names the required UI assertions, screenshot outputs, tests, and authorized Git operations. The worker runs and interprets its own verification. On macOS, Chrome can abort during application registration inside the OS sandbox even in headless mode. For this known boundary, request review of the authorized browser command before launching it. Use a dedicated profile. Do not replace browser checks with static checks or move them to the coordinator. Preserve reviewer denials and unsupported requests as explicit capability gaps. Do not weaken tests, move Git metadata, or disable signing to avoid a denial. A no-source-edits review can still need temporary fixture outputs, sockets, or a browser. Specify those capabilities separately from permission to edit sources.
++
+ Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. Never resume the latest thread or infer identity from a directory name. The runner uses the existing Codex CLI and authentication. Claude tools, MCP servers, conversation history, and permissions do not automatically become Codex tools or state. Verify the external executor has the capabilities needed for its assigned task.
+ 
+-Track the native Bash task ID and collect its terminal outcome through the host's task-result controls. Read `<run-dir>/result.json` and `<run-dir>/final.txt` for the retained receipt and final answer. Bash stdout can truncate. Inspect the actual exit outcome, exact Codex thread identity, terminal status, result, requested and observed settings, and evidence paths. A final-answer item before a later failed terminal event is not success. Read the retained prompt, request, progress, diagnostics, and result when investigating failure. Review the worker's files and verification evidence under the calling workflow's rules.
++Track the native Bash task ID and collect its terminal outcome through the host's task-result controls. Read `<run-dir>/result.json` and `<run-dir>/final.txt` for the retained receipt and final answer. Bash stdout can truncate. Inspect the actual exit outcome, exact Codex thread identity, terminal status, result, requested and observed settings, and evidence paths. A final-answer item before a later failed terminal event is not success. Read the retained prompt, request, progress, diagnostics, and result when investigating failure. Inspect `executionPolicy` and `capabilityGaps`; a completed turn or shell exit code zero does not establish that every required check passed. Auto-review notifications and their rationale remain in the raw diagnostics. Review the worker's files and verification evidence under the calling workflow's rules.
+ 
+ The outbound runner automatically includes the shared [receiving-worker execution context](worker-context.md) in its task payload. It keeps the launching configuration authority and distinguishes native receiving tools from parent launch recipes. The task still supplies its original role, selected model and effort, scope, and permissions.
+ 
+diff --git a/skills/poteto-mode/scripts/run-codex.mjs b/skills/poteto-mode/scripts/run-codex.mjs
+index ee95c7b..09f62ed 100644
+--- a/skills/poteto-mode/scripts/run-codex.mjs
++++ b/skills/poteto-mode/scripts/run-codex.mjs
+@@ -12,7 +12,7 @@ const usage = `Usage: node run-codex.mjs detect [--executable ABS]
+        node run-codex.mjs run --cwd ABS --run-dir ABS --model ID [--effort VALUE]
+          [--instruction ABS ...] [--skill ABS ...] [--role ABS]
+          [--resume EXACT_THREAD_ID] [--sandbox read-only|workspace-write|danger-full-access]
+-         [--write] [--executable ABS] [--prompt-file ABS]
++         [--write] [--approval-mode never|auto-review] [--executable ABS] [--prompt-file ABS]
+ Task text comes from --prompt-file or stdin. The run remains foreground until completion.`;
+ 
+ function parse(argv) {
+@@ -26,6 +26,7 @@ function parse(argv) {
+     'model',
+     'effort',
+     'sandbox',
++    'approval-mode',
+     'instruction',
+     'skill',
+     'role',
+@@ -71,6 +72,16 @@ function parse(argv) {
+     options.sandbox !== 'workspace-write'
+   )
+     throw new Error('--write conflicts with --sandbox.');
++  if (
++    options['approval-mode'] !== undefined &&
++    !['never', 'auto-review'].includes(options['approval-mode'])
++  )
++    throw new Error('Unsupported --approval-mode.');
++  if (
++    options['approval-mode'] === 'auto-review' &&
++    options.sandbox === 'danger-full-access'
++  )
++    throw new Error('--approval-mode auto-review requires a restricted sandbox.');
+   if (command === 'run')
+     for (const name of ['cwd', 'run-dir', 'model'])
+       if (!options[name]) throw new Error(`Missing required --${name}.`);
+@@ -208,6 +219,7 @@ async function run(options) {
+     cwd: options.cwd,
+     requested,
+     resumeThreadId: options.resume ?? null,
++    approvalMode: options['approval-mode'] ?? 'never',
+     sandbox:
+       options.sandbox ?? (options.write ? 'workspace-write' : 'read-only'),
+     instructions: bodies,
+@@ -237,7 +249,13 @@ async function run(options) {
+   const observed = { model: null, effort: null };
+   const threadSettings = { model: null, effort: null };
+   const child = { pid: null, exitCode: null, signal: null, closed: false };
++  const executionPolicy = {
++    requested: { approvalMode: request.approvalMode, sandbox: request.sandbox },
++    observed: null,
++  };
++  const capabilityGaps = [];
+   const pending = new Map();
++  const serverRequests = new Map();
+   const diagnostic = (event) => {
+     fs.appendFileSync(
+       files.diagnostics,
+@@ -250,8 +268,17 @@ async function run(options) {
+         signal: event.signal,
+         closed: true,
+       });
+-    if (event.direction === 'send' && event.message.id !== undefined)
+-      pending.set(event.message.id, event.message.method);
++    if (event.direction === 'send' && event.message.id !== undefined) {
++      const message = event.message;
++      if (typeof message.method === 'string')
++        pending.set(message.id, message.method);
++      else if (serverRequests.has(message.id)) {
++        serverRequests.get(message.id).response = message.error
++          ? { error: message.error }
++          : { result: message.result };
++        serverRequests.delete(message.id);
++      }
++    }
+     if (event.direction !== 'receive') return;
+     let message;
+     try {
+@@ -259,10 +286,22 @@ async function run(options) {
+     } catch {
+       return;
+     }
++    if (message.id !== undefined && typeof message.method === 'string') {
++      const gap = { id: message.id, method: message.method, response: null };
++      capabilityGaps.push(gap);
++      serverRequests.set(message.id, gap);
++      return;
++    }
+     if (message.id !== undefined) {
+       const method = pending.get(message.id);
+       pending.delete(message.id);
+       if (['thread/start', 'thread/resume'].includes(method)) {
++        if (message.result)
++          executionPolicy.observed = {
++            approvalPolicy: message.result.approvalPolicy ?? null,
++            approvalsReviewer: message.result.approvalsReviewer ?? null,
++            sandbox: message.result.sandbox ?? null,
++          };
+         threadId = message.result?.thread?.id ?? threadId;
+         threadSettings.model = message.result?.model ?? null;
+         threadSettings.effort =
+@@ -295,6 +334,7 @@ async function run(options) {
+       model: options.model,
+       effort: options.effort,
+       sandbox: request.sandbox,
++      approvalMode: request.approvalMode,
+       persistThread: true,
+       resumeThreadId: options.resume,
+       prompt,
+@@ -344,6 +384,8 @@ async function run(options) {
+     executor: EXECUTOR,
+     cwd: options.cwd,
+     sandbox: request.sandbox,
++    executionPolicy,
++    capabilityGaps,
+     threadId,
+     turnId,
+     requested,
+diff --git a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
+index 6557e02..6b085a0 100644
+--- a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
++++ b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
+@@ -1,4 +1,4 @@
+-// pstack-cc modified this file for direct worker execution and cancellation.
++// pstack-cc modified this file for direct worker execution, cancellation, and reviewed approvals.
+ /**
+  * @typedef {import("./app-server-protocol").AppServerNotification} AppServerNotification
+  * @typedef {import("./app-server-protocol").ReviewTarget} ReviewTarget
+@@ -60,12 +60,31 @@ function cleanCodexStderr(stderr) {
+     .join("\n");
+ }
+ 
++function buildApprovalParams(options) {
++  return options.approvalMode === "auto-review"
++    ? { approvalPolicy: "on-request", approvalsReviewer: "auto_review" }
++    : { approvalPolicy: options.approvalPolicy ?? "never" };
++}
++
++function confirmApprovalMode(response, options) {
++  if (options.approvalMode !== "auto-review") return;
++  const sandboxType = options.sandbox === "workspace-write" ? "workspaceWrite" : "readOnly";
++  if (
++    response.approvalPolicy === "on-request" &&
++    response.approvalsReviewer === "auto_review" &&
++    response.sandbox?.type === sandboxType
++  ) return;
++  const error = new Error("Codex did not confirm the requested auto-review policy, reviewer, and restricted sandbox. The task was not started.");
++  error.code = "APPROVAL_POLICY_MISMATCH";
++  throw error;
++}
++
+ /** @returns {ThreadStartParams} */
+ function buildThreadParams(cwd, options = {}) {
+   return {
+     cwd,
+     model: options.model ?? null,
+-    approvalPolicy: options.approvalPolicy ?? "never",
++    ...buildApprovalParams(options),
+     sandbox: options.sandbox ?? "read-only",
+     serviceName: SERVICE_NAME,
+     ephemeral: options.ephemeral ?? true
+@@ -78,7 +97,7 @@ function buildResumeParams(threadId, cwd, options = {}) {
+     threadId,
+     cwd,
+     model: options.model ?? null,
+-    approvalPolicy: options.approvalPolicy ?? "never",
++    ...buildApprovalParams(options),
+     sandbox: options.sandbox ?? "read-only"
+   };
+ }
+@@ -1127,6 +1146,12 @@ export async function importExternalAgentSession(cwd, options = {}) {
+ }
+ 
+ export async function runAppServerTurn(cwd, options = {}) {
++  if (options.approvalMode !== undefined && !["never", "auto-review"].includes(options.approvalMode)) {
++    throw new Error("Unsupported approval mode.");
++  }
++  if (options.approvalMode === "auto-review" && !["read-only", "workspace-write"].includes(options.sandbox ?? "read-only")) {
++    throw new Error("Auto-review requires a restricted sandbox.");
++  }
+   const availability = getCodexAvailability(cwd, options);
+   if (!availability.available) {
+     throw new Error("Codex CLI is not installed or is missing required runtime support. Install it with `npm install -g @openai/codex`, then rerun `/codex:setup`.");
+@@ -1137,26 +1162,28 @@ export async function runAppServerTurn(cwd, options = {}) {
+     : withAppServer;
+   return withServer(cwd, async (client) => {
+     options.signal?.throwIfAborted();
+-    let threadId;
++    let response;
+ 
+     if (options.resumeThreadId) {
+       emitProgress(options.onProgress, `Resuming thread ${options.resumeThreadId}.`, "starting");
+-      const response = await resumeThread(client, options.resumeThreadId, cwd, {
++      response = await resumeThread(client, options.resumeThreadId, cwd, {
+         model: options.model,
+         sandbox: options.sandbox,
++        approvalMode: options.approvalMode,
+         ephemeral: false
+       });
+-      threadId = response.thread.id;
+     } else {
+       emitProgress(options.onProgress, "Starting Codex task thread.", "starting");
+-      const response = await startThread(client, cwd, {
++      response = await startThread(client, cwd, {
+         model: options.model,
+         sandbox: options.sandbox,
++        approvalMode: options.approvalMode,
+         ephemeral: options.persistThread ? false : true,
+         threadName: options.persistThread ? options.threadName : options.threadName ?? null
+       });
+-      threadId = response.thread.id;
+     }
++    confirmApprovalMode(response, options);
++    const threadId = response.thread.id;
+ 
+     emitProgress(options.onProgress, `Thread ready (${threadId}).`, "starting", {
+       threadId

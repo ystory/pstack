@@ -181,7 +181,7 @@ async function run(options) {
   if (!task.trim()) throw new Error('A nonempty task is required.');
   const prompt = [
     ...bodies.map(
-      (file) => `Required ${file.kind} file ${file.path}\n\n${file.body}`,
+      (file) => `Complete ${file.kind} body from ${file.path}\n\n${file.body}`,
     ),
     `Receiving executor is ${EXECUTOR}.\n\n${fs.readFileSync(new URL('../references/worker-context.md', import.meta.url), 'utf8')}`,
     `Task\n\n${task}`,

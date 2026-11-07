@@ -400,7 +400,6 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
     '--allowedTools',
     `Edit(/${path.join(f.cwd, 'index.mjs')})`,
   ]);
-  assert.ok(call.input.includes(`## instruction: ${f.instruction}`));
   assert.ok(call.input.includes(f.instructionBytes));
   assert.ok(call.input.includes(f.skillBytes));
   assert.ok(call.input.includes(f.roleBody));
@@ -438,6 +437,81 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
   await access(f.plugin, constants.R_OK);
 });
 
+test('runner assembles complete installed instructions while keeping linked references separate', async (t) => {
+  const f = await fixture(t);
+  const plugin = path.resolve(path.dirname(source), '../../..');
+  const project = path.dirname(plugin);
+  const linked = path.join(f.cwd, 'separate evidence.txt');
+  const linkedBody =
+    'Evidence stays in its own file until the worker reads it.\n';
+  const role = await readFile(
+    path.join(plugin, 'agents/poteto-agent.md'),
+    'utf8',
+  );
+  const roleBody = role.slice(role.indexOf('\n---\n') + 5);
+  const skill = await readFile(
+    path.join(plugin, 'skills/poteto-mode/SKILL.md'),
+    'utf8',
+  );
+  const instruction =
+    (await readFile(path.join(project, 'AGENTS.md'), 'utf8')) +
+    `\nRead the evidence at ${linked}.\n`;
+  const leaf = path.join(f.root, 'applied principle.md');
+  const leafBody = await readFile(
+    path.join(plugin, 'skills/principle-prove-it-works/SKILL.md'),
+    'utf8',
+  );
+  await writeFile(f.role, role);
+  await writeFile(f.skill, skill);
+  await writeFile(f.instruction, instruction);
+  await writeFile(leaf, leafBody);
+  await writeFile(linked, linkedBody);
+  const task = 'Inspect the assigned evidence and return its value.\n';
+  const result = f.invoke(
+    [...f.runArgs, '--role', f.role, '--skill', leaf],
+    task,
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const call = JSON.parse(await readFile(f.callPath, 'utf8'));
+  const receipt = JSON.parse(result.stdout);
+  const request = JSON.parse(await readFile(receipt.requestPath, 'utf8'));
+  assert.deepEqual(request.context, [
+    { kind: 'instruction', path: f.instruction },
+    { kind: 'skill', path: f.skill },
+    { kind: 'skill', path: leaf },
+    { kind: 'role', path: f.role },
+  ]);
+  let end = 0;
+  for (const body of [
+    instruction,
+    skill,
+    leafBody,
+    roleBody,
+    await readFile(f.workerContext, 'utf8'),
+    task,
+  ]) {
+    const start = call.input.indexOf(body, end);
+    assert.ok(start >= end);
+    end = start + body.length;
+  }
+  assert.ok(!call.input.includes(linkedBody));
+  assert.ok(!call.input.includes(role.slice(0, role.indexOf('\n---\n') + 5)));
+  assert.equal(await readFile(receipt.promptPath, 'utf8'), call.input);
+});
+
+for (const category of ['instruction', 'skill', 'role'])
+  test(`missing ${category} body fails before launching Claude`, async (t) => {
+    const f = await fixture(t);
+    const result = f.invoke([
+      ...f.runArgs,
+      `--${category}`,
+      path.join(f.root, 'missing.md'),
+    ]);
+    assert.equal(result.status, 1);
+    await assert.rejects(access(f.callPath), { code: 'ENOENT' });
+    await assert.rejects(access(f.runDir), { code: 'ENOENT' });
+  });
+
 test('documented invocation grants exact context reads and task-authorized leaf and verification access', async (t) => {
   const f = await fixture(t);
   const leaf = path.join(f.root, 'installed skill/principles/source.md');
@@ -463,7 +537,7 @@ test('documented invocation grants exact context reads and task-authorized leaf 
   ]);
   assert.ok(!call.args.includes('--dangerously-skip-permissions'));
   assert.ok(!call.args.includes('--permission-mode'));
-  assert.ok(!call.input.includes('## role:'));
+  assert.ok(!call.input.includes(f.roleBody));
 });
 
 test('generic reviewer omits original role and resumes only an exact session', async (t) => {

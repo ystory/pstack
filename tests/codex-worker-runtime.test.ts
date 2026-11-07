@@ -157,6 +157,9 @@ async function fixture(t: TestContext) {
       .split('\n')
       .map((line) => JSON.parse(line));
   return {
+    role,
+    instruction,
+    skill,
     workerContext,
     root,
     runner,
@@ -256,6 +259,78 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
     1,
   );
 });
+
+test('runner assembles complete installed instructions while keeping linked references separate', async (t) => {
+  const f = await fixture(t);
+  const plugin = path.join(project, 'plugin-claude');
+  const linked = path.join(f.cwd, 'separate evidence.txt');
+  const linkedBody =
+    'Evidence stays in its own file until the worker reads it.\n';
+  const role = await readFile(
+    path.join(plugin, 'agents/poteto-agent.md'),
+    'utf8',
+  );
+  const skill = await readFile(
+    path.join(plugin, 'skills/poteto-mode/SKILL.md'),
+    'utf8',
+  );
+  const instruction =
+    (await readFile(path.join(project, 'AGENTS.md'), 'utf8')) +
+    `\nRead the evidence at ${linked}.\n`;
+  const leaf = path.join(f.root, 'applied principle.md');
+  const leafBody = await readFile(
+    path.join(plugin, 'skills/principle-prove-it-works/SKILL.md'),
+    'utf8',
+  );
+  await writeFile(f.role, role);
+  await writeFile(f.skill, skill);
+  await writeFile(f.instruction, instruction);
+  await writeFile(leaf, leafBody);
+  await writeFile(linked, linkedBody);
+  const task = 'Inspect the assigned evidence and return its value.';
+  const result = f.run('complete-instructions', task, ['--skill', leaf]);
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = await f.receipt('complete-instructions');
+  const request = JSON.parse(await readFile(receipt.files.request, 'utf8'));
+  assert.deepEqual(request.instructions, [
+    { kind: 'role', path: f.role, body: role },
+    { kind: 'instruction', path: f.instruction, body: instruction },
+    { kind: 'skill', path: f.skill, body: skill },
+    { kind: 'skill', path: leaf, body: leafBody },
+  ]);
+  const turn = (await f.events()).find(
+    (event) => event.request?.method === 'turn/start',
+  );
+  const prompt = turn.request.params.input[0].text;
+  let end = 0;
+  for (const body of [
+    role,
+    instruction,
+    skill,
+    leafBody,
+    await readFile(f.workerContext, 'utf8'),
+    task,
+  ]) {
+    const start = prompt.indexOf(body, end);
+    assert.ok(start >= end);
+    end = start + body.length;
+  }
+  assert.ok(!prompt.includes(linkedBody));
+  assert.equal(await readFile(receipt.files.prompt, 'utf8'), prompt);
+});
+
+for (const category of ['instruction', 'skill', 'role'])
+  test(`missing ${category} body fails before launching Codex`, async (t) => {
+    const f = await fixture(t);
+    await rm(f[category as 'instruction' | 'skill' | 'role']);
+    const result = f.run('missing-body');
+    assert.equal(result.status, 1);
+    await assert.rejects(
+      readFile(path.join(f.root, 'missing-body/request.json')),
+      { code: 'ENOENT' },
+    );
+    await assert.rejects(f.events(), { code: 'ENOENT' });
+  });
 
 test('terminal failure wins over an earlier final answer and abrupt server exit fails', async (t) => {
   const f = await fixture(t);

@@ -278,7 +278,7 @@ async function run(options) {
   const prompt = [
     `Working directory: ${cwd}\n\nApply the supplied project and role instructions to the assigned task. Use the supplied skill material for that task.`,
     ...context.map(
-      (file) => `## ${file.kind}: ${file.path}\n\n${file.content}`,
+      (file) => `## Complete ${file.kind} body from ${file.path}\n\n${file.content}`,
     ),
     `Receiving executor is ${EXECUTOR}.\n\n${await readFile(new URL('../references/worker-context.md', import.meta.url), 'utf8')}`,
     `## Assigned task\n\n${task}`,

@@ -27,7 +27,7 @@ The root `.claude-plugin/marketplace.json` exposes committed `plugin-claude/` as
 
 The distribution preserves the upstream skill structure and explicit-invocation policy. `agents/openai.yaml` maps upstream `disable-model-invocation` declarations to Codex invocation metadata while retaining the original frontmatter. The technical names of `poteto-mode` and `make-bot-ui` use their directory slugs for callable tokens; their upstream display names remain in interface metadata.
 
-The two upstream agent instruction bodies are also supplied as native TOML definitions. Setup registers them and a description-only `pstack-general-purpose` role. The latter carries requested model and reasoning choices without replacing the user's existing default role or adding another instruction body.
+The two upstream agent instruction bodies are also supplied as native TOML definitions. The poteto-agent body keeps upstream's fallback for a missing skill path, but it searches the installed `pstack-codex` plugin instead of Cursor's plugin directory. Setup registers them and a description-only `pstack-general-purpose` role. The latter carries requested model and reasoning choices without replacing the user's existing default role or adding another instruction body.
 
 ### Execution and model selection
 

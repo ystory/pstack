@@ -41,3 +41,5 @@ shared/0003-clarify-receiving-aliases.patch
 0038-document-receiving-context.patch
 0039-async-context-version.patch
 shared/0004-preserve-native-async.patch
+shared/0005-complete-instruction-bodies.patch
+0040-complete-instruction-delivery.patch

@@ -82,7 +82,7 @@ function parse(argv) {
     options['approval-mode'] === 'auto-review' &&
     options.sandbox === 'danger-full-access'
   )
-    throw new Error('--approval-mode auto-review requires a restricted sandbox.');
+    throw new Error('Auto-review is the default and requires a restricted sandbox.');
   if (command === 'run')
     for (const name of ['cwd', 'run-dir', 'model'])
       if (!options[name]) throw new Error(`Missing required --${name}.`);
@@ -193,7 +193,7 @@ async function run(options) {
   if (!task.trim()) throw new Error('A nonempty task is required.');
   const prompt = [
     ...bodies.map(
-      (file) => `Required ${file.kind} file ${file.path}\n\n${file.body}`,
+      (file) => `Complete ${file.kind} body from ${file.path}\n\n${file.body}`,
     ),
     `Receiving executor is ${EXECUTOR}.\n\n${fs.readFileSync(new URL('../references/worker-context.md', import.meta.url), 'utf8')}`,
     `Task\n\n${task}`,

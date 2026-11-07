@@ -22,6 +22,6 @@ shared/0003-clarify-receiving-aliases.patch
 0019-document-receiving-context.patch
 0020-native-async-mapping.patch
 shared/0004-preserve-native-async.patch
-0021-reviewed-worker-approvals.patch
-0022-clarify-reviewed-execution-boundary.patch
-0023-default-reviewed-worker-execution.patch
+shared/0005-complete-instruction-bodies.patch
+0021-complete-instruction-delivery.patch
+0022-reviewed-worker-execution.patch

@@ -43,3 +43,4 @@ shared/0003-clarify-receiving-aliases.patch
 shared/0004-preserve-native-async.patch
 shared/0005-complete-instruction-bodies.patch
 0040-complete-instruction-delivery.patch
+0041-codex-agent-skill-path.patch

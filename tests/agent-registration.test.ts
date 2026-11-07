@@ -106,6 +106,17 @@ function decodePackagedAgent(toml: string) {
   };
 }
 
+const cursorSkillLookup =
+  'search `~/.cursor/plugins/` for a file whose path ends in `skills/poteto-mode/SKILL.md`. If more than one file matches, use the copy whose `.cursor-plugin/plugin.json` has the highest `version`.';
+const codexSkillLookup =
+  "locate this loaded plugin's root from the host's plugin metadata and read its `skills/poteto-mode/SKILL.md`. If discovery is unavailable, search only `pstack-codex/<version>/` directories under `${CODEX_HOME:-~/.codex}/plugins/cache/` for that file and use the copy whose `plugin.json` has the highest `version`. Do not select a different plugin or guess a workspace-relative path.";
+
+function codexBody(name: (typeof names)[number], upstream: string) {
+  if (name !== 'poteto-agent') return upstream;
+  assert.ok(upstream.includes(cursorSkillLookup));
+  return upstream.replace(cursorSkillLookup, codexSkillLookup);
+}
+
 test('packaged agent metadata and original instructions survive the supplied-body adaptation', async () => {
   for (const name of names) {
     const original = await readFile(
@@ -125,9 +136,17 @@ test('packaged agent metadata and original instructions survive the supplied-bod
       'utf8',
     );
     assert.ok(markdown.startsWith(header[0]));
-    assert.equal(parsed.body, markdown.slice(header[0].length));
+    assert.equal(
+      parsed.body,
+      codexBody(name, markdown.slice(header[0].length)),
+    );
+    assert.doesNotMatch(parsed.body, /\.cursor/);
     if (name === 'poteto-agent') {
-      assert.ok(parsed.body.startsWith(original.slice(header[0].length)));
+      assert.ok(
+        parsed.body.startsWith(
+          codexBody(name, original.slice(header[0].length)),
+        ),
+      );
     } else {
       assert.equal(markdown, original);
     }

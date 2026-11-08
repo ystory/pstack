@@ -839,7 +839,7 @@ test('normal macOS registration activates its owned boundary using the selected 
   await mkdir(path.dirname(helper), { recursive: true });
   await writeFile(
     helper,
-    `import fs from 'node:fs';\nexport async function trustNativeBoundary(options) { fs.writeFileSync(${JSON.stringify(evidence)}, JSON.stringify({cwd:options.cwd,pluginId:options.pluginId,guardPath:options.guardPath,codexHome:options.env.CODEX_HOME})); fs.mkdirSync(options.env.CODEX_HOME,{recursive:true}); fs.appendFileSync(options.env.CODEX_HOME+'/config.toml','[hooks.state.fixture]\\ntrusted_hash = \"owned\"\\n'); return {status:'active',hook:{key:'owned-fixture-hook'}}; }\n`,
+    `import fs from 'node:fs';\nexport async function trustNativeBoundary(options) { fs.writeFileSync(${JSON.stringify(evidence)}, JSON.stringify({cwd:options.cwd,nativeRoles:options.nativeRoles,guardPath:options.guardPath,codexHome:options.codexHome,envHome:options.env.CODEX_HOME})); fs.mkdirSync(options.env.CODEX_HOME,{recursive:true}); fs.appendFileSync(options.env.CODEX_HOME+'/config.toml','[hooks.state.fixture]\\ntrusted_hash = \"owned\"\\n'); return {status:'active',hook:{key:'owned-fixture-hook'}}; }\n`,
   );
   const platform = path.join(f.root, 'macos-fixture.mjs');
   await writeFile(
@@ -866,15 +866,172 @@ test('normal macOS registration activates its owned boundary using the selected 
   );
   assert.deepEqual(JSON.parse(await readFile(evidence, 'utf8')), {
     cwd: await realpath(f.consumer),
-    pluginId: 'pstack-codex@pstack-codex',
+    nativeRoles: ['poteto-agent', 'comment-sicko', 'pstack-general-purpose'],
     guardPath: path.join(
       await realpath(f.bundle),
       'skills/poteto-mode/scripts/shell-boundary.mjs',
     ),
     codexHome: f.codexHome,
+    envHome: f.codexHome,
   });
   assert.match(
     await readFile(path.join(f.codexHome, 'agents/poteto-agent.toml'), 'utf8'),
     /name = "poteto-agent"/,
   );
+});
+
+async function nativeRegistrationFixture(t: TestContext) {
+  const f = await fixture(t);
+  const helper = path.join(
+    f.bundle,
+    'skills/poteto-mode/scripts/codex-boundary.mjs',
+  );
+  const platform = path.join(f.root, 'macos-fixture.mjs');
+  await mkdir(path.dirname(helper), { recursive: true });
+  await writeFile(
+    platform,
+    'Object.defineProperty(process, "platform", {value:"darwin"});\n',
+  );
+  const invoke = (...flags: string[]) =>
+    spawnSync(
+      process.execPath,
+      [
+        '--import',
+        platform,
+        path.join(f.bundle, scriptPath),
+        '--codex-home',
+        f.codexHome,
+        ...flags,
+      ],
+      { cwd: f.consumer, encoding: 'utf8', timeout: 10_000 },
+    );
+  return { ...f, helper, nativeInvoke: invoke };
+}
+
+test('normal macOS unregister retires the boundary and preserves its config tombstones', async (t) => {
+  const f = await nativeRegistrationFixture(t);
+  f.run();
+  const evidence = path.join(f.root, 'retirement.json');
+  await writeFile(
+    f.helper,
+    `import fs from 'node:fs';
+export async function retireNativeBoundary(options) {
+  fs.writeFileSync(${JSON.stringify(evidence)}, JSON.stringify({codexHome:options.codexHome,nativeRoles:options.nativeRoles}));
+  fs.appendFileSync(options.codexHome+'/config.toml', '\\n[hooks.state.owned]\\nenabled = false\\n');
+  return {status:'retired'};
+}
+`,
+  );
+  const result = f.nativeInvoke('--unregister');
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).commandBoundary.status, 'retired');
+  assert.deepEqual(JSON.parse(await readFile(evidence, 'utf8')), {
+    codexHome: f.codexHome,
+    nativeRoles: ['poteto-agent', 'comment-sicko', 'pstack-general-purpose'],
+  });
+  const config = await readFile(path.join(f.codexHome, 'config.toml'), 'utf8');
+  assert.match(config, /\[hooks\.state\.owned\]\nenabled = false/);
+  assert.doesNotMatch(
+    config,
+    /\[agents\.(?:poteto-agent|comment-sicko|pstack-general-purpose)\]/,
+  );
+  await assertMissing(path.join(f.codexHome, 'agents/poteto-agent.toml'));
+  await assertMissing(
+    path.join(f.codexHome, 'pstack-codex/agent-registration.json'),
+  );
+});
+
+test('normal macOS unregister checks all ownership before boundary retirement', async (t) => {
+  for (const changed of ['config', 'agent']) {
+    const f = await nativeRegistrationFixture(t);
+    f.run();
+    const marker = path.join(f.root, 'retired');
+    await writeFile(
+      f.helper,
+      `import fs from 'node:fs'; export async function retireNativeBoundary() { fs.writeFileSync(${JSON.stringify(marker)}, 'retired'); return {status:'retired'}; }`,
+    );
+    const file = path.join(
+      f.codexHome,
+      changed === 'config' ? 'config.toml' : 'agents/comment-sicko.toml',
+    );
+    const text = await readFile(file, 'utf8');
+    await writeFile(
+      file,
+      changed === 'config'
+        ? text.replace('description = ', '# changed\ndescription = ')
+        : `${text}\n# changed\n`,
+    );
+    const result = f.nativeInvoke('--unregister');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /modified/);
+    await assertMissing(marker);
+    assert.equal(
+      await readFile(file, 'utf8'),
+      changed === 'config'
+        ? text.replace('description = ', '# changed\ndescription = ')
+        : `${text}\n# changed\n`,
+    );
+  }
+});
+
+test('a disabled or failed native boundary never updates or unpublishes existing registrations', async (t) => {
+  for (const response of [
+    "return {status:'boundary-user-disabled'}",
+    "throw new Error('Native boundary unavailable')",
+  ]) {
+    const f = await nativeRegistrationFixture(t);
+    f.run();
+    const files = [
+      'config.toml',
+      'pstack-codex/agent-registration.json',
+      ...names.map((name) => `agents/${name}.toml`),
+    ];
+    const before = await Promise.all(
+      files.map((file) => readFile(path.join(f.codexHome, file))),
+    );
+    const source = path.join(f.bundle, 'agents/poteto-agent.toml');
+    await writeFile(
+      source,
+      (await readFile(source, 'utf8')).replace(
+        /^description = .*$/m,
+        'description = "Candidate definition"',
+      ),
+    );
+    await writeFile(
+      f.helper,
+      `export async function trustNativeBoundary() { ${response}; }\n`,
+    );
+    const result = f.nativeInvoke();
+    assert.equal(result.status, 1);
+    assert.match(
+      result.stderr,
+      /boundary-user-disabled|Native boundary unavailable/,
+    );
+    for (const [index, file] of files.entries())
+      assert.deepEqual(
+        await readFile(path.join(f.codexHome, file)),
+        before[index],
+      );
+  }
+});
+
+test('definition-only and dry-run operations never activate or retire native hooks', async (t) => {
+  const f = await nativeRegistrationFixture(t);
+  await writeFile(
+    f.helper,
+    "throw new Error('Fixture must not activate a runtime hook');\n",
+  );
+  for (const flags of [
+    ['--dry-run'],
+    ['--definitions-only'],
+    ['--dry-run', '--unregister'],
+    ['--definitions-only', '--unregister'],
+  ]) {
+    const result = f.nativeInvoke(...flags);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(
+      JSON.parse(result.stdout).commandBoundary.status,
+      'notChecked',
+    );
+  }
 });

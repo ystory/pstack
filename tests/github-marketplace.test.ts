@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -35,7 +35,7 @@ test('GitHub marketplace resolves the committed plugin with the artifact marketp
   }
 });
 
-test('native Codex manifest exposes hooks and preserves packaged plugin metadata', async () => {
+test('native Codex manifest preserves packaged metadata without a cache-bound hook', async () => {
   const pluginRoot = path.join(projectRoot, 'plugin');
   const [metadata, nativeManifest] = await Promise.all(
     ['plugin.json', '.codex-plugin/plugin.json'].map(async (manifestPath) =>
@@ -45,7 +45,7 @@ test('native Codex manifest exposes hooks and preserves packaged plugin metadata
   assert.equal(
     metadata.$schema,
     undefined,
-    'a root Agent Plugins schema selects the Codex format that omits hooks',
+    'keep the selected native manifest and portable metadata arrangement',
   );
   const { extensions, ...identity } = metadata;
   const { interface: pluginInterface, ...openaiExtension } =
@@ -53,18 +53,32 @@ test('native Codex manifest exposes hooks and preserves packaged plugin metadata
   assert.deepEqual(nativeManifest, {
     ...identity,
     skills: './skills',
-    hooks: './hooks/hooks.json',
     extensions: { ...extensions, 'com.openai': openaiExtension },
     interface: pluginInterface,
   });
-  const hooks = JSON.parse(
-    await readFile(path.join(pluginRoot, nativeManifest.hooks), 'utf8'),
-  );
-  assert.equal(hooks.hooks.PreToolUse[0].matcher, '^Bash$');
-  assert.ok(
-    hooks.hooks.PreToolUse[0].hooks.some(
-      ({ type, command }: { type: string; command: string }) =>
-        type === 'command' && command.includes('/shell-boundary.mjs'),
-    ),
-  );
+  await assert.rejects(stat(path.join(pluginRoot, 'hooks/hooks.json')), {
+    code: 'ENOENT',
+  });
+});
+
+test('neither host auto-declares the Codex allow-output guard as a Claude permission hook', async () => {
+  for (const target of ['plugin', 'plugin-claude']) {
+    const manifest = JSON.parse(
+      await readFile(
+        path.join(
+          projectRoot,
+          target,
+          target === 'plugin' ? 'plugin.json' : '.claude-plugin/plugin.json',
+        ),
+        'utf8',
+      ),
+    );
+    assert.equal(manifest.hooks, undefined);
+    await assert.rejects(
+      stat(path.join(projectRoot, target, 'hooks/hooks.json')),
+      {
+        code: 'ENOENT',
+      },
+    );
+  }
 });

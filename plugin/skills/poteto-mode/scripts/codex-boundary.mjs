@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import readline from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 const methods = new Set([
@@ -63,13 +64,13 @@ async function withConfigClient(options, configOverrides, action) {
   options.onDiagnostic?.({ event: 'boundary/spawn', pid: child.pid ?? null });
   const pending = new Map();
   let nextId = 1,
-    closed = false,
-    lineBuffer = '';
+    closed = false;
   const fail = (error) => {
     for (const entry of pending.values()) entry.reject(error);
     pending.clear();
   };
-  const handleLine = (line) => {
+  const lines = readline.createInterface({ input: child.stdout });
+  lines.on('line', (line) => {
     try {
       const message = JSON.parse(line);
       if (message.method && message.id !== undefined) {
@@ -104,24 +105,6 @@ async function withConfigClient(options, configOverrides, action) {
     } catch (error) {
       fail(error);
       child.kill();
-    }
-  };
-  child.stdout.setEncoding('utf8');
-  child.stdout.on('data', (chunk) => {
-    lineBuffer += chunk;
-    let newlineIndex = lineBuffer.indexOf('\n');
-    while (newlineIndex !== -1) {
-      const line = lineBuffer.slice(0, newlineIndex);
-      lineBuffer = lineBuffer.slice(newlineIndex + 1);
-      handleLine(line);
-      newlineIndex = lineBuffer.indexOf('\n');
-    }
-  });
-  child.stdout.on('end', () => {
-    if (lineBuffer) {
-      const line = lineBuffer;
-      lineBuffer = '';
-      handleLine(line);
     }
   });
   child.stderr.on('data', (chunk) =>
@@ -182,6 +165,7 @@ async function withConfigClient(options, configOverrides, action) {
     const kill = setTimeout(() => child.kill(), 50);
     await exited;
     clearTimeout(kill);
+    lines.close();
   }
 }
 

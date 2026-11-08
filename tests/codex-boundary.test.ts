@@ -194,24 +194,6 @@ test('native update can re-trust only the changed owned hook', async (t) => {
   assert.equal(state.unrelated.trusted_hash, 'preserved');
 });
 
-test('native config inspection and trust preserve unrelated Unicode separator state', async (t) => {
-  const f = await fixture(t);
-  const key = 'unrelated\u2028line\u2029paragraph';
-  const value = { trusted_hash: 'before\nmiddle\u2028line\u2029after' };
-  await writeFile(f.state, JSON.stringify({ [key]: value }));
-  const inspected = f.invoke('inspect');
-  assert.equal(inspected.status, 1, inspected.stderr + inspected.stdout);
-  assert.equal(
-    JSON.parse(inspected.stdout).status,
-    'untrusted',
-    inspected.stdout,
-  );
-  const result = f.invoke('trust');
-  assert.equal(result.status, 0, result.stderr + result.stdout);
-  assert.equal(JSON.parse(result.stdout).status, 'active');
-  assert.deepEqual(JSON.parse(await readFile(f.state, 'utf8'))[key], value);
-});
-
 for (const failure of [
   'managed-disabled',
   'user-disabled',

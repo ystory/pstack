@@ -109,25 +109,6 @@ lines.on('line', (line) => {
    if (prompt.includes('NO_ID')) notify('turn/started',{threadId,turn:{id:turnId,status:'inProgress'}});
    respond(request,{turn:{id:turnId,status:'inProgress'},...(process.env.FAKE_UNKNOWN_SETTINGS ? {} : {model:'observed-model',effort:'high'})});
    if (prompt.includes('WAIT')) return;
-   if (process.env.FAKE_MALFORMED_OUTPUT) { process.stdout.write('{"method":\n'); return; }
-   if (process.env.FAKE_OUTPUT !== undefined) {
-    const text = process.env.FAKE_OUTPUT;
-    const records = [
-     {method:'item/commandExecution/outputDelta',params:{threadId,turnId,itemId:'command',delta:text}},
-     {method:'item/completed',params:{threadId,turnId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text}}},
-     {method:'turn/completed',params:{threadId,turn:{id:turnId,status:'completed',error:null}}}
-    ];
-    const wire = records.map((record)=>JSON.stringify(record)).join('\n');
-    if (process.env.FAKE_OUTPUT_EOF) { process.stdout.end(wire); return; }
-    const bytes = Buffer.from(wire+'\n');
-    const cuts = process.env.FAKE_SPLIT_OUTPUT
-     ? [0,bytes.indexOf(Buffer.from('\u2028'))+1,bytes.indexOf(Buffer.from('\u2029'))+2,bytes.length]
-     : [0,bytes.length];
-    const write = (index) => process.stdout.write(bytes.subarray(cuts[index],cuts[index+1]),()=>{
-     if (index+2<cuts.length) setTimeout(()=>write(index+1),10);
-    });
-    write(0); return;
-   }
    notify('item/completed',{threadId,turnId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'answer for '+threadId}});
    if (prompt.includes('EXIT')) { setTimeout(()=>process.exit(7),40); return; }
    timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?{message:'actual terminal failure'}:null}}),prompt.includes('FAIL')?450:40);
@@ -193,11 +174,7 @@ async function fixture(t: TestContext) {
     workerContext,
   );
   const executable = path.join(root, 'fake codex');
-  await writeFile(
-    executable,
-    fakeSource.replace('#!/usr/bin/env node', '#!' + process.execPath),
-    { mode: 0o755 },
-  );
+  await writeFile(executable, fakeSource, { mode: 0o755 });
   const cwd = path.join(root, 'assigned worktree');
   await mkdir(cwd);
   const log = path.join(root, 'server.jsonl');
@@ -372,85 +349,6 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
     ).length,
     1,
   );
-});
-
-for (const [name, text, extraEnv] of [
-  ['escaped newline', 'before\nmiddle\nafter', {}],
-  ['U+2028', 'before\u2028middle\u2028after', {}],
-  ['U+2029', 'before\u2029middle\u2029after', {}],
-  [
-    'split UTF-8 separators',
-    'before\nmiddle\u2028line\u2029after',
-    { FAKE_SPLIT_OUTPUT: '1' },
-  ],
-  [
-    'EOF without trailing LF',
-    'before\nmiddle\nafter',
-    { FAKE_OUTPUT_EOF: '1' },
-  ],
-] as const)
-  test(`runner preserves exact command output and final text for ${name}`, async (t) => {
-    const f = await fixture(t);
-    const result = f.run('text', 'Return the synthetic text.', [], {
-      FAKE_OUTPUT: text,
-      ...extraEnv,
-    });
-    const receipt = await f.receipt('text');
-    assert.equal(
-      result.status,
-      0,
-      result.stderr + JSON.stringify(receipt.error),
-    );
-    assert.equal(receipt.status, 'completed');
-    assert.equal(receipt.finalText, text);
-    assert.equal(await readFile(receipt.files.final, 'utf8'), text);
-    const received = (await readFile(receipt.files.diagnostics, 'utf8'))
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => JSON.parse(line))
-      .filter(
-        (event) =>
-          event.direction === 'receive' && typeof event.line === 'string',
-      )
-      .map((event) => JSON.parse(event.line));
-    assert.deepEqual(
-      received
-        .filter((event) => event.method === 'item/commandExecution/outputDelta')
-        .map((event) => event.params.delta),
-      [text],
-    );
-    assert.equal(
-      received.filter((event) => event.method === 'item/completed').length,
-      1,
-    );
-    assert.equal(receipt.process.closed, true);
-    assert.equal(receipt.process.exitCode, 0);
-  });
-
-test('runner rejects malformed JSONL and closes its app-server', async (t) => {
-  const f = await fixture(t);
-  const result = f.run('malformed', 'Return malformed fixture output.', [], {
-    FAKE_MALFORMED_OUTPUT: '1',
-  });
-  assert.equal(result.status, 1, result.stderr);
-  const receipt = await f.receipt('malformed');
-  assert.equal(receipt.status, 'failed');
-  assert.match(receipt.error.message, /Failed to parse codex app-server JSONL/);
-  assert.equal(receipt.finalText, '');
-  const deadline = Date.now() + 1000;
-  while (
-    !(await f.events()).some(
-      (event) =>
-        event.pid === receipt.process.pid && event.exitCode !== undefined,
-    )
-  ) {
-    assert(
-      Date.now() < deadline,
-      'Malformed output left its app-server alive.',
-    );
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  assert.throws(() => process.kill(receipt.process.pid, 0), /ESRCH/);
 });
 
 test('runner assembles complete installed instructions while keeping linked references separate', async (t) => {

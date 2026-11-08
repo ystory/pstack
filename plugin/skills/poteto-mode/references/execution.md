@@ -107,6 +107,12 @@ Fresh agents take new rounds with the consolidated brief. Reuse an existing agen
 
 For a repeated watcher or work that must resume after the active turn, read [Codex loops](codex-loops.md) and use its native event or heartbeat controls.
 
+## macOS worker command boundary
+
+The installed plugin's command hook protects registered native pstack worker roles. Setup derives scope from its ownership record and confirms exact hook trust. On macOS, shell commands in that scope are wrapped before execution. An actual Seatbelt invocation returns `PSTACK_REVIEW_REQUIRED` before the original command starts. Retry the same authorized operation through native reviewed escalation. A denied retry remains blocked. This applies to arbitrary shell commands because Node, npm and test scripts can launch a browser internally. The guard never grants approval or changes the task's authority.
+
+Native root-chat commands, unrelated roles, pre-existing interactive processes, and non-shell tools are outside this worker boundary. An unprotected default-role fallback cannot establish protected UI verification. Keep the calling workflow's role requirements and report missing setup or host support. Native hook errors or timeouts can fail open in the host; this is an execution guardrail for the tested normal tool paths, not a security-isolation boundary.
+
 ## Permissions and MCP access
 
 Native v2 delegates use the parent's sandbox, approvals, and available tools. Route the role and its normal task procedures through native delegation. MCP-backed native `why` and `reflect` delegates use the inherited tools for investigation and citation checks. Claude Code delegates use their existing configured execution environment and receive the same applicable task instructions and source bodies through the runner.

@@ -11,7 +11,7 @@ corepack pnpm install --frozen-lockfile
 corepack pnpm verify
 ```
 
-`verify` checks formatting, TypeScript, tests, the JavaScript build, independent packaging, source integrity, and patch replay. After dependencies are installed, these checks run offline. The package test preserves nested `.gitignore` files in a tar archive and exercises the built CLI and setup in temporary consumer directories without changing the active user profile. Live Codex/Claude runs and native plugin installation are separate checks.
+`verify` checks formatting, TypeScript, tests, the JavaScript build, independent packaging, source integrity, and patch replay. After dependencies are installed, these checks run offline. The package test preserves nested `.gitignore` files in a tar archive and exercises the built CLI and definition-only setup in temporary consumer directories without changing the active user profile. Definition-only fixtures deliberately omit native runtime activation; separate live checks establish the loaded command boundary. Live Codex/Claude runs and native plugin installation are separate checks.
 
 Use affected checks while iterating. Documentation-only changes need formatting and link checks; distribution changes need source, patch, and artifact verification. Run the full `verify` pipeline before preparing a release artifact. Read [package.json](../package.json) for individual check scripts and run `node dist/cli.js --help` for maintainer CLI options.
 
@@ -61,7 +61,7 @@ The Git marketplace distributes each committed host target from the selected rep
 1. Record the adaptation in its patch series and increment the affected plugin version. Run the applicable checks and verify a fresh artifact.
 2. Open a PR against the distribution branch. Complete the required independent workflow verification and CI checks, then merge within the authorized release scope. Preserve the exact reviewed head and resulting merge commit.
 3. Refresh the native marketplace and plugin through the host's update commands. For Claude's normal Git installation, run `claude plugin marketplace update pstack-cc` and `claude plugin update pstack-cc@pstack-cc`. Check the installed version and source revision. Do not edit files inside the installed cache.
-4. Rerun setup with the saved role choices to refresh owned registrations, then start a fresh session and verify the relevant workflow from the released plugin. A running session can retain old instructions until refreshed. Report publication, native update, and actual execution separately.
+4. Rerun setup with the saved role choices to refresh owned registrations and exact hook trust, then start a fresh session and verify the relevant workflow from the released plugin. A running session can retain old instructions until refreshed. Report publication, native update, and actual execution separately.
 
 ## Build and select an artifact
 

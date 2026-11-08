@@ -189,7 +189,7 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
   }
 
   async initialize() {
-    this.proc = spawn(this.options.executable ?? "codex", ["app-server"], {
+    this.proc = spawn(this.options.executable ?? "codex", [...(this.options.argv ?? []), "app-server"], {
       cwd: this.cwd,
       env: this.options.env ?? process.env,
       stdio: ["pipe", "pipe", "pipe"],

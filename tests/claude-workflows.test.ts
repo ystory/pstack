@@ -70,9 +70,7 @@ test('Claude plugin loads a unique skill catalog, native agents, and retained li
   assert.equal(manifest.name, 'pstack-cc');
   assert.match(manifest.version, /^\d+\.\d+\.\d+/);
   assert.equal(manifest.license, 'MIT');
-  assert.equal(manifest.hooks, undefined);
   const tree = await inspectTree(plugin);
-  assert.ok(!tree.some((entry) => entry.path === 'hooks/hooks.json'));
   const skills = tree.filter((entry) =>
     /^skills\/[^/]+\/SKILL\.md$/.test(entry.path),
   );

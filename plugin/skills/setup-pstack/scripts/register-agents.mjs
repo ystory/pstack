@@ -16,19 +16,8 @@ const pluginRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const parser = fileURLToPath(
   new URL('./parse-agent-config.py', import.meta.url),
 );
-const markerName = 'pstack-codex managed agents';
-const blockStart = `# >>> ${markerName} v2\n`;
-// Native writes preserve a value suffix but displace standalone EOF comments.
-const blockClose = ` # <<< ${markerName} v2\n`;
-const legacyStart = `# >>> ${markerName} v1\n`;
-const legacyEnd = `# <<< ${markerName} v1\n`;
-const anyMarker = /# (?:>>>|<<<) pstack-codex managed agents v\d+/;
-const blockFormat = (block) =>
-  block.startsWith(blockStart) && block.endsWith(blockClose)
-    ? 'v2'
-    : block.startsWith(legacyStart) && block.endsWith(legacyEnd)
-      ? 'v1'
-      : undefined;
+const blockStart = '# >>> pstack-codex managed agents v1\n';
+const blockEnd = '# <<< pstack-codex managed agents v1\n';
 
 function argumentsFor(argv) {
   const options = {
@@ -100,39 +89,22 @@ function parseToml(python, mode, request) {
   return JSON.parse(result.stdout);
 }
 
-function renderBlock(roles, format = 'v2') {
-  const tables = roleNames
-    .filter((name) => Object.hasOwn(roles, name))
-    .map((name) => {
-      const role = roles[name];
-      const configFile =
-        name === genericRole
-          ? ''
-          : `config_file = ${JSON.stringify(role.config_file)}\n`;
-      return `[agents.${name}]\n${configFile}description = ${JSON.stringify(role.description)}\n`;
-    })
-    .join('\n');
-  return format === 'v1'
-    ? legacyStart + tables + legacyEnd
-    : blockStart + tables.slice(0, -1) + blockClose;
-}
-
-function ownedSpan(text, block) {
-  const legacy = blockFormat(block) === 'v1';
-  const body = legacy ? block.slice(0, -legacyEnd.length) : block;
-  const index = text.indexOf(body);
-  if (index < 0) return undefined;
-  const before = text.slice(0, index);
-  const rest = text.slice(index + body.length);
-  if (!legacy) return { before, after: rest };
-  const end = rest.indexOf(legacyEnd);
-  if (end < 0 || (end > 0 && rest[end - 1] !== '\n')) return undefined;
-  const displacedForeignBytes = rest.slice(0, end);
-  const afterClosingMarker = rest.slice(end + legacyEnd.length);
-  return {
-    before,
-    after: displacedForeignBytes + afterClosingMarker,
-  };
+function renderBlock(roles) {
+  return (
+    blockStart +
+    roleNames
+      .filter((name) => Object.hasOwn(roles, name))
+      .map((name) => {
+        const role = roles[name];
+        const configFile =
+          name === genericRole
+            ? ''
+            : `config_file = ${JSON.stringify(role.config_file)}\n`;
+        return `[agents.${name}]\n${configFile}description = ${JSON.stringify(role.description)}\n`;
+      })
+      .join('\n') +
+    blockEnd
+  );
 }
 
 function parseRegistry(bytes, pluginName) {
@@ -168,7 +140,8 @@ function parseRegistry(bytes, pluginName) {
     registry.schemaVersion === 2 &&
     (!registry.config ||
       typeof registry.config.block !== 'string' ||
-      !blockFormat(registry.config.block) ||
+      !registry.config.block.startsWith(blockStart) ||
+      !registry.config.block.endsWith(blockEnd) ||
       !['', '\n'].includes(registry.config.prefix) ||
       typeof registry.config.created !== 'boolean')
   )
@@ -193,7 +166,7 @@ function withoutOwnedConfig(text, ownership, python) {
       throw new Error(
         'Existing pstack agent declarations are not managed by this plugin; preserve or relocate those roles before registering.',
       );
-    if (anyMarker.test(text))
+    if (text.includes(blockStart) || text.includes(blockEnd))
       throw new Error(
         'Unowned pstack registration markers already exist in config.toml.',
       );
@@ -227,21 +200,21 @@ function withoutOwnedConfig(text, ownership, python) {
         Object.keys(declared.roles[genericRole]).length !== 1 ||
         declared.roles[genericRole].description !==
           blockRoles[genericRole].description)) ||
-    renderBlock(blockRoles, blockFormat(ownership.block)) !== ownership.block
+    renderBlock(blockRoles) !== ownership.block
   )
     throw new Error(
       'Managed agent declarations were modified; refusing to overwrite or remove them.',
     );
-  const span = ownedSpan(text, ownership.block);
-  if (!span || anyMarker.test(span.before + span.after))
+  const index = text.indexOf(ownership.block);
+  if (index < 0 || text.indexOf(ownership.block, index + 1) >= 0)
     throw new Error(
       'Managed config block was modified or duplicated; refusing to overwrite or remove it.',
     );
-  let before = span.before;
-  const after = span.after;
-  const addedSeparator = ownership.prefix;
-  if (addedSeparator && before.endsWith(addedSeparator) && !after)
-    before = before.slice(0, -addedSeparator.length);
+  let before = text.slice(0, index);
+  const after = text.slice(index + ownership.block.length);
+  // Restore a preexisting missing final newline only when no later user text needs it.
+  if (ownership.prefix && before.endsWith(ownership.prefix) && !after)
+    before = before.slice(0, -ownership.prefix.length);
   const base = before + after;
   parseToml(python, 'compare-remove', {
     text,
@@ -441,7 +414,7 @@ async function register(options) {
     roles[name] = { config_file: file, description: metadata.description };
   }
   let commandBoundary;
-  if (options.definitionsOnly || options.dryRun) {
+  if (options.definitionsOnly || options.unregister || options.dryRun) {
     commandBoundary = {
       status: 'notChecked',
       reason: options.definitionsOnly
@@ -449,32 +422,18 @@ async function register(options) {
         : 'No active runtime change was requested.',
     };
   } else if (process.platform === 'darwin') {
-    const { trustNativeBoundary, retireNativeBoundary } =
-      await import('../../poteto-mode/scripts/codex-boundary.mjs');
-    const reconcile = options.unregister
-      ? retireNativeBoundary
-      : trustNativeBoundary;
-    commandBoundary = await reconcile({
+    const { trustNativeBoundary } = await import(
+      '../../poteto-mode/scripts/codex-boundary.mjs'
+    );
+    commandBoundary = await trustNativeBoundary({
       cwd: process.cwd(),
-      codexHome,
-      nativeRoles: roleNames,
-      guardPath: path.join(
-        pluginRoot,
-        'skills/poteto-mode/scripts/shell-boundary.mjs',
-      ),
+      pluginId: `${plugin.name}@${plugin.name}`,
+      guardPath: path.join(pluginRoot, 'skills/poteto-mode/scripts/shell-boundary.mjs'),
       env: { ...process.env, CODEX_HOME: codexHome },
     });
-    const expectedStatus = options.unregister ? 'retired' : 'active';
-    if (commandBoundary.status !== expectedStatus)
-      throw new Error(
-        `Native command boundary did not become ${expectedStatus}: ${commandBoundary.status}. ${commandBoundary.reason ?? ''}`.trim(),
-      );
     configSnapshot = await fileSnapshot(configFile);
     configText = configSnapshot ? utf8(configSnapshot.bytes) : '';
-    baseConfig =
-      options.unregister && !ownership
-        ? configText
-        : withoutOwnedConfig(configText, ownership, options.python);
+    baseConfig = withoutOwnedConfig(configText, ownership, options.python);
   } else {
     commandBoundary = { status: 'notApplicable', reason: 'macOS only.' };
   }

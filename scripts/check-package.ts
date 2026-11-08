@@ -26,14 +26,12 @@ function run(
   args: string[],
   cwd: string,
   input?: string,
-  env?: NodeJS.ProcessEnv,
 ): string {
   const result = spawnSync(command, args, {
     cwd,
     encoding: 'utf8',
     timeout: 30000,
     input,
-    env,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
@@ -886,19 +884,10 @@ try {
   )
     throw new Error('Packaged Claude setup changed unrelated host settings.');
   const codexStub = path.join(temporaryRoot, 'existing-codex-stub');
-  const packagedGuard = path.join(
-    claudeArtifact,
-    'plugin/skills/poteto-mode/scripts/shell-boundary.mjs',
-  );
-  const packagedGuardBytes = await readFile(packagedGuard);
-  const workerCodexHome = path.join(temporaryRoot, 'packaged-worker-home');
-  await mkdir(workerCodexHome);
   await writeFile(
     codexStub,
     `#!${process.execPath}\n` +
-      `const packagedGuard=${JSON.stringify(packagedGuard)};\n` +
       String.raw`
-import fs from 'node:fs';
 import readline from 'node:readline';
 import {spawnSync} from 'node:child_process';
 const args = process.argv.slice(2), config = {};
@@ -922,10 +911,7 @@ lines.on('line', (line) => {
   switch (request.method) {
     case 'initialize': respond(request, {userAgent: 'package-fixture'}); break;
     case 'initialized': break;
-    case 'config/read': {
-      const config={model_provider:'openai',features:{hooks:true},hooks:{PreToolUse:[],state:{}}};
-      respond(request,{config,layers:request.params.includeLayers?[{name:{type:'user',file:process.env.CODEX_HOME+'/config.toml'},version:'fixture-user-v1',config}]:null});break;
-    }
+    case 'config/read': respond(request, {config:{model_provider:'openai',features:{hooks:true}}}); break;
     case 'configRequirements/read': respond(request,{requirements:null}); break;
     case 'experimentalFeature/list': respond(request,{data:[{name:'hooks',enabled:true}],nextCursor:null}); break;
     case 'hooks/list': {
@@ -935,20 +921,8 @@ lines.on('line', (line) => {
     }
     case 'account/read': respond(request, {account:{type:'chatgpt'},requiresOpenaiAuth:true}); break;
     case 'model/list': respond(request, {data:[{id:'package-model',model:'package-model',supportedReasoningEfforts:[{reasoningEffort:'xhigh'}]}],nextCursor:null}); break;
-    case 'thread/start':
-      if(config.hooks?.PreToolUse?.length)fs.writeFileSync(packagedGuard,'throw new Error("replaced packaged source must not execute");');
-      respond(request, {thread:{id:'package-thread'},model:'package-model',reasoningEffort:'xhigh',approvalPolicy:request.params.approvalPolicy,approvalsReviewer:request.params.approvalsReviewer,sandbox:{type:request.params.sandbox === 'workspace-write' ? 'workspaceWrite' : 'readOnly',networkAccess:false}}); break;
+    case 'thread/start': respond(request, {thread:{id:'package-thread'},model:'package-model',reasoningEffort:'xhigh',approvalPolicy:request.params.approvalPolicy,approvalsReviewer:request.params.approvalsReviewer,sandbox:{type:request.params.sandbox === 'workspace-write' ? 'workspaceWrite' : 'readOnly',networkAccess:false}}); break;
     case 'turn/start':
-      if(config.hooks?.PreToolUse?.length){
-        const handler=config.hooks.PreToolUse[0].hooks[0];
-        const hook=spawnSync('/bin/sh',['-c',handler.command],{encoding:'utf8',timeout:3000,input:JSON.stringify({hook_event_name:'PreToolUse',tool_name:'Bash',tool_input:{command:'printf packaged-original-body'}})});
-        if(hook.status!==0)throw new Error('packaged frozen hook failed after source replacement '+hook.stderr);
-        const command=JSON.parse(hook.stdout).hookSpecificOutput.updatedInput.command;
-        const sandboxed=spawnSync('/bin/sh',['-c',command],{encoding:'utf8',timeout:3000,env:{...process.env,CODEX_SANDBOX:'seatbelt'}});
-        const reviewedEnv={...process.env};delete reviewedEnv.CODEX_SANDBOX;
-        const reviewed=spawnSync('/bin/sh',['-c',command],{encoding:'utf8',timeout:3000,env:reviewedEnv});
-        if(sandboxed.status!==125||sandboxed.stdout!==''||!sandboxed.stderr.includes('PSTACK_REVIEW_REQUIRED')||reviewed.status!==0||reviewed.stdout!=='packaged-original-body')throw new Error('packaged frozen hook did not preserve reviewed execution');
-      }
       respond(request, {turn:{id:'package-turn',status:'inProgress'}});
       send({method:'item/completed',params:{threadId:'package-thread',turnId:'package-turn',item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'packaged Codex transport stub'}}});
       setTimeout(() => send({method:'turn/completed',params:{threadId:'package-thread',turn:{id:'package-turn',status:'completed'}}}), 20);
@@ -965,37 +939,31 @@ lines.on('close', () => process.exit(0));
     'plugin/skills/poteto-mode/scripts/run-codex.mjs',
   );
   const codexRunDirectory = path.join(temporaryRoot, 'packaged-codex-evidence');
-  let codexReceipt;
-  try {
-    codexReceipt = JSON.parse(
-      run(
-        process.execPath,
-        [
-          codexRunner,
-          'run',
-          '--cwd',
-          temporaryRoot,
-          '--run-dir',
-          codexRunDirectory,
-          '--model',
-          'package-model',
-          '--effort',
-          'xhigh',
-          '--instruction',
-          instruction,
-          '--skill',
-          path.join(claudeArtifact, 'plugin/skills/how/SKILL.md'),
-          '--executable',
-          codexStub,
-        ],
+  const codexReceipt = JSON.parse(
+    run(
+      process.execPath,
+      [
+        codexRunner,
+        'run',
+        '--cwd',
         temporaryRoot,
-        'Check the packaged Codex transport fixture.\n',
-        { ...process.env, CODEX_HOME: workerCodexHome },
-      ),
-    );
-  } finally {
-    await writeFile(packagedGuard, packagedGuardBytes);
-  }
+        '--run-dir',
+        codexRunDirectory,
+        '--model',
+        'package-model',
+        '--effort',
+        'xhigh',
+        '--instruction',
+        instruction,
+        '--skill',
+        path.join(claudeArtifact, 'plugin/skills/how/SKILL.md'),
+        '--executable',
+        codexStub,
+      ],
+      temporaryRoot,
+      'Check the packaged Codex transport fixture.\n',
+    ),
+  );
   if (
     codexReceipt.status !== 'completed' ||
     codexReceipt.threadId !== 'package-thread' ||

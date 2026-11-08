@@ -287,14 +287,7 @@ async function run(options) {
       try {
         const message = JSON.parse(event.line);
         const method = pending.get(message.id);
-        if (
-          [
-            'hooks/list',
-            'experimentalFeature/list',
-            'config/read',
-            'configRequirements/read',
-          ].includes(method)
-        )
+        if (['hooks/list', 'experimentalFeature/list'].includes(method))
           record = {
             direction: 'receive',
             id: message.id,

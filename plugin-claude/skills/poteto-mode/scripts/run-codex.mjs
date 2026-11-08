@@ -88,7 +88,7 @@ function serverCommand(options) {
       .find((candidate) => {
         try {
           fs.accessSync(candidate, fs.constants.X_OK);
-          return true;
+          return fs.statSync(candidate).isFile();
         } catch {
           return false;
         }
@@ -328,7 +328,7 @@ async function run(options, server) {
     runtime = cliStatus(options, server);
     if (!runtime.available)
       throw new Error(
-        `Standalone Codex app-server unavailable: ${runtime.error} Download the complete matching-platform package from https://github.com/openai/codex/releases and put codex-app-server on PATH or select --executable ABS.`,
+        `Standalone Codex app-server unavailable: ${runtime.error} Download the complete matching-platform package from https://github.com/openai/codex/releases and put its bin directory on inherited PATH for workflows. --executable ABS overrides only this invocation.`,
       );
     result = await runAppServerTurn(options.cwd, {
       direct: true,

@@ -27,7 +27,9 @@ claude auth status
 
 If Claude's CLI is logged out, run `claude auth login`, or use `/login` in Claude Code. Complete the browser login with the account and organization you intend to use for Claude workers. Setup checks authentication without copying credentials. Keep credentials out of the chat.
 
-After choosing Codex workers, download the complete matching-platform `codex-app-server-package` archive from [official Codex releases](https://github.com/openai/codex/releases). Extract the whole package and keep its companion files together. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary. Put the package's `bin` directory on PATH. Setup can instead select `bin/codex-app-server` through `--codex-executable ABS`; worker runs use `--executable ABS` for the same selection.
+After choosing Codex workers, download the complete matching-platform `codex-app-server-package` archive from [official Codex releases](https://github.com/openai/codex/releases). Extract the whole package and keep its companion files together. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary. Automated workflows require the package's `bin` directory on the PATH inherited by Claude Code.
+
+Setup's `--codex-executable ABS` overrides only that setup probe invocation. The path is not saved and does not configure future workers. For diagnostics or testing, the runner's `--executable ABS` overrides one direct invocation. These flags do not replace the workflow PATH requirement.
 
 Check the standalone runtime:
 

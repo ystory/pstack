@@ -17,7 +17,7 @@ Start with worker executor selection unless already supplied in the conversation
 
 Check `node --version` first. The helpers require Node.js 24.12 or newer. If Node is missing, use the [prerequisite guide](references/prerequisites.md).
 
-Run `scripts/detect.mjs detect --executors claude-code` for native-only choices. When Codex workers are selected, use `--executors claude-code,codex` instead. Report Node and Claude versions, native effort support, and each executor's login state. Codex probes use the official standalone `codex-app-server` on inherited PATH, or `--codex-executable ABS`. That override selects the standalone runtime, not the umbrella `codex` CLI. It checks only selected runtimes and auth status. Unselected Codex is neither probed nor required. It does not install, authenticate, read credential files, or change settings.
+Run `scripts/detect.mjs detect --executors claude-code` for native-only choices. When Codex workers are selected, use `--executors claude-code,codex` instead. Report Node and Claude versions, native effort support, and each executor's login state. Codex workflows require the complete official standalone package's `bin` directory on inherited PATH. Setup's `--codex-executable ABS` overrides only that probe invocation with the standalone server. The path is not saved and does not configure future workers. Verify PATH discovery without the override before finishing Codex setup. The helper checks only selected runtimes and auth status. Unselected Codex is neither probed nor required. It does not install, authenticate, read credential files, or change settings.
 
 Report `configuration.claudeHome` as the setup configuration target and `claude.cli.environment` as the inherited CLI environment used for authentication. `--claude-home` changes the configuration target only. Existing CLI authentication stays in the inherited environment, including an existing `CLAUDE_CONFIG_DIR`. An intentionally selected environment profile keeps its own login state.
 
@@ -27,7 +27,7 @@ Native exact-model choices use generated agent definitions and per-invocation ef
 
 ## 3. Collect actual model options
 
-For Codex workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT`. Pass the same `--codex-executable ABS` when selected during detection. The bundled runner uses that server for safe account status and every `model/list` page. Its receipt separates runtime capability, authentication, catalog, and execution evidence.
+For Codex workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT` through inherited PATH. For diagnostics, `--codex-executable ABS` overrides only that catalog invocation. The bundled runner uses the selected server for safe account status and every `model/list` page. Its receipt separates runtime capability, authentication, catalog, and execution evidence.
 
 For native Claude workers, use exact model IDs and supported efforts exposed by the current host or its model catalog. Inspect the current host and configuration rather than copying a fixed list from this skill. Detection lists configured model candidates, including `settings.json` model choices and model-specific environment variables. Those candidates require confirmation. A configured name or allowlist does not prove entitlement or supported efforts.
 

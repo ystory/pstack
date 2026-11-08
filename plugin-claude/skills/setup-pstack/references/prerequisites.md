@@ -24,7 +24,9 @@ Detection checks the existing CLI login through the inherited environment, inclu
 
 Codex is optional when every worker uses native Claude. Codex workers require the official standalone `codex-app-server` package from [Codex releases](https://github.com/openai/codex/releases). Download and extract the complete package for your operating system and architecture. Keep `bin/codex-app-server` with its companion files and sibling directories. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary.
 
-Put the package's `bin` directory on inherited PATH, or pass the absolute binary path through setup's `--codex-executable ABS` and the worker runner's `--executable ABS`. Detection checks `--version` and `--session-source app-server --help`, including whether help advertises `--session-source`, before opening an account or model connection. An umbrella `codex` CLI does not satisfy this requirement. The plugin does not download or update the package.
+Automated workflows require the package's `bin` directory on the PATH inherited by Claude Code. Setup's `--codex-executable ABS` overrides only that probe invocation. The path is not saved and does not configure future workers. For diagnostics or testing, the runner's `--executable ABS` overrides one direct invocation. Verify detection without an override before completing Codex setup.
+
+Detection checks `--version` and `--session-source app-server --help`, including whether help advertises `--session-source`, before opening an account or model connection. An umbrella `codex` CLI does not satisfy this requirement. The plugin does not download or update the package.
 
 The [Codex CLI](https://developers.openai.com/codex/cli) remains the human login tool. Installing it through npm does not install the standalone worker package. Run `codex login` in a terminal. In Claude Code, the user can run `!codex login` to open the CLI flow. In a headless environment or when a localhost callback cannot complete, use the documented device flow.
 

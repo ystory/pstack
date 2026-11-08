@@ -356,17 +356,36 @@ await runAppServerTurn(${JSON.stringify(f.cwd)}, ${JSON.stringify({
   );
 });
 
-test('runner discovers only the standalone runtime on inherited PATH', async (t) => {
+test('runner skips directories on PATH across detect, catalog, and run', async (t) => {
   const f = await fixture(t);
-  const discovered = path.join(
-    f.root,
-    process.platform === 'win32' ? 'codex-app-server.exe' : 'codex-app-server',
-  );
+  const name =
+    process.platform === 'win32' ? 'codex-app-server.exe' : 'codex-app-server';
+  const shadow = path.join(f.root, 'earlier bin');
+  await mkdir(path.join(shadow, name), { recursive: true });
+  const discovered = path.join(f.root, name);
   await cp(f.executable, discovered);
+  const env = { ...f.env, PATH: [shadow, f.root].join(path.delimiter) };
+  for (const command of ['detect', 'catalog']) {
+    const result = spawnSync(
+      process.execPath,
+      [f.runner, command, '--cwd', f.cwd],
+      { env, encoding: 'utf8', timeout: 10_000 },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const detected = JSON.parse(result.stdout);
+    assert.equal(detected.cli.available, true);
+    assert.equal(detected.cli.executable, discovered);
+    assert.equal(detected.auth.loggedIn, true);
+    if (command === 'catalog')
+      assert.deepEqual(
+        detected.models.map((model: { id: string }) => model.id),
+        ['selected-model', 'second-model'],
+      );
+  }
   const args = f.args('path-runtime');
   args.splice(args.indexOf('--executable'), 2);
   const result = spawnSync(process.execPath, args, {
-    env: { ...f.env, PATH: f.root },
+    env,
     input: 'Use the PATH runtime.',
     encoding: 'utf8',
     timeout: 10_000,

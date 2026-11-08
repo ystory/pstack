@@ -32,7 +32,7 @@ for (let i=0; i<rawArgs.length; i++) {
 }
 const args = rawArgs.filter((_,i)=>rawArgs[i] !== '-c' && rawArgs[i-1] !== '-c');
 log({args:rawArgs,overrides,worker:process.env.PSTACK_CODEX_WORKER ?? null});
-const inheritedState = {unrelated:{trusted_hash:'preserve-me'}};
+const inheritedState = {unrelated:{trusted_hash:'preserve-me',enabled:true}};
 const effectiveState = {...inheritedState,...(overrides.hooks?.state ?? {})};
 if (args[0] === '--version') { console.log('codex-cli 0.fixture'); process.exit(0); }
 if (args[0] === 'app-server' && args[1] === '--help') { console.log('Usage: codex app-server'); process.exit(0); }
@@ -50,7 +50,10 @@ lines.on('line', (line) => {
  case 'initialize': if (!process.env.FAKE_HOLD_INITIALIZE) respond(request,{userAgent:'fixture'}); break;
  case 'initialized': break;
  case 'account/read': respond(request,process.env.FAKE_NO_AUTH ? {account:null,requiresOpenaiAuth:true} : {account:{type:'chatgpt',email:'private@example.invalid'},requiresOpenaiAuth:true}); break;
- case 'config/read': respond(request,{config:{model_provider:'openai',model_providers:{fixture:{api_key:'fixture-private-config'}},features:{...(process.env.FAKE_BOUNDARY === 'user-disabled' ? {hooks:false}:{})},hooks:{PreToolUse:[{matcher:'^Read$',hooks:[{type:'command',command:'unrelated-reader fixture-private-hook'}]}],state:inheritedState}}}); break;
+ case 'config/read': {
+  const config={model_provider:'openai',model_providers:{fixture:{api_key:'fixture-private-config'}},features:{...(process.env.FAKE_BOUNDARY === 'user-disabled' ? {hooks:false}:{})},hooks:{PreToolUse:[{matcher:'^Read$',hooks:[{type:'command',command:'unrelated-reader fixture-private-hook'}]}],state:inheritedState}};
+  respond(request,{config,layers:p.includeLayers ? [{name:{type:'user',file:process.env.CODEX_HOME+'/config.toml'},version:'fixture-user-v1',config}] : null}); break;
+ }
  case 'configRequirements/read': respond(request,{requirements:process.env.FAKE_BOUNDARY === 'managed-disabled' ? {feature_requirements:{hooks:false}} : {}}); break;
  case 'experimentalFeature/list': respond(request,{data:[{name:'hooks',enabled:overrides.features?.hooks===true && process.env.FAKE_BOUNDARY!=='disabled-feature'}],nextCursor:null}); break;
  case 'hooks/list': {
@@ -85,6 +88,12 @@ lines.on('line', (line) => {
   if (process.env.FAKE_MANAGED_REJECTION) {
    send({id:request.id,error:{code:-32000,message:'managed policy rejects auto-review'}}); break;
   }
+  if (process.env.FAKE_MUTATE_SOURCE) {
+   const target=process.env.FAKE_SOURCE_PATH;
+   if(process.env.FAKE_MUTATE_SOURCE==='replace')fs.writeFileSync(target,'throw new Error("replacement source must not run");');
+   else fs.rmSync(target,{recursive:true,force:true});
+   log({sourceMutation:process.env.FAKE_MUTATE_SOURCE,target});
+  }
   threadId = p.threadId ?? 'thread-'+process.pid;
   const policy = {
    approvalPolicy:p.approvalPolicy,
@@ -104,6 +113,20 @@ lines.on('line', (line) => {
  case 'turn/start': {
   turnId = 'turn-'+process.pid;
   const prompt = p.input[0].text;
+  if (process.env.FAKE_RUN_GATED_SHELL) {
+   const command='printf original-body';
+   const input=JSON.stringify({hook_event_name:'PreToolUse',tool_name:'Bash',tool_input:{command}});
+   const handler=overrides.hooks.PreToolUse[0].hooks[0];
+   const executed=spawnSync('/bin/sh',['-c',handler.command],{input,encoding:'utf8',env:process.env});
+   let output;try{output=JSON.parse(executed.stdout);}catch{}
+   const wrapped=output?.hookSpecificOutput?.updatedInput?.command;
+   log({hookExecution:{status:executed.status,stdout:executed.stdout,stderr:executed.stderr}});
+   if(typeof wrapped!=='string') {send({id:request.id,error:{code:-32000,message:'prepared hook failed to rewrite'}});break;}
+   const sandboxed=spawnSync('/bin/sh',['-c',wrapped],{encoding:'utf8',env:{...process.env,CODEX_SANDBOX:'seatbelt'}});
+   const reviewedEnv={...process.env};delete reviewedEnv.CODEX_SANDBOX;
+   const reviewed=spawnSync('/bin/sh',['-c',wrapped],{encoding:'utf8',env:reviewedEnv});
+   log({shellExecution:{sandboxed:{status:sandboxed.status,stdout:sandboxed.stdout,stderr:sandboxed.stderr},reviewed:{status:reviewed.status,stdout:reviewed.stdout,stderr:reviewed.stderr}}});
+  }
   if (!prompt.includes('NO_ID')) notify('turn/started',{threadId,turn:{id:turnId,status:'inProgress'}});
   const started = () => {
    if (prompt.includes('NO_ID')) notify('turn/started',{threadId,turn:{id:turnId,status:'inProgress'}});
@@ -171,9 +194,9 @@ async function fixture(t: TestContext) {
     path.join(project, 'plugin/skills/poteto-mode/scripts/codex-boundary.mjs'),
     path.join(path.dirname(runner), 'codex-boundary.mjs'),
   );
-  await writeFile(
+  await cp(
+    path.join(project, 'plugin/skills/poteto-mode/scripts/shell-boundary.mjs'),
     guard,
-    `let text=''; for await(const chunk of process.stdin) text+=chunk; const input=JSON.parse(text); process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'allow',updatedInput:{command:'CODEX_SANDBOX seatbelt exit 125 PSTACK_REVIEW_REQUIRED\\n'+input.tool_input.command}}}));`,
   );
   const platformShim = path.join(root, 'platform.mjs');
   await writeFile(
@@ -204,6 +227,7 @@ async function fixture(t: TestContext) {
   const env = {
     ...process.env,
     FAKE_LOG: log,
+    CODEX_HOME: path.join(root, 'isolated-codex-home'),
     CODEX_COMPANION_APP_SERVER_ENDPOINT: '/must-not-use-shared-broker',
   };
   const role = path.join(root, 'role.md'),
@@ -1089,6 +1113,52 @@ test('macOS boundary is process scoped and active before a new or resumed task',
   );
 });
 
+for (const mutation of ['delete', 'replace', 'remove-plugin'])
+  for (const resume of [false, true])
+    test(`prepared worker guard survives ${mutation} before a ${resume ? 'resumed' : 'new'} turn`, async (t) => {
+      const f = await fixture(t);
+      const result = f.run(
+        'frozen-boundary',
+        'Ordinary verification brief.',
+        resume ? ['--resume', 'exact-existing-thread'] : [],
+        {
+          FAKE_MUTATE_SOURCE: mutation,
+          FAKE_SOURCE_PATH:
+            mutation === 'remove-plugin'
+              ? path.resolve(f.runner, '../../../..')
+              : f.guard,
+          FAKE_RUN_GATED_SHELL: '1',
+        },
+      );
+      const receipt = await f.receipt('frozen-boundary');
+      assert.equal(result.status, 0, receipt.error?.message ?? result.stderr);
+      assert.equal(receipt.commandBoundary.status, 'active');
+      const events = await f.events();
+      const mutationIndex = events.findIndex((event) => event.sourceMutation);
+      const turnIndex = events.findIndex(
+        (event) => event.request?.method === 'turn/start',
+      );
+      assert(mutationIndex >= 0 && mutationIndex < turnIndex);
+      assert.equal(
+        events.find((event) => event.hookExecution)?.hookExecution.status,
+        0,
+      );
+      const executed = events.find(
+        (event) => event.shellExecution,
+      )?.shellExecution;
+      assert.equal(executed?.sandboxed.status, 125);
+      assert.equal(executed.sandboxed.stdout, '');
+      assert.match(executed.sandboxed.stderr, /PSTACK_REVIEW_REQUIRED/);
+      assert.equal(executed.reviewed.status, 0);
+      assert.equal(executed.reviewed.stdout, 'original-body');
+      assert.equal(receipt.requested.model, 'selected-model');
+      assert.equal(receipt.requested.effort, 'xhigh');
+      assert.equal(
+        receipt.executionPolicy.observed.approvalsReviewer,
+        'auto_review',
+      );
+    });
+
 for (const state of [
   'missing-api',
   'managed-disabled',
@@ -1167,16 +1237,10 @@ test('macOS explicit never retains the boundary without granting escalation', as
   assert.match(start.request.params.developerInstructions, /never/);
 });
 
-test('only a byte-equivalent duplicate pstack guard is compatible', async (t) => {
+test('an enabled mutable-file duplicate is rejected even when its bytes match', async (t) => {
   const f = await fixture(t);
   const duplicate = path.join(f.root, 'shell-boundary.mjs');
   await cp(f.guard, duplicate);
-  assert.equal(
-    f.run('duplicate-ok', 'Task.', [], { FAKE_DUPLICATE_GUARD: duplicate })
-      .status,
-    0,
-  );
-  await writeFile(duplicate, 'other bytes');
   assert.equal(
     f.run('duplicate-bad', 'Task.', [], { FAKE_DUPLICATE_GUARD: duplicate })
       .status,
@@ -1185,6 +1249,9 @@ test('only a byte-equivalent duplicate pstack guard is compatible', async (t) =>
   assert.equal(
     (await f.receipt('duplicate-bad')).commandBoundary.reason,
     'conflicting-hook',
+  );
+  assert(
+    !(await f.events()).some((event) => event.request?.method === 'turn/start'),
   );
 });
 
@@ -1258,8 +1325,8 @@ for (const failure of ['missing', 'syntax', 'malformed', 'unwrapped'])
         failure === 'syntax'
           ? 'bad syntax !'
           : failure === 'malformed'
-            ? 'process.stdout.write("bad output");'
-            : 'process.stdout.write("{}");',
+            ? 'export async function runShellBoundary(){process.stdout.write("bad output");}'
+            : 'export async function runShellBoundary(){process.stdout.write("{}");}',
       );
     const result = f.run('guard-failed');
     assert.equal(result.status, 1, result.stderr);

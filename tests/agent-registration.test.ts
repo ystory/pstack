@@ -6,6 +6,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rm,
   stat,
   symlink,
@@ -73,7 +74,13 @@ async function fixture(t: TestContext) {
   const invoke = (...flags: string[]) =>
     spawnSync(
       process.execPath,
-      [path.join(bundle, scriptPath), '--codex-home', codexHome, ...flags],
+      [
+        path.join(bundle, scriptPath),
+        '--definitions-only',
+        '--codex-home',
+        codexHome,
+        ...flags,
+      ],
       {
         cwd: consumer,
         encoding: 'utf8',
@@ -595,6 +602,7 @@ test('a transaction failure restores all agent and config bytes and leaves the p
       '--import',
       failure,
       path.join(f.bundle, scriptPath),
+      '--definitions-only',
       '--codex-home',
       f.codexHome,
     ],
@@ -784,4 +792,89 @@ test('old-name registrations require clean unregister before the new identity ca
   );
   f.run('--unregister');
   await assertMissing(configFile);
+});
+
+test('normal macOS registration rejects an unavailable command boundary before writing agents', async (t) => {
+  const f = await fixture(t);
+  const helper = path.join(
+    f.bundle,
+    'skills/poteto-mode/scripts/codex-boundary.mjs',
+  );
+  await mkdir(path.dirname(helper), { recursive: true });
+  await writeFile(
+    helper,
+    'export async function trustNativeBoundary() { throw new Error("Required pstack hook is unavailable"); }\n',
+  );
+  const platform = path.join(f.root, 'macos-fixture.mjs');
+  await writeFile(
+    platform,
+    'Object.defineProperty(process, "platform", {value:"darwin"});\n',
+  );
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--import',
+      platform,
+      path.join(f.bundle, scriptPath),
+      '--codex-home',
+      f.codexHome,
+    ],
+    { cwd: f.consumer, encoding: 'utf8', timeout: 10_000 },
+  );
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Required pstack hook is unavailable/);
+  await assertMissing(path.join(f.codexHome, 'agents/poteto-agent.toml'));
+  await assertMissing(
+    path.join(f.codexHome, 'pstack-codex/agent-registration.json'),
+  );
+});
+
+test('normal macOS registration activates its owned boundary using the selected home', async (t) => {
+  const f = await fixture(t);
+  const helper = path.join(
+    f.bundle,
+    'skills/poteto-mode/scripts/codex-boundary.mjs',
+  );
+  const evidence = path.join(f.root, 'boundary-input.json');
+  await mkdir(path.dirname(helper), { recursive: true });
+  await writeFile(
+    helper,
+    `import fs from 'node:fs';\nexport async function trustNativeBoundary(options) { fs.writeFileSync(${JSON.stringify(evidence)}, JSON.stringify({cwd:options.cwd,pluginId:options.pluginId,guardPath:options.guardPath,codexHome:options.env.CODEX_HOME})); fs.mkdirSync(options.env.CODEX_HOME,{recursive:true}); fs.appendFileSync(options.env.CODEX_HOME+'/config.toml','[hooks.state.fixture]\\ntrusted_hash = \"owned\"\\n'); return {status:'active',hook:{key:'owned-fixture-hook'}}; }\n`,
+  );
+  const platform = path.join(f.root, 'macos-fixture.mjs');
+  await writeFile(
+    platform,
+    'Object.defineProperty(process, "platform", {value:"darwin"});\n',
+  );
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--import',
+      platform,
+      path.join(f.bundle, scriptPath),
+      '--codex-home',
+      f.codexHome,
+    ],
+    { cwd: f.consumer, encoding: 'utf8', timeout: 10_000 },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.commandBoundary.status, 'active');
+  assert.match(
+    await readFile(path.join(f.codexHome, 'config.toml'), 'utf8'),
+    /\[hooks\.state\.fixture\]/,
+  );
+  assert.deepEqual(JSON.parse(await readFile(evidence, 'utf8')), {
+    cwd: await realpath(f.consumer),
+    pluginId: 'pstack-codex@pstack-codex',
+    guardPath: path.join(
+      await realpath(f.bundle),
+      'skills/poteto-mode/scripts/shell-boundary.mjs',
+    ),
+    codexHome: f.codexHome,
+  });
+  assert.match(
+    await readFile(path.join(f.codexHome, 'agents/poteto-agent.toml'), 'utf8'),
+    /name = "poteto-agent"/,
+  );
 });

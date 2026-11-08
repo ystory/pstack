@@ -1,0 +1,171 @@
+diff --git a/.codex-plugin/plugin.json b/.codex-plugin/plugin.json
+new file mode 100644
+index 0000000..ef4d405
+--- /dev/null
++++ b/.codex-plugin/plugin.json
+@@ -0,0 +1,6 @@
++{
++  "name": "pstack-codex",
++  "version": "0.1.0-dev.10",
++  "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
++  "hooks": "./hooks/hooks.json"
++}
+diff --git a/hooks/hooks.json b/hooks/hooks.json
+new file mode 100644
+index 0000000..c2ac681
+--- /dev/null
++++ b/hooks/hooks.json
+@@ -0,0 +1,16 @@
++{
++  "hooks": {
++    "PreToolUse": [
++      {
++        "matcher": "^Bash$",
++        "hooks": [
++          {
++            "type": "command",
++            "command": "node \"${CLAUDE_PLUGIN_ROOT}/skills/poteto-mode/scripts/shell-boundary.mjs\"",
++            "timeout": 5
++          }
++        ]
++      }
++    ]
++  }
++}
+diff --git a/plugin.json b/plugin.json
+index 45b5b96..675fd51 100644
+--- a/plugin.json
++++ b/plugin.json
+@@ -1,7 +1,7 @@
+ {
+   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+   "name": "pstack-codex",
+-  "version": "0.1.0-dev.9",
++  "version": "0.1.0-dev.10",
+   "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
+   "author": {
+     "name": "Lauren Tan"
+@@ -25,7 +25,7 @@
+       "interface": {
+         "displayName": "pstack Codex",
+         "shortDescription": "Unofficial pstack workflows",
+-        "longDescription": "An unofficial Codex adaptation of Lauren Tan's pstack workflows, skills, and agents. Includes control-ui, control-cli, and deslop from Cursor's cursor-team-kit.\n\nRun setup-pstack to register agents and choose models, then use poteto-mode to route engineering tasks through investigation, design, implementation, review, and verification playbooks.\n\nThis is a skills-only plugin that uses a local Codex executor with native subagent support. Setup requires Node.js 24.12+ and Python 3.11+. Setup starts with worker executor choice, then checks installation and login only for selected CLIs before models, roles, and budget. No fixed model is required. Unconfigured roles use the native parent. Workflow-specific diversity gates still require eligible selections.\n\nUpstream attribution and licenses are preserved. See the repository for complete requirements and tested compatibility.",
++        "longDescription": "An unofficial Codex adaptation of Lauren Tan's pstack workflows, skills, and agents. Includes control-ui, control-cli, and deslop from Cursor's cursor-team-kit.\n\nRun setup-pstack to register agents and choose models, then use poteto-mode to route engineering tasks through investigation, design, implementation, review, and verification playbooks.\n\nThis plugin uses a local Codex executor with native subagent support and a scoped command hook for macOS pstack workers. Setup requires Node.js 24.12+ and Python 3.11+. Setup starts with worker executor choice, then checks installation and login only for selected CLIs before models, roles, and budget. No fixed model is required. Unconfigured roles use the native parent. Workflow-specific diversity gates still require eligible selections.\n\nUpstream attribution and licenses are preserved. See the repository for complete requirements and tested compatibility.",
+         "developerName": "ystory",
+         "category": "Developer Tools",
+         "logo": "./assets/ystory-icon.svg",
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index cc575f3..e66519c 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -107,6 +107,12 @@ Fresh agents take new rounds with the consolidated brief. Reuse an existing agen
+ 
+ For a repeated watcher or work that must resume after the active turn, read [Codex loops](codex-loops.md) and use its native event or heartbeat controls.
+ 
++## macOS worker command boundary
++
++The installed plugin's command hook protects registered native pstack worker roles. Setup derives scope from its ownership record and confirms exact hook trust. On macOS, shell commands in that scope are wrapped before execution. An actual Seatbelt invocation returns `PSTACK_REVIEW_REQUIRED` before the original command starts. Retry the same authorized operation through native reviewed escalation. A denied retry remains blocked. This applies to arbitrary shell commands because Node, npm and test scripts can launch a browser internally. The guard never grants approval or changes the task's authority.
++
++Native root-chat commands, unrelated roles, pre-existing interactive processes, and non-shell tools are outside this worker boundary. An unprotected default-role fallback cannot establish protected UI verification. Keep the calling workflow's role requirements and report missing setup or host support. Native hook errors or timeouts can fail open in the host; this is an execution guardrail for the tested normal tool paths, not a security-isolation boundary.
++
+ ## Permissions and MCP access
+ 
+ Native v2 delegates use the parent's sandbox, approvals, and available tools. Route the role and its normal task procedures through native delegation. MCP-backed native `why` and `reflect` delegates use the inherited tools for investigation and citation checks. Claude Code delegates use their existing configured execution environment and receive the same applicable task instructions and source bodies through the runner.
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index ecdbdbe..9709ba2 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -76,6 +76,8 @@ Show the accepted roles, any roles left unconfigured, the budget, supported effo
+ 
+ Run `scripts/register-agents.mjs`. It registers `poteto-agent`, `comment-sicko`, and the description-only `pstack-general-purpose` role. Python's standard-library `tomllib` checks native configuration. `--python ABSOLUTE_PATH` selects an existing interpreter. The helper preserves unrelated config, comments, modes, roles, and preferences. It refuses user edits, unowned declarations, symlinks, and damaged ownership. An unsupported inline agents table needs conversion to normal tables. Report the exact conflict before proceeding.
+ 
++On macOS, normal registration also discovers the installed pstack command hook, checks runtime support and conflicts, trusts only its exact current key and hash through the native config API, and confirms readback before changing agent files. The receipt includes `commandBoundary`. A missing, disabled, untrusted, conflicting, or unsupported boundary is a setup gap, not successful protection. Plugin updates require this check again because the installed hook identity can change. `--definitions-only` is reserved for isolated ownership fixtures and does not activate or verify the runtime boundary.
++
+ Read the receipt's file-based `agents`, `metadataRoles`, and config declaration status. Repeated registration is idempotent. An isolated `--codex-home ABS` selects a fixture target. `--dry-run` previews without writing.
+ 
+ After registration succeeds, run the same model write without `--dry-run`. A stale hash requires reloading and reviewing current state. Saving is atomic and identical bytes stay untouched. Both native and mixed settings use the current schema 1 under the new identity.
+diff --git a/skills/setup-pstack/scripts/register-agents.mjs b/skills/setup-pstack/scripts/register-agents.mjs
+index bc6b707..9be4474 100644
+--- a/skills/setup-pstack/scripts/register-agents.mjs
++++ b/skills/setup-pstack/scripts/register-agents.mjs
+@@ -22,6 +22,7 @@ const blockEnd = '# <<< pstack-codex managed agents v1\n';
+ function argumentsFor(argv) {
+   const options = {
+     dryRun: false,
++    definitionsOnly: false,
+     help: false,
+     unregister: false,
+     codexHome: undefined,
+@@ -31,6 +32,7 @@ function argumentsFor(argv) {
+     const argument = argv[index];
+     if (argument === '--help') options.help = true;
+     else if (argument === '--dry-run') options.dryRun = true;
++    else if (argument === '--definitions-only') options.definitionsOnly = true;
+     else if (argument === '--unregister') options.unregister = true;
+     else if (argument === '--codex-home' || argument === '--python') {
+       const key = argument === '--python' ? 'python' : 'codexHome';
+@@ -346,13 +348,13 @@ async function register(options) {
+   const registry = registrySnapshot
+     ? parseRegistry(registrySnapshot.bytes, plugin.name)
+     : undefined;
+-  const configSnapshot = await fileSnapshot(configFile);
+-  const configText = configSnapshot ? utf8(configSnapshot.bytes) : '';
++  let configSnapshot = await fileSnapshot(configFile);
++  let configText = configSnapshot ? utf8(configSnapshot.bytes) : '';
+   const parsedConfig = parseToml(options.python, 'inspect', {
+     text: configText,
+   });
+   const ownership = registry?.schemaVersion === 2 ? registry.config : undefined;
+-  const baseConfig =
++  let baseConfig =
+     options.unregister && !ownership
+       ? configText
+       : withoutOwnedConfig(configText, ownership, options.python);
+@@ -411,6 +413,30 @@ async function register(options) {
+     plans.push({ name, file, previous, next, status });
+     roles[name] = { config_file: file, description: metadata.description };
+   }
++  let commandBoundary;
++  if (options.definitionsOnly || options.unregister || options.dryRun) {
++    commandBoundary = {
++      status: 'notChecked',
++      reason: options.definitionsOnly
++        ? 'Definition-only fixture operation.'
++        : 'No active runtime change was requested.',
++    };
++  } else if (process.platform === 'darwin') {
++    const { trustNativeBoundary } = await import(
++      '../../poteto-mode/scripts/codex-boundary.mjs'
++    );
++    commandBoundary = await trustNativeBoundary({
++      cwd: process.cwd(),
++      pluginId: `${plugin.name}@${plugin.name}`,
++      guardPath: path.join(pluginRoot, 'skills/poteto-mode/scripts/shell-boundary.mjs'),
++      env: { ...process.env, CODEX_HOME: codexHome },
++    });
++    configSnapshot = await fileSnapshot(configFile);
++    configText = configSnapshot ? utf8(configSnapshot.bytes) : '';
++    baseConfig = withoutOwnedConfig(configText, ownership, options.python);
++  } else {
++    commandBoundary = { status: 'notApplicable', reason: 'macOS only.' };
++  }
+   let configNext;
+   let configOwnership;
+   if (options.unregister) {
+@@ -490,6 +516,7 @@ async function register(options) {
+       },
+     ],
+   };
++  result.commandBoundary = commandBoundary;
+   if (!options.dryRun && !(options.unregister && !registry))
+     await applyTransaction(plans, [codexHome, agentsDirectory, stateDirectory]);
+   return result;
+@@ -499,7 +526,7 @@ try {
+   const options = argumentsFor(process.argv.slice(2));
+   if (options.help)
+     process.stdout.write(
+-      'Usage: node register-agents.mjs [--codex-home ABSOLUTE_PATH] [--python ABSOLUTE_PATH] [--dry-run] [--unregister]\nRequires Node.js and Python 3.11+ (standard-library tomllib).\nRegisters the two bundled agent files and explicit native config.toml declarations, plus the description-only pstack-general-purpose role.\n--unregister removes only unchanged owned registrations, preserving unrelated configuration and model settings.\n',
++      'Usage: node register-agents.mjs [--codex-home ABSOLUTE_PATH] [--python ABSOLUTE_PATH] [--dry-run] [--unregister] [--definitions-only]\nRequires Node.js and Python 3.11+ (standard-library tomllib).\nRegisters the two bundled agent files and explicit native config.toml declarations, plus the description-only pstack-general-purpose role.\n--unregister removes only unchanged owned registrations, preserving unrelated configuration and model settings.\n--definitions-only limits isolated fixture checks to owned agent definitions without activating a runtime boundary.\n',
+     );
+   else
+     process.stdout.write(

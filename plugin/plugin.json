@@ -1,6 +1,7 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "pstack-codex",
-  "version": "0.1.0-dev.10",
+  "version": "0.1.0-dev.9",
   "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
   "author": {
     "name": "Lauren Tan"
@@ -24,7 +25,7 @@
       "interface": {
         "displayName": "pstack Codex",
         "shortDescription": "Unofficial pstack workflows",
-        "longDescription": "An unofficial Codex adaptation of Lauren Tan's pstack workflows, skills, and agents. Includes control-ui, control-cli, and deslop from Cursor's cursor-team-kit.\n\nRun setup-pstack to register agents and choose models, then use poteto-mode to route engineering tasks through investigation, design, implementation, review, and verification playbooks.\n\nThis plugin uses a local Codex executor with native subagent support and a scoped command hook for macOS pstack workers. Setup requires Node.js 24.12+ and Python 3.11+. Setup starts with worker executor choice, then checks installation and login only for selected CLIs before models, roles, and budget. No fixed model is required. Unconfigured roles use the native parent. Workflow-specific diversity gates still require eligible selections.\n\nUpstream attribution and licenses are preserved. See the repository for complete requirements and tested compatibility.",
+        "longDescription": "An unofficial Codex adaptation of Lauren Tan's pstack workflows, skills, and agents. Includes control-ui, control-cli, and deslop from Cursor's cursor-team-kit.\n\nRun setup-pstack to register agents and choose models, then use poteto-mode to route engineering tasks through investigation, design, implementation, review, and verification playbooks.\n\nThis is a skills-only plugin that uses a local Codex executor with native subagent support. Setup requires Node.js 24.12+ and Python 3.11+. Setup starts with worker executor choice, then checks installation and login only for selected CLIs before models, roles, and budget. No fixed model is required. Unconfigured roles use the native parent. Workflow-specific diversity gates still require eligible selections.\n\nUpstream attribution and licenses are preserved. See the repository for complete requirements and tested compatibility.",
         "developerName": "ystory",
         "category": "Developer Tools",
         "logo": "./assets/ystory-icon.svg",

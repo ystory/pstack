@@ -1,15 +1,9 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { CodexAppServerClient } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs';
 import { runAppServerTurn } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs';
-
-import {
-  prepareWorkerBoundary,
-  boundaryConfigArgs,
-} from './codex-boundary.mjs';
 
 const EXECUTOR = 'codex';
 
@@ -88,9 +82,7 @@ function parse(argv) {
     options['approval-mode'] === 'auto-review' &&
     options.sandbox === 'danger-full-access'
   )
-    throw new Error(
-      'Auto-review is the default and requires a restricted sandbox.',
-    );
+    throw new Error('Auto-review is the default and requires a restricted sandbox.');
   if (command === 'run')
     for (const name of ['cwd', 'run-dir', 'model'])
       if (!options[name]) throw new Error(`Missing required --${name}.`);
@@ -222,23 +214,7 @@ async function run(options) {
   );
   const startedAt = new Date().toISOString();
   const requested = { model: options.model, effort: options.effort ?? null };
-  const guardPath = fileURLToPath(
-    new URL('./shell-boundary.mjs', import.meta.url),
-  );
   const request = {
-    commandBoundary: {
-      requested: {
-        platform: process.platform,
-        scope: 'worker-process',
-        guardPath,
-        pluginId: null,
-      },
-      status: 'pending',
-      reason: null,
-      hook: null,
-      feature: null,
-      conflicts: [],
-    },
     schemaVersion: 1,
     executor: EXECUTOR,
     cwd: options.cwd,
@@ -282,32 +258,12 @@ async function run(options) {
   const pending = new Map();
   const serverRequests = new Map();
   const diagnostic = (event) => {
-    let record = event;
-    if (event.direction === 'receive') {
-      try {
-        const message = JSON.parse(event.line);
-        const method = pending.get(message.id);
-        if (['hooks/list', 'experimentalFeature/list'].includes(method))
-          record = {
-            direction: 'receive',
-            id: message.id,
-            method,
-            outcome: message.error ? 'error' : 'ok',
-          };
-      } catch {}
-    }
     fs.appendFileSync(
       files.diagnostics,
-      JSON.stringify({ at: new Date().toISOString(), ...record }) + '\n',
+      JSON.stringify({ at: new Date().toISOString(), ...event }) + '\n',
     );
-    if (['spawn', 'boundary/spawn'].includes(event.event))
-      Object.assign(child, {
-        pid: event.pid,
-        exitCode: null,
-        signal: null,
-        closed: false,
-      });
-    if (['exit', 'boundary/exit'].includes(event.event))
+    if (event.event === 'spawn') child.pid = event.pid;
+    if (event.event === 'exit')
       Object.assign(child, {
         exitCode: event.code,
         signal: event.signal,
@@ -369,79 +325,12 @@ async function run(options) {
     )
       finalText = message.params.item.text ?? finalText;
   };
-  const recordBoundary = () => {
-    fs.writeFileSync(files.request, JSON.stringify(request, null, 2) + '\n');
-    diagnostic({
-      event: 'boundary/state',
-      commandBoundary: request.commandBoundary,
-    });
-  };
   let result = null,
     failure = null;
   try {
-    if (
-      process.platform === 'darwin' &&
-      request.sandbox === 'danger-full-access'
-    ) {
-      request.commandBoundary.status = 'failed';
-      request.commandBoundary.reason = 'unrestricted-sandbox';
-      throw Object.assign(
-        new Error(
-          'The macOS worker command boundary requires a restricted sandbox, including explicit never mode.',
-        ),
-        { code: 'COMMAND_BOUNDARY_UNAVAILABLE' },
-      );
-    }
-    const boundary = await prepareWorkerBoundary({
-      cwd: options.cwd,
-      guardPath,
-      executable: options.executable,
-      signal: controller.signal,
-      onDiagnostic: diagnostic,
-    });
-    request.commandBoundary = boundary.commandBoundary;
-    recordBoundary();
-    const developerInstructions = [
-      `Receiving runtime platform is ${process.platform}. Requested sandbox is ${request.sandbox}. ${request.approvalMode === 'auto-review' || process.platform === 'darwin' ? 'The launcher confirms the effective restricted sandbox and native review settings before this task turn.' : 'Effective settings are recorded when the host reports them.'}`,
-      request.commandBoundary.status === 'notApplicable'
-        ? 'The pstack macOS shell boundary does not apply on this platform.'
-        : 'The pstack shell boundary guards normal Bash commands in this worker. Commands under macOS seatbelt stop with PSTACK_REVIEW_REQUIRED before the original command starts. For an authorized shell check, request sandbox_permissions="require_escalated" so native approval review decides the exact command. The guard also covers nested interpreter children. Keep required verification with this delegate.',
-      request.approvalMode === 'never'
-        ? 'Approval mode is never. Native escalation is unavailable. A blocked shell check remains blocked and must be reported as unverified.'
-        : 'Native approval mode is on-request with the auto_review reviewer. Approval may be denied. Report rejected or blocked checks and retain the verification requirement.',
-      'Hook errors and timeouts can fail open in the host. This guard covers normal shell tools and provides no security isolation for other tools or malicious code.',
-    ].join('\n');
     result = await runAppServerTurn(options.cwd, {
       direct: true,
       executable: options.executable,
-      argv: boundaryConfigArgs(boundary.configOverrides),
-      env: boundary.env,
-      developerInstructions,
-      preTurnPreflight: async (client, response) => {
-        if (process.platform === 'darwin' && request.approvalMode === 'never') {
-          const sandboxType =
-            request.sandbox === 'workspace-write'
-              ? 'workspaceWrite'
-              : 'readOnly';
-          if (
-            response.approvalPolicy !== 'never' ||
-            response.sandbox?.type !== sandboxType
-          ) {
-            Object.assign(request.commandBoundary, {
-              status: 'failed',
-              reason: 'execution-policy-mismatch',
-            });
-            throw Object.assign(
-              new Error(
-                'Explicit never mode did not confirm its restricted sandbox. The task was not started.',
-              ),
-              { code: 'COMMAND_BOUNDARY_UNAVAILABLE' },
-            );
-          }
-        }
-        await boundary.preTurnPreflight?.(client);
-        recordBoundary();
-      },
       signal: controller.signal,
       model: options.model,
       effort: options.effort,
@@ -467,16 +356,6 @@ async function run(options) {
     finalText = result.finalMessage ?? finalText;
     terminal = result.turn;
   } catch (error) {
-    request.commandBoundary = error.commandBoundary ?? request.commandBoundary;
-    if (
-      request.commandBoundary.status === 'pending' ||
-      request.commandBoundary.status === 'prepared'
-    )
-      Object.assign(request.commandBoundary, {
-        status: 'failed',
-        reason: signal ? 'interrupted' : 'runtime-error',
-      });
-    recordBoundary();
     failure = {
       message: error.message,
       code: error.code ?? null,
@@ -487,7 +366,6 @@ async function run(options) {
     process.removeListener('SIGINT', onInterrupt);
     process.removeListener('SIGTERM', onTerminate);
   }
-  fs.writeFileSync(files.request, JSON.stringify(request, null, 2) + '\n');
   const status =
     signal || terminal?.status === 'interrupted'
       ? 'interrupted'
@@ -509,7 +387,6 @@ async function run(options) {
     sandbox: request.sandbox,
     executionPolicy,
     capabilityGaps,
-    commandBoundary: request.commandBoundary,
     threadId,
     turnId,
     requested,

@@ -22,7 +22,6 @@ const blockEnd = '# <<< pstack-codex managed agents v1\n';
 function argumentsFor(argv) {
   const options = {
     dryRun: false,
-    definitionsOnly: false,
     help: false,
     unregister: false,
     codexHome: undefined,
@@ -32,7 +31,6 @@ function argumentsFor(argv) {
     const argument = argv[index];
     if (argument === '--help') options.help = true;
     else if (argument === '--dry-run') options.dryRun = true;
-    else if (argument === '--definitions-only') options.definitionsOnly = true;
     else if (argument === '--unregister') options.unregister = true;
     else if (argument === '--codex-home' || argument === '--python') {
       const key = argument === '--python' ? 'python' : 'codexHome';
@@ -348,13 +346,13 @@ async function register(options) {
   const registry = registrySnapshot
     ? parseRegistry(registrySnapshot.bytes, plugin.name)
     : undefined;
-  let configSnapshot = await fileSnapshot(configFile);
-  let configText = configSnapshot ? utf8(configSnapshot.bytes) : '';
+  const configSnapshot = await fileSnapshot(configFile);
+  const configText = configSnapshot ? utf8(configSnapshot.bytes) : '';
   const parsedConfig = parseToml(options.python, 'inspect', {
     text: configText,
   });
   const ownership = registry?.schemaVersion === 2 ? registry.config : undefined;
-  let baseConfig =
+  const baseConfig =
     options.unregister && !ownership
       ? configText
       : withoutOwnedConfig(configText, ownership, options.python);
@@ -412,30 +410,6 @@ async function register(options) {
     };
     plans.push({ name, file, previous, next, status });
     roles[name] = { config_file: file, description: metadata.description };
-  }
-  let commandBoundary;
-  if (options.definitionsOnly || options.unregister || options.dryRun) {
-    commandBoundary = {
-      status: 'notChecked',
-      reason: options.definitionsOnly
-        ? 'Definition-only fixture operation.'
-        : 'No active runtime change was requested.',
-    };
-  } else if (process.platform === 'darwin') {
-    const { trustNativeBoundary } = await import(
-      '../../poteto-mode/scripts/codex-boundary.mjs'
-    );
-    commandBoundary = await trustNativeBoundary({
-      cwd: process.cwd(),
-      pluginId: `${plugin.name}@${plugin.name}`,
-      guardPath: path.join(pluginRoot, 'skills/poteto-mode/scripts/shell-boundary.mjs'),
-      env: { ...process.env, CODEX_HOME: codexHome },
-    });
-    configSnapshot = await fileSnapshot(configFile);
-    configText = configSnapshot ? utf8(configSnapshot.bytes) : '';
-    baseConfig = withoutOwnedConfig(configText, ownership, options.python);
-  } else {
-    commandBoundary = { status: 'notApplicable', reason: 'macOS only.' };
   }
   let configNext;
   let configOwnership;
@@ -516,7 +490,6 @@ async function register(options) {
       },
     ],
   };
-  result.commandBoundary = commandBoundary;
   if (!options.dryRun && !(options.unregister && !registry))
     await applyTransaction(plans, [codexHome, agentsDirectory, stateDirectory]);
   return result;
@@ -526,7 +499,7 @@ try {
   const options = argumentsFor(process.argv.slice(2));
   if (options.help)
     process.stdout.write(
-      'Usage: node register-agents.mjs [--codex-home ABSOLUTE_PATH] [--python ABSOLUTE_PATH] [--dry-run] [--unregister] [--definitions-only]\nRequires Node.js and Python 3.11+ (standard-library tomllib).\nRegisters the two bundled agent files and explicit native config.toml declarations, plus the description-only pstack-general-purpose role.\n--unregister removes only unchanged owned registrations, preserving unrelated configuration and model settings.\n--definitions-only limits isolated fixture checks to owned agent definitions without activating a runtime boundary.\n',
+      'Usage: node register-agents.mjs [--codex-home ABSOLUTE_PATH] [--python ABSOLUTE_PATH] [--dry-run] [--unregister]\nRequires Node.js and Python 3.11+ (standard-library tomllib).\nRegisters the two bundled agent files and explicit native config.toml declarations, plus the description-only pstack-general-purpose role.\n--unregister removes only unchanged owned registrations, preserving unrelated configuration and model settings.\n',
     );
   else
     process.stdout.write(

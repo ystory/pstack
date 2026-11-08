@@ -83,7 +83,6 @@ function confirmApprovalMode(response, options) {
 function buildThreadParams(cwd, options = {}) {
   return {
     cwd,
-    ...(options.developerInstructions ? { developerInstructions: options.developerInstructions } : {}),
     model: options.model ?? null,
     ...buildApprovalParams(options),
     sandbox: options.sandbox ?? "read-only",
@@ -97,7 +96,6 @@ function buildResumeParams(threadId, cwd, options = {}) {
   return {
     threadId,
     cwd,
-    ...(options.developerInstructions ? { developerInstructions: options.developerInstructions } : {}),
     model: options.model ?? null,
     ...buildApprovalParams(options),
     sandbox: options.sandbox ?? "read-only"
@@ -1172,7 +1170,6 @@ export async function runAppServerTurn(cwd, options = {}) {
         model: options.model,
         sandbox: options.sandbox,
         approvalMode: options.approvalMode,
-        developerInstructions: options.developerInstructions,
         ephemeral: false
       });
     } else {
@@ -1181,14 +1178,11 @@ export async function runAppServerTurn(cwd, options = {}) {
         model: options.model,
         sandbox: options.sandbox,
         approvalMode: options.approvalMode,
-        developerInstructions: options.developerInstructions,
         ephemeral: options.persistThread ? false : true,
         threadName: options.persistThread ? options.threadName : options.threadName ?? null
       });
     }
     confirmApprovalMode(response, options);
-    await options.preTurnPreflight?.(client, response);
-    options.signal?.throwIfAborted();
     const threadId = response.thread.id;
 
     emitProgress(options.onProgress, `Thread ready (${threadId}).`, "starting", {

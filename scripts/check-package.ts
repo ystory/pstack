@@ -194,7 +194,7 @@ try {
   const register = (extra: string[] = []) =>
     run(
       process.execPath,
-      [registrar, '--definitions-only', '--codex-home', codexHome, ...extra],
+      [registrar, '--codex-home', codexHome, ...extra],
       temporaryRoot,
     );
   register(['--dry-run']);
@@ -889,20 +889,9 @@ try {
     `#!${process.execPath}\n` +
       String.raw`
 import readline from 'node:readline';
-import {spawnSync} from 'node:child_process';
-const args = process.argv.slice(2), config = {};
-const merge = (target, next) => { for (const [key,value] of Object.entries(next)) { if (value && typeof value === 'object' && !Array.isArray(value)) merge(target[key] ??= {}, value); else target[key] = value; } };
-while (args[0] === '-c') {
-  args.shift();
-  const value = args.shift();
-  const parsed = spawnSync('python3',['-c','import json,sys,tomllib; print(json.dumps(tomllib.loads(sys.stdin.read())))'],{input:value,encoding:'utf8'});
-  if (parsed.status !== 0) throw new Error(parsed.stderr);
-  merge(config,JSON.parse(parsed.stdout));
-}
-if (args[0] === '--version') { console.log('codex-cli 0.fixture'); process.exit(0); }
-if (args[0] === 'app-server' && args[1] === '--help') { console.log('Usage: codex app-server'); process.exit(0); }
-if (args[0] !== 'app-server') process.exit(3);
-const hookKey = '/<session-flags>/config.toml:pre_tool_use:0:0', hookHash = 'sha256:'+'1'.repeat(64);
+if (process.argv[2] === '--version') { console.log('codex-cli 0.fixture'); process.exit(0); }
+if (process.argv[2] === 'app-server' && process.argv[3] === '--help') { console.log('Usage: codex app-server'); process.exit(0); }
+if (process.argv[2] !== 'app-server') process.exit(3);
 const send = (value) => console.log(JSON.stringify(value));
 const respond = (request, result) => send({id: request.id, result});
 const lines = readline.createInterface({input: process.stdin});
@@ -911,14 +900,7 @@ lines.on('line', (line) => {
   switch (request.method) {
     case 'initialize': respond(request, {userAgent: 'package-fixture'}); break;
     case 'initialized': break;
-    case 'config/read': respond(request, {config:{model_provider:'openai',features:{hooks:true}}}); break;
-    case 'configRequirements/read': respond(request,{requirements:null}); break;
-    case 'experimentalFeature/list': respond(request,{data:[{name:'hooks',enabled:true}],nextCursor:null}); break;
-    case 'hooks/list': {
-      const group = config.hooks?.PreToolUse?.[0], handler = group?.hooks?.[0];
-      const hooks = handler ? [{key:hookKey,eventName:'preToolUse',handlerType:'command',command:handler.command,async:false,matcher:group.matcher,timeoutSec:5,source:'sessionFlags',sourcePath:'/<session-flags>/config.toml',enabled:true,currentHash:hookHash,trustStatus:config.hooks?.state?.[hookKey]?.trusted_hash === hookHash ? 'trusted' : 'untrusted'}] : [];
-      respond(request,{data:[{cwd:request.params.cwds[0],hooks,errors:[],warnings:[]}]}); break;
-    }
+    case 'config/read': respond(request, {config:{model_provider:'openai'}}); break;
     case 'account/read': respond(request, {account:{type:'chatgpt'},requiresOpenaiAuth:true}); break;
     case 'model/list': respond(request, {data:[{id:'package-model',model:'package-model',supportedReasoningEfforts:[{reasoningEffort:'xhigh'}]}],nextCursor:null}); break;
     case 'thread/start': respond(request, {thread:{id:'package-thread'},model:'package-model',reasoningEffort:'xhigh',approvalPolicy:request.params.approvalPolicy,approvalsReviewer:request.params.approvalsReviewer,sandbox:{type:request.params.sandbox === 'workspace-write' ? 'workspaceWrite' : 'readOnly',networkAccess:false}}); break;
@@ -974,9 +956,7 @@ lines.on('close', () => process.exit(0));
     codexReceipt.executionPolicy?.observed?.approvalPolicy !== 'on-request' ||
     codexReceipt.executionPolicy?.observed?.approvalsReviewer !==
       'auto_review' ||
-    codexReceipt.executionPolicy?.observed?.sandbox?.type !== 'readOnly' ||
-    codexReceipt.commandBoundary?.status !==
-      (process.platform === 'darwin' ? 'active' : 'notApplicable')
+    codexReceipt.executionPolicy?.observed?.sandbox?.type !== 'readOnly'
   )
     throw new Error(
       'Packaged Codex runner did not complete its owned app-server turn.',

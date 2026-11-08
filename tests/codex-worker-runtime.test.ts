@@ -19,21 +19,9 @@ const project = fileURLToPath(new URL('..', import.meta.url));
 const fakeSource = String.raw`#!/usr/bin/env node
 import fs from 'node:fs';
 import readline from 'node:readline';
-import {spawnSync} from 'node:child_process';
 const log = (event) => fs.appendFileSync(process.env.FAKE_LOG, JSON.stringify({pid:process.pid,cwd:process.cwd(),...event})+'\n');
-const rawArgs = process.argv.slice(2);
-const overrides = {};
-for (let i=0; i<rawArgs.length; i++) {
- if (rawArgs[i] !== '-c') continue;
- const parsed = spawnSync('python3',['-c','import sys,json,tomllib; print(json.dumps(tomllib.loads(sys.argv[1])))',rawArgs[++i]],{encoding:'utf8'});
- if (parsed.status !== 0) { console.error(parsed.stderr); process.exit(4); }
- const merge = (target, source) => { for (const [key,value] of Object.entries(source)) { if (value && typeof value==='object' && !Array.isArray(value)) merge(target[key] ??= {},value); else target[key] = value; } };
- merge(overrides,JSON.parse(parsed.stdout));
-}
-const args = rawArgs.filter((_,i)=>rawArgs[i] !== '-c' && rawArgs[i-1] !== '-c');
-log({args:rawArgs,overrides,worker:process.env.PSTACK_CODEX_WORKER ?? null});
-const inheritedState = {unrelated:{trusted_hash:'preserve-me'}};
-const effectiveState = {...inheritedState,...(overrides.hooks?.state ?? {})};
+const args = process.argv.slice(2);
+log({args});
 if (args[0] === '--version') { console.log('codex-cli 0.fixture'); process.exit(0); }
 if (args[0] === 'app-server' && args[1] === '--help') { console.log('Usage: codex app-server'); process.exit(0); }
 if (args[0] !== 'app-server') process.exit(3);
@@ -50,35 +38,7 @@ lines.on('line', (line) => {
  case 'initialize': if (!process.env.FAKE_HOLD_INITIALIZE) respond(request,{userAgent:'fixture'}); break;
  case 'initialized': break;
  case 'account/read': respond(request,process.env.FAKE_NO_AUTH ? {account:null,requiresOpenaiAuth:true} : {account:{type:'chatgpt',email:'private@example.invalid'},requiresOpenaiAuth:true}); break;
- case 'config/read': respond(request,{config:{model_provider:'openai',model_providers:{fixture:{api_key:'fixture-private-config'}},features:{...(process.env.FAKE_BOUNDARY === 'user-disabled' ? {hooks:false}:{})},hooks:{PreToolUse:[{matcher:'^Read$',hooks:[{type:'command',command:'unrelated-reader fixture-private-hook'}]}],state:inheritedState}}}); break;
- case 'configRequirements/read': respond(request,{requirements:process.env.FAKE_BOUNDARY === 'managed-disabled' ? {feature_requirements:{hooks:false}} : {}}); break;
- case 'experimentalFeature/list': respond(request,{data:[{name:'hooks',enabled:overrides.features?.hooks===true && process.env.FAKE_BOUNDARY!=='disabled-feature'}],nextCursor:null}); break;
- case 'hooks/list': {
-  if (process.env.FAKE_HOLD_HOOKS) break;
-  if (process.env.FAKE_BOUNDARY==='missing-api') {send({id:request.id,error:{code:-32601,message:'hooks/list unavailable'}});break;}
-  const rows = overrides.hooks?.PreToolUse ?? [];
-  const owned = rows.flatMap((row,i)=>(row.hooks ?? []).map((handler,j)=>({key:'/<session-flags>/config.toml:pre_tool_use:'+i+':'+j,eventName:'preToolUse',handlerType:'command',command:handler.command,async:false,matcher:row.matcher,timeoutSec:handler.timeout,sourcePath:'/<session-flags>/config.toml',source:'sessionFlags',pluginId:null,currentHash:'sha256:'+('a'.repeat(64)),enabled:true,trustStatus:'untrusted'})));
-  for (const h of owned) {
-   h.trustStatus=effectiveState[h.key]?.trusted_hash===h.currentHash ? 'trusted' : 'untrusted';
-   if (overrides.hooks?.state && h.matcher==='^Bash$') {
-    if (process.env.FAKE_BOUNDARY==='wrong-hash') h.currentHash='sha256:'+('b'.repeat(64));
-    if (process.env.FAKE_BOUNDARY==='untrusted') h.trustStatus='untrusted';
-    if (process.env.FAKE_BOUNDARY==='disabled-hook') h.enabled=false;
-    if (process.env.FAKE_BOUNDARY==='wrong-handler') h.command='other-command';
-   }
-  }
-  for (const h of owned.filter(h=>h.matcher==='^Bash$')) {
-    if(process.env.FAKE_BOUNDARY==='wrong-matcher')h.matcher='.*';
-    if(process.env.FAKE_BOUNDARY==='wrong-source')h.source='project';
-    if(process.env.FAKE_BOUNDARY==='wrong-timeout')h.timeoutSec=0;
-  }
-  if (process.env.FAKE_BOUNDARY==='missing-hook') owned.length=0;
-  owned.push({key:'/fixture-user/config.toml:pre_tool_use:0:0',eventName:'preToolUse',handlerType:'command',command:'unrelated-reader fixture-private-hook',async:false,matcher:'^Read$',enabled:true,source:'user',trustStatus:'trusted',currentHash:'sha256:'+('d'.repeat(64))});
-  if (process.env.FAKE_BOUNDARY==='conflict') owned.push({key:'competing',eventName:'preToolUse',handlerType:'command',command:'different-hook',matcher:'.*',enabled:true});
-  if (process.env.FAKE_DUPLICATE_GUARD) owned.push({key:'duplicate',eventName:'preToolUse',handlerType:'command',command:'node '+JSON.stringify(process.env.FAKE_DUPLICATE_GUARD),matcher:'^Bash$',async:false,timeoutSec:5,enabled:true,pluginId:'pstack-codex@pstack-codex'});
-  log({effectiveReadHookCount:owned.filter((h)=>h.matcher==='^Read$').length,effectiveUnrelatedTrust:effectiveState.unrelated?.trusted_hash});
-  respond(request,{data:[{cwd:process.cwd(),hooks:owned,warnings:[],errors:[]}]}); break;
- }
+ case 'config/read': respond(request,{config:{model_provider:'openai'}}); break;
  case 'model/list': respond(request,p.cursor ? {data:[{id:'second-model',model:'second-model',supportedReasoningEfforts:[{reasoningEffort:'high'}]}],nextCursor:null} : {data:[{id:'selected-model',model:'selected-model',supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'xhigh'}]}],nextCursor:'second-page'}); break;
  case 'thread/start': case 'thread/resume':
   if (process.env.FAKE_HOLD_THREAD) break;
@@ -136,10 +96,6 @@ async function fixture(t: TestContext) {
     { recursive: true },
   );
   const runner = path.join(plugin, 'skills/poteto-mode/scripts/run-codex.mjs');
-  const guard = path.join(
-    plugin,
-    'skills/poteto-mode/scripts/shell-boundary.mjs',
-  );
   await mkdir(path.dirname(runner), { recursive: true });
   await cp(
     path.join(
@@ -147,19 +103,6 @@ async function fixture(t: TestContext) {
       'plugin-claude/skills/poteto-mode/scripts/run-codex.mjs',
     ),
     runner,
-  );
-  await cp(
-    path.join(project, 'plugin/skills/poteto-mode/scripts/codex-boundary.mjs'),
-    path.join(path.dirname(runner), 'codex-boundary.mjs'),
-  );
-  await writeFile(
-    guard,
-    `let text=''; for await(const chunk of process.stdin) text+=chunk; const input=JSON.parse(text); process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'allow',updatedInput:{command:'CODEX_SANDBOX seatbelt exit 125 PSTACK_REVIEW_REQUIRED\\n'+input.tool_input.command}}}));`,
-  );
-  const platformShim = path.join(root, 'platform.mjs');
-  await writeFile(
-    platformShim,
-    "Object.defineProperty(process,'platform',{value:process.env.FAKE_PLATFORM ?? 'darwin'});",
   );
   const workerContext = path.join(
     plugin,
@@ -193,8 +136,6 @@ async function fixture(t: TestContext) {
   await writeFile(instruction, 'Full project instructions.\r\n');
   await writeFile(skill, 'Full skill instructions and principles.\n');
   const args = (run: string, extra: string[] = []) => [
-    '--import',
-    platformShim,
     runner,
     'run',
     '--cwd',
@@ -239,7 +180,6 @@ async function fixture(t: TestContext) {
     instruction,
     skill,
     workerContext,
-    guard,
     root,
     runner,
     executable,
@@ -563,7 +503,6 @@ for (const approvalMode of [undefined, 'never'])
         env: {
           ...f.env,
           FAKE_UNKNOWN_SETTINGS: '1',
-          FAKE_PLATFORM: approvalMode === 'never' ? 'linux' : 'darwin',
           ...(approvalMode === 'never'
             ? { FAKE_POLICY_FIELDS: 'missing-all' }
             : {}),
@@ -648,12 +587,12 @@ for (const [method, variable] of [
 test('explicit sandbox selection is recorded without changing the default or write shorthand', async (t) => {
   const f = await fixture(t);
   assert.equal(
-    f.run(
-      'explicit-access',
-      'Synthetic authorized access.',
-      ['--sandbox', 'danger-full-access', '--approval-mode', 'never'],
-      { FAKE_PLATFORM: 'linux' },
-    ).status,
+    f.run('explicit-access', 'Synthetic authorized access.', [
+      '--sandbox',
+      'danger-full-access',
+      '--approval-mode',
+      'never',
+    ]).status,
     0,
   );
   const receipt = await f.receipt('explicit-access');
@@ -919,254 +858,3 @@ test('same numeric server request id is refused without consuming client respons
   const diagnostics = await readFile(receipt.files.diagnostics, 'utf8');
   assert(diagnostics.includes('synthetic unsupported command'));
 });
-
-test('macOS boundary is process scoped and active before a new or resumed task', async (t) => {
-  const f = await fixture(t);
-  for (const [name, extra] of [
-    ['boundary-new', []],
-    ['boundary-resumed', ['--resume', 'exact-existing-thread']],
-  ] as const) {
-    const result = f.run(name, 'Ordinary verification brief.', [...extra]);
-    assert.equal(result.status, 0, result.stderr);
-    const receipt = await f.receipt(name);
-    assert.equal(receipt.commandBoundary.status, 'active');
-    assert.equal(receipt.commandBoundary.hook.trustStatus, 'trusted');
-    const diagnostics = await readFile(receipt.files.diagnostics, 'utf8');
-    assert(!diagnostics.includes('fixture-private-config'));
-    assert(!diagnostics.includes('fixture-private-hook'));
-    assert.equal(receipt.commandBoundary.requested.platform, 'darwin');
-    const request = JSON.parse(await readFile(receipt.files.request, 'utf8'));
-    assert.deepEqual(request.commandBoundary, receipt.commandBoundary);
-  }
-  const events = await f.events();
-  const turns = events.filter(
-    (event) => event.request?.method === 'turn/start',
-  );
-  assert.equal(turns.length, 2);
-  for (const event of events.filter(
-    (entry) => entry.effectiveReadHookCount !== undefined,
-  )) {
-    assert.equal(event.effectiveReadHookCount, 1);
-    assert.equal(event.effectiveUnrelatedTrust, 'preserve-me');
-  }
-  for (const turn of turns) {
-    const processEvents = events.filter((event) => event.pid === turn.pid);
-    const spawn = processEvents.find((event) => event.args);
-    assert.equal(spawn.worker, '1');
-    assert.equal(spawn.overrides.features.hooks, true);
-    assert.equal(spawn.overrides.hooks.PreToolUse.length, 1);
-    assert.equal(spawn.overrides.hooks.PreToolUse[0].matcher, '^Bash$');
-    assert.equal(spawn.overrides.hooks.state.unrelated, undefined);
-    const key = '/<session-flags>/config.toml:pre_tool_use:0:0';
-    assert.equal(
-      spawn.overrides.hooks.state[key].trusted_hash,
-      'sha256:' + 'a'.repeat(64),
-    );
-    assert.deepEqual(Object.keys(spawn.overrides.hooks.state).sort(), [key]);
-    const gate = processEvents.findIndex(
-      (event) => event.request?.method === 'hooks/list',
-    );
-    assert(gate >= 0 && gate < processEvents.indexOf(turn));
-    const thread = processEvents.find((event) =>
-      ['thread/start', 'thread/resume'].includes(event.request?.method),
-    );
-    assert.match(thread.request.params.developerInstructions, /darwin/);
-    assert.match(
-      thread.request.params.developerInstructions,
-      /restricted sandbox/,
-    );
-    assert.match(
-      thread.request.params.developerInstructions,
-      /require_escalated/,
-    );
-  }
-  assert(
-    !(
-      await readFile((await f.receipt('boundary-new')).files.prompt, 'utf8')
-    ).includes('PSTACK_REVIEW_REQUIRED'),
-  );
-});
-
-for (const state of [
-  'missing-api',
-  'managed-disabled',
-  'user-disabled',
-  'disabled-feature',
-  'missing-hook',
-  'wrong-hash',
-  'untrusted',
-  'disabled-hook',
-  'wrong-handler',
-  'wrong-matcher',
-  'wrong-source',
-  'wrong-timeout',
-  'conflict',
-])
-  for (const resume of [false, true])
-    test(`macOS boundary rejects ${state} before ${resume ? 'resumed' : 'new'} model execution`, async (t) => {
-      const f = await fixture(t);
-      const result = f.run(
-        'boundary-failed',
-        'Never run this task.',
-        resume ? ['--resume', 'exact-thread'] : [],
-        { FAKE_BOUNDARY: state },
-      );
-      assert.equal(result.status, 1, result.stderr);
-      const receipt = await f.receipt('boundary-failed');
-      assert.equal(receipt.status, 'failed');
-      assert.equal(receipt.error.code, 'COMMAND_BOUNDARY_UNAVAILABLE');
-      assert.equal(receipt.commandBoundary.status, 'failed');
-      assert.equal(receipt.turnId, null);
-      assert(
-        !(await f.events()).some(
-          (event) => event.request?.method === 'turn/start',
-        ),
-      );
-      const request = JSON.parse(await readFile(receipt.files.request, 'utf8'));
-      assert.deepEqual(request.commandBoundary, receipt.commandBoundary);
-    });
-
-test('non-macOS leaves existing execution and environment unchanged', async (t) => {
-  const f = await fixture(t);
-  const result = f.run('linux', 'Ordinary verification.', [], {
-    FAKE_PLATFORM: 'linux',
-  });
-  assert.equal(result.status, 0, result.stderr);
-  const receipt = await f.receipt('linux');
-  assert.equal(receipt.commandBoundary.status, 'notApplicable');
-  const events = await f.events();
-  assert(
-    !events.some((event) =>
-      [
-        'hooks/list',
-        'configRequirements/read',
-        'experimentalFeature/list',
-      ].includes(event.request?.method),
-    ),
-  );
-  const worker = events.find((event) => event.args?.includes('app-server'));
-  assert.equal(worker.worker, process.env.PSTACK_CODEX_WORKER ?? null);
-  assert.deepEqual(worker.overrides, {});
-});
-
-test('macOS explicit never retains the boundary without granting escalation', async (t) => {
-  const f = await fixture(t);
-  const result = f.run('never-boundary', 'Noninteractive task.', [
-    '--approval-mode',
-    'never',
-  ]);
-  assert.equal(result.status, 0, result.stderr);
-  const receipt = await f.receipt('never-boundary');
-  assert.equal(receipt.commandBoundary.status, 'active');
-  const start = (await f.events()).find(
-    (event) => event.request?.method === 'thread/start',
-  );
-  assert.equal(start.request.params.approvalPolicy, 'never');
-  assert.match(start.request.params.developerInstructions, /never/);
-});
-
-test('only a byte-equivalent duplicate pstack guard is compatible', async (t) => {
-  const f = await fixture(t);
-  const duplicate = path.join(f.root, 'shell-boundary.mjs');
-  await cp(f.guard, duplicate);
-  assert.equal(
-    f.run('duplicate-ok', 'Task.', [], { FAKE_DUPLICATE_GUARD: duplicate })
-      .status,
-    0,
-  );
-  await writeFile(duplicate, 'other bytes');
-  assert.equal(
-    f.run('duplicate-bad', 'Task.', [], { FAKE_DUPLICATE_GUARD: duplicate })
-      .status,
-    1,
-  );
-  assert.equal(
-    (await f.receipt('duplicate-bad')).commandBoundary.reason,
-    'conflicting-hook',
-  );
-});
-
-test('cancellation during boundary preflight closes its process without starting a turn', async (t) => {
-  const f = await fixture(t);
-  const child = spawn(process.execPath, f.args('boundary-cancelled'), {
-    env: { ...f.env, FAKE_HOLD_HOOKS: '1' },
-  });
-  child.stdin.end('Synthetic cancellation.');
-  const exited = new Promise<number | null>((resolve) =>
-    child.on('exit', resolve),
-  );
-  const deadline = Date.now() + 5000;
-  while (
-    !(await f.events().catch(() => [])).some(
-      (event) => event.request?.method === 'hooks/list',
-    )
-  ) {
-    assert(Date.now() < deadline);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-  child.kill('SIGTERM');
-  assert.equal(await exited, 143);
-  const receipt = await f.receipt('boundary-cancelled');
-  assert.equal(receipt.status, 'interrupted');
-  assert.equal(receipt.turnId, null);
-  const events = await f.events();
-  assert(!events.some((event) => event.request?.method === 'turn/start'));
-  for (const event of events.filter((event) =>
-    event.args?.includes('app-server'),
-  ))
-    assert.throws(() => process.kill(event.pid, 0), /ESRCH/);
-});
-
-test('macOS never rejects unrestricted or unconfirmed execution without a model turn', async (t) => {
-  const f = await fixture(t);
-  for (const [name, extra, env] of [
-    [
-      'unrestricted-never',
-      ['--sandbox', 'danger-full-access', '--approval-mode', 'never'],
-      {},
-    ],
-    [
-      'unconfirmed-never',
-      ['--approval-mode', 'never'],
-      { FAKE_POLICY_FIELDS: 'missing-all' },
-    ],
-    [
-      'substituted-never',
-      ['--approval-mode', 'never'],
-      { FAKE_POLICY_FIELDS: 'wrong-sandbox' },
-    ],
-  ] as const) {
-    assert.equal(f.run(name, 'Never execute this.', [...extra], env).status, 1);
-    const receipt = await f.receipt(name);
-    assert.equal(receipt.error.code, 'COMMAND_BOUNDARY_UNAVAILABLE');
-    assert.equal(receipt.commandBoundary.status, 'failed');
-  }
-  assert(
-    !(await f.events()).some((event) => event.request?.method === 'turn/start'),
-  );
-});
-
-for (const failure of ['missing', 'syntax', 'malformed', 'unwrapped'])
-  test(`guard self-test rejects ${failure} before model execution`, async (t) => {
-    const f = await fixture(t);
-    if (failure === 'missing') await rm(f.guard);
-    else
-      await writeFile(
-        f.guard,
-        failure === 'syntax'
-          ? 'bad syntax !'
-          : failure === 'malformed'
-            ? 'process.stdout.write("bad output");'
-            : 'process.stdout.write("{}");',
-      );
-    const result = f.run('guard-failed');
-    assert.equal(result.status, 1, result.stderr);
-    const receipt = await f.receipt('guard-failed');
-    assert.equal(receipt.error.code, 'COMMAND_BOUNDARY_UNAVAILABLE');
-    assert.equal(receipt.commandBoundary.status, 'failed');
-    assert(
-      !(await f.events().catch(() => [])).some(
-        (event) => event.request?.method === 'turn/start',
-      ),
-    );
-  });

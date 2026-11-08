@@ -76,8 +76,6 @@ Show the accepted roles, any roles left unconfigured, the budget, supported effo
 
 Run `scripts/register-agents.mjs`. It registers `poteto-agent`, `comment-sicko`, and the description-only `pstack-general-purpose` role. Python's standard-library `tomllib` checks native configuration. `--python ABSOLUTE_PATH` selects an existing interpreter. The helper preserves unrelated config, comments, modes, roles, and preferences. It refuses user edits, unowned declarations, symlinks, and damaged ownership. An unsupported inline agents table needs conversion to normal tables. Report the exact conflict before proceeding.
 
-On macOS, normal registration also discovers the installed pstack command hook, checks runtime support and conflicts, trusts only its exact current key and hash through the native config API, and confirms readback before changing agent files. The receipt includes `commandBoundary`. A missing, disabled, untrusted, conflicting, or unsupported boundary is a setup gap, not successful protection. Plugin updates require this check again because the installed hook identity can change. `--definitions-only` is reserved for isolated ownership fixtures and does not activate or verify the runtime boundary.
-
 Read the receipt's file-based `agents`, `metadataRoles`, and config declaration status. Repeated registration is idempotent. An isolated `--codex-home ABS` selects a fixture target. `--dry-run` previews without writing.
 
 After registration succeeds, run the same model write without `--dry-run`. A stale hash requires reloading and reviewing current state. Saving is atomic and identical bytes stay untouched. Both native and mixed settings use the current schema 1 under the new identity.

@@ -25,6 +25,3 @@ shared/0004-preserve-native-async.patch
 shared/0005-complete-instruction-bodies.patch
 0021-complete-instruction-delivery.patch
 0022-reviewed-worker-execution.patch
-shared/0006-worker-command-boundary.patch
-0023-worker-command-boundary.patch
-0024-clarify-boundary-restricted-policy.patch

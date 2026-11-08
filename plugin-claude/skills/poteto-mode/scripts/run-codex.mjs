@@ -298,6 +298,7 @@ async function run(options) {
       approvalPolicy: 'on-request',
       approvalsReviewer: 'auto_review',
       persistThread: true,
+      threadSource: 'chatgpt_hidden',
       resumeThreadId: options.resume,
       prompt,
       onDiagnostic: diagnostic,

@@ -69,6 +69,7 @@ function buildThreadParams(cwd, options = {}) {
     approvalsReviewer: options.approvalsReviewer,
     sandbox: options.sandbox ?? "read-only",
     serviceName: SERVICE_NAME,
+    threadSource: options.threadSource,
     ephemeral: options.ephemeral ?? true
   };
 }
@@ -1159,6 +1160,7 @@ export async function runAppServerTurn(cwd, options = {}) {
         approvalPolicy: options.approvalPolicy,
         approvalsReviewer: options.approvalsReviewer,
         ephemeral: options.persistThread ? false : true,
+        threadSource: options.threadSource,
         threadName: options.persistThread ? options.threadName : options.threadName ?? null
       });
       threadId = response.thread.id;

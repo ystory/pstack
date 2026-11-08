@@ -27,3 +27,4 @@ shared/0005-complete-instruction-bodies.patch
 0022-reviewed-worker-approvals.patch
 0023-lf-only-jsonl-framing.patch
 shared/0006-codex-sandbox-escalation.patch
+0024-hide-codex-worker-roots.patch

@@ -12,7 +12,7 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { computeSnapshotDigest } from '../src/upstream/snapshot.ts';
 
 const project = fileURLToPath(new URL('..', import.meta.url));
@@ -186,6 +186,7 @@ async function fixture(t: TestContext) {
     skill,
     workerContext,
     root,
+    plugin,
     runner,
     executable,
     cwd,
@@ -261,6 +262,7 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
   assert.equal(start.request.params.sandbox, 'read-only');
   assert.equal(start.request.params.approvalPolicy, 'on-request');
   assert.equal(start.request.params.approvalsReviewer, 'auto_review');
+  assert.equal(start.request.params.threadSource, 'chatgpt_hidden');
   const turn = events.find((event) => event.request?.method === 'turn/start');
   assert.equal(turn.request.params.model, 'selected-model');
   assert.equal(turn.request.params.effort, 'xhigh');
@@ -285,6 +287,41 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
     1,
   );
 });
+
+for (const threadSource of [undefined, 'custom-source'])
+  test(`generic vendor preserves ${threadSource ?? 'omitted'} thread source`, async (t) => {
+    const f = await fixture(t);
+    const module = pathToFileURL(
+      path.join(
+        f.plugin,
+        'vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs',
+      ),
+    ).href;
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `const { runAppServerTurn } = await import(${JSON.stringify(module)});
+await runAppServerTurn(${JSON.stringify(f.cwd)}, ${JSON.stringify({
+          direct: true,
+          executable: f.executable,
+          prompt: 'Do the synthetic task.',
+          threadSource,
+        })});`,
+      ],
+      { env: f.env, encoding: 'utf8', timeout: 10_000 },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const start = (await f.events()).find(
+      (event) => event.request?.method === 'thread/start',
+    );
+    assert.equal(
+      Object.hasOwn(start.request.params, 'threadSource'),
+      threadSource !== undefined,
+    );
+    assert.equal(start.request.params.threadSource, threadSource);
+  });
 
 for (const [name, text, extraEnv] of [
   ['escaped newline', 'before\nmiddle\nafter', {}],
@@ -477,7 +514,8 @@ test('parallel workers and interleaved exact continuation retain separate identi
   const resumed = await f.receipt('resumed');
   assert.equal(resumed.threadId, first.threadId);
   assert.equal(resumed.finalText, `answer for ${first.threadId}`);
-  const resume = (await f.events()).find(
+  const events = await f.events();
+  const resume = events.find(
     (event) => event.request?.method === 'thread/resume',
   );
   assert.equal(resume.request.params.threadId, first.threadId);
@@ -485,6 +523,14 @@ test('parallel workers and interleaved exact continuation retain separate identi
   assert.equal(resume.request.params.sandbox, 'workspace-write');
   assert.equal(resume.request.params.approvalPolicy, 'on-request');
   assert.equal(resume.request.params.approvalsReviewer, 'auto_review');
+  assert.equal(Object.hasOwn(resume.request.params, 'threadSource'), false);
+  assert.equal(
+    events.some(
+      (event) =>
+        event.pid === resume.pid && event.request?.method === 'thread/start',
+    ),
+    false,
+  );
 });
 
 for (const prompt of ['WAIT', 'EARLY WAIT'])

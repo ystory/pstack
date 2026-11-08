@@ -1,215 +1,824 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const helper = fileURLToPath(
-  new URL(
-    '../plugin/skills/poteto-mode/scripts/codex-boundary.mjs',
-    import.meta.url,
-  ),
+const root = fileURLToPath(new URL('../', import.meta.url));
+const helper = await import(
+  pathToFileURL(
+    path.join(root, 'plugin/skills/poteto-mode/scripts/codex-boundary.mjs'),
+  ).href
 );
-const source = String.raw`#!/usr/bin/env node
+const canonicalGuard = path.join(
+  root,
+  'plugin/skills/poteto-mode/scripts/shell-boundary.mjs',
+);
+const program = String.raw`#!/usr/bin/env node
 import fs from 'node:fs';
+import path from 'node:path';
 import readline from 'node:readline';
-const log = (request) => fs.appendFileSync(process.env.FIXTURE_LOG,JSON.stringify(request)+'\n');
-const send = (request,result) => console.log(JSON.stringify({id:request.id,result}));
-const lines = readline.createInterface({input:process.stdin});
-const key = 'pstack-codex@pstack-codex:hooks/hooks.json:pre_tool_use:0:0';
-const hash = 'sha256:'+('a'.repeat(64))+'/sha256:'+('b'.repeat(64));
-lines.on('line',(line)=>{
- const request=JSON.parse(line); log(request);
- const state=JSON.parse(fs.readFileSync(process.env.FIXTURE_STATE,'utf8'));
- switch(request.method) {
- case 'initialize': send(request,{}); break;
- case 'initialized': break;
- case 'configRequirements/read': send(request,{requirements:process.env.FIXTURE_FAILURE==='managed-disabled'?{feature_requirements:{hooks:false}}:{}}); break;
- case 'config/read': send(request,{config:{features:{hooks:process.env.FIXTURE_FAILURE!=='user-disabled'},hooks:{state}}}); break;
- case 'experimentalFeature/list': send(request,{data:[{name:'hooks',enabled:process.env.FIXTURE_FAILURE!=='feature-disabled'}],nextCursor:null}); break;
- case 'hooks/list': {
-  if(process.env.FIXTURE_FAILURE==='missing-api'){console.log(JSON.stringify({id:request.id,error:{code:-32601,message:'hooks/list unavailable'}}));break;}
-  const trust=state[key]?.trusted_hash;
-  const trusted=trust===hash;
-  const hook={key,eventName:'preToolUse',handlerType:'command',command:'node '+JSON.stringify(process.env.FIXTURE_GUARD),async:false,matcher:'^Bash$',timeoutSec:5,sourcePath:process.env.FIXTURE_ROOT+'/hooks/hooks.json',source:'plugin',pluginId:'pstack-codex@pstack-codex',enabled:trusted,trustStatus:trusted?'trusted':trust?'modified':'untrusted',currentHash:hash};
-  if(process.env.FIXTURE_FAILURE==='wrong-path')hook.command='node "/other/shell-boundary.mjs"';
-  if(process.env.FIXTURE_FAILURE==='disabled-hook' && trusted)hook.enabled=false;
-  if(process.env.FIXTURE_FAILURE==='wrong-hash' && trusted)hook.currentHash='sha256:'+('c'.repeat(64));
-  const hooks=process.env.FIXTURE_FAILURE==='missing-hook'?[]:[hook];
-  if(process.env.FIXTURE_FAILURE==='conflict')hooks.push({key:'other',eventName:'preToolUse',handlerType:'command',command:'rewrite-command',enabled:true,matcher:'Bash'});
-  send(request,{data:[{cwd:process.cwd(),hooks,warnings:[],errors:[]}]}); break;
+import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+const read=()=>JSON.parse(fs.readFileSync(process.env.FIXTURE_STATE,'utf8'));
+const save=s=>fs.writeFileSync(process.env.FIXTURE_STATE,JSON.stringify(s));
+const digest=x=>'sha256:'+createHash('sha256').update(JSON.stringify(x)).digest('hex');
+const sourcePath=path.join(process.env.CODEX_HOME,'config.toml');
+const snapshot=process.argv[2]==='--snapshot';
+const overrides=snapshot?JSON.parse(process.argv[3]):JSON.parse(execFileSync('python3',['-c','import sys,json,tomllib; r={}; [r.update(tomllib.loads(v)) for v in sys.argv[1:]]; print(json.dumps(r))',...process.argv.slice(2).filter((v,i,a)=>a[i-1]==='-c')],{encoding:'utf8'}));
+for(const [key,value] of Object.entries({...overrides}))if(key.includes('.')){const parts=key.split('.');let parent=overrides;for(const part of parts.slice(0,-1))parent=parent[part]??={};parent[parts.at(-1)]=value;delete overrides[key];}
+function rows(s){
+ const all=[];
+ for(const [source,groups,file] of [['user',s.user.hooks.PreToolUse,sourcePath],['project',s.projectHooks,'/project/config.toml'],['sessionFlags',overrides.hooks?.PreToolUse??[], '/<session-flags>/config.toml']])
+ for(const [g,group] of groups.entries())for(const [h,handler] of group.hooks.entries()){
+  const key=s.failure==='unknown-key-abi'&&source==='user'?'future-key-'+g+'-'+h:file+':pre_tool_use:'+g+':'+h,currentHash=digest({group,handler});
+  const state=source==='sessionFlags'?overrides.hooks?.state?.[key]??{}:s.user.hooks.state[key]??{};
+  const trustStatus=state.trusted_hash===currentHash?'trusted':state.trusted_hash?'modified':'untrusted';
+  all.push({key,eventName:'preToolUse',handlerType:handler.type,command:handler.command,async:handler.async??false,matcher:group.matcher,timeoutSec:handler.timeout??600,sourcePath:file,source,pluginId:null,enabled:state.enabled!==false&&trustStatus==='trusted',trustStatus,currentHash});
  }
- case 'config/batchWrite': {
-  const edit=request.params.edits[0];
-  const owned=JSON.parse(edit.keyPath.slice('hooks.state.'.length,-'.trusted_hash'.length));
-  state[owned]={...(state[owned]??{}),trusted_hash:edit.value};
-  fs.writeFileSync(process.env.FIXTURE_STATE,JSON.stringify(state));
-  send(request,{});break;
+ return all;
+}
+function response(method,params,s){
+ switch(method){
+ case 'initialize':return {};
+ case 'configRequirements/read':return {requirements:s.failure==='managed-disabled'?{feature_requirements:{hooks:false}}:{}};
+ case 'config/read':return {config:{features:{hooks:s.failure!=='user-disabled'},hooks:{PreToolUse:[...s.user.hooks.PreToolUse,...s.projectHooks],state:s.user.hooks.state}},layers:[{name:{type:'user',file:sourcePath},version:'v'+s.version,config:s.user},{name:{type:'project',file:'/project/config.toml'},version:'project-version',config:{hooks:{PreToolUse:s.projectHooks}}}]};
+ case 'experimentalFeature/list':return {data:[{name:'hooks',enabled:s.failure!=='feature-disabled'}],nextCursor:null};
+ case 'hooks/list':if(s.failure==='missing-api')throw new Error('hooks/list unavailable');return {data:[{cwd:process.cwd(),hooks:rows(s),warnings:[],errors:[]}]};
+ case 'config/batchWrite':{
+  const appending=params.edits.some(e=>e.keyPath==='hooks.PreToolUse');
+  if(s.failure==='cas-conflict'){
+   s.user.foreignConcurrent='preserve';s.user.hooks.PreToolUse.push({matcher:'^Read$',hooks:[{type:'command',command:'concurrent-foreign',timeout:5}]});s.version++;save(s);throw new Error('version conflict');
+  }
+  if(params.filePath!==sourcePath||params.expectedVersion!=='v'+s.version)throw new Error('missing or stale user-layer CAS');
+  const metadata=path.join(process.env.CODEX_HOME,'pstack-codex/native-command-boundary');
+  if(appending&&!fs.readdirSync(metadata).length)throw new Error('append requires persisted intent');
+  const stage=appending?'append':'trust';
+  if(s.failure===stage+'-before')throw new Error(stage+' interrupted before write');
+  for(const e of params.edits){
+   if(e.keyPath==='hooks.PreToolUse'){s.user.hooks.PreToolUse=e.value;continue;}
+   const m=/^hooks\.state\.("(?:[^"\\]|\\.)*")\.(trusted_hash|enabled)$/.exec(e.keyPath);
+   if(!m)throw new Error('unexpected write '+e.keyPath);
+   const key=JSON.parse(m[1]);s.user.hooks.state[key]={...s.user.hooks.state[key],[m[2]]:e.value};
+  }
+  s.version++;save(s);
+  if(s.failure==='metadata-after-trust'&&!appending)fs.chmodSync(metadata,0o500);
+  if(s.failure===stage+'-after')throw new Error(stage+' interrupted after write');
+  return {};
  }
- default: console.log(JSON.stringify({id:request.id,error:{code:-32601,message:'unexpected '+request.method}}));
+ default:throw new Error('unexpected '+method);
  }
+}
+if(snapshot){console.log(JSON.stringify(response(process.argv[4],JSON.parse(process.argv[5]),read())));process.exit(0);}
+const lines=readline.createInterface({input:process.stdin});
+lines.on('line',line=>{
+ const r=JSON.parse(line);fs.appendFileSync(process.env.FIXTURE_LOG,JSON.stringify(r)+'\n');
+ if(r.method==='initialized')return;
+ try{console.log(JSON.stringify({id:r.id,result:response(r.method,r.params,read())}));}
+ catch(e){console.log(JSON.stringify({id:r.id,error:{code:-32001,message:e.message}}));}
 });
 lines.on('close',()=>process.exit(0));
 `;
 
 async function fixture(t: TestContext) {
-  const root = await realpath(
-    await mkdtemp(path.join(os.tmpdir(), 'pstack-native-boundary-')),
+  const dir = await realpath(
+    await mkdtemp(path.join(os.tmpdir(), 'pstack-frozen-boundary-')),
   );
-  t.after(() => rm(root, { recursive: true, force: true }));
-  const guard = path.join(root, 'shell-boundary.mjs');
-  const executable = path.join(root, 'fake codex');
-  const state = path.join(root, 'state.json');
-  const log = path.join(root, 'rpc.jsonl');
-  const shim = path.join(root, 'platform.mjs');
-  await writeFile(
-    guard,
-    `let text=''; for await(const chunk of process.stdin) text+=chunk; const input=JSON.parse(text); process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:'PreToolUse',permissionDecision:'allow',updatedInput:{command:'CODEX_SANDBOX seatbelt exit 125 PSTACK_REVIEW_REQUIRED\\n'+input.tool_input.command}}}));`,
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const home = path.join(dir, 'home');
+  const setup = spawnSync(
+    process.execPath,
+    [
+      path.join(root, 'plugin/skills/setup-pstack/scripts/register-agents.mjs'),
+      '--definitions-only',
+      '--codex-home',
+      home,
+    ],
+    { encoding: 'utf8' },
   );
+  assert.equal(setup.status, 0, setup.stderr);
+  const registration = JSON.parse(
+    await readFile(
+      path.join(home, 'pstack-codex/agent-registration.json'),
+      'utf8',
+    ),
+  );
+  const roles = [
+    ...registration.config.block.matchAll(/^\[agents\.([A-Za-z0-9_-]+)\]$/gm),
+  ].map((m) => m[1]);
+  const guardPath = path.join(dir, 'package', 'shell-boundary.mjs');
+  await mkdir(path.dirname(guardPath));
+  await writeFile(guardPath, await readFile(canonicalGuard));
+  const executable = path.join(dir, 'fake codex');
   await writeFile(
     executable,
-    source.replace('#!/usr/bin/env node', '#!' + process.execPath),
+    program.replace('#!/usr/bin/env node', '#!' + process.execPath),
     { mode: 0o755 },
   );
-  await writeFile(
-    state,
-    JSON.stringify({
-      unrelated: { trusted_hash: 'preserved', disabled: true },
-    }),
-  );
+  const statePath = path.join(dir, 'state.json');
+  const log = path.join(dir, 'rpc.jsonl');
+  const state = {
+    version: 1,
+    failure: '',
+    user: {
+      features: { hooks: true },
+      foreignText: 'preserve\u2028line\u2029paragraph',
+      foreignConcurrent: '',
+      hooks: {
+        PreToolUse: [] as unknown[],
+        state: {
+          foreign: { trusted_hash: 'opaque-foreign', enabled: false },
+        } as Record<string, Record<string, unknown>>,
+      },
+    },
+    projectHooks: [
+      {
+        matcher: '^Read$',
+        hooks: [
+          { type: 'command', command: 'secret-project-command', timeout: 5 },
+        ],
+      },
+    ],
+  };
+  await writeFile(statePath, JSON.stringify(state));
+  const shim = path.join(dir, 'platform.mjs');
   await writeFile(
     shim,
-    "Object.defineProperty(process,'platform',{value:process.env.FIXTURE_PLATFORM ?? 'darwin'});",
+    "Object.defineProperty(process, 'platform', {value: 'darwin'});",
   );
-  const invoke = (command: string, failure?: string, extra: string[] = []) =>
-    spawnSync(
-      process.execPath,
-      [
-        '--import',
-        shim,
-        helper,
-        command,
-        '--cwd',
-        root,
-        '--plugin-id',
-        'pstack-codex@pstack-codex',
-        '--guard',
-        guard,
-        '--executable',
+  const env = {
+    ...process.env,
+    NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${pathToFileURL(shim).href}`,
+    CODEX_HOME: home,
+    FIXTURE_STATE: statePath,
+    FIXTURE_LOG: log,
+  };
+  const options = {
+    cwd: dir,
+    codexHome: home,
+    executable,
+    guardPath,
+    pluginId: 'pstack-codex@pstack-codex',
+    env,
+    nativeRoles: roles,
+    platform: 'darwin',
+  };
+  const read = async () =>
+    JSON.parse(await readFile(statePath, 'utf8')) as typeof state;
+  const change = async (mutate: (s: typeof state) => void) => {
+    const s = await read();
+    mutate(s);
+    await writeFile(statePath, JSON.stringify(s));
+  };
+  const events = async () => {
+    try {
+      return (await readFile(log, 'utf8'))
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((x) => JSON.parse(x));
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
+      throw e;
+    }
+  };
+  const client = (overrides: unknown) => ({
+    request: async (method: string, params: unknown) => {
+      const result = spawnSync(
         executable,
-        ...extra,
-      ],
-      {
-        env: {
-          ...process.env,
-          FIXTURE_ROOT: root,
-          FIXTURE_GUARD: guard,
-          FIXTURE_STATE: state,
-          FIXTURE_LOG: log,
-          ...(failure ? { FIXTURE_FAILURE: failure } : {}),
-          ...(failure === 'missing-node' ? { PATH: root } : {}),
-        },
-        encoding: 'utf8',
-        timeout: 10000,
-      },
-    );
-  const events = async () =>
-    (await readFile(log, 'utf8'))
-      .trim()
-      .split('\n')
-      .map((line) => JSON.parse(line));
-  return { root, guard, executable, state, log, shim, invoke, events };
+        [
+          '--snapshot',
+          JSON.stringify(overrides),
+          method,
+          JSON.stringify(params),
+        ],
+        { cwd: dir, env, encoding: 'utf8' },
+      );
+      assert.equal(result.status, 0, result.stderr);
+      return JSON.parse(result.stdout);
+    },
+  });
+  const command = async (index = -1) => {
+    const groups = (await read()).user.hooks.PreToolUse as {
+      hooks: { command: string }[];
+    }[];
+    return groups.at(index)!.hooks[0]!.command;
+  };
+  return {
+    dir,
+    home,
+    options,
+    read,
+    change,
+    events,
+    client,
+    command,
+    guardPath,
+    env,
+    log,
+  };
 }
 
-test('native inspection reports exact untrusted identity without writing, then trust changes only its hash and confirms readback', async (t) => {
-  const f = await fixture(t);
-  const before = await readFile(f.state, 'utf8');
-  const inspected = f.invoke('inspect');
-  assert.equal(inspected.status, 1, inspected.stderr);
-  const info = JSON.parse(inspected.stdout);
-  assert.equal(info.status, 'untrusted');
-  assert.equal(info.hook.pluginId, 'pstack-codex@pstack-codex');
-  assert.equal(await readFile(f.state, 'utf8'), before);
-  const result = f.invoke('trust');
-  assert.equal(result.status, 0, result.stderr + result.stdout);
-  const receipt = JSON.parse(result.stdout);
-  assert.equal(receipt.status, 'active');
-  assert.equal(receipt.hook.trustStatus, 'trusted');
-  const state = JSON.parse(await readFile(f.state, 'utf8'));
-  assert.deepEqual(state.unrelated, {
-    trusted_hash: 'preserved',
-    disabled: true,
+function invoke(
+  command: string,
+  agentType?: string,
+  env: NodeJS.ProcessEnv = process.env,
+) {
+  const result = spawnSync('/bin/sh', ['-c', command], {
+    env,
+    input: JSON.stringify({
+      hook_event_name: 'PreToolUse',
+      tool_name: 'Bash',
+      tool_input: {
+        command: "cat <<'EOF'\n$literal `bytes`\nEOF",
+        description: 'preserve',
+      },
+      ...(agentType ? { agent_type: agentType } : {}),
+    }),
+    encoding: 'utf8',
+    timeout: 5000,
   });
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout);
+}
+
+function isBoundaryError(reason?: string) {
+  return (error: unknown) => {
+    const e = error as { code?: string; commandBoundary?: { reason?: string } };
+    assert.equal(e.code, 'COMMAND_BOUNDARY_UNAVAILABLE');
+    if (reason) assert.equal(e.commandBoundary?.reason, reason);
+    return true;
+  };
+}
+
+test('native setup appends and trusts only a user-layer frozen binding with exact CAS, then repeated setup writes nothing', async (t) => {
+  const f = await fixture(t);
+  const receipt = await helper.trustNativeBoundary(f.options);
+  assert.equal(receipt.status, 'active');
+  assert.equal(receipt.activation, 'fresh-root-session-required');
+  const state = await f.read();
+  assert.equal(state.user.hooks.PreToolUse.length, 1);
+  assert.equal(state.projectHooks.length, 1);
+  assert.equal(state.user.foreignText, 'preserve\u2028line\u2029paragraph');
+  assert.deepEqual(state.user.hooks.state.foreign, {
+    trusted_hash: 'opaque-foreign',
+    enabled: false,
+  });
+  const writes = (await f.events()).filter(
+    (e) => e.method === 'config/batchWrite',
+  );
+  assert.equal(writes.length, 2);
   assert.deepEqual(
-    Object.keys(state).sort(),
-    ['unrelated', receipt.hook.key].sort(),
-  );
-  assert.equal(state[receipt.hook.key].trusted_hash, receipt.hook.currentHash);
-  const events = await f.events();
-  const writes = events.filter((event) => event.method === 'config/batchWrite');
-  assert.equal(writes.length, 1);
-  assert.deepEqual(writes[0].params.edits, [
-    {
-      keyPath:
-        'hooks.state.' + JSON.stringify(receipt.hook.key) + '.trusted_hash',
-      value: receipt.hook.currentHash,
-      mergeStrategy: 'replace',
-    },
-  ]);
-  assert(
-    events
-      .slice(events.indexOf(writes[0]) + 1)
-      .some((event) => event.method === 'hooks/list'),
+    writes.map((e) => e.params.expectedVersion),
+    ['v1', 'v2'],
   );
   assert(
-    !events.some(
-      (event) =>
-        event.method?.startsWith('thread/') ||
-        event.method?.startsWith('turn/') ||
-        event.method?.startsWith('account/'),
+    writes.every((e) => e.params.filePath === path.join(f.home, 'config.toml')),
+  );
+  assert.equal(writes[0].params.edits[0].value.length, 1);
+  assert(
+    (await f.events())
+      .filter((e) => e.method === 'config/read')
+      .every((e) => e.params.includeLayers === true),
+  );
+  await helper.trustNativeBoundary(f.options);
+  assert.equal(
+    (await f.events()).filter((e) => e.method === 'config/batchWrite').length,
+    2,
+  );
+  const inspected = await helper.inspectNativeBoundary({
+    ...f.options,
+    nativeRoles: undefined,
+  });
+  assert.equal(inspected.status, 'active');
+  assert(!JSON.stringify(inspected).includes('secret-project-command'));
+  assert(!JSON.stringify(inspected).includes('foreignText'));
+});
+
+test('native scope freezes actual setup roles, survives package deletion and ignores damaged registration bookkeeping', async (t) => {
+  const f = await fixture(t);
+  await helper.trustNativeBoundary(f.options);
+  const command = await f.command();
+  assert(!command.includes(f.guardPath));
+  assert(
+    command.startsWith(
+      "'" + process.execPath + "' --input-type=module --eval ",
+    ),
+  );
+  await rm(path.dirname(f.guardPath), { recursive: true });
+  await writeFile(
+    path.join(f.home, 'pstack-codex/agent-registration.json'),
+    '{damaged',
+  );
+  for (const role of f.options.nativeRoles) {
+    const output = invoke(command, role, f.env).hookSpecificOutput;
+    assert.equal(output.permissionDecision, 'allow');
+    assert.equal(output.updatedInput.description, 'preserve');
+    assert(
+      output.updatedInput.command.endsWith(
+        "cat <<'EOF'\n$literal `bytes`\nEOF",
+      ),
+    );
+    const stopped = spawnSync('/bin/sh', ['-c', output.updatedInput.command], {
+      env: { ...f.env, CODEX_SANDBOX: 'seatbelt' },
+      encoding: 'utf8',
+    });
+    assert.equal(stopped.status, 125);
+  }
+  for (const role of ['default', 'other', 'poteto-agent-copy'])
+    assert.deepEqual(invoke(command, role, f.env), {});
+  assert.deepEqual(invoke(command, undefined, f.env), {});
+  assert.deepEqual(
+    invoke(command, f.options.nativeRoles[0], {
+      ...f.env,
+      PSTACK_CODEX_WORKER: '1',
+    }),
+    {},
+  );
+});
+
+test('unchanged program and roles keep the same inline identity through unrelated package and config changes', async (t) => {
+  const f = await fixture(t);
+  const first = await helper.trustNativeBoundary(f.options);
+  const command = await f.command();
+  await writeFile(
+    path.join(path.dirname(f.guardPath), 'README.md'),
+    'same-version package replacement',
+  );
+  await f.change((s) => {
+    s.user.foreignText = 'changed outside owned hook';
+    s.version++;
+  });
+  const second = await helper.trustNativeBoundary(f.options);
+  assert.equal(await f.command(), command);
+  assert.equal(second.hook.key, first.hook.key);
+  assert.equal(second.hook.currentHash, first.hook.currentHash);
+  assert.equal((await f.read()).user.hooks.PreToolUse.length, 1);
+});
+
+test('helper bootstrap changes reuse the previously frozen program and trust without regenerating metadata', async (t) => {
+  const f = await fixture(t);
+  const first = await helper.trustNativeBoundary(f.options);
+  const oldCommand = await f.command();
+  const storage = path.join(f.home, 'pstack-codex/native-command-boundary');
+  const facts = await readdir(storage);
+  const before = await Promise.all(
+    facts.map((name) => readFile(path.join(storage, name), 'utf8')),
+  );
+  const helperSource = await readFile(
+    path.join(root, 'plugin/skills/poteto-mode/scripts/codex-boundary.mjs'),
+    'utf8',
+  );
+  const changed = helperSource.replace(
+    "return `import { createHash } from 'node:crypto';\nconst boundary",
+    "return `import { createHash } from 'node:crypto';\n\nconst boundary",
+  );
+  assert.notEqual(changed, helperSource);
+  const futurePath = path.join(f.dir, 'future-helper.mjs');
+  await writeFile(futurePath, changed);
+  const future = await import(pathToFileURL(futurePath).href);
+  assert.equal(
+    (await future.inspectNativeBoundary(f.options)).status,
+    'active',
+  );
+  const next = await future.trustNativeBoundary(f.options);
+  assert.equal(next.hook.key, first.hook.key);
+  assert.equal(next.hook.currentHash, first.hook.currentHash);
+  assert.equal(await f.command(), oldCommand);
+  assert.deepEqual(await readdir(storage), facts);
+  assert.deepEqual(
+    await Promise.all(
+      facts.map((name) => readFile(path.join(storage, name), 'utf8')),
+    ),
+    before,
+  );
+  assert.equal(
+    (await f.events()).filter((e) => e.method === 'config/batchWrite').length,
+    2,
+  );
+});
+
+test('unsupported runtime hook keys are reported without re-trusting or blaming a user slot change', async (t) => {
+  const f = await fixture(t);
+  await f.change((s) => {
+    s.failure = 'unknown-key-abi';
+  });
+  await assert.rejects(
+    helper.trustNativeBoundary(f.options),
+    isBoundaryError('unsupported-key-abi'),
+  );
+  assert.equal(
+    (await f.events()).filter((e) => e.method === 'config/batchWrite').length,
+    1,
+  );
+});
+
+test('changed frozen source appends a generation while retaining all old bodies and trust, and both gates compose', async (t) => {
+  const f = await fixture(t);
+  const first = await helper.trustNativeBoundary(f.options);
+  const oldCommand = await f.command();
+  await writeFile(
+    f.guardPath,
+    (await readFile(f.guardPath, 'utf8')) +
+      '\n// A distinct reviewed generation.\n',
+  );
+  const second = await helper.trustNativeBoundary(f.options);
+  assert.notEqual(second.hook.key, first.hook.key);
+  assert.equal(await f.command(0), oldCommand);
+  assert.equal(
+    (await f.read()).user.hooks.state[first.hook.key]!.trusted_hash,
+    first.hook.currentHash,
+  );
+  const one = invoke(oldCommand, f.options.nativeRoles[0], f.env)
+    .hookSpecificOutput.updatedInput.command;
+  const next = spawnSync('/bin/sh', ['-c', await f.command()], {
+    env: f.env,
+    input: JSON.stringify({
+      tool_name: 'Bash',
+      agent_type: f.options.nativeRoles[0],
+      tool_input: { command: one },
+    }),
+    encoding: 'utf8',
+  });
+  assert.equal(next.status, 0, next.stderr);
+  assert.equal(
+    JSON.parse(next.stdout).hookSpecificOutput.updatedInput.command,
+    one,
+  );
+});
+
+for (const stage of [
+  'append-before',
+  'append-after',
+  'trust-before',
+  'trust-after',
+])
+  test(`native setup recovers after ${stage} without duplicating or adopting unknown entries`, async (t) => {
+    const f = await fixture(t);
+    await f.change((s) => {
+      s.failure = stage;
+    });
+    await assert.rejects(
+      helper.trustNativeBoundary(f.options),
+      isBoundaryError(),
+    );
+    await f.change((s) => {
+      s.failure = '';
+    });
+    const receipt = await helper.trustNativeBoundary(f.options);
+    assert.equal(receipt.status, 'active');
+    assert.equal((await f.read()).user.hooks.PreToolUse.length, 1);
+  });
+
+test('installed metadata interruption repairs from persisted intent and exact trusted slot', async (t) => {
+  const f = await fixture(t);
+  await f.change((s) => {
+    s.failure = 'metadata-after-trust';
+  });
+  await assert.rejects(
+    helper.trustNativeBoundary(f.options),
+    isBoundaryError(),
+  );
+  const metadata = path.join(f.home, 'pstack-codex/native-command-boundary');
+  const { chmod } = await import('node:fs/promises');
+  await chmod(metadata, 0o700);
+  await f.change((s) => {
+    s.failure = '';
+  });
+  assert.equal((await helper.trustNativeBoundary(f.options)).status, 'active');
+  assert.equal((await f.read()).user.hooks.PreToolUse.length, 1);
+});
+
+test('fresh inspection is read only and reports a missing native binding', async (t) => {
+  const f = await fixture(t);
+  const before = await f.read();
+  assert.equal(
+    (await helper.inspectNativeBoundary(f.options)).status,
+    'missing',
+  );
+  assert.deepEqual(await f.read(), before);
+  assert.equal(
+    (await f.events()).filter((e) => e.method === 'config/batchWrite').length,
+    0,
+  );
+  await assert.rejects(
+    readFile(path.join(f.home, 'pstack-codex/native-command-boundary')),
+    { code: 'ENOENT' },
+  );
+});
+
+test('foreign CAS conflicts cannot overwrite concurrent state or promote project hooks into the user layer', async (t) => {
+  const f = await fixture(t);
+  await f.change((s) => {
+    s.failure = 'cas-conflict';
+  });
+  await assert.rejects(
+    helper.trustNativeBoundary(f.options),
+    isBoundaryError(),
+  );
+  assert.equal((await f.read()).user.foreignConcurrent, 'preserve');
+  assert.equal((await f.read()).user.hooks.PreToolUse.length, 1);
+  await f.change((s) => {
+    s.failure = '';
+  });
+  assert.equal((await helper.trustNativeBoundary(f.options)).status, 'active');
+});
+
+for (const action of ['disable', 'remove', 'shift', 'modify'])
+  test(`native setup respects a user ${action} of an installed binding`, async (t) => {
+    const f = await fixture(t);
+    const receipt = await helper.trustNativeBoundary(f.options);
+    await f.change((s) => {
+      if (action === 'disable')
+        s.user.hooks.state[receipt.hook.key]!.enabled = false;
+      if (action === 'remove') s.user.hooks.PreToolUse = [];
+      if (action === 'shift')
+        s.user.hooks.PreToolUse.unshift({
+          matcher: '^Read$',
+          hooks: [{ type: 'command', command: 'foreign-before', timeout: 5 }],
+        });
+      if (action === 'modify')
+        (
+          s.user.hooks.PreToolUse[0] as { hooks: { command: string }[] }
+        ).hooks[0]!.command += ' changed-by-user';
+      s.version++;
+    });
+    const before = await f.read();
+    const writes = (await f.events()).filter(
+      (e) => e.method === 'config/batchWrite',
+    ).length;
+    await assert.rejects(
+      helper.trustNativeBoundary(f.options),
+      isBoundaryError(),
+    );
+    assert.deepEqual(await f.read(), before);
+    assert.equal(
+      (await f.events()).filter((e) => e.method === 'config/batchWrite').length,
+      writes,
+    );
+  });
+
+test('native retirement disables observed owned keys without deleting bodies or reindexing foreign hooks, and explicit registration creates a new binding', async (t) => {
+  const f = await fixture(t);
+  const first = await helper.trustNativeBoundary(f.options);
+  await f.change((s) => {
+    s.user.hooks.PreToolUse.push({
+      matcher: '^Read$',
+      hooks: [{ type: 'command', command: 'foreign-tail', timeout: 5 }],
+    });
+    s.version++;
+  });
+  const before = await f.read();
+  const retired = await helper.retireNativeBoundary({
+    ...f.options,
+    nativeRoles: undefined,
+  });
+  assert.equal(retired.status, 'retired');
+  const state = await f.read();
+  assert.deepEqual(state.user.hooks.PreToolUse, before.user.hooks.PreToolUse);
+  assert.equal(state.user.hooks.state[first.hook.key]!.enabled, false);
+  assert.equal(
+    state.user.hooks.state[first.hook.key]!.trusted_hash,
+    first.hook.currentHash,
+  );
+  assert.equal(
+    Object.hasOwn(state.user.hooks.state[first.hook.key]!, 'disabled'),
+    false,
+  );
+  assert.equal(
+    (await helper.inspectNativeBoundary(f.options)).status,
+    'retired',
+  );
+  const second = await helper.trustNativeBoundary(f.options);
+  assert.equal(second.status, 'active');
+  assert.notEqual(second.hook.key, first.hook.key);
+  assert.equal((await f.read()).user.hooks.PreToolUse.length, 3);
+});
+
+for (const stage of ['trust-before', 'trust-after'])
+  test(`native retirement recovers after ${stage} without changing its immutable slots`, async (t) => {
+    const f = await fixture(t);
+    const initial = await helper.trustNativeBoundary(f.options);
+    const groups = (await f.read()).user.hooks.PreToolUse;
+    await f.change((s) => {
+      s.failure = stage;
+    });
+    await assert.rejects(
+      helper.retireNativeBoundary(f.options),
+      isBoundaryError(),
+    );
+    await f.change((s) => {
+      s.failure = '';
+    });
+    assert.equal(
+      (await helper.retireNativeBoundary(f.options)).status,
+      'retired',
+    );
+    assert.deepEqual((await f.read()).user.hooks.PreToolUse, groups);
+    assert.equal(
+      (await f.read()).user.hooks.state[initial.hook.key]!.enabled,
+      false,
+    );
+  });
+
+test('explicit retirement preserves an already user-disabled binding without re-enabling it', async (t) => {
+  const f = await fixture(t);
+  const initial = await helper.trustNativeBoundary(f.options);
+  await f.change((s) => {
+    s.user.hooks.state[initial.hook.key]!.enabled = false;
+    s.version++;
+  });
+  const writes = (await f.events()).filter(
+    (e) => e.method === 'config/batchWrite',
+  ).length;
+  assert.equal(
+    (await helper.retireNativeBoundary(f.options)).status,
+    'retired',
+  );
+  assert.equal(
+    (await f.events()).filter((e) => e.method === 'config/batchWrite').length,
+    writes,
+  );
+  assert.equal(
+    (await f.read()).user.hooks.state[initial.hook.key]!.enabled,
+    false,
+  );
+});
+
+test('equivalent commands without ownership metadata are never adopted or trusted', async (t) => {
+  const f = await fixture(t);
+  await helper.trustNativeBoundary(f.options);
+  await rm(path.join(f.home, 'pstack-codex/native-command-boundary'), {
+    recursive: true,
+    force: true,
+  });
+  await assert.rejects(
+    helper.trustNativeBoundary(f.options),
+    isBoundaryError(),
+  );
+  assert.equal((await f.read()).user.hooks.PreToolUse.length, 1);
+});
+
+test('external preparation freezes the whole worker and accepts only owned native hooks which are noops under its marker', async (t) => {
+  const f = await fixture(t);
+  await helper.trustNativeBoundary(f.options);
+  const native = await f.command();
+  const prepared = await helper.prepareWorkerBoundary(f.options);
+  assert.equal(prepared.commandBoundary.status, 'prepared');
+  const command =
+    prepared.configOverrides['hooks.PreToolUse'][0].hooks[0]!.command;
+  assert(!command.includes(f.guardPath));
+  await rm(path.dirname(f.guardPath), { recursive: true });
+  const frozenEnv = { ...f.env, ...prepared.env };
+  assert.deepEqual(invoke(native, f.options.nativeRoles[0], frozenEnv), {});
+  assert(
+    invoke(
+      command,
+      undefined,
+      frozenEnv,
+    ).hookSpecificOutput.updatedInput.command.includes(
+      'PSTACK_REVIEW_REQUIRED',
+    ),
+  );
+  await prepared.preTurnPreflight(f.client(prepared.configOverrides));
+  assert.equal(prepared.commandBoundary.status, 'active');
+  await f.change((s) => {
+    const group = {
+      matcher: '^Bash$',
+      hooks: [
+        { type: 'command', command: 'secret-foreign-rewriter', timeout: 5 },
+      ],
+    };
+    s.user.hooks.PreToolUse.push(group);
+    s.user.hooks.state[path.join(f.home, 'config.toml') + ':pre_tool_use:1:0'] =
+      { trusted_hash: 'will-be-set' };
+  });
+  const snapshot = await f.client({}).request('hooks/list', { cwds: [f.dir] });
+  const foreign = snapshot.data[0].hooks.find(
+    (h: { command: string }) => h.command === 'secret-foreign-rewriter',
+  );
+  await f.change((s) => {
+    s.user.hooks.state[foreign.key]!.trusted_hash = foreign.currentHash;
+  });
+  await assert.rejects(
+    prepared.preTurnPreflight(f.client(prepared.configOverrides)),
+    isBoundaryError('conflicting-hook'),
+  );
+  assert(
+    !JSON.stringify(prepared.commandBoundary).includes(
+      'secret-foreign-rewriter',
     ),
   );
 });
 
-test('native update can re-trust only the changed owned hook', async (t) => {
+for (const action of ['disable', 'remove', 'disable-with-damaged-metadata'])
+  test(`external protection stays independent after native ${action}`, async (t) => {
+    const f = await fixture(t);
+    const native = await helper.trustNativeBoundary(f.options);
+    await f.change((state) => {
+      if (action === 'remove') state.user.hooks.PreToolUse = [];
+      else state.user.hooks.state[native.hook.key]!.enabled = false;
+      state.version++;
+    });
+    if (action === 'disable-with-damaged-metadata') {
+      const directory = path.join(
+        f.home,
+        'pstack-codex/native-command-boundary',
+      );
+      const intent = (await readdir(directory)).find((name) =>
+        name.endsWith('.intent.json'),
+      )!;
+      await writeFile(path.join(directory, intent), '{damaged bookkeeping');
+    }
+    const before = await f.read();
+    const writes = (await f.events()).filter(
+      (event) => event.method === 'config/batchWrite',
+    ).length;
+    const prepared = await helper.prepareWorkerBoundary(f.options);
+    await prepared.preTurnPreflight(f.client(prepared.configOverrides));
+    assert.equal(prepared.commandBoundary.status, 'active');
+    const frozen =
+      prepared.configOverrides['hooks.PreToolUse'][0].hooks[0]!.command;
+    assert(
+      invoke(
+        frozen,
+        undefined,
+        prepared.env,
+      ).hookSpecificOutput.updatedInput.command.includes(
+        'PSTACK_REVIEW_REQUIRED',
+      ),
+    );
+    assert.deepEqual(await f.read(), before);
+    assert.equal(
+      (await f.events()).filter((event) => event.method === 'config/batchWrite')
+        .length,
+      writes,
+    );
+    await assert.rejects(
+      helper.trustNativeBoundary(f.options),
+      isBoundaryError(),
+    );
+    assert.deepEqual(await f.read(), before);
+  });
+
+test('a healthy enabled native generation remains admissible beside damaged inactive ownership', async (t) => {
   const f = await fixture(t);
-  const key = 'pstack-codex@pstack-codex:hooks/hooks.json:pre_tool_use:0:0';
+  const old = await helper.trustNativeBoundary(f.options);
   await writeFile(
-    f.state,
-    JSON.stringify({
-      unrelated: { trusted_hash: 'preserved' },
-      [key]: { trusted_hash: 'old-hash', disabled: false },
-    }),
+    f.guardPath,
+    (await readFile(f.guardPath, 'utf8')) + '\n// New immutable generation.\n',
   );
+  await helper.trustNativeBoundary(f.options);
+  await f.change((state) => {
+    state.user.hooks.state[old.hook.key]!.enabled = false;
+    state.version++;
+  });
+  const directory = path.join(f.home, 'pstack-codex/native-command-boundary');
+  const inactive = (await readdir(directory)).find(
+    (name) => name.startsWith('0-') && name.endsWith('.intent.json'),
+  )!;
+  await writeFile(
+    path.join(directory, inactive),
+    '{damaged inactive ownership',
+  );
+  const before = await f.read();
+  const prepared = await helper.prepareWorkerBoundary(f.options);
+  await prepared.preTurnPreflight(f.client(prepared.configOverrides));
+  assert.equal(prepared.commandBoundary.status, 'active');
+  assert.deepEqual(await f.read(), before);
   assert.equal(
-    JSON.parse(f.invoke('inspect').stdout).hook.trustStatus,
-    'modified',
+    (await f.events()).filter((event) => event.method === 'config/batchWrite')
+      .length,
+    4,
   );
-  const result = f.invoke('trust');
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  const state = JSON.parse(await readFile(f.state, 'utf8'));
-  assert.equal(state[key].disabled, false);
-  assert.equal(state.unrelated.trusted_hash, 'preserved');
+  await assert.rejects(
+    helper.inspectNativeBoundary(f.options),
+    isBoundaryError(),
+  );
 });
 
-test('native config inspection and trust preserve unrelated Unicode separator state', async (t) => {
+test('external pre-turn protection tolerates native removal after preparation without reconstructing it', async (t) => {
   const f = await fixture(t);
-  const key = 'unrelated\u2028line\u2029paragraph';
-  const value = { trusted_hash: 'before\nmiddle\u2028line\u2029after' };
-  await writeFile(f.state, JSON.stringify({ [key]: value }));
-  const inspected = f.invoke('inspect');
-  assert.equal(inspected.status, 1, inspected.stderr + inspected.stdout);
-  assert.equal(
-    JSON.parse(inspected.stdout).status,
-    'untrusted',
-    inspected.stdout,
-  );
-  const result = f.invoke('trust');
-  assert.equal(result.status, 0, result.stderr + result.stdout);
-  assert.equal(JSON.parse(result.stdout).status, 'active');
-  assert.deepEqual(JSON.parse(await readFile(f.state, 'utf8'))[key], value);
+  await helper.trustNativeBoundary(f.options);
+  const prepared = await helper.prepareWorkerBoundary(f.options);
+  await f.change((state) => {
+    state.user.hooks.PreToolUse = [];
+    state.version++;
+  });
+  const before = await f.read();
+  await prepared.preTurnPreflight(f.client(prepared.configOverrides));
+  assert.equal(prepared.commandBoundary.status, 'active');
+  assert.deepEqual(await f.read(), before);
 });
 
 for (const failure of [
@@ -217,117 +826,90 @@ for (const failure of [
   'user-disabled',
   'feature-disabled',
   'missing-api',
-  'missing-hook',
-  'wrong-path',
-  'conflict',
 ])
-  test(`native setup rejects ${failure} before any trust write`, async (t) => {
+  test(`native setup rejects ${failure} before configuration changes`, async (t) => {
     const f = await fixture(t);
-    const before = await readFile(f.state, 'utf8');
-    const result = f.invoke('trust', failure);
-    assert.equal(result.status, 1, result.stderr);
-    assert.equal(JSON.parse(result.stdout).status, 'failed');
-    assert.equal(await readFile(f.state, 'utf8'), before);
-    assert(
-      !(await f.events()).some((event) => event.method === 'config/batchWrite'),
+    await f.change((s) => {
+      s.failure = failure;
+    });
+    await assert.rejects(
+      helper.trustNativeBoundary(f.options),
+      isBoundaryError(),
+    );
+    assert.equal(
+      (await f.events()).filter((e) => e.method === 'config/batchWrite').length,
+      0,
     );
   });
 
-for (const failure of ['wrong-hash', 'disabled-hook'])
-  test(`native setup does not report active after ${failure} readback`, async (t) => {
-    const f = await fixture(t);
-    const result = f.invoke('trust', failure);
-    assert.equal(result.status, 1, result.stderr);
-    assert.equal(JSON.parse(result.stdout).status, 'failed');
-    assert(
-      (await f.events()).some((event) => event.method === 'config/batchWrite'),
-    );
-  });
-
-test('non-macOS native helper does not launch Codex', async (t) => {
+test('invalid native roles and an invalid Node interpreter fail before any config write', async (t) => {
   const f = await fixture(t);
-  const result = spawnSync(
-    process.execPath,
-    [
-      '--import',
-      f.shim,
-      helper,
-      'trust',
-      '--cwd',
-      f.root,
-      '--plugin-id',
-      'pstack-codex@pstack-codex',
-      '--guard',
-      f.guard,
-      '--executable',
-      f.executable,
-    ],
-    { env: { ...process.env, FIXTURE_PLATFORM: 'linux' }, encoding: 'utf8' },
+  await assert.rejects(
+    helper.trustNativeBoundary({ ...f.options, nativeRoles: ['invalid.role'] }),
+    isBoundaryError(),
   );
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(JSON.parse(result.stdout).status, 'notApplicable');
-  await assert.rejects(readFile(f.log), { code: 'ENOENT' });
+  const badNode = path.join(f.dir, 'bad-node');
+  await writeFile(badNode, '#!/bin/sh\nprintf old-node\n', { mode: 0o755 });
+  await assert.rejects(
+    helper.trustNativeBoundary({ ...f.options, nodeExecutable: badNode }),
+    isBoundaryError(),
+  );
+  assert.equal(
+    (await f.events()).filter((e) => e.method === 'config/batchWrite').length,
+    0,
+  );
 });
 
-test('worker CLI overrides are valid TOML for spaces, quotes, Unicode, arrays and exact hook keys', async () => {
-  const script = `import {boundaryConfigArgs} from ${JSON.stringify('file://' + helper)}; console.log(JSON.stringify(boundaryConfigArgs({'hooks.PreToolUse':[{matcher:'^Bash$',hooks:[{command:'node \"/tmp/한 글\"',timeout:5}]}],'hooks.state':{'/<session-flags>/config.toml:pre_tool_use:0:0':{trusted_hash:'sha256:abc',disabled:false}}})));`;
-  const result = spawnSync(
-    process.execPath,
-    ['--input-type=module', '-e', script],
-    { encoding: 'utf8' },
+test('cancelled preparation and non-macOS operations never launch configuration inspection', async (t) => {
+  const f = await fixture(t);
+  const signal = AbortSignal.abort(new Error('cancelled'));
+  await assert.rejects(helper.prepareWorkerBoundary({ ...f.options, signal }));
+  for (const operation of [
+    helper.trustNativeBoundary,
+    helper.inspectNativeBoundary,
+    helper.retireNativeBoundary,
+  ])
+    assert.equal(
+      (await operation({ ...f.options, platform: 'linux' })).status,
+      'notApplicable',
+    );
+  assert.equal(
+    (await helper.prepareWorkerBoundary({ ...f.options, platform: 'linux' }))
+      .commandBoundary.status,
+    'notApplicable',
   );
-  assert.equal(result.status, 0, result.stderr);
-  const args = JSON.parse(result.stdout);
+  assert.equal((await f.events()).length, 0);
+});
+
+test('worker overrides remain valid TOML for shell quotes, Unicode and actual enabled fields', () => {
+  const args = helper.boundaryConfigArgs({
+    'hooks.PreToolUse': [
+      {
+        matcher: '^Bash$',
+        hooks: [{ command: 'node "/tmp/한 글"', timeout: 5 }],
+      },
+    ],
+    'hooks.state': {
+      '/<session-flags>/config.toml:pre_tool_use:0:0': {
+        trusted_hash: 'opaque',
+        enabled: false,
+      },
+    },
+  });
   const parsed = spawnSync(
     'python3',
     [
       '-c',
       'import sys,json,tomllib; print(json.dumps([tomllib.loads(v) for v in sys.argv[1:]]))',
-      ...args.filter((value: string) => value !== '-c'),
+      ...args.filter((v: string) => v !== '-c'),
     ],
     { encoding: 'utf8' },
   );
   assert.equal(parsed.status, 0, parsed.stderr);
-  const values = JSON.parse(parsed.stdout);
   assert.equal(
-    values[0].hooks.PreToolUse[0].hooks[0].command,
-    'node "/tmp/한 글"',
-  );
-  assert.equal(
-    values[1].hooks.state['/<session-flags>/config.toml:pre_tool_use:0:0']
-      .disabled,
+    JSON.parse(parsed.stdout)[1].hooks.state[
+      '/<session-flags>/config.toml:pre_tool_use:0:0'
+    ].enabled,
     false,
-  );
-});
-
-test('native user-disabled trust state remains an error without writes', async (t) => {
-  const f = await fixture(t);
-  const key = 'pstack-codex@pstack-codex:hooks/hooks.json:pre_tool_use:0:0';
-  await writeFile(
-    f.state,
-    JSON.stringify({
-      [key]: { disabled: true },
-      unrelated: { trusted_hash: 'preserve' },
-    }),
-  );
-  const before = await readFile(f.state, 'utf8');
-  const result = f.invoke('trust');
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(JSON.parse(result.stdout).reason, 'disabled-hook');
-  assert.equal(await readFile(f.state, 'utf8'), before);
-  assert(
-    !(await f.events()).some((event) => event.method === 'config/batchWrite'),
-  );
-});
-
-test('native handler must resolve Node in its receiving PATH before trust', async (t) => {
-  const f = await fixture(t);
-  const before = await readFile(f.state, 'utf8');
-  const result = f.invoke('trust', 'missing-node');
-  assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.equal(JSON.parse(result.stdout).reason, 'guard-self-test');
-  assert.equal(await readFile(f.state, 'utf8'), before);
-  assert(
-    !(await f.events()).some((event) => event.method === 'config/batchWrite'),
   );
 });

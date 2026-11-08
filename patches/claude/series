@@ -30,3 +30,5 @@ shared/0006-worker-command-boundary.patch
 0024-clarify-boundary-restricted-policy.patch
 shared/0007-lf-only-config-framing.patch
 0025-lf-only-jsonl-framing.patch
+shared/0008-frozen-command-boundary-generations.patch
+0026-frozen-worker-boundary-integration.patch

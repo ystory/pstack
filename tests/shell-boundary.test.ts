@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -38,16 +38,27 @@ function shell(command: string, sandbox?: string) {
   });
 }
 
-function hook(raw: string, codexHome: string, externalWorker = false) {
+async function hook(raw: string, codexHome: string, externalWorker = false) {
   const env: NodeJS.ProcessEnv = { ...process.env, CODEX_HOME: codexHome };
   delete env.PSTACK_CODEX_WORKER;
   if (externalWorker) env.PSTACK_CODEX_WORKER = '1';
-  return spawnSync(process.execPath, [script], {
-    input: raw,
-    env,
-    encoding: 'utf8',
-    timeout: 5000,
-  });
+  const source = await readFile(script, 'utf8');
+  const module =
+    'data:text/javascript;base64,' + Buffer.from(source).toString('base64');
+  const binding = externalWorker
+    ? { mode: 'external' }
+    : { mode: 'native', nativeRoles: ['owned'] };
+  const program = `const boundary = await import(${JSON.stringify(module)}); await boundary.runShellBoundary(${JSON.stringify(binding)});`;
+  return spawnSync(
+    process.execPath,
+    ['--input-type=module', '--eval', program],
+    {
+      input: raw,
+      env,
+      encoding: 'utf8',
+      timeout: 5000,
+    },
+  );
 }
 
 async function registeredHome(t: TestContext) {
@@ -64,8 +75,11 @@ async function registeredHome(t: TestContext) {
   );
   assert.equal(registration.status, 0, registration.stderr);
   const file = path.join(home, 'pstack-codex/agent-registration.json');
-  const raw = JSON.parse(await readFile(file, 'utf8'));
-  return { home, file, raw, registration: boundary.normalizeRegistration(raw) };
+  const receipt = JSON.parse(registration.stdout);
+  const roles = [...receipt.agents, ...receipt.metadataRoles].map(
+    (role: { name: string }) => role.name,
+  );
+  return { home, file, roles };
 }
 
 test('direct and nested shell programs have zero side effects in seatbelt and run once after review', async (t) => {
@@ -132,8 +146,7 @@ test('repeated rewriting converges and a magic comment does not skip the guard',
 
 test('actual setup ownership includes metadata roles and exact role matching', async (t) => {
   const f = await registeredHome(t);
-  assert.equal(f.registration.status, 'ready');
-  assert.ok(f.registration.roles.includes('pstack-general-purpose'));
+  assert.ok(f.roles.includes('pstack-general-purpose'));
   for (const agentType of [
     'poteto-agent',
     'comment-sicko',
@@ -144,7 +157,7 @@ test('actual setup ownership includes metadata roles and exact role matching', a
         platform: 'darwin',
         externalWorker: false,
         agentType,
-        registration: f.registration,
+        nativeRoles: f.roles,
       }),
       'registered-native-worker',
     );
@@ -153,7 +166,7 @@ test('actual setup ownership includes metadata roles and exact role matching', a
       {
         platform: 'darwin',
         externalWorker: false,
-        registration: f.registration,
+        nativeRoles: f.roles,
       },
     );
     assert.equal(
@@ -172,32 +185,26 @@ test('actual setup ownership includes metadata roles and exact role matching', a
         platform: 'darwin',
         externalWorker: false,
         agentType,
-        registration: f.registration,
+        nativeRoles: f.roles,
       }),
       'out-of-scope',
     );
     assert.deepEqual(
       boundary.shellBoundaryOutput(input('printf ran', agentType), {
         platform: 'darwin',
-        registration: f.registration,
+        nativeRoles: f.roles,
       }),
       {},
     );
   }
-  const renamed = structuredClone(f.raw);
-  renamed.agents['exact-new-role'] = renamed.agents['poteto-agent'];
-  delete renamed.agents['poteto-agent'];
-  renamed.config.block = renamed.config.block.replace(
-    '[agents.poteto-agent]',
-    '[agents.exact-new-role]',
+  const renamed = f.roles.map((role) =>
+    role === 'poteto-agent' ? 'exact-new-role' : role,
   );
-  const normalized = boundary.normalizeRegistration(renamed);
-  assert.equal(normalized.status, 'ready');
   assert.equal(
     boundary.classifyScope({
       platform: 'darwin',
       agentType: 'exact-new-role',
-      registration: normalized,
+      nativeRoles: renamed,
     }),
     'registered-native-worker',
   );
@@ -205,7 +212,7 @@ test('actual setup ownership includes metadata roles and exact role matching', a
     boundary.classifyScope({
       platform: 'darwin',
       agentType: 'poteto-agent',
-      registration: normalized,
+      nativeRoles: renamed,
     }),
     'out-of-scope',
   );
@@ -229,7 +236,7 @@ test('unrelated roles, root sessions and non-macOS calls are unchanged regardles
     "'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' --version";
   for (const options of [
     { platform: 'darwin' },
-    { platform: 'darwin', registration: { status: 'ready', roles: ['owned'] } },
+    { platform: 'darwin', nativeRoles: ['owned'] },
     { platform: 'linux', externalWorker: true },
     { platform: 'win32', externalWorker: true },
   ])
@@ -259,126 +266,72 @@ test('malformed hook fields are rejected before emitting an execution decision',
   }
 });
 
-test('schema mismatch blocks a provably owned role and leaves unrelated roles untouched', async (t) => {
-  const f = await registeredHome(t);
-  const broken = boundary.normalizeRegistration({
-    ...f.raw,
-    schemaVersion: 999,
-  });
-  assert.equal(broken.status, 'unsupported');
-  assert.throws(
-    () =>
-      boundary.shellBoundaryOutput(
-        input('printf ran', 'pstack-general-purpose'),
-        { platform: 'darwin', registration: broken },
-      ),
-    /registration|schema/i,
-  );
-  assert.deepEqual(
-    boundary.shellBoundaryOutput(input('printf ran', 'other'), {
-      platform: 'darwin',
-      registration: broken,
-    }),
-    {},
-  );
-  for (const change of [
-    {
-      ...f.raw,
-      config: { ...f.raw.config, block: f.raw.config.block + 'unexpected\n' },
-    },
-    {
-      ...f.raw,
-      agents: { ...f.raw.agents, 'poteto-agent': { sha256: 'broken' } },
-    },
-    {
-      ...f.raw,
-      config: {
-        ...f.raw.config,
-        block: f.raw.config.block.replace('description = ', 'unknown = '),
-      },
-    },
-  ])
-    assert.equal(boundary.normalizeRegistration(change).status, 'unsupported');
-});
-
-test('CLI emits valid empty output for unrelated sessions and rejects malformed JSON', async (t) => {
+test('frozen program emits empty output for unrelated sessions and blocks malformed JSON', async (t) => {
   const dir = await directory(t);
-  const unrelated = hook(JSON.stringify(input('printf ran', 'other')), dir);
+  const unrelated = await hook(
+    JSON.stringify(input('printf ran', 'other')),
+    dir,
+  );
   assert.equal(unrelated.status, 0, unrelated.stderr);
   assert.deepEqual(JSON.parse(unrelated.stdout), {});
   for (const raw of ['{', JSON.stringify(input(null)), '[]']) {
-    const result = hook(raw, dir, true);
+    const result = await hook(raw, dir, true);
     assert.equal(result.status, 2);
     assert.equal(result.stdout, '');
     assert.match(result.stderr, /PSTACK_SHELL_BOUNDARY/);
   }
 });
 
-test(
-  'CLI reads only the exact ownership record and protects actual registered roles on macOS',
-  { skip: process.platform !== 'darwin' },
-  async (t) => {
-    const f = await registeredHome(t);
-    await writeFile(
-      path.join(f.home, 'config.toml'),
-      'This unrelated file must not be parsed by the hook.',
+test('streamed UTF-8 hook input preserves the complete original command', async (t) => {
+  const dir = await directory(t);
+  const command = '# ' + '가🙂'.repeat(20000) + '\nprintf unchanged';
+  const result = await hook(JSON.stringify(input(command)), dir, true);
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  if (process.platform === 'darwin')
+    assert.equal(
+      output.hookSpecificOutput.updatedInput.command,
+      boundary.SHELL_BOUNDARY_PREFIX + command,
     );
-    await mkdir(path.join(f.home, 'pstack-codex', 'ignored'));
-    for (const agentType of [
-      'poteto-agent',
-      'comment-sicko',
-      'pstack-general-purpose',
-    ]) {
-      const result = hook(
-        JSON.stringify(input('printf ran', agentType)),
-        f.home,
-      );
-      assert.equal(result.status, 0, result.stderr);
+  else assert.deepEqual(output, {});
+});
+
+test('native runtime uses the supplied setup scope and never reads damaged or missing registration files', async (t) => {
+  const f = await registeredHome(t);
+  const program = `import {runShellBoundary} from ${JSON.stringify(pathToFileURL(script).href)}; await runShellBoundary(${JSON.stringify({ mode: 'native', nativeRoles: f.roles })});`;
+  await writeFile(f.file, '{broken');
+  const invoke = (agentType: string, externalWorker = false) =>
+    spawnSync(process.execPath, ['--input-type=module', '--eval', program], {
+      env: {
+        ...process.env,
+        CODEX_HOME: f.home,
+        PSTACK_CODEX_WORKER: externalWorker ? '1' : '',
+      },
+      input: JSON.stringify(input('printf ran', agentType)),
+      encoding: 'utf8',
+    });
+  for (const role of f.roles) {
+    const result = invoke(role);
+    assert.equal(result.status, 0, result.stderr);
+    const output = JSON.parse(result.stdout);
+    if (process.platform === 'darwin')
       assert.equal(
-        shell(
-          JSON.parse(result.stdout).hookSpecificOutput.updatedInput.command,
-          'seatbelt',
-        ).status,
+        shell(output.hookSpecificOutput.updatedInput.command, 'seatbelt')
+          .status,
         125,
       );
-    }
-    await writeFile(f.file, JSON.stringify({ ...f.raw, schemaVersion: 999 }));
-    const broken = hook(
-      JSON.stringify(input('printf ran', 'pstack-general-purpose')),
-      f.home,
-    );
-    assert.equal(broken.status, 2);
-    assert.match(broken.stderr, /registration|schema/i);
-    const external = hook(JSON.stringify(input('printf ran')), f.home, true);
-    assert.equal(external.status, 0, external.stderr);
-    assert.equal(
-      shell(
-        JSON.parse(external.stdout).hookSpecificOutput.updatedInput.command,
-        'seatbelt',
-      ).status,
-      125,
-    );
-  },
-);
+    else assert.deepEqual(output, {});
+  }
+  await rm(f.file);
+  assert.deepEqual(JSON.parse(invoke('other').stdout), {});
+  const role = f.roles[0];
+  assert.ok(role);
+  assert.deepEqual(JSON.parse(invoke(role, true).stdout), {});
+});
 
-test('plugin hook uses the shared plugin-root variable, Bash matcher and finite command timeout', async () => {
-  const config = JSON.parse(
-    await readFile(path.join(root, 'plugin/hooks/hooks.json'), 'utf8'),
+test('native manifest leaves the boundary in immutable user configuration', async () => {
+  const manifest = JSON.parse(
+    await readFile(path.join(root, 'plugin/.codex-plugin/plugin.json'), 'utf8'),
   );
-  assert.deepEqual(Object.keys(config.hooks), ['PreToolUse']);
-  assert.equal(config.hooks.PreToolUse.length, 1);
-  const entry = config.hooks.PreToolUse[0];
-  assert.equal(entry.matcher, '^Bash$');
-  assert.equal(entry.hooks.length, 1);
-  const handler = entry.hooks[0];
-  assert.equal(handler.type, 'command');
-  assert.equal(
-    handler.command,
-    'node "${CLAUDE_PLUGIN_ROOT}/skills/poteto-mode/scripts/shell-boundary.mjs"',
-  );
-  assert.ok(
-    Number.isFinite(handler.timeout) &&
-      handler.timeout > 0 &&
-      handler.timeout <= 10,
-  );
+  assert.equal(Object.hasOwn(manifest, 'hooks'), false);
 });

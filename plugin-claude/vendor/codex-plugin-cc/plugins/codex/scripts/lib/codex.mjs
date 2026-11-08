@@ -1,4 +1,4 @@
-// pstack-cc modified this file for direct worker execution and cancellation.
+// pstack-cc modified this file for direct worker execution, cancellation, and reviewed approvals.
 /**
  * @typedef {import("./app-server-protocol").AppServerNotification} AppServerNotification
  * @typedef {import("./app-server-protocol").ReviewTarget} ReviewTarget
@@ -66,6 +66,7 @@ function buildThreadParams(cwd, options = {}) {
     cwd,
     model: options.model ?? null,
     approvalPolicy: options.approvalPolicy ?? "never",
+    approvalsReviewer: options.approvalsReviewer,
     sandbox: options.sandbox ?? "read-only",
     serviceName: SERVICE_NAME,
     ephemeral: options.ephemeral ?? true
@@ -79,6 +80,7 @@ function buildResumeParams(threadId, cwd, options = {}) {
     cwd,
     model: options.model ?? null,
     approvalPolicy: options.approvalPolicy ?? "never",
+    approvalsReviewer: options.approvalsReviewer,
     sandbox: options.sandbox ?? "read-only"
   };
 }
@@ -1144,6 +1146,8 @@ export async function runAppServerTurn(cwd, options = {}) {
       const response = await resumeThread(client, options.resumeThreadId, cwd, {
         model: options.model,
         sandbox: options.sandbox,
+        approvalPolicy: options.approvalPolicy,
+        approvalsReviewer: options.approvalsReviewer,
         ephemeral: false
       });
       threadId = response.thread.id;
@@ -1152,6 +1156,8 @@ export async function runAppServerTurn(cwd, options = {}) {
       const response = await startThread(client, cwd, {
         model: options.model,
         sandbox: options.sandbox,
+        approvalPolicy: options.approvalPolicy,
+        approvalsReviewer: options.approvalsReviewer,
         ephemeral: options.persistThread ? false : true,
         threadName: options.persistThread ? options.threadName : options.threadName ?? null
       });

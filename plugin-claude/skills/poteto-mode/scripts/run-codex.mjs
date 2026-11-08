@@ -295,6 +295,8 @@ async function run(options) {
       model: options.model,
       effort: options.effort,
       sandbox: request.sandbox,
+      approvalPolicy: 'on-request',
+      approvalsReviewer: 'auto_review',
       persistThread: true,
       resumeThreadId: options.resume,
       prompt,

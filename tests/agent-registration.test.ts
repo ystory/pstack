@@ -908,6 +908,312 @@ async function nativeRegistrationFixture(t: TestContext) {
   return { ...f, helper, nativeInvoke: invoke };
 }
 
+const foreignHook =
+  '{ matcher = "^Read$", hooks = [{ type = "command", command = "foreign-hook", timeout = 13 }] }';
+const retiredHook =
+  '{ matcher = "^Bash$", hooks = [{ type = "command", command = "retired-pstack-hook", timeout = 5 }] }';
+const foreignTrust =
+  '# foreign hook trust\n[hooks.state."foreign-hook-key"]\ntrusted_hash = "sha256:foreign"\n';
+const retiredTrust =
+  '# retained user tombstone\n[hooks.state."retired-pstack-key"]\nenabled = false\ntrusted_hash = "sha256:retired"\n';
+
+async function historicalNativeRegistrationFixture(t: TestContext) {
+  const f = await nativeRegistrationFixture(t);
+  const config = path.join(f.codexHome, 'config.toml');
+  const record = path.join(f.codexHome, 'pstack-codex/agent-registration.json');
+  const control = path.join(f.root, 'boundary-control.json');
+  const calls = path.join(f.root, 'boundary-calls.txt');
+  const settings = '# user settings and spacing\nmodel = "user-choice"\n';
+  const foreignConfig =
+    settings +
+    `[hooks]\nPreToolUse = [${foreignHook}, ${retiredHook}]\n\n` +
+    foreignTrust +
+    '\n' +
+    retiredTrust;
+  await mkdir(f.codexHome);
+  await writeFile(config, foreignConfig);
+  f.run();
+  const installed = JSON.parse(await readFile(record, 'utf8'));
+  const descriptions = await Promise.all(
+    names.map(
+      async (name) =>
+        decodePackagedAgent(
+          await readFile(path.join(f.bundle, 'agents', `${name}.toml`), 'utf8'),
+        ).description,
+    ),
+  );
+  const legacyBlock =
+    '# >>> pstack-codex managed agents v1\n' +
+    `[agents.poteto-agent]\nconfig_file = ${JSON.stringify(path.join(f.codexHome, 'agents/poteto-agent.toml'))}\ndescription = ${JSON.stringify(descriptions[0])}\n\n` +
+    `[agents.comment-sicko]\nconfig_file = ${JSON.stringify(path.join(f.codexHome, 'agents/comment-sicko.toml'))}\ndescription = ${JSON.stringify(descriptions[1])}\n\n` +
+    '[agents.pstack-general-purpose]\ndescription = "General-purpose delegate for pstack workflows; follow the supplied task and model settings."\n' +
+    '# <<< pstack-codex managed agents v1\n';
+  await writeFile(config, foreignConfig + legacyBlock);
+  await writeFile(
+    record,
+    `${JSON.stringify({ schemaVersion: 2, pluginName: 'pstack-codex', pluginVersion: '0.1.0-dev.10', agents: installed.agents, config: { block: legacyBlock, prefix: '', created: false } }, null, 2)}\n`,
+  );
+  const manifest = path.join(f.bundle, 'plugin.json');
+  const nextManifest = JSON.parse(await readFile(manifest, 'utf8'));
+  nextManifest.version = '0.1.0-dev.11';
+  await writeFile(manifest, JSON.stringify(nextManifest));
+  const candidate = path.join(f.bundle, 'agents/poteto-agent.toml');
+  await writeFile(
+    candidate,
+    (await readFile(candidate, 'utf8')).replace(
+      /^description = .*$/m,
+      'description = "Updated bundle delegate"',
+    ),
+  );
+  const boundaryControl = async (generation = 1, failAfterPersist = false) =>
+    writeFile(control, JSON.stringify({ generation, failAfterPersist }));
+  await boundaryControl();
+  await writeFile(
+    f.helper,
+    `import fs from 'node:fs';
+const config = ${JSON.stringify(config)};
+const control = ${JSON.stringify(control)};
+const calls = ${JSON.stringify(calls)};
+function appendRootTable(text, table) {
+  const trailingComments = /(?:^|\\n)(#[^\\n]*(?:\\n#[^\\n]*)*\\n?)$/.exec(text);
+  const index = trailingComments ? text.length - trailingComments[1].length : text.length;
+  return text.slice(0, index) + '\\n' + table + text.slice(index);
+}
+function reconcile(operation) {
+  fs.appendFileSync(calls, operation + '\\n');
+  const { generation, failAfterPersist } = JSON.parse(fs.readFileSync(control, 'utf8'));
+  const before = fs.readFileSync(config, 'utf8');
+  let text = before;
+  const command = 'owned-boundary-generation-' + generation;
+  const key = config + ':pre_tool_use:' + (generation + 1) + ':0';
+  const header = '[hooks.state.' + JSON.stringify(key) + ']\\n';
+  if (operation === 'trust' && !text.includes('command = ' + JSON.stringify(command))) {
+    text = text.replace(/^PreToolUse = \\[(.*)\\]$/m, (_, hooks) => 'PreToolUse = [' + hooks + ', { matcher = "^Bash$", hooks = [{ type = "command", command = ' + JSON.stringify(command) + ', timeout = 5 }] }]');
+  }
+  if (operation === 'trust' && !text.includes(header)) {
+    text = appendRootTable(text, header + 'trusted_hash = "sha256:generation-' + generation + '"\\n');
+  }
+  if (operation === 'retire') {
+    for (let number = 1; number <= generation; number += 1) {
+      const ownedHeader = '[hooks.state.' + JSON.stringify(config + ':pre_tool_use:' + (number + 1) + ':0') + ']\\n';
+      if (text.includes(ownedHeader + 'enabled = false\\n')) continue;
+      if (text.includes(ownedHeader)) {
+        text = text.replace(ownedHeader, ownedHeader + 'enabled = false\\n');
+      } else {
+        text = appendRootTable(text, ownedHeader + 'enabled = false\\ntrusted_hash = "sha256:generation-' + number + '"\\n');
+      }
+    }
+  }
+  if (text !== before) fs.writeFileSync(config, text);
+  if (failAfterPersist) throw new Error('Injected native failure after config persistence');
+  return { status: operation === 'trust' ? 'active' : 'retired', hook: { key } };
+}
+export async function trustNativeBoundary() { return reconcile('trust'); }
+export async function retireNativeBoundary() { return reconcile('retire'); }
+`,
+  );
+  return {
+    ...f,
+    config,
+    record,
+    calls,
+    settings,
+    legacyBlock,
+    boundaryControl,
+  };
+}
+
+async function registrationSnapshot(
+  f: Awaited<ReturnType<typeof historicalNativeRegistrationFixture>>,
+) {
+  return Promise.all(
+    [
+      f.record,
+      ...names.map((name) => path.join(f.codexHome, 'agents', `${name}.toml`)),
+    ].map(async (file) => ({
+      file,
+      bytes: await readFile(file),
+      mode: (await stat(file)).mode & 0o777,
+    })),
+  );
+}
+
+function assertForeignHookBytes(config: string) {
+  for (const bytes of [foreignHook, retiredHook, foreignTrust, retiredTrust])
+    assert.ok(config.includes(bytes), `Preserve foreign config bytes ${bytes}`);
+}
+
+test('normal macOS upgrade accepts historical standalone markers after native root table insertion', async (t) => {
+  const f = await historicalNativeRegistrationFixture(t);
+  assert.ok((await readFile(f.config, 'utf8')).endsWith(f.legacyBlock));
+  const result = f.nativeInvoke();
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.pluginVersion, '0.1.0-dev.11');
+  assert.equal(receipt.commandBoundary.status, 'active');
+  assert.equal(receipt.agents[0].status, 'updated');
+  const config = await readFile(f.config, 'utf8');
+  assert.ok(config.startsWith(f.settings));
+  assertForeignHookBytes(config);
+  assert.match(config, /trusted_hash = "sha256:generation-1"/);
+  assert.match(config, /description = "Updated bundle delegate"/);
+  for (const name of names)
+    assert.deepEqual(
+      await readFile(path.join(f.codexHome, 'agents', `${name}.toml`)),
+      await readFile(path.join(f.bundle, 'agents', `${name}.toml`)),
+    );
+});
+
+test('normal macOS generations repeat and change before unregister preserves foreign hook trust and tombstones', async (t) => {
+  const f = await historicalNativeRegistrationFixture(t);
+  const first = f.nativeInvoke();
+  assert.equal(first.status, 0, first.stderr);
+  const beforeRepeat = await readFile(f.config);
+  const priorRegistration = await registrationSnapshot(f);
+  const repeated = f.nativeInvoke();
+  assert.equal(repeated.status, 0, repeated.stderr);
+  assert.deepEqual(await readFile(f.config), beforeRepeat);
+  assert.deepEqual(await registrationSnapshot(f), priorRegistration);
+  await f.boundaryControl(2);
+  const changed = f.nativeInvoke();
+  assert.equal(changed.status, 0, changed.stderr);
+  const config = await readFile(f.config, 'utf8');
+  const repeatedChange = f.nativeInvoke();
+  assert.equal(repeatedChange.status, 0, repeatedChange.stderr);
+  assert.equal(await readFile(f.config, 'utf8'), config);
+  assertForeignHookBytes(config);
+  for (const generation of [1, 2]) {
+    assert.equal(
+      config.match(
+        new RegExp(`command = "owned-boundary-generation-${generation}"`, 'g'),
+      )?.length,
+      1,
+    );
+    assert.equal(
+      config.match(
+        new RegExp(`trusted_hash = "sha256:generation-${generation}"`, 'g'),
+      )?.length,
+      1,
+    );
+  }
+  const removed = f.nativeInvoke('--unregister');
+  assert.equal(removed.status, 0, removed.stderr);
+  const retired = await readFile(f.config, 'utf8');
+  assertForeignHookBytes(retired);
+  assert.ok(retired.startsWith(f.settings));
+  for (const generation of [1, 2])
+    assert.ok(
+      retired.includes(
+        `enabled = false\ntrusted_hash = "sha256:generation-${generation}"\n`,
+      ),
+    );
+  assert.doesNotMatch(
+    retired,
+    /\[agents\.(?:poteto-agent|comment-sicko|pstack-general-purpose)\]/,
+  );
+  await assertMissing(f.record);
+  for (const name of names)
+    await assertMissing(path.join(f.codexHome, 'agents', `${name}.toml`));
+});
+
+test('normal macOS historical upgrade retries after native persistence without adopting or changing old registrations on failure', async (t) => {
+  const f = await historicalNativeRegistrationFixture(t);
+  const before = await registrationSnapshot(f);
+  await f.boundaryControl(1, true);
+  const failed = f.nativeInvoke();
+  assert.equal(failed.status, 1);
+  assert.match(
+    failed.stderr,
+    /Injected native failure after config persistence/,
+  );
+  assert.deepEqual(await registrationSnapshot(f), before);
+  const persisted = await readFile(f.config, 'utf8');
+  assertForeignHookBytes(persisted);
+  assert.match(persisted, /trusted_hash = "sha256:generation-1"/);
+  await f.boundaryControl();
+  const retried = f.nativeInvoke();
+  assert.equal(retried.status, 0, retried.stderr);
+  assert.match(
+    await readFile(f.config, 'utf8'),
+    /description = "Updated bundle delegate"/,
+  );
+});
+
+test('normal macOS historical unregister retries after native tombstone persistence without unpublishing on failure', async (t) => {
+  const f = await historicalNativeRegistrationFixture(t);
+  const before = await registrationSnapshot(f);
+  await f.boundaryControl(1, true);
+  const failed = f.nativeInvoke('--unregister');
+  assert.equal(failed.status, 1);
+  assert.match(
+    failed.stderr,
+    /Injected native failure after config persistence/,
+  );
+  assert.deepEqual(await registrationSnapshot(f), before);
+  const persisted = await readFile(f.config, 'utf8');
+  assertForeignHookBytes(persisted);
+  assert.match(
+    persisted,
+    /enabled = false\ntrusted_hash = "sha256:generation-1"/,
+  );
+  await f.boundaryControl();
+  const retried = f.nativeInvoke('--unregister');
+  assert.equal(retried.status, 0, retried.stderr);
+  assertForeignHookBytes(await readFile(f.config, 'utf8'));
+  await assertMissing(f.record);
+  for (const name of names)
+    await assertMissing(path.join(f.codexHome, 'agents', `${name}.toml`));
+});
+
+test('normal macOS failed historical upgrade rejects owned role edits comments and duplicate markers without writes', async (t) => {
+  for (const { name, edit } of [
+    {
+      name: 'owned role value',
+      edit: (text: string) =>
+        text.replace('description = ', 'description = "user edit" # '),
+    },
+    {
+      name: 'owned comment',
+      edit: (text: string) =>
+        text.replace(
+          '[agents.poteto-agent]',
+          '# owned comment edit\n[agents.poteto-agent]',
+        ),
+    },
+    {
+      name: 'duplicate opening marker',
+      edit: (text: string) => text + '# >>> pstack-codex managed agents v1\n',
+    },
+    {
+      name: 'duplicate closing marker',
+      edit: (text: string) => text + '# <<< pstack-codex managed agents v1\n',
+    },
+  ]) {
+    await t.test(name, async (t) => {
+      const f = await historicalNativeRegistrationFixture(t);
+      await f.boundaryControl(1, true);
+      const failed = f.nativeInvoke();
+      assert.match(
+        failed.stderr,
+        /Injected native failure after config persistence/,
+      );
+      const edited = edit(await readFile(f.config, 'utf8'));
+      await writeFile(f.config, edited);
+      const before = await registrationSnapshot(f);
+      const calls = await readFile(f.calls);
+      await f.boundaryControl();
+      for (const flags of [[], ['--unregister']]) {
+        const rejected = f.nativeInvoke(...flags);
+        assert.equal(rejected.status, 1);
+        assert.match(rejected.stderr, /modified|duplicated|ownership|marker/i);
+        assert.equal(await readFile(f.config, 'utf8'), edited);
+        assert.deepEqual(await registrationSnapshot(f), before);
+        assert.deepEqual(await readFile(f.calls), calls);
+      }
+    });
+  }
+});
+
 test('normal macOS unregister retires the boundary and preserves its config tombstones', async (t) => {
   const f = await nativeRegistrationFixture(t);
   f.run();

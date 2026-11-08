@@ -12,7 +12,7 @@ const usage = `Usage: node run-codex.mjs detect [--executable ABS]
        node run-codex.mjs run --cwd ABS --run-dir ABS --model ID [--effort VALUE]
          [--instruction ABS ...] [--skill ABS ...] [--role ABS]
          [--resume EXACT_THREAD_ID] [--sandbox read-only|workspace-write|danger-full-access]
-         [--write] [--executable ABS] [--prompt-file ABS]
+         [--write] [--approval-mode never|auto-review] [--executable ABS] [--prompt-file ABS]
 Task text comes from --prompt-file or stdin. The run remains foreground until completion.`;
 
 function parse(argv) {
@@ -26,6 +26,7 @@ function parse(argv) {
     'model',
     'effort',
     'sandbox',
+    'approval-mode',
     'instruction',
     'skill',
     'role',
@@ -71,6 +72,17 @@ function parse(argv) {
     options.sandbox !== 'workspace-write'
   )
     throw new Error('--write conflicts with --sandbox.');
+  if (command === 'run') options['approval-mode'] ??= 'auto-review';
+  if (
+    options['approval-mode'] !== undefined &&
+    !['never', 'auto-review'].includes(options['approval-mode'])
+  )
+    throw new Error('Unsupported --approval-mode.');
+  if (
+    options['approval-mode'] === 'auto-review' &&
+    options.sandbox === 'danger-full-access'
+  )
+    throw new Error('Auto-review is the default and requires a restricted sandbox.');
   if (command === 'run')
     for (const name of ['cwd', 'run-dir', 'model'])
       if (!options[name]) throw new Error(`Missing required --${name}.`);
@@ -208,6 +220,7 @@ async function run(options) {
     cwd: options.cwd,
     requested,
     resumeThreadId: options.resume ?? null,
+    approvalMode: options['approval-mode'],
     sandbox:
       options.sandbox ?? (options.write ? 'workspace-write' : 'read-only'),
     instructions: bodies,
@@ -237,7 +250,13 @@ async function run(options) {
   const observed = { model: null, effort: null };
   const threadSettings = { model: null, effort: null };
   const child = { pid: null, exitCode: null, signal: null, closed: false };
+  const executionPolicy = {
+    requested: { approvalMode: request.approvalMode, sandbox: request.sandbox },
+    observed: null,
+  };
+  const capabilityGaps = [];
   const pending = new Map();
+  const serverRequests = new Map();
   const diagnostic = (event) => {
     fs.appendFileSync(
       files.diagnostics,
@@ -250,8 +269,17 @@ async function run(options) {
         signal: event.signal,
         closed: true,
       });
-    if (event.direction === 'send' && event.message.id !== undefined)
-      pending.set(event.message.id, event.message.method);
+    if (event.direction === 'send' && event.message.id !== undefined) {
+      const message = event.message;
+      if (typeof message.method === 'string')
+        pending.set(message.id, message.method);
+      else if (serverRequests.has(message.id)) {
+        serverRequests.get(message.id).response = message.error
+          ? { error: message.error }
+          : { result: message.result };
+        serverRequests.delete(message.id);
+      }
+    }
     if (event.direction !== 'receive') return;
     let message;
     try {
@@ -259,10 +287,22 @@ async function run(options) {
     } catch {
       return;
     }
+    if (message.id !== undefined && typeof message.method === 'string') {
+      const gap = { id: message.id, method: message.method, response: null };
+      capabilityGaps.push(gap);
+      serverRequests.set(message.id, gap);
+      return;
+    }
     if (message.id !== undefined) {
       const method = pending.get(message.id);
       pending.delete(message.id);
       if (['thread/start', 'thread/resume'].includes(method)) {
+        if (message.result)
+          executionPolicy.observed = {
+            approvalPolicy: message.result.approvalPolicy ?? null,
+            approvalsReviewer: message.result.approvalsReviewer ?? null,
+            sandbox: message.result.sandbox ?? null,
+          };
         threadId = message.result?.thread?.id ?? threadId;
         threadSettings.model = message.result?.model ?? null;
         threadSettings.effort =
@@ -295,6 +335,7 @@ async function run(options) {
       model: options.model,
       effort: options.effort,
       sandbox: request.sandbox,
+      approvalMode: request.approvalMode,
       persistThread: true,
       resumeThreadId: options.resume,
       prompt,
@@ -344,6 +385,8 @@ async function run(options) {
     executor: EXECUTOR,
     cwd: options.cwd,
     sandbox: request.sandbox,
+    executionPolicy,
+    capabilityGaps,
     threadId,
     turnId,
     requested,

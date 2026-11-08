@@ -54,6 +54,15 @@ node dist/cli.js verify-patches --target all
 
 Commit the shared patch, both series references, and both materialized outputs. Keep native changes in target patches. Initial transfer uses target-specific deletion patches followed by one shared addition, so different old host bodies do not have to match. Those full-file deletion inputs also expose upstream changes during candidate replay. Do not replace the locked original or add a third whole skill tree.
 
+## Release an adaptation through the Git marketplace
+
+The Git marketplace distributes each committed host target from the selected repository branch. The normal installation route follows the repository's default branch. A verified local artifact is a development output until a user deliberately selects that separate route.
+
+1. Record the adaptation in its patch series and increment the affected plugin version. Run the applicable checks and verify a fresh artifact.
+2. Open a PR against the distribution branch. Complete the required independent workflow verification and CI checks, then merge within the authorized release scope. Preserve the exact reviewed head and resulting merge commit.
+3. Refresh the native marketplace and plugin through the host's update commands. For Claude's normal Git installation, run `claude plugin marketplace update pstack-cc` and `claude plugin update pstack-cc@pstack-cc`. Check the installed version and source revision. Do not edit files inside the installed cache.
+4. Rerun setup with the saved role choices to refresh owned registrations, then start a fresh session and verify the relevant workflow from the released plugin. A running session can retain old instructions until refreshed. Report publication, native update, and actual execution separately.
+
 ## Build and select an artifact
 
 Build the maintainer CLI before using the artifact commands:

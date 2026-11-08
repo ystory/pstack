@@ -1,6 +1,6 @@
 # Prepare worker runtimes and login
 
-Check only the executors the user intends to use. Detection and catalog commands do not install software or start authentication. Run an installer when that installation is authorized. Keep login interactive and let the user complete it.
+The host running setup prepares the selected executors. Reuse working installations; otherwise use official installation guidance and the host's normal tools to install what the authorized setup needs. Prepare the environment used by future workers, then rerun detection. Leave only genuinely interactive steps, such as login or operating-system approval, to the user. Detection and catalog helpers remain read-only.
 
 ## Node.js
 
@@ -22,11 +22,11 @@ Detection checks the existing CLI login through the inherited environment, inclu
 
 ## Codex workers
 
-Codex is optional when every worker uses native Claude. Codex workers require the official standalone `codex-app-server` package from [Codex releases](https://github.com/openai/codex/releases). Download and extract the complete package for your operating system and architecture. Keep `bin/codex-app-server` with its companion files and sibling directories. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary.
+Codex is optional when every worker uses native Claude. Prepare the official standalone `codex-app-server` from [Codex releases](https://github.com/openai/codex/releases). Reuse a working installation or obtain the complete package for this machine. Preserve its companion files. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary.
 
-Automated workflows require the package's `bin` directory on the PATH inherited by Claude Code. Setup's `--codex-executable ABS` overrides only that probe invocation. The path is not saved and does not configure future workers. For diagnostics or testing, the runner's `--executable ABS` overrides one direct invocation. Verify detection without an override before completing Codex setup.
+As part of setup, make the server available on the PATH inherited by Claude Code and future workers. Choose an appropriate normal installation location; pstack does not prescribe its own layout. Verify detection without an override before completing Codex setup. Absolute-path options are per-invocation diagnostics overrides, not saved installation settings.
 
-Detection checks `--version` and `--session-source app-server --help`, including whether help advertises `--session-source`, before opening an account or model connection. An umbrella `codex` CLI does not satisfy this requirement. The plugin does not download or update the package.
+Pstack calls `codex-app-server --session-source app-server` and checks the capabilities that this invocation needs. The umbrella `codex app-server` does not provide this source selection. The setup host performs ordinary dependency installation; pstack does not bundle or pin native server releases, host downloads, manage upgrades, or maintain a version compatibility matrix.
 
 The [Codex CLI](https://developers.openai.com/codex/cli) remains the human login tool. Installing it through npm does not install the standalone worker package. Run `codex login` in a terminal. In Claude Code, the user can run `!codex login` to open the CLI flow. In a headless environment or when a localhost callback cannot complete, use the documented device flow.
 

@@ -30,3 +30,4 @@ shared/0006-codex-sandbox-escalation.patch
 0024-hide-codex-worker-roots.patch
 0025-standalone-app-server-workers.patch
 0026-require-workflow-path.patch
+0027-setup-owns-runtime-preparation.patch

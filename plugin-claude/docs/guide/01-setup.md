@@ -8,51 +8,15 @@ You need a current Claude desktop app with the **Code** tab and local sessions, 
 
 Codex workers also need the official standalone `codex-app-server` package and a shared Codex login. Claude-only workers do not need Codex. `pstack-cc` does not need the separate official Codex plugin. GitHub workflows need an authenticated GitHub CLI, `gh`. The bundled PR watcher needs Bun 1.2+ and installs locked dependencies in an external cache on first use.
 
-## Prepare selected CLI login and PATH
+## Let setup prepare selected tools
 
-Install [Node.js](https://nodejs.org/en/download) and the [Claude Code CLI](https://code.claude.com/docs/en/setup) if needed. On macOS, Linux, or WSL, Claude's installer is:
+Run setup after installing the plugin. The host running setup reuses existing tools, installs missing selected runtimes from official sources, and prepares the environment used by future workers. This includes making the official Codex server available on PATH when you choose Codex workers. You do not need to download a separate pstack runtime bundle or prepare PATH by hand first.
 
-```sh
-curl -fsSL https://claude.ai/install.sh | bash
-```
+Complete interactive login or operating-system approvals when needed. Setup rechecks readiness afterward and reuses your existing authentication. Codex ChatGPT login uses subscription access; API-key login uses separate OpenAI API billing. See [Codex authentication](https://learn.chatgpt.com/docs/auth) and [Claude authentication](https://code.claude.com/docs/en/authentication) for the available account methods. Keep credentials out of the chat.
 
-Open a new terminal and check:
+Pstack does not distribute native server releases, pin their versions, manage their upgrades, or maintain a version compatibility matrix. Its setup checks the capabilities needed for worker calls. Per-call executable overrides are diagnostics tools, not a substitute for preparing the normal worker environment.
 
-```sh
-node --version
-git --version
-claude --version
-claude auth status
-```
-
-If Claude's CLI is logged out, run `claude auth login`, or use `/login` in Claude Code. Complete the browser login with the account and organization you intend to use for Claude workers. Setup checks authentication without copying credentials. Keep credentials out of the chat.
-
-After choosing Codex workers, download the complete matching-platform `codex-app-server-package` archive from [official Codex releases](https://github.com/openai/codex/releases). Extract the whole package and keep its companion files together. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary. Automated workflows require the package's `bin` directory on the PATH inherited by Claude Code.
-
-Setup's `--codex-executable ABS` overrides only that setup probe invocation. The path is not saved and does not configure future workers. For diagnostics or testing, the runner's `--executable ABS` overrides one direct invocation. These flags do not replace the workflow PATH requirement.
-
-Check the standalone runtime:
-
-```sh
-codex-app-server --version
-codex-app-server --session-source app-server --help
-```
-
-The help output must advertise `--session-source`. Setup uses this runtime for account and model probes, and workers use the same launch arguments. The plugin does not install or update the binary and does not fall back to `codex app-server`.
-
-For human login, install the separate [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) if needed and sign in:
-
-```sh
-npm install -g @openai/codex
-codex login
-codex login status
-```
-
-The npm CLI installation does not supply the standalone package. Keep the CLI and server on the same inherited `CODEX_HOME`, or its default `~/.codex`, so they share authentication, configuration, and persistent history. You can also run `!codex login` from an interactive Claude session when appropriate. Use `codex login --device-auth` when a browser callback cannot complete. Complete login yourself, then let setup recheck. Codex login with ChatGPT uses your subscription access. API-key login uses separate OpenAI API billing. See [Codex authentication](https://learn.chatgpt.com/docs/auth) for both methods and device login. [Claude Code authentication](https://code.claude.com/docs/en/authentication) also supports subscription and Console credentials with their respective billing. Model access and usage limits depend on the account and configuration.
-
-If setup cannot find `node`, `claude`, or `codex-app-server`, check the command's installation directory and your `PATH`. Quit and reopen Desktop after changing the environment. See [Desktop tools and PATH](https://code.claude.com/docs/en/desktop#session-not-finding-installed-tools) if the command works in your terminal but fails in Code.
-
-CLI detection, login, catalog access, and actual model execution are separate checks. Run setup after installation. It asks which workers to use before checking selected CLIs, then guides any needed installation and human login. Continue to model selection after readiness checks.
+If Desktop needs a fresh session to pick up an environment change, setup tells you. See [Desktop tools and PATH](https://code.claude.com/docs/en/desktop#session-not-finding-installed-tools) for that host behavior. Maintainers can find installation details in the [setup prerequisite reference](../../skills/setup-pstack/references/prerequisites.md).
 
 ## Install
 
@@ -83,7 +47,7 @@ Both routes install the committed `plugin-claude/` directory. You do not need a 
 
 ## Pick your models
 
-Setup starts with native Claude only, or Claude with Codex workers. The parent chat stays in Claude. Unselected Codex is neither probed nor required. For a selected missing runtime or logged-out account, setup guides installation or human login and rechecks it before model selection.
+Setup starts with native Claude only, or Claude with Codex workers. The parent chat stays in Claude. Unselected Codex is neither probed nor required. For a selected missing runtime, the setup host performs the needed preparation. It hands off interactive login when necessary and rechecks readiness before model selection.
 
 Then choose supported exact models, role assignments, and `unlimited`, `large`, `medium`, or `small` reasoning budget. Fresh proposals expose all 17 roles with unresolved model slots. Saved entries prefill reruns. Review accepted choices before saving. You may leave a role unconfigured after seeing its native-parent fallback. No fixed model is required.
 

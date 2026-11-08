@@ -219,7 +219,7 @@ await run(async () => {
       runtime: 'codex-app-server',
       url: 'https://github.com/openai/codex/releases',
       detail:
-        'Download and extract the complete matching-platform codex-app-server package. Keep its companion files together. Workflows require its bin directory on inherited PATH. --codex-executable ABS overrides only this setup probe and is not saved for future workers. The npm @openai/codex CLI is separate.',
+        'During setup, install the complete matching-platform official codex-app-server package when needed and prepare PATH for this host and future workers. Recheck without overrides. --codex-executable ABS is only a per-call diagnostic override.',
       requiredFor: 'Codex workers only',
     });
   else if (includeCodex && codex.auth?.loggedIn === false)

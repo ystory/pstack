@@ -53,7 +53,7 @@ Start a local Code session in your project and run:
 /pstack-cc:setup-pstack
 ```
 
-Setup first asks for native Claude only, or Claude with Codex workers. It checks installation and login only for selected runtimes and guides any needed installation and human authentication. Codex workflows require the complete standalone package's `bin` directory on inherited PATH and launch `codex-app-server --session-source app-server`. Setup's `--codex-executable ABS` overrides only that probe invocation. It is not saved or used by future workers. Workers retain shared Codex authentication and persistent history without a separate profile. Then choose supported exact models, role assignments, and a reasoning budget across the 17 roles. Review the proposal before saving. Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`, independently of Codex-host preferences.
+Setup first asks for native Claude only, or Claude with Codex workers. The host running setup prepares missing selected tools from official sources, makes them available to future workers, and checks readiness. Only interactive authentication or operating-system approvals need your participation. Codex workers use the official standalone server with shared Codex authentication and persistent history. Pstack does not distribute or pin native server versions or manage their updates. Then choose supported exact models, role assignments, and a reasoning budget across the 17 roles. Review the proposal before saving. Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`, independently of Codex-host preferences.
 
 Start a new session after setup so Claude discovers the registered agents. Try a read-only question about a real module in your project:
 

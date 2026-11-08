@@ -925,7 +925,7 @@ export function getCodexAvailability(cwd, options = {}) {
     return versionStatus;
   }
 
-  const appServerStatus = binaryAvailable(executable, ["app-server", "--help"], { cwd });
+  const appServerStatus = binaryAvailable(executable, [...(options.appServerArgs ?? ["app-server"]), "--help"], { cwd });
   if (!appServerStatus.available) {
     return {
       available: false,
@@ -1131,7 +1131,7 @@ export async function importExternalAgentSession(cwd, options = {}) {
 export async function runAppServerTurn(cwd, options = {}) {
   const availability = getCodexAvailability(cwd, options);
   if (!availability.available) {
-    throw new Error("Codex CLI is not installed or is missing required runtime support. Install it with `npm install -g @openai/codex`, then rerun `/codex:setup`.");
+    throw new Error(`Codex runtime unavailable: ${availability.detail}`);
   }
 
   const withServer = options.direct

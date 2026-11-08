@@ -216,8 +216,10 @@ await run(async () => {
     guidance.push({
       executor: 'codex',
       action: 'install',
-      command: 'npm install -g @openai/codex',
-      url: 'https://developers.openai.com/codex/cli',
+      runtime: 'codex-app-server',
+      url: 'https://github.com/openai/codex/releases',
+      detail:
+        'During setup, install the complete matching-platform official codex-app-server package when needed and prepare PATH for this host and future workers. Recheck without overrides. --codex-executable ABS is only a per-call diagnostic override.',
       requiredFor: 'Codex workers only',
     });
   else if (includeCodex && codex.auth?.loggedIn === false)

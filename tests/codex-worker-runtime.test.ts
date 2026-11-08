@@ -12,19 +12,30 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { computeSnapshotDigest } from '../src/upstream/snapshot.ts';
 
 const project = fileURLToPath(new URL('..', import.meta.url));
-const fakeSource = String.raw`#!/usr/bin/env node
+const fakePrelude = String.raw`#!/usr/bin/env node
 import fs from 'node:fs';
 import readline from 'node:readline';
 const log = (event) => fs.appendFileSync(process.env.FAKE_LOG, JSON.stringify({pid:process.pid,cwd:process.cwd(),...event})+'\n');
 const args = process.argv.slice(2);
 log({args});
-if (args[0] === '--version') { console.log('codex-cli 0.fixture'); process.exit(0); }
-if (args[0] === 'app-server' && args[1] === '--help') { console.log('Usage: codex app-server'); process.exit(0); }
-if (args[0] !== 'app-server') process.exit(3);
+`;
+const fakeStandalone = String.raw`
+if (args.length === 1 && args[0] === '--version') { console.log('codex-app-server 0.fixture'); process.exit(0); }
+if (args.length === 3 && args.join(' ') === '--session-source app-server --help') {
+ console.log(process.env.FAKE_NO_SOURCE_FLAG ? 'Usage: codex-app-server' : 'Usage: codex-app-server --session-source <SOURCE>'); process.exit(0);
+}
+if (args.length !== 2 || args.join(' ') !== '--session-source app-server') { console.error('unsupported standalone arguments'); process.exit(3); }
+`;
+const fakeUmbrella = String.raw`
+if (args.length === 1 && args[0] === '--version') { console.log('codex-cli 0.fixture'); process.exit(0); }
+if (args.length === 2 && args.join(' ') === 'app-server --help') { console.log('Usage: codex app-server'); process.exit(0); }
+if (args.length !== 1 || args[0] !== 'app-server') { console.error('unsupported umbrella arguments'); process.exit(3); }
+`;
+const fakeProtocol = String.raw`
 const send = (value) => console.log(JSON.stringify(value));
 const notify = (method, params) => send({method,params});
 const respond = (request, result) => send({id:request.id,result});
@@ -117,12 +128,20 @@ async function fixture(t: TestContext) {
     ),
     workerContext,
   );
-  const executable = path.join(root, 'fake codex');
-  await writeFile(
-    executable,
-    fakeSource.replace('#!/usr/bin/env node', '#!' + process.execPath),
-    { mode: 0o755 },
-  );
+  const executable = path.join(root, 'fake standalone codex');
+  const umbrella = path.join(root, 'codex');
+  for (const [file, launch] of [
+    [executable, fakeStandalone],
+    [umbrella, fakeUmbrella],
+  ])
+    await writeFile(
+      file!,
+      (fakePrelude + launch + fakeProtocol).replace(
+        '#!/usr/bin/env node',
+        '#!' + process.execPath,
+      ),
+      { mode: 0o755 },
+    );
   const cwd = path.join(root, 'assigned worktree');
   await mkdir(cwd);
   const log = path.join(root, 'server.jsonl');
@@ -186,8 +205,10 @@ async function fixture(t: TestContext) {
     skill,
     workerContext,
     root,
+    plugin,
     runner,
     executable,
+    umbrella,
     cwd,
     env,
     args,
@@ -253,6 +274,20 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
   });
   assert.equal(receipt.process.closed, true);
   assert.equal(receipt.process.exitCode, 0);
+  assert.equal(receipt.runtime.kind, 'standalone-app-server');
+  assert.equal(receipt.runtime.executable, f.executable);
+  assert.equal(receipt.runtime.version, 'codex-app-server 0.fixture');
+  assert.deepEqual(receipt.runtime.args, ['--session-source', 'app-server']);
+  const request = JSON.parse(await readFile(receipt.files.request, 'utf8'));
+  assert.equal(request.runtime.executable, f.executable);
+  assert.deepEqual(request.runtime.args, receipt.runtime.args);
+  const diagnostics = (await readFile(receipt.files.diagnostics, 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  const launch = diagnostics.find((event) => event.event === 'spawn');
+  assert.equal(launch.executable, f.executable);
+  assert.deepEqual(launch.args, receipt.runtime.args);
   const events = await f.events(),
     start = events.find((event) => event.request?.method === 'thread/start');
   assert.equal(start.cwd, f.cwd);
@@ -261,6 +296,7 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
   assert.equal(start.request.params.sandbox, 'read-only');
   assert.equal(start.request.params.approvalPolicy, 'on-request');
   assert.equal(start.request.params.approvalsReviewer, 'auto_review');
+  assert.equal(Object.hasOwn(start.request.params, 'threadSource'), false);
   const turn = events.find((event) => event.request?.method === 'turn/start');
   assert.equal(turn.request.params.model, 'selected-model');
   assert.equal(turn.request.params.effort, 'xhigh');
@@ -280,10 +316,166 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
   );
   assert.equal(
     events.filter(
-      (event) => event.args?.[0] === 'app-server' && event.args.length === 1,
+      (event) => event.args?.join(' ') === '--session-source app-server',
     ).length,
     1,
   );
+});
+
+test('generic vendor keeps the umbrella CLI default when appServerArgs is omitted', async (t) => {
+  const f = await fixture(t);
+  const module = pathToFileURL(
+    path.join(
+      f.plugin,
+      'vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs',
+    ),
+  ).href;
+  const result = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `const { runAppServerTurn } = await import(${JSON.stringify(module)});
+await runAppServerTurn(${JSON.stringify(f.cwd)}, ${JSON.stringify({
+        direct: true,
+        executable: f.umbrella,
+        prompt: 'Do the synthetic task.',
+      })});`,
+    ],
+    { env: f.env, encoding: 'utf8', timeout: 10_000 },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const events = await f.events();
+  const start = events.find(
+    (event) => event.request?.method === 'thread/start',
+  );
+  assert.equal(Object.hasOwn(start.request.params, 'threadSource'), false);
+  assert.deepEqual(
+    events.filter((event) => event.args).map((event) => event.args),
+    [['--version'], ['app-server', '--help'], ['app-server']],
+  );
+});
+
+test('runner skips directories on PATH across detect, catalog, and run', async (t) => {
+  const f = await fixture(t);
+  const name =
+    process.platform === 'win32' ? 'codex-app-server.exe' : 'codex-app-server';
+  const shadow = path.join(f.root, 'earlier bin');
+  await mkdir(path.join(shadow, name), { recursive: true });
+  const discovered = path.join(f.root, name);
+  await cp(f.executable, discovered);
+  const env = { ...f.env, PATH: [shadow, f.root].join(path.delimiter) };
+  for (const command of ['detect', 'catalog']) {
+    const result = spawnSync(
+      process.execPath,
+      [f.runner, command, '--cwd', f.cwd],
+      { env, encoding: 'utf8', timeout: 10_000 },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const detected = JSON.parse(result.stdout);
+    assert.equal(detected.cli.available, true);
+    assert.equal(detected.cli.executable, discovered);
+    assert.equal(detected.auth.loggedIn, true);
+    if (command === 'catalog')
+      assert.deepEqual(
+        detected.models.map((model: { id: string }) => model.id),
+        ['selected-model', 'second-model'],
+      );
+  }
+  const args = f.args('path-runtime');
+  args.splice(args.indexOf('--executable'), 2);
+  const result = spawnSync(process.execPath, args, {
+    env,
+    input: 'Use the PATH runtime.',
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(
+    (await f.receipt('path-runtime')).runtime.executable,
+    discovered,
+  );
+  assert(
+    (await f.events()).some(
+      (event) => event.args?.join(' ') === '--session-source app-server',
+    ),
+  );
+});
+
+for (const kind of [
+  'missing',
+  'no-source-flag',
+  'umbrella',
+  'rejected-source',
+] as const)
+  test(`runner rejects ${kind} runtime before initialize and retains a failed receipt`, async (t) => {
+    const f = await fixture(t);
+    const selected =
+      kind === 'missing'
+        ? path.join(f.root, 'absent')
+        : kind === 'umbrella'
+          ? f.umbrella
+          : f.executable;
+    if (kind === 'rejected-source')
+      await writeFile(
+        selected,
+        `#!${process.execPath}\nif(process.argv[2]==='--version') console.log('codex-app-server old'); else { console.error('unknown argument --session-source'); process.exit(2); }\n`,
+        { mode: 0o755 },
+      );
+    const args = f.args(kind);
+    args[args.indexOf('--executable') + 1] = selected;
+    const env = {
+      ...f.env,
+      ...(kind === 'no-source-flag' ? { FAKE_NO_SOURCE_FLAG: '1' } : {}),
+    };
+    const result = spawnSync(process.execPath, args, {
+      env,
+      input: 'Do not create a thread.',
+      encoding: 'utf8',
+      timeout: 10_000,
+    });
+    assert.equal(result.status, 1, result.stderr);
+    const receipt = await f.receipt(kind);
+    assert.equal(receipt.status, 'failed');
+    assert.equal(receipt.threadId, null);
+    assert.equal(receipt.process.pid, null);
+    assert.equal(receipt.runtime.executable, selected);
+    assert.match(
+      receipt.error.message,
+      /Standalone Codex app-server unavailable/,
+    );
+    assert(!receipt.error.message.includes('npm install'));
+    const events = await f.events().catch(() => []);
+    assert.equal(
+      events.some((event) => event.request),
+      false,
+    );
+    const detected = JSON.parse(
+      spawnSync(
+        process.execPath,
+        [f.runner, 'detect', '--executable', selected],
+        { env, encoding: 'utf8', timeout: 10_000 },
+      ).stdout,
+    );
+    assert.equal(detected.schemaVersion, 1);
+    assert.equal(detected.cli.available, false);
+    assert.equal(detected.auth.available, false);
+    assert.equal(detected.cli.executable, selected);
+  });
+
+test('missing standalone runtime does not fall back to an umbrella CLI on PATH', async (t) => {
+  const f = await fixture(t);
+  const args = f.args('no-fallback');
+  args.splice(args.indexOf('--executable'), 2);
+  const result = spawnSync(process.execPath, args, {
+    env: { ...f.env, PATH: f.root },
+    input: 'Do not use codex.',
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  assert.equal(result.status, 1, result.stderr);
+  assert.equal((await f.receipt('no-fallback')).threadId, null);
+  await assert.rejects(f.events(), { code: 'ENOENT' });
 });
 
 for (const [name, text, extraEnv] of [
@@ -477,7 +669,8 @@ test('parallel workers and interleaved exact continuation retain separate identi
   const resumed = await f.receipt('resumed');
   assert.equal(resumed.threadId, first.threadId);
   assert.equal(resumed.finalText, `answer for ${first.threadId}`);
-  const resume = (await f.events()).find(
+  const events = await f.events();
+  const resume = events.find(
     (event) => event.request?.method === 'thread/resume',
   );
   assert.equal(resume.request.params.threadId, first.threadId);
@@ -485,6 +678,14 @@ test('parallel workers and interleaved exact continuation retain separate identi
   assert.equal(resume.request.params.sandbox, 'workspace-write');
   assert.equal(resume.request.params.approvalPolicy, 'on-request');
   assert.equal(resume.request.params.approvalsReviewer, 'auto_review');
+  assert.equal(Object.hasOwn(resume.request.params, 'threadSource'), false);
+  assert.equal(
+    events.some(
+      (event) =>
+        event.pid === resume.pid && event.request?.method === 'thread/start',
+    ),
+    false,
+  );
 });
 
 for (const prompt of ['WAIT', 'EARLY WAIT'])

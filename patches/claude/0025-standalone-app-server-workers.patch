@@ -1,0 +1,426 @@
+diff --git a/.claude-plugin/plugin.json b/.claude-plugin/plugin.json
+index 549acda..155d0cc 100644
+--- a/.claude-plugin/plugin.json
++++ b/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pstack-cc",
+-  "version": "0.1.0-dev.17",
++  "version": "0.1.0-dev.18",
+   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+   "author": {
+     "name": "pstack contributors"
+diff --git a/docs/guide/01-setup.md b/docs/guide/01-setup.md
+index 64a4b8e..3256bcb 100644
+--- a/docs/guide/01-setup.md
++++ b/docs/guide/01-setup.md
+@@ -6,7 +6,7 @@ Install the plugin, select workers for its roles, and run a first workflow. The
+ 
+ You need a current Claude desktop app with the **Code** tab and local sessions, or the Claude Code terminal client. The host must support native plugins, Agent, effort, and background Bash. Ordinary Claude chat is not a pstack host. Setup needs Git, Node.js 24.12+, and a Claude Code CLI available as `claude`. Native worker effort requires Claude Code 2.1.292+ with Agent effort support. The desktop session and installed CLI can have different versions. Use `/status` in the Code session to inspect its version.
+ 
+-Codex workers also need an authenticated Codex CLI with the app-server capabilities checked by setup. Claude-only workers do not need Codex. `pstack-cc` does not need the separate official Codex plugin. GitHub workflows need an authenticated GitHub CLI, `gh`. The bundled PR watcher needs Bun 1.2+ and installs locked dependencies in an external cache on first use.
++Codex workers also need the official standalone `codex-app-server` package and a shared Codex login. Claude-only workers do not need Codex. `pstack-cc` does not need the separate official Codex plugin. GitHub workflows need an authenticated GitHub CLI, `gh`. The bundled PR watcher needs Bun 1.2+ and installs locked dependencies in an external cache on first use.
+ 
+ ## Prepare selected CLI login and PATH
+ 
+@@ -27,18 +27,28 @@ claude auth status
+ 
+ If Claude's CLI is logged out, run `claude auth login`, or use `/login` in Claude Code. Complete the browser login with the account and organization you intend to use for Claude workers. Setup checks authentication without copying credentials. Keep credentials out of the chat.
+ 
+-After choosing Codex workers in setup, install the [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) and sign in:
++After choosing Codex workers, download the complete matching-platform `codex-app-server-package` archive from [official Codex releases](https://github.com/openai/codex/releases). Extract the whole package and keep its companion files together. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary. Put the package's `bin` directory on PATH. Setup can instead select `bin/codex-app-server` through `--codex-executable ABS`; worker runs use `--executable ABS` for the same selection.
++
++Check the standalone runtime:
++
++```sh
++codex-app-server --version
++codex-app-server --session-source app-server --help
++```
++
++The help output must advertise `--session-source`. Setup uses this runtime for account and model probes, and workers use the same launch arguments. The plugin does not install or update the binary and does not fall back to `codex app-server`.
++
++For human login, install the separate [Codex CLI](https://learn.chatgpt.com/docs/codex/cli) if needed and sign in:
+ 
+ ```sh
+ npm install -g @openai/codex
+-codex --version
+ codex login
+ codex login status
+ ```
+ 
+-You can also run `!codex login` from an interactive Claude session when appropriate. Complete the browser or device login yourself, then let setup recheck. Codex login with ChatGPT uses your subscription access. API-key login uses separate OpenAI API billing. See [Codex authentication](https://learn.chatgpt.com/docs/auth) for both methods and device login. [Claude Code authentication](https://code.claude.com/docs/en/authentication) also supports subscription and Console credentials with their respective billing. Model access and usage limits depend on the account and configuration.
++The npm CLI installation does not supply the standalone package. Keep the CLI and server on the same inherited `CODEX_HOME`, or its default `~/.codex`, so they share authentication, configuration, and persistent history. You can also run `!codex login` from an interactive Claude session when appropriate. Use `codex login --device-auth` when a browser callback cannot complete. Complete login yourself, then let setup recheck. Codex login with ChatGPT uses your subscription access. API-key login uses separate OpenAI API billing. See [Codex authentication](https://learn.chatgpt.com/docs/auth) for both methods and device login. [Claude Code authentication](https://code.claude.com/docs/en/authentication) also supports subscription and Console credentials with their respective billing. Model access and usage limits depend on the account and configuration.
+ 
+-If setup cannot find `node`, `claude`, or `codex`, check the command's installation directory and your `PATH`. Quit and reopen Desktop after changing the environment. See [Desktop tools and PATH](https://code.claude.com/docs/en/desktop#session-not-finding-installed-tools) if the command works in your terminal but fails in Code.
++If setup cannot find `node`, `claude`, or `codex-app-server`, check the command's installation directory and your `PATH`. Quit and reopen Desktop after changing the environment. See [Desktop tools and PATH](https://code.claude.com/docs/en/desktop#session-not-finding-installed-tools) if the command works in your terminal but fails in Code.
+ 
+ CLI detection, login, catalog access, and actual model execution are separate checks. Run setup after installation. It asks which workers to use before checking selected CLIs, then guides any needed installation and human login. Continue to model selection after readiness checks.
+ 
+@@ -71,7 +81,7 @@ Both routes install the committed `plugin-claude/` directory. You do not need a
+ 
+ ## Pick your models
+ 
+-Setup starts with native Claude only, or Claude with Codex workers. The parent chat stays in Claude. Unselected Codex is neither probed nor required. For a selected missing or logged-out CLI, setup guides installation or human login and rechecks it before model selection.
++Setup starts with native Claude only, or Claude with Codex workers. The parent chat stays in Claude. Unselected Codex is neither probed nor required. For a selected missing runtime or logged-out account, setup guides installation or human login and rechecks it before model selection.
+ 
+ Then choose supported exact models, role assignments, and `unlimited`, `large`, `medium`, or `small` reasoning budget. Fresh proposals expose all 17 roles with unresolved model slots. Saved entries prefill reruns. Review accepted choices before saving. You may leave a role unconfigured after seeing its native-parent fallback. No fixed model is required.
+ 
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 6e4d45d..ff4b747 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -50,9 +50,9 @@ Pass this launch request to native Bash:
+ 
+ Use `--role` for the selected original role body. `general-purpose` seats pass their body plus the workflow templates. Repeat `--instruction` for project rules, source references, rubrics, and templates, and `--skill` for selected skill bodies. Use `--write` only for authorized `workspace-write` tasks. Without it, the runner defaults to `read-only`. An explicit `--sandbox` must match the authorized task scope. Never silently broaden it after a denial. The runner starts each Codex thread with `on-request` approval and the `auto_review` reviewer, so a command that the sandbox blocks can request reviewed escalation. The reviewer decides whether it runs. Pass the absolute poteto-mode skill with `--skill` for a poteto-agent. Pass context paths to the runner instead of reading and copying their bodies into the brief. The runner reads the files and includes their complete bodies in its task input. The worker applies the [receiving-worker context rules](worker-context.md). Required reads of bodies absent from the input still need transcript evidence.
+ 
+-Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. Never resume the latest thread or infer identity from a directory name. The runner uses the existing Codex CLI and authentication. Claude tools, MCP servers, conversation history, and permissions do not automatically become Codex tools or state. Verify the external executor has the capabilities needed for its assigned task.
++Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. Never resume the latest thread or infer identity from a directory name. The runner launches the official standalone `codex-app-server --session-source app-server` on inherited PATH. `--executable ABS` selects that binary explicitly. Setup's `--codex-executable ABS` selects the same runtime for account and catalog probes. Install the complete matching-platform package described in [prerequisites](../../setup-pstack/references/prerequisites.md). There is no umbrella CLI fallback.
+ 
+-New worker roots use `threadSource: chatgpt_hidden`, which current Desktop filtering predicates exclude from chat lists, search, and ordinary turn-complete notifications. This internal value is not a permanent public contract. Exact resume keeps the original source. Filtering is per thread and does not prove native descendant visibility or actual screen behavior.
++Workers share the existing Codex account, configuration, and persistent rollout/state storage through inherited `CODEX_HOME`. Fresh roots use the server's `app-server` session source without a `threadSource` tag. They remain persistent and can resume by exact thread ID. Existing threads retain their original source on resume and are not migrated or hidden retroactively. Ordinary Desktop lists filter session sources, but a successful help probe alone does not verify screen behavior or descendant visibility. Claude tools, MCP servers, conversation history, and permissions do not automatically become Codex tools or state. Verify the external executor has the capabilities needed for its assigned task.
+ 
+ Track the native Bash task ID and collect its terminal outcome through the host's task-result controls. Read `<run-dir>/result.json` and `<run-dir>/final.txt` for the retained receipt and final answer. Bash stdout can truncate. Inspect the actual exit outcome, exact Codex thread identity, terminal status, result, requested and observed settings, and evidence paths. A final-answer item before a later failed terminal event is not success. Read the retained prompt, request, progress, diagnostics, and result when investigating failure. Review the worker's files and verification evidence under the calling workflow's rules.
+ 
+diff --git a/skills/poteto-mode/scripts/run-codex.mjs b/skills/poteto-mode/scripts/run-codex.mjs
+index 193ec66..248e4e6 100644
+--- a/skills/poteto-mode/scripts/run-codex.mjs
++++ b/skills/poteto-mode/scripts/run-codex.mjs
+@@ -77,37 +77,71 @@ function parse(argv) {
+   return options;
+ }
+ 
+-function cliStatus(options) {
+-  const executable = options.executable ?? 'codex';
++function serverCommand(options) {
++  const name =
++    process.platform === 'win32' ? 'codex-app-server.exe' : 'codex-app-server';
++  const executable =
++    options.executable ??
++    (process.env.PATH ?? '')
++      .split(path.delimiter)
++      .map((directory) => path.resolve(directory, name))
++      .find((candidate) => {
++        try {
++          fs.accessSync(candidate, fs.constants.X_OK);
++          return true;
++        } catch {
++          return false;
++        }
++      }) ??
++    name;
++  return { executable, args: ['--session-source', 'app-server'] };
++}
++
++function cliStatus(options, server) {
+   const cwd = options.cwd ?? process.cwd();
+   const invoke = (args) =>
+-    spawnSync(executable, args, {
++    spawnSync(server.executable, args, {
+       cwd,
+       encoding: 'utf8',
+       timeout: 10_000,
++      maxBuffer: 1024 * 1024,
+       windowsHide: true,
+     });
+   const version = invoke(['--version']);
+   const appServer =
+-    version.status === 0 ? invoke(['app-server', '--help']) : null;
++    !version.error && version.status === 0
++      ? invoke([...server.args, '--help'])
++      : null;
++  const supported =
++    !appServer?.error &&
++    appServer?.status === 0 &&
++    /(?:^|\s)--session-source(?:\s|[=,]|$)/m.test(appServer.stdout);
+   return {
+-    available: version.status === 0 && appServer?.status === 0,
+-    executable,
++    available: Boolean(supported),
++    kind: 'standalone-app-server',
++    executable: server.executable,
++    args: server.args,
+     version: version.status === 0 ? version.stdout.trim() : null,
+-    appServer: appServer?.status === 0,
++    appServer: Boolean(supported),
+     error:
+       version.error?.message ??
+       appServer?.error?.message ??
+       (version.status !== 0
+-        ? version.stderr.trim() || `exit ${version.status}`
++        ? version.stderr.trim() ||
++          version.stdout.trim() ||
++          `exit ${version.status}`
+         : appServer?.status !== 0
+-          ? appServer?.stderr.trim() || `exit ${appServer?.status}`
+-          : null),
++          ? appServer?.stderr.trim() ||
++            appServer?.stdout.trim() ||
++            `exit ${appServer?.status}`
++          : !supported
++            ? 'The selected runtime help does not advertise --session-source. Use the official standalone codex-app-server package.'
++            : null),
+   };
+ }
+ 
+-async function inspect(options) {
+-  const cli = cliStatus(options);
++async function inspect(options, server) {
++  const cli = cliStatus(options, server);
+   const result = {
+     schemaVersion: 1,
+     cli,
+@@ -128,7 +162,8 @@ async function inspect(options) {
+   try {
+     client = await CodexAppServerClient.connect(options.cwd ?? process.cwd(), {
+       disableBroker: true,
+-      executable: options.executable,
++      executable: server.executable,
++      appServerArgs: server.args,
+     });
+     const account = await client.request('account/read', {
+       refreshToken: false,
+@@ -175,7 +210,7 @@ function instructionFiles(options) {
+   ].map((file) => ({ ...file, body: fs.readFileSync(file.path, 'utf8') }));
+ }
+ 
+-async function run(options) {
++async function run(options, server) {
+   const bodies = instructionFiles(options);
+   const task = fs.readFileSync(options['prompt-file'] ?? 0, 'utf8');
+   if (!task.trim()) throw new Error('A nonempty task is required.');
+@@ -205,6 +240,7 @@ async function run(options) {
+   const request = {
+     schemaVersion: 1,
+     executor: EXECUTOR,
++    runtime: { kind: 'standalone-app-server', ...server },
+     cwd: options.cwd,
+     requested,
+     resumeThreadId: options.resume ?? null,
+@@ -286,11 +322,18 @@ async function run(options) {
+       finalText = message.params.item.text ?? finalText;
+   };
+   let result = null,
+-    failure = null;
++    failure = null,
++    runtime = null;
+   try {
++    runtime = cliStatus(options, server);
++    if (!runtime.available)
++      throw new Error(
++        `Standalone Codex app-server unavailable: ${runtime.error} Download the complete matching-platform package from https://github.com/openai/codex/releases and put codex-app-server on PATH or select --executable ABS.`,
++      );
+     result = await runAppServerTurn(options.cwd, {
+       direct: true,
+-      executable: options.executable,
++      executable: server.executable,
++      appServerArgs: server.args,
+       signal: controller.signal,
+       model: options.model,
+       effort: options.effort,
+@@ -298,7 +341,6 @@ async function run(options) {
+       approvalPolicy: 'on-request',
+       approvalsReviewer: 'auto_review',
+       persistThread: true,
+-      threadSource: 'chatgpt_hidden',
+       resumeThreadId: options.resume,
+       prompt,
+       onDiagnostic: diagnostic,
+@@ -345,6 +387,7 @@ async function run(options) {
+   const receipt = {
+     schemaVersion: 1,
+     executor: EXECUTOR,
++    runtime: runtime ?? { kind: 'standalone-app-server', ...server },
+     cwd: options.cwd,
+     sandbox: request.sandbox,
+     threadId,
+@@ -377,14 +420,18 @@ async function run(options) {
+ try {
+   const options = parse(process.argv.slice(2));
+   if (options.command === 'help') console.log(usage);
+-  else
++  else {
++    const server = serverCommand(options);
+     console.log(
+       JSON.stringify(
+-        options.command === 'run' ? await run(options) : await inspect(options),
++        options.command === 'run'
++          ? await run(options, server)
++          : await inspect(options, server),
+         null,
+         2,
+       ),
+     );
++  }
+ } catch (error) {
+   console.error(error.message);
+   process.exitCode = 1;
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 23928de..ed92d51 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -1,6 +1,6 @@
+ ---
+ name: setup-pstack
+-description: Configure pstack's per-role Claude or Codex workers in Claude Code. Detect CLI and login state, guide missing prerequisites, save independent model choices, and register exact-model native agents. Use for /setup-pstack, "configure pstack models", or "pstack budget".
++description: Configure pstack's per-role Claude or Codex workers in Claude Code. Detect runtime and login state, guide missing prerequisites, save independent model choices, and register exact-model native agents. Use for /setup-pstack, "configure pstack models", or "pstack budget".
+ ---
+ 
+ # Setup pstack
+@@ -13,11 +13,11 @@ Resolve helpers relative to this installed skill and invoke their absolute paths
+ 
+ Start with worker executor selection unless already supplied in the conversation. Offer native Claude only, or native Claude with Codex workers. The parent chat stays in Claude Code. Prefill executors used by saved entries on a rerun. A harness choice does not choose a model. If a saved entry uses an executor the user excludes, show it and obtain its replacement before saving. Preserve other choices.
+ 
+-## 2. Prepare selected CLIs
++## 2. Prepare selected runtimes
+ 
+ Check `node --version` first. The helpers require Node.js 24.12 or newer. If Node is missing, use the [prerequisite guide](references/prerequisites.md).
+ 
+-Run `scripts/detect.mjs detect --executors claude-code` for native-only choices. When Codex workers are selected, use `--executors claude-code,codex` instead. Report Node and Claude versions, native effort support, and each executor's login state. It checks only selected worker CLIs and auth status. An unselected Codex CLI is neither probed nor required. It does not install, authenticate, read credential files, or change settings.
++Run `scripts/detect.mjs detect --executors claude-code` for native-only choices. When Codex workers are selected, use `--executors claude-code,codex` instead. Report Node and Claude versions, native effort support, and each executor's login state. Codex probes use the official standalone `codex-app-server` on inherited PATH, or `--codex-executable ABS`. That override selects the standalone runtime, not the umbrella `codex` CLI. It checks only selected runtimes and auth status. Unselected Codex is neither probed nor required. It does not install, authenticate, read credential files, or change settings.
+ 
+ Report `configuration.claudeHome` as the setup configuration target and `claude.cli.environment` as the inherited CLI environment used for authentication. `--claude-home` changes the configuration target only. Existing CLI authentication stays in the inherited environment, including an existing `CLAUDE_CONFIG_DIR`. An intentionally selected environment profile keeps its own login state.
+ 
+@@ -27,7 +27,7 @@ Native exact-model choices use generated agent definitions and per-invocation ef
+ 
+ ## 3. Collect actual model options
+ 
+-For Codex workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT`. The bundled runner collects every `model/list` page and each model's supported efforts. Its receipt separates CLI, authentication, catalog, and execution evidence.
++For Codex workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT`. Pass the same `--codex-executable ABS` when selected during detection. The bundled runner uses that server for safe account status and every `model/list` page. Its receipt separates runtime capability, authentication, catalog, and execution evidence.
+ 
+ For native Claude workers, use exact model IDs and supported efforts exposed by the current host or its model catalog. Inspect the current host and configuration rather than copying a fixed list from this skill. Detection lists configured model candidates, including `settings.json` model choices and model-specific environment variables. Those candidates require confirmation. A configured name or allowlist does not prove entitlement or supported efforts.
+ 
+diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
+index df44eb8..930f0d5 100644
+--- a/skills/setup-pstack/references/models-contract.md
++++ b/skills/setup-pstack/references/models-contract.md
+@@ -74,8 +74,12 @@ Normalized entries have `executor`, `model`, and `supportedReasoningEfforts`. Na
+ - `models.mjs budget --budget LABEL --catalog ABS` returns a preview `config` and `needsChoice`. It never writes. A role with no supported effort at or below the target requires a choice.
+ - `models.mjs write --input ABS --catalog ABS --expected-hash HASH_OR_ABSENT [--dry-run]` validates all choices and saves atomically. The input is a config, or a result object containing `config`. Unresolved `needsChoice` results are rejected. A dry run creates no destination.
+ - `register-agents.mjs [--input ABS] [--dry-run] [--unregister]` manages owned native definitions. With no input, it uses saved preferences. Removal retains preferences.
+-- `detect.mjs detect --executors claude-code` reports native CLI, safe auth evidence, model candidates and guidance. `--executors claude-code,codex` also probes Codex. An unselected Codex CLI is never invoked or required.
+-- `detect.mjs catalog --executors claude-code,codex --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` and `--codex-executable ABS` select existing CLI executables for either detection command.
++- `detect.mjs detect --executors claude-code` reports native CLI, safe auth evidence, model candidates and guidance. `--executors claude-code,codex` also probes the standalone Codex server. Unselected Codex is never invoked or required.
++- `detect.mjs catalog --executors claude-code,codex --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` selects the Claude CLI. `--codex-executable ABS` selects the standalone server for either detection command.
++
++Detection retains `schemaVersion: 1` and the legacy `codex.cli` container. Its `kind` is `standalone-app-server`; `executable`, `args`, and `version` identify the selected launch. The default executable is `codex-app-server` on inherited PATH. The argument array is `['--session-source', 'app-server']` for probes and actual connections. Version and source-help probes are bounded. `available` requires successful probes and help that advertises `--session-source`. This capability check does not prove actual source semantics or Desktop visibility. Missing or unsupported servers produce official release guidance, with no fallback to `codex app-server`.
++
++The same server handles safe `account/read` and all `model/list` pages. Auth and persistent history use the inherited `CODEX_HOME`, without credential-file reads or a separate profile. Run requests record the executable and arguments. Results add the probe version, and spawn diagnostics identify the executable and arguments actually launched. Successful detection or catalog access leaves `execution.verified` false.
+ 
+ Detection reports the configuration target in `configuration.claudeHome`. Claude version, help, and authentication checks use the unchanged inherited CLI environment. `claude.cli.environment.source` is `inherited`. Its `claudeConfigDir` contains the inherited `CLAUDE_CONFIG_DIR` value, or `null` when the CLI uses its default lookup. `--claude-home` does not relocate credentials or select another authentication profile. A profile selected through the inherited environment keeps its own login state. Detection copies no credentials and writes no setup files.
+ 
+diff --git a/skills/setup-pstack/references/prerequisites.md b/skills/setup-pstack/references/prerequisites.md
+index ed5172f..6546073 100644
+--- a/skills/setup-pstack/references/prerequisites.md
++++ b/skills/setup-pstack/references/prerequisites.md
+@@ -1,4 +1,4 @@
+-# Prepare worker CLIs and login
++# Prepare worker runtimes and login
+ 
+ Check only the executors the user intends to use. Detection and catalog commands do not install software or start authentication. Run an installer when that installation is authorized. Keep login interactive and let the user complete it.
+ 
+@@ -22,13 +22,11 @@ Detection checks the existing CLI login through the inherited environment, inclu
+ 
+ ## Codex workers
+ 
+-Codex is optional when every worker uses native Claude. Check `codex --version` and the bundled runner's `detect` result. The [official Codex CLI guide](https://developers.openai.com/codex/cli) provides installation options, including this npm command.
++Codex is optional when every worker uses native Claude. Codex workers require the official standalone `codex-app-server` package from [Codex releases](https://github.com/openai/codex/releases). Download and extract the complete package for your operating system and architecture. Keep `bin/codex-app-server` with its companion files and sibling directories. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary.
+ 
+-```sh
+-npm install -g @openai/codex
+-```
++Put the package's `bin` directory on inherited PATH, or pass the absolute binary path through setup's `--codex-executable ABS` and the worker runner's `--executable ABS`. Detection checks `--version` and `--session-source app-server --help`, including whether help advertises `--session-source`, before opening an account or model connection. An umbrella `codex` CLI does not satisfy this requirement. The plugin does not download or update the package.
+ 
+-After installation, run `codex login` in a terminal. In Claude Code, the user can run `!codex login` to open the CLI flow. In a headless environment or when a localhost callback cannot complete, use the documented device flow.
++The [Codex CLI](https://developers.openai.com/codex/cli) remains the human login tool. Installing it through npm does not install the standalone worker package. Run `codex login` in a terminal. In Claude Code, the user can run `!codex login` to open the CLI flow. In a headless environment or when a localhost callback cannot complete, use the documented device flow.
+ 
+ ```sh
+ codex login --device-auth
+@@ -36,6 +34,8 @@ codex login --device-auth
+ 
+ Device login may need to be enabled by the account or workspace. See the [official Codex authentication guide](https://learn.chatgpt.com/docs/auth).
+ 
++The CLI and standalone server must inherit the same `CODEX_HOME`, or both use its default `~/.codex`. Workers share that configuration, account, and persistent rollout/state storage. Do not create a separate profile or copy credentials to hide workers.
++
+ ChatGPT login uses the account's Codex plan. API-key login uses OpenAI API billing. Let the user choose the intended method, and follow the official auth guide for API-key setup outside the conversation. Never print a key, credential cache, or full authentication response. The bundled runner reports safe status and method fields.
+ 
+-Rerun detection and collect the catalog after login. CLI capability, login state, model catalog, and successful worker execution are separate evidence.
++Rerun detection and collect the catalog after login. Runtime capability, login state, model catalog, and successful worker execution are separate evidence.
+diff --git a/skills/setup-pstack/scripts/detect.mjs b/skills/setup-pstack/scripts/detect.mjs
+index 2e17ff3..27360e7 100644
+--- a/skills/setup-pstack/scripts/detect.mjs
++++ b/skills/setup-pstack/scripts/detect.mjs
+@@ -216,8 +216,10 @@ await run(async () => {
+     guidance.push({
+       executor: 'codex',
+       action: 'install',
+-      command: 'npm install -g @openai/codex',
+-      url: 'https://developers.openai.com/codex/cli',
++      runtime: 'codex-app-server',
++      url: 'https://github.com/openai/codex/releases',
++      detail:
++        'Download and extract the complete matching-platform codex-app-server package. Keep its companion files together. Put codex-app-server on PATH or select its absolute path with --codex-executable. The npm @openai/codex CLI is separate.',
+       requiredFor: 'Codex workers only',
+     });
+   else if (includeCodex && codex.auth?.loggedIn === false)
+diff --git a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs
+index b78d0d7..4b91ade 100644
+--- a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs
++++ b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs
+@@ -188,7 +188,9 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
+   }
+ 
+   async initialize() {
+-    this.proc = spawn(this.options.executable ?? "codex", ["app-server"], {
++    const executable = this.options.executable ?? "codex";
++    const args = this.options.appServerArgs ?? ["app-server"];
++    this.proc = spawn(executable, args, {
+       cwd: this.cwd,
+       env: this.options.env ?? process.env,
+       stdio: ["pipe", "pipe", "pipe"],
+@@ -196,7 +198,7 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
+       windowsHide: true
+     });
+ 
+-    this.options.onDiagnostic?.({ event: "spawn", pid: this.proc.pid ?? null });
++    this.options.onDiagnostic?.({ event: "spawn", pid: this.proc.pid ?? null, executable, args });
+     this.proc.stdout.setEncoding("utf8");
+     this.proc.stderr.setEncoding("utf8");
+ 
+diff --git a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
+index 15cc613..e08a592 100644
+--- a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
++++ b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
+@@ -69,7 +69,6 @@ function buildThreadParams(cwd, options = {}) {
+     approvalsReviewer: options.approvalsReviewer,
+     sandbox: options.sandbox ?? "read-only",
+     serviceName: SERVICE_NAME,
+-    threadSource: options.threadSource,
+     ephemeral: options.ephemeral ?? true
+   };
+ }
+@@ -926,7 +925,7 @@ export function getCodexAvailability(cwd, options = {}) {
+     return versionStatus;
+   }
+ 
+-  const appServerStatus = binaryAvailable(executable, ["app-server", "--help"], { cwd });
++  const appServerStatus = binaryAvailable(executable, [...(options.appServerArgs ?? ["app-server"]), "--help"], { cwd });
+   if (!appServerStatus.available) {
+     return {
+       available: false,
+@@ -1132,7 +1131,7 @@ export async function importExternalAgentSession(cwd, options = {}) {
+ export async function runAppServerTurn(cwd, options = {}) {
+   const availability = getCodexAvailability(cwd, options);
+   if (!availability.available) {
+-    throw new Error("Codex CLI is not installed or is missing required runtime support. Install it with `npm install -g @openai/codex`, then rerun `/codex:setup`.");
++    throw new Error(`Codex runtime unavailable: ${availability.detail}`);
+   }
+ 
+   const withServer = options.direct
+@@ -1160,7 +1159,6 @@ export async function runAppServerTurn(cwd, options = {}) {
+         approvalPolicy: options.approvalPolicy,
+         approvalsReviewer: options.approvalsReviewer,
+         ephemeral: options.persistThread ? false : true,
+-        threadSource: options.threadSource,
+         threadName: options.persistThread ? options.threadName : options.threadName ?? null
+       });
+       threadId = response.thread.id;

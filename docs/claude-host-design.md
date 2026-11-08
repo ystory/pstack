@@ -6,7 +6,7 @@ The goal is to make pstack available in Claude Code and let users select Claude 
 
 - Maintain the existing Codex distribution and add a separately packaged Claude Code distribution in this repository. Both use the same locked pstack source. See [ADR 0001](adr/0001-separate-host-distributions.md).
 - Keep role-model preferences independent for each host. Users can rerun setup to change their selections.
-- Include the required official Codex execution code at a pinned source revision. Use the existing Codex CLI and authentication. This project owns source updates and license notices. See [ADR 0002](adr/0002-bundle-codex-worker-runtime.md).
+- Include the required official Codex execution code at a pinned source revision. Launch the separate official standalone app-server package with shared Codex authentication and persistent history. This project owns source updates and license notices. See [ADR 0002](adr/0002-bundle-codex-worker-runtime.md).
 - Guide CLI discovery, installation, and human login during setup. Reuse existing credentials.
 - Preserve pstack's role semantics and workflow behavior, including panel entries, model-diversity requirements, worker instructions, and fresh-worker rules.
 - Treat current Sol 6.1 capacity as a reason for a user's current setup choice. It does not determine the new distribution's model defaults.
@@ -16,13 +16,15 @@ The goal is to make pstack available in Claude Code and let users select Claude 
 
 The Claude Code host reads its own role configuration. It uses the native Agent tool for Claude workers and the included Codex runtime for Codex workers. Each selected worker receives the role instructions, applicable pstack skills, task scope, and the context its workflow requires.
 
-Reuse the host's asynchronous execution and completion events. A foreground runner calls the bundled official runtime's direct app-server path inside Claude Code's background Bash. Each run owns its process and receipt. It waits for a real terminal event and resumes only an explicit thread. The companion CLI's shared broker and last-task lookup are outside this execution path.
+Reuse the host's asynchronous execution and completion events. A foreground runner calls the bundled official runtime's direct app-server path inside Claude Code's background Bash. Automated workflows require the complete standalone package's `bin` directory on inherited PATH. One server command launches `codex-app-server --session-source app-server` and handles setup's account and paged model probes. Setup's `--codex-executable ABS` overrides only that probe invocation and is not saved for future workers. The runner's `--executable ABS` overrides one direct invocation for diagnostics or testing. Each run owns its process and receipt. It waits for a real terminal event and resumes only an explicit thread. The companion CLI's shared broker and last-task lookup are outside this execution path.
+
+The standalone server is an ordinary official dependency. The setup host installs it when needed, prepares the worker environment, and verifies readiness. Pstack owns the invocation contract, not native release distribution, version pinning, upgrade management, or universal compatibility. Workers share `CODEX_HOME` and send no hidden thread tag. Existing exact resumes retain their source. The generic vendored client keeps its upstream launch default when no `appServerArgs` are supplied.
 
 The workflow's parent owns the launch. It sets the supported native background timeout explicitly and reads retained result files after completion. Setup's configuration target is separate from the inherited CLI authentication environment.
 
 Saved exact Claude selections use generated native definitions. Unsaved roles use only the actual native parent through static inherited agents at their original cardinality. Setup proposals remain separate from these execution fallbacks. Readonly source sites use a native kind that excludes file-editing tools. This is not an OS-level write boundary. Existing workflow requirements determine worktree isolation and when a worker may resume.
 
-Named runtime paths were verified on Claude Code 2.1.317 and Codex CLI 0.165.0. The scope and unexposed settings are recorded in [Design and compatibility](spec.md).
+Earlier named runtime paths were verified on Claude Code 2.1.317 and Codex CLI 0.165.0. The final standalone 0.167.0 runner also completed native background launch, exact resume, reviewed approvals, child and grandchild delegation, TaskStop, and parent-termination checks. Default-list comparisons passed through both standalone and Desktop-bundled producers. The user's final Recents screenshot shows the control and no candidate entry. The precise screen and descendant limits, failed hidden-tag experiment, and unexposed settings are recorded in [Design and compatibility](spec.md).
 
 ## Implementation order
 

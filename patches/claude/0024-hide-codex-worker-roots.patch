@@ -1,0 +1,57 @@
+diff --git a/.claude-plugin/plugin.json b/.claude-plugin/plugin.json
+index 27c6b8d..549acda 100644
+--- a/.claude-plugin/plugin.json
++++ b/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pstack-cc",
+-  "version": "0.1.0-dev.16",
++  "version": "0.1.0-dev.17",
+   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+   "author": {
+     "name": "pstack contributors"
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 1a2e5e5..6e4d45d 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -52,6 +52,8 @@ Use `--role` for the selected original role body. `general-purpose` seats pass t
+ 
+ Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. Never resume the latest thread or infer identity from a directory name. The runner uses the existing Codex CLI and authentication. Claude tools, MCP servers, conversation history, and permissions do not automatically become Codex tools or state. Verify the external executor has the capabilities needed for its assigned task.
+ 
++New worker roots use `threadSource: chatgpt_hidden`, which current Desktop filtering predicates exclude from chat lists, search, and ordinary turn-complete notifications. This internal value is not a permanent public contract. Exact resume keeps the original source. Filtering is per thread and does not prove native descendant visibility or actual screen behavior.
++
+ Track the native Bash task ID and collect its terminal outcome through the host's task-result controls. Read `<run-dir>/result.json` and `<run-dir>/final.txt` for the retained receipt and final answer. Bash stdout can truncate. Inspect the actual exit outcome, exact Codex thread identity, terminal status, result, requested and observed settings, and evidence paths. A final-answer item before a later failed terminal event is not success. Read the retained prompt, request, progress, diagnostics, and result when investigating failure. Review the worker's files and verification evidence under the calling workflow's rules.
+ 
+ The outbound runner automatically includes the shared [receiving-worker execution context](worker-context.md) in its task payload. It keeps the launching configuration authority and distinguishes native receiving tools from parent launch recipes. The task still supplies its original role, selected model and effort, scope, and permissions.
+diff --git a/skills/poteto-mode/scripts/run-codex.mjs b/skills/poteto-mode/scripts/run-codex.mjs
+index d08596f..193ec66 100644
+--- a/skills/poteto-mode/scripts/run-codex.mjs
++++ b/skills/poteto-mode/scripts/run-codex.mjs
+@@ -298,6 +298,7 @@ async function run(options) {
+       approvalPolicy: 'on-request',
+       approvalsReviewer: 'auto_review',
+       persistThread: true,
++      threadSource: 'chatgpt_hidden',
+       resumeThreadId: options.resume,
+       prompt,
+       onDiagnostic: diagnostic,
+diff --git a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
+index 4b0a12f..15cc613 100644
+--- a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
++++ b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
+@@ -69,6 +69,7 @@ function buildThreadParams(cwd, options = {}) {
+     approvalsReviewer: options.approvalsReviewer,
+     sandbox: options.sandbox ?? "read-only",
+     serviceName: SERVICE_NAME,
++    threadSource: options.threadSource,
+     ephemeral: options.ephemeral ?? true
+   };
+ }
+@@ -1159,6 +1160,7 @@ export async function runAppServerTurn(cwd, options = {}) {
+         approvalPolicy: options.approvalPolicy,
+         approvalsReviewer: options.approvalsReviewer,
+         ephemeral: options.persistThread ? false : true,
++        threadSource: options.threadSource,
+         threadName: options.persistThread ? options.threadName : options.threadName ?? null
+       });
+       threadId = response.thread.id;

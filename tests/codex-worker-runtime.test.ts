@@ -235,6 +235,8 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
   assert.equal(start.request.params.cwd, f.cwd);
   assert.equal(start.request.params.ephemeral, false);
   assert.equal(start.request.params.sandbox, 'read-only');
+  assert.equal(start.request.params.approvalPolicy, 'on-request');
+  assert.equal(start.request.params.approvalsReviewer, 'auto_review');
   const turn = events.find((event) => event.request?.method === 'turn/start');
   assert.equal(turn.request.params.model, 'selected-model');
   assert.equal(turn.request.params.effort, 'xhigh');
@@ -378,6 +380,8 @@ test('parallel workers and interleaved exact continuation retain separate identi
   assert.equal(resume.request.params.threadId, first.threadId);
   assert.equal(resume.request.params.cwd, f.cwd);
   assert.equal(resume.request.params.sandbox, 'workspace-write');
+  assert.equal(resume.request.params.approvalPolicy, 'on-request');
+  assert.equal(resume.request.params.approvalsReviewer, 'auto_review');
 });
 
 for (const prompt of ['WAIT', 'EARLY WAIT'])

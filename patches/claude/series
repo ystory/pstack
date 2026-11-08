@@ -24,11 +24,6 @@ shared/0003-clarify-receiving-aliases.patch
 shared/0004-preserve-native-async.patch
 shared/0005-complete-instruction-bodies.patch
 0021-complete-instruction-delivery.patch
-0022-reviewed-worker-execution.patch
-shared/0006-worker-command-boundary.patch
-0023-worker-command-boundary.patch
-0024-clarify-boundary-restricted-policy.patch
-shared/0007-lf-only-config-framing.patch
-0025-lf-only-jsonl-framing.patch
-shared/0008-frozen-command-boundary-generations.patch
-0026-frozen-worker-boundary-integration.patch
+0022-reviewed-worker-approvals.patch
+0023-lf-only-jsonl-framing.patch
+shared/0006-codex-sandbox-escalation.patch

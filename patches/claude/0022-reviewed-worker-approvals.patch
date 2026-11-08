@@ -1,0 +1,82 @@
+diff --git a/.claude-plugin/plugin.json b/.claude-plugin/plugin.json
+index a04a1ea..27c6b8d 100644
+--- a/.claude-plugin/plugin.json
++++ b/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pstack-cc",
+-  "version": "0.1.0-dev.11",
++  "version": "0.1.0-dev.16",
+   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+   "author": {
+     "name": "pstack contributors"
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 90a3b96..1a2e5e5 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -48,7 +48,7 @@ Pass this launch request to native Bash:
+ }
+ ```
+ 
+-Use `--role` for the selected original role body. `general-purpose` seats pass their body plus the workflow templates. Repeat `--instruction` for project rules, source references, rubrics, and templates, and `--skill` for selected skill bodies. Use `--write` only for authorized `workspace-write` tasks. Without it, the runner defaults to `read-only`. An explicit `--sandbox` must match the authorized task scope. Never silently broaden it after a denial. Pass the absolute poteto-mode skill with `--skill` for a poteto-agent. Pass context paths to the runner instead of reading and copying their bodies into the brief. The runner reads the files and includes their complete bodies in its task input. The worker applies the [receiving-worker context rules](worker-context.md). Required reads of bodies absent from the input still need transcript evidence.
++Use `--role` for the selected original role body. `general-purpose` seats pass their body plus the workflow templates. Repeat `--instruction` for project rules, source references, rubrics, and templates, and `--skill` for selected skill bodies. Use `--write` only for authorized `workspace-write` tasks. Without it, the runner defaults to `read-only`. An explicit `--sandbox` must match the authorized task scope. Never silently broaden it after a denial. The runner starts each Codex thread with `on-request` approval and the `auto_review` reviewer, so a command that the sandbox blocks can request reviewed escalation. The reviewer decides whether it runs. Pass the absolute poteto-mode skill with `--skill` for a poteto-agent. Pass context paths to the runner instead of reading and copying their bodies into the brief. The runner reads the files and includes their complete bodies in its task input. The worker applies the [receiving-worker context rules](worker-context.md). Required reads of bodies absent from the input still need transcript evidence.
+ 
+ Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. Never resume the latest thread or infer identity from a directory name. The runner uses the existing Codex CLI and authentication. Claude tools, MCP servers, conversation history, and permissions do not automatically become Codex tools or state. Verify the external executor has the capabilities needed for its assigned task.
+ 
+diff --git a/skills/poteto-mode/scripts/run-codex.mjs b/skills/poteto-mode/scripts/run-codex.mjs
+index 79fae27..d08596f 100644
+--- a/skills/poteto-mode/scripts/run-codex.mjs
++++ b/skills/poteto-mode/scripts/run-codex.mjs
+@@ -295,6 +295,8 @@ async function run(options) {
+       model: options.model,
+       effort: options.effort,
+       sandbox: request.sandbox,
++      approvalPolicy: 'on-request',
++      approvalsReviewer: 'auto_review',
+       persistThread: true,
+       resumeThreadId: options.resume,
+       prompt,
+diff --git a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
+index 6557e02..4b0a12f 100644
+--- a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
++++ b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
+@@ -1,4 +1,4 @@
+-// pstack-cc modified this file for direct worker execution and cancellation.
++// pstack-cc modified this file for direct worker execution, cancellation, and reviewed approvals.
+ /**
+  * @typedef {import("./app-server-protocol").AppServerNotification} AppServerNotification
+  * @typedef {import("./app-server-protocol").ReviewTarget} ReviewTarget
+@@ -66,6 +66,7 @@ function buildThreadParams(cwd, options = {}) {
+     cwd,
+     model: options.model ?? null,
+     approvalPolicy: options.approvalPolicy ?? "never",
++    approvalsReviewer: options.approvalsReviewer,
+     sandbox: options.sandbox ?? "read-only",
+     serviceName: SERVICE_NAME,
+     ephemeral: options.ephemeral ?? true
+@@ -79,6 +80,7 @@ function buildResumeParams(threadId, cwd, options = {}) {
+     cwd,
+     model: options.model ?? null,
+     approvalPolicy: options.approvalPolicy ?? "never",
++    approvalsReviewer: options.approvalsReviewer,
+     sandbox: options.sandbox ?? "read-only"
+   };
+ }
+@@ -1144,6 +1146,8 @@ export async function runAppServerTurn(cwd, options = {}) {
+       const response = await resumeThread(client, options.resumeThreadId, cwd, {
+         model: options.model,
+         sandbox: options.sandbox,
++        approvalPolicy: options.approvalPolicy,
++        approvalsReviewer: options.approvalsReviewer,
+         ephemeral: false
+       });
+       threadId = response.thread.id;
+@@ -1152,6 +1156,8 @@ export async function runAppServerTurn(cwd, options = {}) {
+       const response = await startThread(client, cwd, {
+         model: options.model,
+         sandbox: options.sandbox,
++        approvalPolicy: options.approvalPolicy,
++        approvalsReviewer: options.approvalsReviewer,
+         ephemeral: options.persistThread ? false : true,
+         threadName: options.persistThread ? options.threadName : options.threadName ?? null
+       });

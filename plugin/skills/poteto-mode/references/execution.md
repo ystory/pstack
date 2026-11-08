@@ -107,16 +107,6 @@ Fresh agents take new rounds with the consolidated brief. Reuse an existing agen
 
 For a repeated watcher or work that must resume after the active turn, read [Codex loops](codex-loops.md) and use its native event or heartbeat controls.
 
-## macOS worker command boundary
-
-Normal setup installs self-contained user-config hook generations for the canonical native pstack roles, including the description-only general-purpose role. Their commands freeze that scope and do not depend on plugin cache files or per-command registration reads. Setup confirms exact key and hash trust. A changed guard or interpreter appends a generation and preserves older commands, trust, and positional slots. Ordinary plugin updates and unrelated package changes leave existing generations intact. Start a fresh root session after first activation. Config readback does not establish that a pre-migration Desktop session loaded the hook.
-
-On macOS, every scoped shell command is wrapped before execution, including commands with read-only intent. An actual Seatbelt invocation returns `PSTACK_REVIEW_REQUIRED`, exit 125, before the original body starts. Retry the same authorized operation through native reviewed escalation. Approved retries execute outside Seatbelt under the inherited reviewer, which may be the user or `auto_review`. Read-only intent is not OS-enforced after approval. A denied retry remains blocked. Node, npm, and test scripts can launch browsers internally, so this applies to arbitrary shell bodies. Keep verification in the selected native worker and preserve its role, model, and effort. The guard grants no approval or task authority.
-
-Native root-chat commands, unrelated roles, pre-existing processes, and non-shell tools are outside this worker boundary. An unprotected default-role fallback cannot establish protected UI verification. Keep the calling workflow's role requirements and report missing setup or host support. Native hook errors, timeouts, a missing interpreter, disabled hooks, and unsupported or managed-disabled user hooks can fail open. The exact absolute Node interpreter remains a dependency. With `approval_policy = never`, scoped Seatbelt commands stop with exit 125 and cannot complete required shell checks. `danger-full-access` supplies neither Seatbelt interception nor reviewed execution. This is an execution guardrail on supported paths, not security isolation.
-
-Setup reports user-disabled or removed generations without silently restoring them or unpublishing existing agents. User edits that insert earlier hook groups can shift positional trust keys. Setup reports the mismatch and requires the original slots and config home to be restored before it runs again. Unregister tombstones owned keys without reindexing unrelated entries. It retains old command and trust bytes and does not stop live workers. Do not treat unregister as live-session revocation.
-
 ## Permissions and MCP access
 
 Native v2 delegates use the parent's sandbox, approvals, and available tools. Route the role and its normal task procedures through native delegation. MCP-backed native `why` and `reflect` delegates use the inherited tools for investigation and citation checks. Claude Code delegates use their existing configured execution environment and receive the same applicable task instructions and source bodies through the runner.

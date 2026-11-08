@@ -11,7 +11,7 @@ corepack pnpm install --frozen-lockfile
 corepack pnpm verify
 ```
 
-`verify` checks formatting, TypeScript, tests, the JavaScript build, independent packaging, source integrity, and patch replay. After dependencies are installed, these checks run offline. The package test preserves nested `.gitignore` files in a tar archive and exercises the built CLI and definition-only setup in temporary consumer directories without changing the active user profile. Definition-only fixtures deliberately omit native runtime activation; separate live checks establish the loaded command boundary. Live Codex/Claude runs and native plugin installation are separate checks.
+`verify` checks formatting, TypeScript, tests, the JavaScript build, independent packaging, source integrity, and patch replay. After dependencies are installed, these checks run offline. The package test preserves nested `.gitignore` files in a tar archive and exercises the built CLI and setup in temporary consumer directories without changing the active user profile. Live Codex/Claude runs and native plugin installation are separate checks.
 
 Use affected checks while iterating. Documentation-only changes need formatting and link checks; distribution changes need source, patch, and artifact verification. Run the full `verify` pipeline before preparing a release artifact. Read [package.json](../package.json) for individual check scripts and run `node dist/cli.js --help` for maintainer CLI options.
 
@@ -37,7 +37,7 @@ node dist/cli.js verify-patches --target all
 
 Replace `NNNN` with the next unused four-digit number in the selected target's series. Codex uses `patches/series`; Claude uses `patches/claude/series`. Omitting `--target` retains the Codex command behavior. `--paths` accepts comma-separated files or directories relative to the selected target tree; omitting it includes all unrecorded changes. Existing patches are not overwritten. Replay applies the ordered series to a temporary copy of the combined upstream baseline and must reproduce every plugin byte, file type, and permission.
 
-Before publishing a changed host payload, strictly increase its SemVer in the target manifest. Codex uses `plugin/plugin.json`; Claude uses `plugin-claude/.claude-plugin/plugin.json`. Each host has an independent version, separate from the maintainer package. Record the bump in the affected patch series. Run `node scripts/check-release-identity.ts --base origin/main` against committed changes. The check compares each host's Git tree, including file modes and types, with the resolved baseline commit. It rejects missing targets, invalid manifests, and changed payloads without an increased version. Unchanged payloads can keep their version. CI uses the PR base SHA or the previous main SHA; a manual workflow without a baseline reports this check as not run. Refresh the latest main and rerun the check before merging concurrent releases. This check does not eliminate merge races or establish runtime compatibility. Same-version updates can replace Codex cache bytes or leave Claude cache bytes unchanged.
+Before publishing changes to `plugin-claude/`, increment the version in `plugin-claude/.claude-plugin/plugin.json`. Claude's native updater can retain cached plugin bytes when only the Git revision changes. Record the version bump in a new Claude patch. The Codex manifest and maintainer package have independent versions.
 
 ## Record a shared adaptation
 
@@ -53,25 +53,6 @@ node dist/cli.js verify-patches --target all
 `--from`, `--name`, and `--paths` are required. `--from claude-code` reads the Claude output instead. This selects the edited input, not a preferred host or model. The command verifies one patch against both replayed inputs, materializes the other output, and appends both series references. Unrelated working changes remain. A conflicting unrecorded edit in the selected other files is reported before the patch is recorded.
 
 Commit the shared patch, both series references, and both materialized outputs. Keep native changes in target patches. Initial transfer uses target-specific deletion patches followed by one shared addition, so different old host bodies do not have to match. Those full-file deletion inputs also expose upstream changes during candidate replay. Do not replace the locked original or add a third whole skill tree.
-
-## Release an adaptation through the Git marketplace
-
-The Git marketplace distributes each committed host target from the selected repository branch. The normal installation route follows the repository's default branch. A verified local artifact is a development output until a user deliberately selects that separate route.
-
-1. Record the adaptation in its patch series and increment the affected plugin version. Run the applicable checks and verify a fresh artifact.
-2. Open a PR against the distribution branch. Complete the required independent workflow verification and CI checks, then merge within the authorized release scope. Preserve the exact reviewed head and resulting merge commit.
-3. Refresh the native marketplace and plugin through the host's update commands. For Claude's normal Git installation, run `claude plugin marketplace update pstack-cc` and `claude plugin update pstack-cc@pstack-cc`. Check the installed version and source revision. Do not edit files inside the installed cache.
-4. Rerun setup with the saved role choices to refresh owned registrations and exact hook trust, then start a fresh session and verify the relevant workflow from the released plugin. A running session can retain old instructions until refreshed. Report publication, native update, and actual execution separately.
-
-## Activate native macOS worker protection
-
-Run normal setup from the installed bundle after checking its released version and source revision. Setup installs a self-contained user-config hook generation and confirms its exact key and hash before publishing changed native role definitions. Reruns preserve unchanged generations. Guard or interpreter changes append a generation while retaining old command, trust, and slot bytes. The native config API preserves foreign hook values and order but may normalize comments and formatting inside the rewritten `PreToolUse` array. On the tested macOS runtime it also writes config files with mode `0600`. Normal package updates and unrelated package content do not replace those generations. The validated absolute Node.js 24.12+ interpreter remains a runtime dependency. Inspect its recorded path when setup reports a missing or incompatible interpreter.
-
-After first activation or migration from the cache-bound hook, start a fresh root Codex session. Do not infer Desktop activation from config readback. Verify the first scoped shell call in the selected native role, its reviewed retry, update continuity, and retained-generation composition before claiming runtime compatibility. Keep fixture evidence, isolated live execution, active-profile execution, publication, update, and final workflow results separate. Add no tested Codex version from source inspection or a successful artifact build alone.
-
-If setup reports a user-disabled or removed generation, preserve that decision and existing agent registrations. Do not silently restore it. If the user edits earlier hook groups or moves the config home, setup reports changed positional keys and refuses to adopt them. Restore the original slots and home before rerunning setup. Before plugin removal, run normal unregister while the bundle remains available. It validates owned agents and managed blocks, tombstones owned hook keys without reindexing other entries, and preserves old commands and trust. It does not stop live workers or establish live-session revocation. Managed-agent blocks use an item-anchored v2 closing marker and can read exact v1 declarations whose closing marker was displaced by native config writes. Older registrars cannot read v2 ownership; unregister with the current bundle before installing an older one.
-
-Use isolated `CODEX_HOME` paths for local activation fixtures. `--definitions-only` and `--dry-run` do not activate or retire user hooks. Keep uncommitted candidate versions away from active-profile native update commands. The [design document](spec.md) records native review, fail-open, interpreter, unsupported-path, and pre-existing-process limits.
 
 ## Build and select an artifact
 

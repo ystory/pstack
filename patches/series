@@ -48,3 +48,5 @@ shared/0006-worker-command-boundary.patch
 0042-native-worker-command-boundary.patch
 0043-select-hook-capable-native-manifest.patch
 shared/0007-lf-only-config-framing.patch
+shared/0008-frozen-command-boundary-generations.patch
+0044-native-owned-boundary-generations.patch

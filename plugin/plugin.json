@@ -1,6 +1,6 @@
 {
   "name": "pstack-codex",
-  "version": "0.1.0-dev.10",
+  "version": "0.1.0-dev.11",
   "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
   "author": {
     "name": "Lauren Tan"

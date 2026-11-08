@@ -974,6 +974,31 @@ test('normal macOS unregister checks all ownership before boundary retirement', 
   }
 });
 
+test('an unsuccessful native retirement preserves every existing registration', async (t) => {
+  const f = await nativeRegistrationFixture(t);
+  f.run();
+  const files = [
+    'config.toml',
+    'pstack-codex/agent-registration.json',
+    ...names.map((name) => `agents/${name}.toml`),
+  ];
+  const before = await Promise.all(
+    files.map((file) => readFile(path.join(f.codexHome, file))),
+  );
+  await writeFile(
+    f.helper,
+    "export async function retireNativeBoundary() { return {status:'boundary-unavailable'}; }\n",
+  );
+  const result = f.nativeInvoke('--unregister');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /boundary-unavailable/);
+  for (const [index, file] of files.entries())
+    assert.deepEqual(
+      await readFile(path.join(f.codexHome, file)),
+      before[index],
+    );
+});
+
 test('a disabled or failed native boundary never updates or unpublishes existing registrations', async (t) => {
   for (const response of [
     "return {status:'boundary-user-disabled'}",

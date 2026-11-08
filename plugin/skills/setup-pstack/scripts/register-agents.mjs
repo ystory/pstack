@@ -414,7 +414,7 @@ async function register(options) {
     roles[name] = { config_file: file, description: metadata.description };
   }
   let commandBoundary;
-  if (options.definitionsOnly || options.unregister || options.dryRun) {
+  if (options.definitionsOnly || options.dryRun) {
     commandBoundary = {
       status: 'notChecked',
       reason: options.definitionsOnly
@@ -422,18 +422,32 @@ async function register(options) {
         : 'No active runtime change was requested.',
     };
   } else if (process.platform === 'darwin') {
-    const { trustNativeBoundary } = await import(
-      '../../poteto-mode/scripts/codex-boundary.mjs'
-    );
-    commandBoundary = await trustNativeBoundary({
+    const { trustNativeBoundary, retireNativeBoundary } =
+      await import('../../poteto-mode/scripts/codex-boundary.mjs');
+    const reconcile = options.unregister
+      ? retireNativeBoundary
+      : trustNativeBoundary;
+    commandBoundary = await reconcile({
       cwd: process.cwd(),
-      pluginId: `${plugin.name}@${plugin.name}`,
-      guardPath: path.join(pluginRoot, 'skills/poteto-mode/scripts/shell-boundary.mjs'),
+      codexHome,
+      nativeRoles: roleNames,
+      guardPath: path.join(
+        pluginRoot,
+        'skills/poteto-mode/scripts/shell-boundary.mjs',
+      ),
       env: { ...process.env, CODEX_HOME: codexHome },
     });
+    const expectedStatus = options.unregister ? 'retired' : 'active';
+    if (commandBoundary.status !== expectedStatus)
+      throw new Error(
+        `Native command boundary did not become ${expectedStatus}: ${commandBoundary.status}. ${commandBoundary.reason ?? ''}`.trim(),
+      );
     configSnapshot = await fileSnapshot(configFile);
     configText = configSnapshot ? utf8(configSnapshot.bytes) : '';
-    baseConfig = withoutOwnedConfig(configText, ownership, options.python);
+    baseConfig =
+      options.unregister && !ownership
+        ? configText
+        : withoutOwnedConfig(configText, ownership, options.python);
   } else {
     commandBoundary = { status: 'notApplicable', reason: 'macOS only.' };
   }

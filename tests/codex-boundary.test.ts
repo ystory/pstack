@@ -4,6 +4,7 @@ import {
   mkdtemp,
   mkdir,
   readFile,
+  readdir,
   realpath,
   rm,
   writeFile,
@@ -35,11 +36,12 @@ const digest=x=>'sha256:'+createHash('sha256').update(JSON.stringify(x)).digest(
 const sourcePath=path.join(process.env.CODEX_HOME,'config.toml');
 const snapshot=process.argv[2]==='--snapshot';
 const overrides=snapshot?JSON.parse(process.argv[3]):JSON.parse(execFileSync('python3',['-c','import sys,json,tomllib; r={}; [r.update(tomllib.loads(v)) for v in sys.argv[1:]]; print(json.dumps(r))',...process.argv.slice(2).filter((v,i,a)=>a[i-1]==='-c')],{encoding:'utf8'}));
+for(const [key,value] of Object.entries({...overrides}))if(key.includes('.')){const parts=key.split('.');let parent=overrides;for(const part of parts.slice(0,-1))parent=parent[part]??={};parent[parts.at(-1)]=value;delete overrides[key];}
 function rows(s){
  const all=[];
  for(const [source,groups,file] of [['user',s.user.hooks.PreToolUse,sourcePath],['project',s.projectHooks,'/project/config.toml'],['sessionFlags',overrides.hooks?.PreToolUse??[], '/<session-flags>/config.toml']])
  for(const [g,group] of groups.entries())for(const [h,handler] of group.hooks.entries()){
-  const key=file+':pre_tool_use:'+g+':'+h,currentHash=digest({group,handler});
+  const key=s.failure==='unknown-key-abi'&&source==='user'?'future-key-'+g+'-'+h:file+':pre_tool_use:'+g+':'+h,currentHash=digest({group,handler});
   const state=source==='sessionFlags'?overrides.hooks?.state?.[key]??{}:s.user.hooks.state[key]??{};
   const trustStatus=state.trusted_hash===currentHash?'trusted':state.trusted_hash?'modified':'untrusted';
   all.push({key,eventName:'preToolUse',handlerType:handler.type,command:handler.command,async:handler.async??false,matcher:group.matcher,timeoutSec:handler.timeout??600,sourcePath:file,source,pluginId:null,enabled:state.enabled!==false&&trustStatus==='trusted',trustStatus,currentHash});
@@ -56,7 +58,7 @@ function response(method,params,s){
  case 'config/batchWrite':{
   const appending=params.edits.some(e=>e.keyPath==='hooks.PreToolUse');
   if(s.failure==='cas-conflict'){
-   s.user.foreignConcurrent='preserve';s.version++;save(s);throw new Error('version conflict');
+   s.user.foreignConcurrent='preserve';s.user.hooks.PreToolUse.push({matcher:'^Read$',hooks:[{type:'command',command:'concurrent-foreign',timeout:5}]});s.version++;save(s);throw new Error('version conflict');
   }
   if(params.filePath!==sourcePath||params.expectedVersion!=='v'+s.version)throw new Error('missing or stale user-layer CAS');
   const metadata=path.join(process.env.CODEX_HOME,'pstack-codex/native-command-boundary');
@@ -149,8 +151,14 @@ async function fixture(t: TestContext) {
     ],
   };
   await writeFile(statePath, JSON.stringify(state));
+  const shim = path.join(dir, 'platform.mjs');
+  await writeFile(
+    shim,
+    "Object.defineProperty(process, 'platform', {value: 'darwin'});",
+  );
   const env = {
     ...process.env,
+    NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${pathToFileURL(shim).href}`,
     CODEX_HOME: home,
     FIXTURE_STATE: statePath,
     FIXTURE_LOG: log,
@@ -358,6 +366,63 @@ test('unchanged program and roles keep the same inline identity through unrelate
   assert.equal((await f.read()).user.hooks.PreToolUse.length, 1);
 });
 
+test('helper bootstrap changes reuse the previously frozen program and trust without regenerating metadata', async (t) => {
+  const f = await fixture(t);
+  const first = await helper.trustNativeBoundary(f.options);
+  const oldCommand = await f.command();
+  const storage = path.join(f.home, 'pstack-codex/native-command-boundary');
+  const facts = await readdir(storage);
+  const before = await Promise.all(
+    facts.map((name) => readFile(path.join(storage, name), 'utf8')),
+  );
+  const helperSource = await readFile(
+    path.join(root, 'plugin/skills/poteto-mode/scripts/codex-boundary.mjs'),
+    'utf8',
+  );
+  const changed = helperSource.replace(
+    "return `import { createHash } from 'node:crypto';\nconst boundary",
+    "return `import { createHash } from 'node:crypto';\n\nconst boundary",
+  );
+  assert.notEqual(changed, helperSource);
+  const futurePath = path.join(f.dir, 'future-helper.mjs');
+  await writeFile(futurePath, changed);
+  const future = await import(pathToFileURL(futurePath).href);
+  assert.equal(
+    (await future.inspectNativeBoundary(f.options)).status,
+    'active',
+  );
+  const next = await future.trustNativeBoundary(f.options);
+  assert.equal(next.hook.key, first.hook.key);
+  assert.equal(next.hook.currentHash, first.hook.currentHash);
+  assert.equal(await f.command(), oldCommand);
+  assert.deepEqual(await readdir(storage), facts);
+  assert.deepEqual(
+    await Promise.all(
+      facts.map((name) => readFile(path.join(storage, name), 'utf8')),
+    ),
+    before,
+  );
+  assert.equal(
+    (await f.events()).filter((e) => e.method === 'config/batchWrite').length,
+    2,
+  );
+});
+
+test('unsupported runtime hook keys are reported without re-trusting or blaming a user slot change', async (t) => {
+  const f = await fixture(t);
+  await f.change((s) => {
+    s.failure = 'unknown-key-abi';
+  });
+  await assert.rejects(
+    helper.trustNativeBoundary(f.options),
+    isBoundaryError('unsupported-key-abi'),
+  );
+  assert.equal(
+    (await f.events()).filter((e) => e.method === 'config/batchWrite').length,
+    1,
+  );
+});
+
 test('changed frozen source appends a generation while retaining all old bodies and trust, and both gates compose', async (t) => {
   const f = await fixture(t);
   const first = await helper.trustNativeBoundary(f.options);
@@ -462,7 +527,7 @@ test('foreign CAS conflicts cannot overwrite concurrent state or promote project
     isBoundaryError(),
   );
   assert.equal((await f.read()).user.foreignConcurrent, 'preserve');
-  assert.equal((await f.read()).user.hooks.PreToolUse.length, 0);
+  assert.equal((await f.read()).user.hooks.PreToolUse.length, 1);
   await f.change((s) => {
     s.failure = '';
   });
@@ -540,6 +605,56 @@ test('native retirement disables observed owned keys without deleting bodies or 
   assert.equal((await f.read()).user.hooks.PreToolUse.length, 3);
 });
 
+for (const stage of ['trust-before', 'trust-after'])
+  test(`native retirement recovers after ${stage} without changing its immutable slots`, async (t) => {
+    const f = await fixture(t);
+    const initial = await helper.trustNativeBoundary(f.options);
+    const groups = (await f.read()).user.hooks.PreToolUse;
+    await f.change((s) => {
+      s.failure = stage;
+    });
+    await assert.rejects(
+      helper.retireNativeBoundary(f.options),
+      isBoundaryError(),
+    );
+    await f.change((s) => {
+      s.failure = '';
+    });
+    assert.equal(
+      (await helper.retireNativeBoundary(f.options)).status,
+      'retired',
+    );
+    assert.deepEqual((await f.read()).user.hooks.PreToolUse, groups);
+    assert.equal(
+      (await f.read()).user.hooks.state[initial.hook.key]!.enabled,
+      false,
+    );
+  });
+
+test('explicit retirement preserves an already user-disabled binding without re-enabling it', async (t) => {
+  const f = await fixture(t);
+  const initial = await helper.trustNativeBoundary(f.options);
+  await f.change((s) => {
+    s.user.hooks.state[initial.hook.key]!.enabled = false;
+    s.version++;
+  });
+  const writes = (await f.events()).filter(
+    (e) => e.method === 'config/batchWrite',
+  ).length;
+  assert.equal(
+    (await helper.retireNativeBoundary(f.options)).status,
+    'retired',
+  );
+  assert.equal(
+    (await f.events()).filter((e) => e.method === 'config/batchWrite').length,
+    writes,
+  );
+  assert.equal(
+    (await f.read()).user.hooks.state[initial.hook.key]!.enabled,
+    false,
+  );
+});
+
 test('equivalent commands without ownership metadata are never adopted or trusted', async (t) => {
   const f = await fixture(t);
   await helper.trustNativeBoundary(f.options);
@@ -604,6 +719,106 @@ test('external preparation freezes the whole worker and accepts only owned nativ
       'secret-foreign-rewriter',
     ),
   );
+});
+
+for (const action of ['disable', 'remove', 'disable-with-damaged-metadata'])
+  test(`external protection stays independent after native ${action}`, async (t) => {
+    const f = await fixture(t);
+    const native = await helper.trustNativeBoundary(f.options);
+    await f.change((state) => {
+      if (action === 'remove') state.user.hooks.PreToolUse = [];
+      else state.user.hooks.state[native.hook.key]!.enabled = false;
+      state.version++;
+    });
+    if (action === 'disable-with-damaged-metadata') {
+      const directory = path.join(
+        f.home,
+        'pstack-codex/native-command-boundary',
+      );
+      const intent = (await readdir(directory)).find((name) =>
+        name.endsWith('.intent.json'),
+      )!;
+      await writeFile(path.join(directory, intent), '{damaged bookkeeping');
+    }
+    const before = await f.read();
+    const writes = (await f.events()).filter(
+      (event) => event.method === 'config/batchWrite',
+    ).length;
+    const prepared = await helper.prepareWorkerBoundary(f.options);
+    await prepared.preTurnPreflight(f.client(prepared.configOverrides));
+    assert.equal(prepared.commandBoundary.status, 'active');
+    const frozen =
+      prepared.configOverrides['hooks.PreToolUse'][0].hooks[0]!.command;
+    assert(
+      invoke(
+        frozen,
+        undefined,
+        prepared.env,
+      ).hookSpecificOutput.updatedInput.command.includes(
+        'PSTACK_REVIEW_REQUIRED',
+      ),
+    );
+    assert.deepEqual(await f.read(), before);
+    assert.equal(
+      (await f.events()).filter((event) => event.method === 'config/batchWrite')
+        .length,
+      writes,
+    );
+    await assert.rejects(
+      helper.trustNativeBoundary(f.options),
+      isBoundaryError(),
+    );
+    assert.deepEqual(await f.read(), before);
+  });
+
+test('a healthy enabled native generation remains admissible beside damaged inactive ownership', async (t) => {
+  const f = await fixture(t);
+  const old = await helper.trustNativeBoundary(f.options);
+  await writeFile(
+    f.guardPath,
+    (await readFile(f.guardPath, 'utf8')) + '\n// New immutable generation.\n',
+  );
+  await helper.trustNativeBoundary(f.options);
+  await f.change((state) => {
+    state.user.hooks.state[old.hook.key]!.enabled = false;
+    state.version++;
+  });
+  const directory = path.join(f.home, 'pstack-codex/native-command-boundary');
+  const inactive = (await readdir(directory)).find(
+    (name) => name.startsWith('0-') && name.endsWith('.intent.json'),
+  )!;
+  await writeFile(
+    path.join(directory, inactive),
+    '{damaged inactive ownership',
+  );
+  const before = await f.read();
+  const prepared = await helper.prepareWorkerBoundary(f.options);
+  await prepared.preTurnPreflight(f.client(prepared.configOverrides));
+  assert.equal(prepared.commandBoundary.status, 'active');
+  assert.deepEqual(await f.read(), before);
+  assert.equal(
+    (await f.events()).filter((event) => event.method === 'config/batchWrite')
+      .length,
+    4,
+  );
+  await assert.rejects(
+    helper.inspectNativeBoundary(f.options),
+    isBoundaryError(),
+  );
+});
+
+test('external pre-turn protection tolerates native removal after preparation without reconstructing it', async (t) => {
+  const f = await fixture(t);
+  await helper.trustNativeBoundary(f.options);
+  const prepared = await helper.prepareWorkerBoundary(f.options);
+  await f.change((state) => {
+    state.user.hooks.PreToolUse = [];
+    state.version++;
+  });
+  const before = await f.read();
+  await prepared.preTurnPreflight(f.client(prepared.configOverrides));
+  assert.equal(prepared.commandBoundary.status, 'active');
+  assert.deepEqual(await f.read(), before);
 });
 
 for (const failure of [

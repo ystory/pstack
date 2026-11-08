@@ -7,7 +7,7 @@ description: Configure pstack workers in Codex. Choose worker executors, prepare
 
 Save accepted choices in `$CODEX_HOME/pstack-codex/models.json`, or `~/.codex/pstack-codex/models.json` when `CODEX_HOME` is unset. Resolve helpers relative to this installed skill and invoke their absolute paths with Node.js. Read [the helper contract](references/models-contract.md) for shapes and arguments.
 
-For removal, run `scripts/register-agents.mjs --unregister` while this bundle is available, then remove the plugin. Unregister removes only unchanged owned registrations and retains preferences. A fresh reset removes the old installation through its own setup before installing this product. There is no old-name alias or automatic preference migration.
+For removal, run `scripts/register-agents.mjs --unregister` while this bundle is available, then remove the plugin. Unregister preflights owned registrations and retires owned native hook keys without reindexing other hooks. It retains preferences, commands, and trust records. It does not stop live workers. A fresh reset removes the old installation through its own setup before installing this product. There is no old-name alias or automatic preference migration.
 
 ## 1. Choose worker executors
 
@@ -74,9 +74,11 @@ Panels run every ordered entry, including duplicates and aliases. Arena's cross-
 
 Show the accepted roles, any roles left unconfigured, the budget, supported efforts, and evidence sources. Honor choices already authorized in the conversation. Save the accepted sparse config to an absolute temporary JSON file. Validate with `scripts/models.mjs write --input ABSOLUTE_JSON --catalog ABSOLUTE_CATALOG --expected-hash HASH --dry-run`. Use the read hash, or `absent` for a fresh file.
 
-Run `scripts/register-agents.mjs`. It registers `poteto-agent`, `comment-sicko`, and the description-only `pstack-general-purpose` role. Python's standard-library `tomllib` checks native configuration. `--python ABSOLUTE_PATH` selects an existing interpreter. The helper preserves unrelated config, comments, modes, roles, and preferences. It refuses user edits, unowned declarations, symlinks, and damaged ownership. An unsupported inline agents table needs conversion to normal tables. Report the exact conflict before proceeding.
+Run `scripts/register-agents.mjs`. It registers `poteto-agent`, `comment-sicko`, and the description-only `pstack-general-purpose` role. Python's standard-library `tomllib` checks native configuration. `--python ABSOLUTE_PATH` selects an existing interpreter. The helper preserves unrelated setting values, modes, roles, and preferences. The native config API may normalize comments and formatting inside the `PreToolUse` array when appending a generation. It refuses user edits, unowned declarations, symlinks, and damaged ownership. An unsupported inline agents table needs conversion to normal tables. Report the exact conflict before proceeding.
 
-On macOS, normal registration also discovers the installed pstack command hook, checks runtime support and conflicts, trusts only its exact current key and hash through the native config API, and confirms readback before changing agent files. The receipt includes `commandBoundary`. A missing, disabled, untrusted, conflicting, or unsupported boundary is a setup gap, not successful protection. Plugin updates require this check again because the installed hook identity can change. `--definitions-only` is reserved for isolated ownership fixtures and does not activate or verify the runtime boundary.
+On macOS, normal registration installs a self-contained command hook as an owned user-config generation. The helper checks runtime support and conflicts, trusts its exact key and hash through the native config API, and confirms readback before publishing agent definitions. The receipt includes `commandBoundary`. Unchanged generations need no writes. A changed guard or interpreter appends a generation and preserves old commands, trust, and slots. Package updates and unrelated package content do not replace these commands. Setup checks the validated absolute Node interpreter, which remains a runtime dependency.
+
+A disabled, removed, conflicting, or unsupported boundary is a setup gap. Preserve existing agents and report the failure. Never silently re-enable a user-disabled hook or restore a user-removed generation. `--definitions-only` is reserved for isolated ownership fixtures. It and `--dry-run` do not activate or retire hooks. Native roles, original worker instructions, selected models, and reasoning budgets retain their existing routing.
 
 Read the receipt's file-based `agents`, `metadataRoles`, and config declaration status. Repeated registration is idempotent. An isolated `--codex-home ABS` selects a fixture target. `--dry-run` previews without writing.
 
@@ -84,7 +86,7 @@ After registration succeeds, run the same model write without `--dry-run`. A sta
 
 ## 6. Finish setup
 
-Report the saved path, budget, selected executors, registration, and source evidence. Explain that a fresh Codex session loads the registered roles. When the user requests execution verification, use the installed namespace with a small task and the selected worker. Record requested and observed model separately, and distinguish saved settings, fixture evidence, native CLI execution, and Desktop UI evidence. Saving setup does not itself verify worker execution.
+Report the saved path, budget, selected executors, registration, and source evidence. After setup, start a fresh root Codex session to load the registered roles and native user hook. Sessions loaded before this migration cannot claim protection from config readback. When the user requests execution verification, use the installed namespace with a small task and the selected worker. Record requested and observed model separately, and distinguish saved settings, fixture evidence, native CLI execution, and Desktop UI evidence. Saving setup does not itself verify worker execution.
 
 ## Optional project verification
 

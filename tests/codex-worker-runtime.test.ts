@@ -12,7 +12,7 @@ import {
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { computeSnapshotDigest } from '../src/upstream/snapshot.ts';
 
 const project = fileURLToPath(new URL('..', import.meta.url));
@@ -20,6 +20,7 @@ const fakeSource = String.raw`#!/usr/bin/env node
 import fs from 'node:fs';
 import readline from 'node:readline';
 import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 const log = (event) => fs.appendFileSync(process.env.FAKE_LOG, JSON.stringify({pid:process.pid,cwd:process.cwd(),...event})+'\n');
 const rawArgs = process.argv.slice(2);
 const overrides = {};
@@ -32,8 +33,17 @@ for (let i=0; i<rawArgs.length; i++) {
 }
 const args = rawArgs.filter((_,i)=>rawArgs[i] !== '-c' && rawArgs[i-1] !== '-c');
 log({args:rawArgs,overrides,worker:process.env.PSTACK_CODEX_WORKER ?? null});
-const inheritedState = {unrelated:{trusted_hash:'preserve-me',enabled:true}};
-const effectiveState = {...inheritedState,...(overrides.hooks?.state ?? {})};
+const readUser=()=>JSON.parse(fs.readFileSync(process.env.FAKE_USER_CONFIG,'utf8'));
+const userHooks=()=>{
+ const user=readUser().config;
+ return user.hooks.PreToolUse.flatMap((row,i)=>row.hooks.map((handler,j)=>{
+  const sourcePath=process.env.CODEX_HOME+'/config.toml',key=sourcePath+':pre_tool_use:'+i+':'+j;
+  const currentHash='sha256:'+createHash('sha256').update(JSON.stringify({row,handler})).digest('hex');
+  const state=user.hooks.state[key]??{};
+  const trustStatus=state.trusted_hash===currentHash?'trusted':state.trusted_hash?'modified':'untrusted';
+  return {key,eventName:'preToolUse',handlerType:handler.type,command:handler.command,async:handler.async??false,matcher:row.matcher,timeoutSec:handler.timeout??600,sourcePath,source:'user',pluginId:null,currentHash,trustStatus,enabled:state.enabled!==false&&trustStatus==='trusted'};
+ }));
+};
 if (args[0] === '--version') { console.log('codex-cli 0.fixture'); process.exit(0); }
 if (args[0] === 'app-server' && args[1] === '--help') { console.log('Usage: codex app-server'); process.exit(0); }
 if (args[0] !== 'app-server') process.exit(3);
@@ -51,15 +61,27 @@ lines.on('line', (line) => {
  case 'initialized': break;
  case 'account/read': respond(request,process.env.FAKE_NO_AUTH ? {account:null,requiresOpenaiAuth:true} : {account:{type:'chatgpt',email:'private@example.invalid'},requiresOpenaiAuth:true}); break;
  case 'config/read': {
-  const config={model_provider:'openai',model_providers:{fixture:{api_key:'fixture-private-config'}},features:{...(process.env.FAKE_BOUNDARY === 'user-disabled' ? {hooks:false}:{})},hooks:{PreToolUse:[{matcher:'^Read$',hooks:[{type:'command',command:'unrelated-reader fixture-private-hook'}]}],state:inheritedState}};
-  respond(request,{config,layers:p.includeLayers ? [{name:{type:'user',file:process.env.CODEX_HOME+'/config.toml'},version:'fixture-user-v1',config}] : null}); break;
+  const user=readUser(),config={...user.config,model_provider:'openai',model_providers:{fixture:{api_key:'fixture-private-config'}},features:{hooks:process.env.FAKE_BOUNDARY!=='user-disabled'}};
+  respond(request,{config,layers:p.includeLayers ? [{name:{type:'user',file:process.env.CODEX_HOME+'/config.toml'},version:'v'+user.version,config:user.config}] : null}); break;
+ }
+ case 'config/batchWrite': {
+  const user=readUser();
+  if(p.filePath!==process.env.CODEX_HOME+'/config.toml'||p.expectedVersion!=='v'+user.version){send({id:request.id,error:{code:-32001,message:'missing or stale user-layer CAS'}});break;}
+  for(const edit of p.edits){
+   if(edit.keyPath==='hooks.PreToolUse'){user.config.hooks.PreToolUse=edit.value;continue;}
+   const match=/^hooks\.state\.("(?:[^"\\]|\\.)*")\.(trusted_hash|enabled)$/.exec(edit.keyPath);
+   if(!match)throw new Error('unexpected configuration edit');
+   const key=JSON.parse(match[1]);user.config.hooks.state[key]={...user.config.hooks.state[key],[match[2]]:edit.value};
+  }
+  user.version++;fs.writeFileSync(process.env.FAKE_USER_CONFIG,JSON.stringify(user));respond(request,{});break;
  }
  case 'configRequirements/read': respond(request,{requirements:process.env.FAKE_BOUNDARY === 'managed-disabled' ? {feature_requirements:{hooks:false}} : {}}); break;
- case 'experimentalFeature/list': respond(request,{data:[{name:'hooks',enabled:overrides.features?.hooks===true && process.env.FAKE_BOUNDARY!=='disabled-feature'}],nextCursor:null}); break;
+ case 'experimentalFeature/list': respond(request,{data:[{name:'hooks',enabled:(overrides.features?.hooks??readUser().config.features.hooks)===true && process.env.FAKE_BOUNDARY!=='disabled-feature'}],nextCursor:null}); break;
  case 'hooks/list': {
   if (process.env.FAKE_HOLD_HOOKS) break;
   if (process.env.FAKE_BOUNDARY==='missing-api') {send({id:request.id,error:{code:-32601,message:'hooks/list unavailable'}});break;}
   const rows = overrides.hooks?.PreToolUse ?? [];
+  const effectiveState={...readUser().config.hooks.state,...(overrides.hooks?.state??{})};
   const owned = rows.flatMap((row,i)=>(row.hooks ?? []).map((handler,j)=>({key:'/<session-flags>/config.toml:pre_tool_use:'+i+':'+j,eventName:'preToolUse',handlerType:'command',command:handler.command,async:false,matcher:row.matcher,timeoutSec:handler.timeout,sourcePath:'/<session-flags>/config.toml',source:'sessionFlags',pluginId:null,currentHash:'sha256:'+('a'.repeat(64)),enabled:true,trustStatus:'untrusted'})));
   for (const h of owned) {
    h.trustStatus=effectiveState[h.key]?.trusted_hash===h.currentHash ? 'trusted' : 'untrusted';
@@ -76,7 +98,7 @@ lines.on('line', (line) => {
     if(process.env.FAKE_BOUNDARY==='wrong-timeout')h.timeoutSec=0;
   }
   if (process.env.FAKE_BOUNDARY==='missing-hook') owned.length=0;
-  owned.push({key:'/fixture-user/config.toml:pre_tool_use:0:0',eventName:'preToolUse',handlerType:'command',command:'unrelated-reader fixture-private-hook',async:false,matcher:'^Read$',enabled:true,source:'user',trustStatus:'trusted',currentHash:'sha256:'+('d'.repeat(64))});
+  owned.push(...userHooks());
   if (process.env.FAKE_BOUNDARY==='conflict') owned.push({key:'competing',eventName:'preToolUse',handlerType:'command',command:'different-hook',matcher:'.*',enabled:true});
   if (process.env.FAKE_DUPLICATE_GUARD) owned.push({key:'duplicate',eventName:'preToolUse',handlerType:'command',command:'node '+JSON.stringify(process.env.FAKE_DUPLICATE_GUARD),matcher:'^Bash$',async:false,timeoutSec:5,enabled:true,pluginId:'pstack-codex@pstack-codex'});
   log({effectiveReadHookCount:owned.filter((h)=>h.matcher==='^Read$').length,effectiveUnrelatedTrust:effectiveState.unrelated?.trusted_hash});
@@ -117,6 +139,10 @@ lines.on('line', (line) => {
    const command='printf original-body';
    const input=JSON.stringify({hook_event_name:'PreToolUse',tool_name:'Bash',tool_input:{command}});
    const handler=overrides.hooks.PreToolUse[0].hooks[0];
+   for(const hook of userHooks().filter(h=>h.enabled&&new RegExp(h.matcher).test('Bash'))){
+    const native=spawnSync('/bin/sh',['-c',hook.command],{input,encoding:'utf8',env:process.env});
+    log({nativeHookExecution:{status:native.status,stdout:native.stdout,stderr:native.stderr}});
+   }
    const executed=spawnSync('/bin/sh',['-c',handler.command],{input,encoding:'utf8',env:process.env});
    let output;try{output=JSON.parse(executed.stdout);}catch{}
    const wrapped=output?.hookSpecificOutput?.updatedInput?.command;
@@ -224,10 +250,43 @@ async function fixture(t: TestContext) {
   const cwd = path.join(root, 'assigned worktree');
   await mkdir(cwd);
   const log = path.join(root, 'server.jsonl');
+  const codexHome = path.join(root, 'isolated-codex-home');
+  const userConfig = path.join(root, 'user-config.json');
+  await mkdir(codexHome);
+  await writeFile(
+    userConfig,
+    JSON.stringify({
+      version: 1,
+      config: {
+        features: { hooks: true },
+        hooks: {
+          PreToolUse: [
+            {
+              matcher: '^Read$',
+              hooks: [
+                {
+                  type: 'command',
+                  command: 'unrelated-reader fixture-private-hook',
+                },
+              ],
+            },
+          ],
+          state: { unrelated: { trusted_hash: 'preserve-me', enabled: true } },
+        },
+      },
+    }),
+  );
   const env = {
     ...process.env,
     FAKE_LOG: log,
-    CODEX_HOME: path.join(root, 'isolated-codex-home'),
+    CODEX_HOME: codexHome,
+    FAKE_USER_CONFIG: userConfig,
+    NODE_OPTIONS: [
+      process.env.NODE_OPTIONS,
+      `--import=${pathToFileURL(platformShim).href}`,
+    ]
+      .filter(Boolean)
+      .join(' '),
     CODEX_COMPANION_APP_SERVER_ENDPOINT: '/must-not-use-shared-broker',
   };
   const role = path.join(root, 'role.md'),
@@ -287,6 +346,8 @@ async function fixture(t: TestContext) {
     skill,
     workerContext,
     guard,
+    codexHome,
+    userConfig,
     root,
     runner,
     executable,
@@ -1248,6 +1309,95 @@ test('an enabled mutable-file duplicate is rejected even when its bytes match', 
   );
   assert.equal(
     (await f.receipt('duplicate-bad')).commandBoundary.reason,
+    'conflicting-hook',
+  );
+  assert(
+    !(await f.events()).some((event) => event.request?.method === 'turn/start'),
+  );
+});
+
+test('owned native generations return no rewrite beside each external new or resumed turn', async (t) => {
+  const f = await fixture(t);
+  const helper = await import(
+    pathToFileURL(
+      path.join(
+        project,
+        'plugin/skills/poteto-mode/scripts/codex-boundary.mjs',
+      ),
+    ).href
+  );
+  const native = await helper.trustNativeBoundary({
+    cwd: f.cwd,
+    codexHome: f.codexHome,
+    guardPath: f.guard,
+    executable: f.executable,
+    env: f.env,
+    platform: 'darwin',
+    nativeRoles: ['poteto-agent'],
+  });
+  assert.equal(native.status, 'active');
+  for (const resume of [false, true]) {
+    const result = f.run(
+      resume ? 'native-resumed' : 'native-new',
+      'Ordinary verification.',
+      resume ? ['--resume', 'exact-existing-thread'] : [],
+      { FAKE_RUN_GATED_SHELL: '1' },
+    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+  }
+  const events = await f.events();
+  const nativeRuns = events.filter((event) => event.nativeHookExecution);
+  assert.equal(nativeRuns.length, 2);
+  for (const event of nativeRuns) {
+    assert.equal(event.nativeHookExecution.status, 0);
+    assert.deepEqual(JSON.parse(event.nativeHookExecution.stdout), {});
+  }
+  const externalRuns = events.filter((entry) => entry.hookExecution);
+  assert.equal(externalRuns.length, 2);
+  for (const event of externalRuns) {
+    const output = JSON.parse(event.hookExecution.stdout);
+    assert.equal(
+      output.hookSpecificOutput.updatedInput.command.split(
+        'PSTACK_REVIEW_REQUIRED',
+      ).length - 1,
+      1,
+    );
+  }
+  const shellRuns = events.filter((entry) => entry.shellExecution);
+  assert.equal(shellRuns.length, 2);
+  for (const event of shellRuns) {
+    assert.equal(event.shellExecution.sandboxed.status, 125);
+    assert.equal(event.shellExecution.sandboxed.stdout, '');
+    assert.equal(event.shellExecution.reviewed.stdout, 'original-body');
+  }
+});
+
+test('a native command without owned generation facts is rejected before a turn', async (t) => {
+  const f = await fixture(t);
+  const helper = await import(
+    pathToFileURL(
+      path.join(
+        project,
+        'plugin/skills/poteto-mode/scripts/codex-boundary.mjs',
+      ),
+    ).href
+  );
+  await helper.trustNativeBoundary({
+    cwd: f.cwd,
+    codexHome: f.codexHome,
+    guardPath: f.guard,
+    executable: f.executable,
+    env: f.env,
+    platform: 'darwin',
+    nativeRoles: ['poteto-agent'],
+  });
+  await rm(path.join(f.codexHome, 'pstack-codex/native-command-boundary'), {
+    recursive: true,
+  });
+  const result = f.run('unowned-native');
+  assert.equal(result.status, 1);
+  assert.equal(
+    (await f.receipt('unowned-native')).commandBoundary.reason,
     'conflicting-hook',
   );
   assert(

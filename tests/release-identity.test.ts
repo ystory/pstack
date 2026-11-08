@@ -81,11 +81,10 @@ function check(project: string, base: string, head?: string) {
     process.execPath,
     [
       script,
-      '--base',
-      base,
+      `--base=${base}`,
       '--project',
       project,
-      ...(head ? ['--head', head] : []),
+      ...(head ? [`--head=${head}`] : []),
     ],
     { encoding: 'utf8', timeout: 30_000 },
   );

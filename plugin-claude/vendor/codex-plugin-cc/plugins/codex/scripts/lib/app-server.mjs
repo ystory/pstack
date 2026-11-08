@@ -12,7 +12,6 @@ import fs from "node:fs";
 import net from "node:net";
 import process from "node:process";
 import { spawn } from "node:child_process";
-import readline from "node:readline";
 import { parseBrokerEndpoint } from "./broker-endpoint.mjs";
 import { ensureBrokerSession, loadBrokerSession } from "./broker-lifecycle.mjs";
 import { terminateProcessTree } from "./process.mjs";
@@ -222,9 +221,17 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
       this.handleExit(detail);
     });
 
-    this.readline = readline.createInterface({ input: this.proc.stdout });
-    this.readline.on("line", (line) => {
-      this.handleLine(line);
+    this.proc.stdout.on("data", (chunk) => {
+      if (!this.closed) {
+        this.handleChunk(chunk);
+      }
+    });
+    this.proc.stdout.on("end", () => {
+      if (!this.closed && this.lineBuffer) {
+        const line = this.lineBuffer;
+        this.lineBuffer = "";
+        this.handleLine(line);
+      }
     });
 
     await this.request("initialize", {
@@ -241,10 +248,6 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
     }
 
     this.closed = true;
-
-    if (this.readline) {
-      this.readline.close();
-    }
 
     if (this.proc && !this.proc.killed) {
       this.proc.stdin.end();

@@ -188,7 +188,9 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
   }
 
   async initialize() {
-    this.proc = spawn(this.options.executable ?? "codex", ["app-server"], {
+    const executable = this.options.executable ?? "codex";
+    const args = this.options.appServerArgs ?? ["app-server"];
+    this.proc = spawn(executable, args, {
       cwd: this.cwd,
       env: this.options.env ?? process.env,
       stdio: ["pipe", "pipe", "pipe"],
@@ -196,7 +198,7 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
       windowsHide: true
     });
 
-    this.options.onDiagnostic?.({ event: "spawn", pid: this.proc.pid ?? null });
+    this.options.onDiagnostic?.({ event: "spawn", pid: this.proc.pid ?? null, executable, args });
     this.proc.stdout.setEncoding("utf8");
     this.proc.stderr.setEncoding("utf8");
 

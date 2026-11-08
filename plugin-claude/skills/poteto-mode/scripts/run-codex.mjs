@@ -77,37 +77,71 @@ function parse(argv) {
   return options;
 }
 
-function cliStatus(options) {
-  const executable = options.executable ?? 'codex';
+function serverCommand(options) {
+  const name =
+    process.platform === 'win32' ? 'codex-app-server.exe' : 'codex-app-server';
+  const executable =
+    options.executable ??
+    (process.env.PATH ?? '')
+      .split(path.delimiter)
+      .map((directory) => path.resolve(directory, name))
+      .find((candidate) => {
+        try {
+          fs.accessSync(candidate, fs.constants.X_OK);
+          return true;
+        } catch {
+          return false;
+        }
+      }) ??
+    name;
+  return { executable, args: ['--session-source', 'app-server'] };
+}
+
+function cliStatus(options, server) {
   const cwd = options.cwd ?? process.cwd();
   const invoke = (args) =>
-    spawnSync(executable, args, {
+    spawnSync(server.executable, args, {
       cwd,
       encoding: 'utf8',
       timeout: 10_000,
+      maxBuffer: 1024 * 1024,
       windowsHide: true,
     });
   const version = invoke(['--version']);
   const appServer =
-    version.status === 0 ? invoke(['app-server', '--help']) : null;
+    !version.error && version.status === 0
+      ? invoke([...server.args, '--help'])
+      : null;
+  const supported =
+    !appServer?.error &&
+    appServer?.status === 0 &&
+    /(?:^|\s)--session-source(?:\s|[=,]|$)/m.test(appServer.stdout);
   return {
-    available: version.status === 0 && appServer?.status === 0,
-    executable,
+    available: Boolean(supported),
+    kind: 'standalone-app-server',
+    executable: server.executable,
+    args: server.args,
     version: version.status === 0 ? version.stdout.trim() : null,
-    appServer: appServer?.status === 0,
+    appServer: Boolean(supported),
     error:
       version.error?.message ??
       appServer?.error?.message ??
       (version.status !== 0
-        ? version.stderr.trim() || `exit ${version.status}`
+        ? version.stderr.trim() ||
+          version.stdout.trim() ||
+          `exit ${version.status}`
         : appServer?.status !== 0
-          ? appServer?.stderr.trim() || `exit ${appServer?.status}`
-          : null),
+          ? appServer?.stderr.trim() ||
+            appServer?.stdout.trim() ||
+            `exit ${appServer?.status}`
+          : !supported
+            ? 'The selected runtime help does not advertise --session-source. Use the official standalone codex-app-server package.'
+            : null),
   };
 }
 
-async function inspect(options) {
-  const cli = cliStatus(options);
+async function inspect(options, server) {
+  const cli = cliStatus(options, server);
   const result = {
     schemaVersion: 1,
     cli,
@@ -128,7 +162,8 @@ async function inspect(options) {
   try {
     client = await CodexAppServerClient.connect(options.cwd ?? process.cwd(), {
       disableBroker: true,
-      executable: options.executable,
+      executable: server.executable,
+      appServerArgs: server.args,
     });
     const account = await client.request('account/read', {
       refreshToken: false,
@@ -175,7 +210,7 @@ function instructionFiles(options) {
   ].map((file) => ({ ...file, body: fs.readFileSync(file.path, 'utf8') }));
 }
 
-async function run(options) {
+async function run(options, server) {
   const bodies = instructionFiles(options);
   const task = fs.readFileSync(options['prompt-file'] ?? 0, 'utf8');
   if (!task.trim()) throw new Error('A nonempty task is required.');
@@ -205,6 +240,7 @@ async function run(options) {
   const request = {
     schemaVersion: 1,
     executor: EXECUTOR,
+    runtime: { kind: 'standalone-app-server', ...server },
     cwd: options.cwd,
     requested,
     resumeThreadId: options.resume ?? null,
@@ -286,11 +322,18 @@ async function run(options) {
       finalText = message.params.item.text ?? finalText;
   };
   let result = null,
-    failure = null;
+    failure = null,
+    runtime = null;
   try {
+    runtime = cliStatus(options, server);
+    if (!runtime.available)
+      throw new Error(
+        `Standalone Codex app-server unavailable: ${runtime.error} Download the complete matching-platform package from https://github.com/openai/codex/releases and put codex-app-server on PATH or select --executable ABS.`,
+      );
     result = await runAppServerTurn(options.cwd, {
       direct: true,
-      executable: options.executable,
+      executable: server.executable,
+      appServerArgs: server.args,
       signal: controller.signal,
       model: options.model,
       effort: options.effort,
@@ -298,7 +341,6 @@ async function run(options) {
       approvalPolicy: 'on-request',
       approvalsReviewer: 'auto_review',
       persistThread: true,
-      threadSource: 'chatgpt_hidden',
       resumeThreadId: options.resume,
       prompt,
       onDiagnostic: diagnostic,
@@ -345,6 +387,7 @@ async function run(options) {
   const receipt = {
     schemaVersion: 1,
     executor: EXECUTOR,
+    runtime: runtime ?? { kind: 'standalone-app-server', ...server },
     cwd: options.cwd,
     sandbox: request.sandbox,
     threadId,
@@ -377,14 +420,18 @@ async function run(options) {
 try {
   const options = parse(process.argv.slice(2));
   if (options.command === 'help') console.log(usage);
-  else
+  else {
+    const server = serverCommand(options);
     console.log(
       JSON.stringify(
-        options.command === 'run' ? await run(options) : await inspect(options),
+        options.command === 'run'
+          ? await run(options, server)
+          : await inspect(options, server),
         null,
         2,
       ),
     );
+  }
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;

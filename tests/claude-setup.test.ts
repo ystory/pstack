@@ -953,6 +953,14 @@ test('detect reports missing optional Codex and logged-out Claude guidance witho
       (entry: { action: string }) => entry.action === 'install',
     ),
   );
+  const runtimeGuidance = detection.guidance.find(
+    (entry: { executor: string }) => entry.executor === 'codex',
+  );
+  assert.equal(runtimeGuidance.runtime, 'codex-app-server');
+  assert.equal(runtimeGuidance.url, 'https://github.com/openai/codex/releases');
+  assert.equal(runtimeGuidance.command, undefined);
+  assert.match(runtimeGuidance.detail, /complete matching-platform/);
+  assert.match(runtimeGuidance.detail, /--codex-executable/);
   assert.ok(
     detection.guidance.some(
       (entry: { command: string }) => entry.command === 'claude auth login',
@@ -960,6 +968,95 @@ test('detect reports missing optional Codex and logged-out Claude guidance witho
   );
   assert.ok(!result.stdout.includes('secret-fixture'));
   assert.ok(!result.stdout.includes('private@example'));
+  await assert.rejects(stat(f.home), { code: 'ENOENT' });
+});
+
+test('mixed setup uses the selected standalone server for safe account status and all model pages', async (t) => {
+  const f = await fixture(t);
+  await cp(
+    path.join(project, 'plugin-claude/vendor'),
+    path.join(f.plugin, 'vendor'),
+    { recursive: true },
+  );
+  await cp(
+    path.join(
+      project,
+      'plugin-claude/skills/poteto-mode/scripts/run-codex.mjs',
+    ),
+    path.join(f.plugin, 'skills/poteto-mode/scripts/run-codex.mjs'),
+  );
+  const server = path.join(f.root, 'standalone runtime with spaces');
+  const log = path.join(f.root, 'standalone calls.jsonl');
+  await writeFile(
+    server,
+    `#!${process.execPath}
+import fs from 'node:fs';
+import readline from 'node:readline';
+const log = (value) => fs.appendFileSync(${JSON.stringify(log)}, JSON.stringify(value)+'\\n');
+const args=process.argv.slice(2); log({args});
+if(args.join(' ')==='--version') { console.log('codex-app-server fixture'); process.exit(0); }
+if(args.join(' ')==='--session-source app-server --help') { console.log('--session-source <SOURCE>'); process.exit(0); }
+if(args.join(' ')!=='--session-source app-server') process.exit(3);
+const lines=readline.createInterface({input:process.stdin});
+lines.on('line',(line)=>{
+ const request=JSON.parse(line); log({method:request.method});
+ const result=request.method==='account/read' ? {account:{type:'chatgpt',email:'secret@example.invalid'},requiresOpenaiAuth:true}
+ : request.method==='model/list' ? request.params.cursor ? {data:[{id:'page-two'}],nextCursor:null} : {data:[{id:'page-one'}],nextCursor:'next'} : {};
+ if(request.id!==undefined) console.log(JSON.stringify({id:request.id,result}));
+});
+lines.on('close',()=>process.exit(0));
+`,
+    { mode: 0o755 },
+  );
+  const claude = path.join(f.root, 'native cli');
+  await writeFile(
+    claude,
+    `#!${process.execPath}\nconst args=process.argv.slice(2); console.log(args[0]==='--version' ? '2.1.300' : args[0]==='--help' ? '--agents' : JSON.stringify({loggedIn:true,authMethod:'oauth_token'}));\n`,
+    { mode: 0o755 },
+  );
+  const result = f.invoke('detect.mjs', [
+    'catalog',
+    '--executors',
+    'claude-code,codex',
+    '--cwd',
+    f.root,
+    '--claude-executable',
+    claude,
+    '--codex-executable',
+    server,
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  const detection = JSON.parse(result.stdout);
+  assert.equal(detection.schemaVersion, 1);
+  assert.equal(detection.codex.cli.kind, 'standalone-app-server');
+  assert.equal(detection.codex.cli.executable, server);
+  assert.deepEqual(detection.codex.cli.args, [
+    '--session-source',
+    'app-server',
+  ]);
+  assert.equal(detection.codex.auth.loggedIn, true);
+  assert.equal(detection.codex.execution.verified, false);
+  assert.deepEqual(
+    detection.codex.models.map((model: { id: string }) => model.id),
+    ['page-one', 'page-two'],
+  );
+  assert(!result.stdout.includes('secret@example.invalid'));
+  assert.deepEqual(
+    (await readFile(log, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line)),
+    [
+      { args: ['--version'] },
+      { args: ['--session-source', 'app-server', '--help'] },
+      { args: ['--session-source', 'app-server'] },
+      { method: 'initialize' },
+      { method: 'initialized' },
+      { method: 'account/read' },
+      { method: 'model/list' },
+      { method: 'model/list' },
+    ],
+  );
   await assert.rejects(stat(f.home), { code: 'ENOENT' });
 });
 

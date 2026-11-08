@@ -883,15 +883,16 @@ try {
     )) !== preservedSettings
   )
     throw new Error('Packaged Claude setup changed unrelated host settings.');
-  const codexStub = path.join(temporaryRoot, 'existing-codex-stub');
+  const codexStub = path.join(temporaryRoot, 'standalone-codex-stub');
   await writeFile(
     codexStub,
     `#!${process.execPath}\n` +
       String.raw`
 import readline from 'node:readline';
-if (process.argv[2] === '--version') { console.log('codex-cli 0.fixture'); process.exit(0); }
-if (process.argv[2] === 'app-server' && process.argv[3] === '--help') { console.log('Usage: codex app-server'); process.exit(0); }
-if (process.argv[2] !== 'app-server') process.exit(3);
+const args = process.argv.slice(2);
+if (args.join(' ') === '--version') { console.log('codex-app-server 0.fixture'); process.exit(0); }
+if (args.join(' ') === '--session-source app-server --help') { console.log('Usage: codex-app-server --session-source <SOURCE>'); process.exit(0); }
+if (args.join(' ') !== '--session-source app-server') process.exit(3);
 const send = (value) => console.log(JSON.stringify(value));
 const respond = (request, result) => send({id: request.id, result});
 const lines = readline.createInterface({input: process.stdin});
@@ -951,7 +952,11 @@ lines.on('close', () => process.exit(0));
     codexReceipt.threadId !== 'package-thread' ||
     codexReceipt.turnId !== 'package-turn' ||
     codexReceipt.finalText !== 'packaged Codex transport stub' ||
-    codexReceipt.requested.model !== 'package-model'
+    codexReceipt.requested.model !== 'package-model' ||
+    codexReceipt.runtime.kind !== 'standalone-app-server' ||
+    codexReceipt.runtime.executable !== codexStub ||
+    JSON.stringify(codexReceipt.runtime.args) !==
+      JSON.stringify(['--session-source', 'app-server'])
   )
     throw new Error(
       'Packaged Codex runner did not complete its owned app-server turn.',

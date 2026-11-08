@@ -1,4 +1,4 @@
-# Prepare worker CLIs and login
+# Prepare worker runtimes and login
 
 Check only the executors the user intends to use. Detection and catalog commands do not install software or start authentication. Run an installer when that installation is authorized. Keep login interactive and let the user complete it.
 
@@ -22,13 +22,11 @@ Detection checks the existing CLI login through the inherited environment, inclu
 
 ## Codex workers
 
-Codex is optional when every worker uses native Claude. Check `codex --version` and the bundled runner's `detect` result. The [official Codex CLI guide](https://developers.openai.com/codex/cli) provides installation options, including this npm command.
+Codex is optional when every worker uses native Claude. Codex workers require the official standalone `codex-app-server` package from [Codex releases](https://github.com/openai/codex/releases). Download and extract the complete package for your operating system and architecture. Keep `bin/codex-app-server` with its companion files and sibling directories. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary.
 
-```sh
-npm install -g @openai/codex
-```
+Put the package's `bin` directory on inherited PATH, or pass the absolute binary path through setup's `--codex-executable ABS` and the worker runner's `--executable ABS`. Detection checks `--version` and `--session-source app-server --help`, including whether help advertises `--session-source`, before opening an account or model connection. An umbrella `codex` CLI does not satisfy this requirement. The plugin does not download or update the package.
 
-After installation, run `codex login` in a terminal. In Claude Code, the user can run `!codex login` to open the CLI flow. In a headless environment or when a localhost callback cannot complete, use the documented device flow.
+The [Codex CLI](https://developers.openai.com/codex/cli) remains the human login tool. Installing it through npm does not install the standalone worker package. Run `codex login` in a terminal. In Claude Code, the user can run `!codex login` to open the CLI flow. In a headless environment or when a localhost callback cannot complete, use the documented device flow.
 
 ```sh
 codex login --device-auth
@@ -36,6 +34,8 @@ codex login --device-auth
 
 Device login may need to be enabled by the account or workspace. See the [official Codex authentication guide](https://learn.chatgpt.com/docs/auth).
 
+The CLI and standalone server must inherit the same `CODEX_HOME`, or both use its default `~/.codex`. Workers share that configuration, account, and persistent rollout/state storage. Do not create a separate profile or copy credentials to hide workers.
+
 ChatGPT login uses the account's Codex plan. API-key login uses OpenAI API billing. Let the user choose the intended method, and follow the official auth guide for API-key setup outside the conversation. Never print a key, credential cache, or full authentication response. The bundled runner reports safe status and method fields.
 
-Rerun detection and collect the catalog after login. CLI capability, login state, model catalog, and successful worker execution are separate evidence.
+Rerun detection and collect the catalog after login. Runtime capability, login state, model catalog, and successful worker execution are separate evidence.

@@ -36,7 +36,7 @@ pstack reuses your host and official CLI authentication, including subscription 
 
 ## Install in Claude Code
 
-Use the Claude Code terminal client or Claude desktop's **Code** tab with a **Local** session. Ordinary Claude chat is not a pstack host. Setup needs Git, Node.js 24.12+, and the `claude` CLI. Native worker effort requires Claude Code 2.1.292+ with delegation effort support. Codex workers also need an authenticated Codex CLI. See the [setup guide](plugin-claude/docs/guide/01-setup.md) for CLI installation, login, and PATH troubleshooting.
+Use the Claude Code terminal client or Claude desktop's **Code** tab with a **Local** session. Ordinary Claude chat is not a pstack host. Setup needs Git, Node.js 24.12+, and the `claude` CLI. Native worker effort requires Claude Code 2.1.292+ with delegation effort support. Codex workers also need the complete matching-platform `codex-app-server` package from [official Codex releases](https://github.com/openai/codex/releases), with a shared Codex login. The npm Codex CLI is a separate login tool. See the [setup guide](plugin-claude/docs/guide/01-setup.md) for installation, login, and PATH troubleshooting.
 
 In your terminal, add the marketplace from the repository's default branch and install the plugin:
 
@@ -53,7 +53,7 @@ Start a local Code session in your project and run:
 /pstack-cc:setup-pstack
 ```
 
-Setup first asks for native Claude only, or Claude with Codex workers. It checks installation and login only for selected CLIs and guides any needed installation and human authentication. Then choose supported exact models, role assignments, and a reasoning budget across the 17 roles. Review the proposal before saving. Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`, independently of Codex-host preferences.
+Setup first asks for native Claude only, or Claude with Codex workers. It checks installation and login only for selected runtimes and guides any needed installation and human authentication. Codex probes and workers use `codex-app-server --session-source app-server` on inherited PATH, or an explicit absolute executable path. Workers retain shared Codex authentication and persistent history without a separate profile. Then choose supported exact models, role assignments, and a reasoning budget across the 17 roles. Review the proposal before saving. Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`, independently of Codex-host preferences.
 
 Start a new session after setup so Claude discovers the registered agents. Try a read-only question about a real module in your project:
 

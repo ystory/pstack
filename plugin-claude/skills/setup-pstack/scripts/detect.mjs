@@ -216,8 +216,10 @@ await run(async () => {
     guidance.push({
       executor: 'codex',
       action: 'install',
-      command: 'npm install -g @openai/codex',
-      url: 'https://developers.openai.com/codex/cli',
+      runtime: 'codex-app-server',
+      url: 'https://github.com/openai/codex/releases',
+      detail:
+        'Download and extract the complete matching-platform codex-app-server package. Keep its companion files together. Put codex-app-server on PATH or select its absolute path with --codex-executable. The npm @openai/codex CLI is separate.',
       requiredFor: 'Codex workers only',
     });
   else if (includeCodex && codex.auth?.loggedIn === false)

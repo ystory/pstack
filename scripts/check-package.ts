@@ -903,7 +903,7 @@ lines.on('line', (line) => {
     case 'config/read': respond(request, {config:{model_provider:'openai'}}); break;
     case 'account/read': respond(request, {account:{type:'chatgpt'},requiresOpenaiAuth:true}); break;
     case 'model/list': respond(request, {data:[{id:'package-model',model:'package-model',supportedReasoningEfforts:[{reasoningEffort:'xhigh'}]}],nextCursor:null}); break;
-    case 'thread/start': respond(request, {thread:{id:'package-thread'},model:'package-model',reasoningEffort:'xhigh',approvalPolicy:request.params.approvalPolicy,approvalsReviewer:request.params.approvalsReviewer,sandbox:{type:request.params.sandbox === 'workspace-write' ? 'workspaceWrite' : 'readOnly',networkAccess:false}}); break;
+    case 'thread/start': respond(request, {thread:{id:'package-thread'},model:'package-model',reasoningEffort:'xhigh'}); break;
     case 'turn/start':
       respond(request, {turn:{id:'package-turn',status:'inProgress'}});
       send({method:'item/completed',params:{threadId:'package-thread',turnId:'package-turn',item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'packaged Codex transport stub'}}});
@@ -951,12 +951,7 @@ lines.on('close', () => process.exit(0));
     codexReceipt.threadId !== 'package-thread' ||
     codexReceipt.turnId !== 'package-turn' ||
     codexReceipt.finalText !== 'packaged Codex transport stub' ||
-    codexReceipt.requested.model !== 'package-model' ||
-    codexReceipt.executionPolicy?.requested?.approvalMode !== 'auto-review' ||
-    codexReceipt.executionPolicy?.observed?.approvalPolicy !== 'on-request' ||
-    codexReceipt.executionPolicy?.observed?.approvalsReviewer !==
-      'auto_review' ||
-    codexReceipt.executionPolicy?.observed?.sandbox?.type !== 'readOnly'
+    codexReceipt.requested.model !== 'package-model'
   )
     throw new Error(
       'Packaged Codex runner did not complete its owned app-server turn.',

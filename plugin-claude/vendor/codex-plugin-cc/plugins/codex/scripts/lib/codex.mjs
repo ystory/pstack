@@ -1,4 +1,4 @@
-// pstack-cc modified this file for direct worker execution, cancellation, and reviewed approvals.
+// pstack-cc modified this file for direct worker execution and cancellation.
 /**
  * @typedef {import("./app-server-protocol").AppServerNotification} AppServerNotification
  * @typedef {import("./app-server-protocol").ReviewTarget} ReviewTarget
@@ -60,31 +60,12 @@ function cleanCodexStderr(stderr) {
     .join("\n");
 }
 
-function buildApprovalParams(options) {
-  return options.approvalMode === "auto-review"
-    ? { approvalPolicy: "on-request", approvalsReviewer: "auto_review" }
-    : { approvalPolicy: options.approvalPolicy ?? "never" };
-}
-
-function confirmApprovalMode(response, options) {
-  if (options.approvalMode !== "auto-review") return;
-  const sandboxType = options.sandbox === "workspace-write" ? "workspaceWrite" : "readOnly";
-  if (
-    response.approvalPolicy === "on-request" &&
-    response.approvalsReviewer === "auto_review" &&
-    response.sandbox?.type === sandboxType
-  ) return;
-  const error = new Error("Codex did not confirm the requested auto-review policy, reviewer, and restricted sandbox. The task was not started.");
-  error.code = "APPROVAL_POLICY_MISMATCH";
-  throw error;
-}
-
 /** @returns {ThreadStartParams} */
 function buildThreadParams(cwd, options = {}) {
   return {
     cwd,
     model: options.model ?? null,
-    ...buildApprovalParams(options),
+    approvalPolicy: options.approvalPolicy ?? "never",
     sandbox: options.sandbox ?? "read-only",
     serviceName: SERVICE_NAME,
     ephemeral: options.ephemeral ?? true
@@ -97,7 +78,7 @@ function buildResumeParams(threadId, cwd, options = {}) {
     threadId,
     cwd,
     model: options.model ?? null,
-    ...buildApprovalParams(options),
+    approvalPolicy: options.approvalPolicy ?? "never",
     sandbox: options.sandbox ?? "read-only"
   };
 }
@@ -1146,12 +1127,6 @@ export async function importExternalAgentSession(cwd, options = {}) {
 }
 
 export async function runAppServerTurn(cwd, options = {}) {
-  if (options.approvalMode !== undefined && !["never", "auto-review"].includes(options.approvalMode)) {
-    throw new Error("Unsupported approval mode.");
-  }
-  if (options.approvalMode === "auto-review" && !["read-only", "workspace-write"].includes(options.sandbox ?? "read-only")) {
-    throw new Error("Auto-review requires a restricted sandbox.");
-  }
   const availability = getCodexAvailability(cwd, options);
   if (!availability.available) {
     throw new Error("Codex CLI is not installed or is missing required runtime support. Install it with `npm install -g @openai/codex`, then rerun `/codex:setup`.");
@@ -1162,28 +1137,26 @@ export async function runAppServerTurn(cwd, options = {}) {
     : withAppServer;
   return withServer(cwd, async (client) => {
     options.signal?.throwIfAborted();
-    let response;
+    let threadId;
 
     if (options.resumeThreadId) {
       emitProgress(options.onProgress, `Resuming thread ${options.resumeThreadId}.`, "starting");
-      response = await resumeThread(client, options.resumeThreadId, cwd, {
+      const response = await resumeThread(client, options.resumeThreadId, cwd, {
         model: options.model,
         sandbox: options.sandbox,
-        approvalMode: options.approvalMode,
         ephemeral: false
       });
+      threadId = response.thread.id;
     } else {
       emitProgress(options.onProgress, "Starting Codex task thread.", "starting");
-      response = await startThread(client, cwd, {
+      const response = await startThread(client, cwd, {
         model: options.model,
         sandbox: options.sandbox,
-        approvalMode: options.approvalMode,
         ephemeral: options.persistThread ? false : true,
         threadName: options.persistThread ? options.threadName : options.threadName ?? null
       });
+      threadId = response.thread.id;
     }
-    confirmApprovalMode(response, options);
-    const threadId = response.thread.id;
 
     emitProgress(options.onProgress, `Thread ready (${threadId}).`, "starting", {
       threadId

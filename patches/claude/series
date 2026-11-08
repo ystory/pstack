@@ -24,4 +24,3 @@ shared/0003-clarify-receiving-aliases.patch
 shared/0004-preserve-native-async.patch
 shared/0005-complete-instruction-bodies.patch
 0021-complete-instruction-delivery.patch
-0022-reviewed-worker-execution.patch

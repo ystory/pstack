@@ -32,7 +32,6 @@ let threadId, turnId, timer;
 const lines = readline.createInterface({input:process.stdin});
 lines.on('line', (line) => {
  const request = JSON.parse(line); log({request});
- if (!request.method) return;
  const p = request.params;
  switch (request.method) {
  case 'initialize': if (!process.env.FAKE_HOLD_INITIALIZE) respond(request,{userAgent:'fixture'}); break;
@@ -42,25 +41,8 @@ lines.on('line', (line) => {
  case 'model/list': respond(request,p.cursor ? {data:[{id:'second-model',model:'second-model',supportedReasoningEfforts:[{reasoningEffort:'high'}]}],nextCursor:null} : {data:[{id:'selected-model',model:'selected-model',supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'xhigh'}]}],nextCursor:'second-page'}); break;
  case 'thread/start': case 'thread/resume':
   if (process.env.FAKE_HOLD_THREAD) break;
-  if (process.env.FAKE_MANAGED_REJECTION) {
-   send({id:request.id,error:{code:-32000,message:'managed policy rejects auto-review'}}); break;
-  }
   threadId = p.threadId ?? 'thread-'+process.pid;
-  const policy = {
-   approvalPolicy:p.approvalPolicy,
-   approvalsReviewer:p.approvalsReviewer ?? 'auto_review',
-   sandbox:{type:{'read-only':'readOnly','workspace-write':'workspaceWrite','danger-full-access':'dangerFullAccess'}[p.sandbox],networkAccess:false}
-  };
-  const altered = process.env.FAKE_POLICY_FIELDS;
-  if (altered === 'missing-all') for (const key of Object.keys(policy)) delete policy[key];
-  if (altered === 'missing-approval') delete policy.approvalPolicy;
-  if (altered === 'missing-reviewer') delete policy.approvalsReviewer;
-  if (altered === 'missing-sandbox') delete policy.sandbox;
-  if (altered === 'wrong-approval') policy.approvalPolicy = 'never';
-  if (altered === 'wrong-reviewer') policy.approvalsReviewer = 'user';
-  if (altered === 'wrong-sandbox') policy.sandbox = {type:'dangerFullAccess'};
-  if (process.env.FAKE_SERVER_REQUEST) send({id:request.id,method:'item/commandExecution/requestApproval',params:{threadId,command:'synthetic unsupported command'}});
-  respond(request,{thread:{id:threadId},model:'observed-model',reasoningEffort:'high',cwd:p.cwd,...policy}); break;
+  respond(request,{thread:{id:threadId},model:'observed-model',reasoningEffort:'high',cwd:p.cwd}); break;
  case 'turn/start': {
   turnId = 'turn-'+process.pid;
   const prompt = p.input[0].text;
@@ -160,10 +142,9 @@ async function fixture(t: TestContext) {
     name: string,
     prompt = 'Do the synthetic task.',
     extra: string[] = [],
-    extraEnv: Record<string, string> = {},
   ) =>
     spawnSync(process.execPath, args(name, extra), {
-      env: { ...env, ...extraEnv },
+      env,
       input: prompt,
       encoding: 'utf8',
       timeout: 10_000,
@@ -254,18 +235,6 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
   assert.equal(start.request.params.cwd, f.cwd);
   assert.equal(start.request.params.ephemeral, false);
   assert.equal(start.request.params.sandbox, 'read-only');
-  assert.equal(start.request.params.approvalPolicy, 'on-request');
-  assert.equal(start.request.params.approvalsReviewer, 'auto_review');
-  const request = JSON.parse(await readFile(receipt.files.request, 'utf8'));
-  assert.equal(request.approvalMode, 'auto-review');
-  assert.deepEqual(receipt.executionPolicy, {
-    requested: { approvalMode: 'auto-review', sandbox: 'read-only' },
-    observed: {
-      approvalPolicy: 'on-request',
-      approvalsReviewer: 'auto_review',
-      sandbox: { type: 'readOnly', networkAccess: false },
-    },
-  });
   const turn = events.find((event) => event.request?.method === 'turn/start');
   assert.equal(turn.request.params.model, 'selected-model');
   assert.equal(turn.request.params.effort, 'xhigh');
@@ -409,16 +378,6 @@ test('parallel workers and interleaved exact continuation retain separate identi
   assert.equal(resume.request.params.threadId, first.threadId);
   assert.equal(resume.request.params.cwd, f.cwd);
   assert.equal(resume.request.params.sandbox, 'workspace-write');
-  assert.equal(resume.request.params.approvalPolicy, 'on-request');
-  assert.equal(resume.request.params.approvalsReviewer, 'auto_review');
-  assert.deepEqual(resumed.executionPolicy, {
-    requested: { approvalMode: 'auto-review', sandbox: 'workspace-write' },
-    observed: {
-      approvalPolicy: 'on-request',
-      approvalsReviewer: 'auto_review',
-      sandbox: { type: 'workspaceWrite', networkAccess: false },
-    },
-  });
 });
 
 for (const prompt of ['WAIT', 'EARLY WAIT'])
@@ -487,71 +446,37 @@ test('catalog walks every page and keeps authentication distinct from model exec
   );
 });
 
-for (const approvalMode of [undefined, 'never'])
-  test(`prompt files retain unknown model settings and ${approvalMode ?? 'default'} policy evidence without reusing run records`, async (t) => {
-    const f = await fixture(t);
-    const prompt = path.join(f.root, 'prompt file.txt');
-    await writeFile(prompt, 'Read this synthetic prompt file.\n');
-    const result = spawnSync(
-      process.execPath,
-      f.args('prompt-file', [
-        '--prompt-file',
-        prompt,
-        ...(approvalMode ? ['--approval-mode', approvalMode] : []),
-      ]),
-      {
-        env: {
-          ...f.env,
-          FAKE_UNKNOWN_SETTINGS: '1',
-          ...(approvalMode === 'never'
-            ? { FAKE_POLICY_FIELDS: 'missing-all' }
-            : {}),
-        },
-        encoding: 'utf8',
-        timeout: 10_000,
-      },
-    );
-    assert.equal(result.status, 0, result.stderr);
-    const receipt = await f.receipt('prompt-file');
-    assert.deepEqual(receipt.observed, { model: null, effort: null });
-    assert.deepEqual(receipt.executionPolicy, {
-      requested: {
-        approvalMode: approvalMode ?? 'auto-review',
-        sandbox: 'read-only',
-      },
-      observed:
-        approvalMode === 'never'
-          ? { approvalPolicy: null, approvalsReviewer: null, sandbox: null }
-          : {
-              approvalPolicy: 'on-request',
-              approvalsReviewer: 'auto_review',
-              sandbox: { type: 'readOnly', networkAccess: false },
-            },
-    });
-    assert.deepEqual(receipt.threadSettings, {
-      model: 'observed-model',
-      effort: 'high',
-    });
-    const before = await readFile(receipt.files.result, 'utf8');
-    assert.equal(f.run('prompt-file').status, 1);
-    assert.equal(await readFile(receipt.files.result, 'utf8'), before);
-    const events = await f.events();
-    const start = events.find(
-      (event) => event.request?.method === 'thread/start',
-    );
-    assert.equal(
-      start.request.params.approvalPolicy,
-      approvalMode === 'never' ? 'never' : 'on-request',
-    );
-    if (approvalMode === 'never')
-      assert(!('approvalsReviewer' in start.request.params));
-    else assert.equal(start.request.params.approvalsReviewer, 'auto_review');
-    const turn = events.find((event) => event.request?.method === 'turn/start');
-    assert.equal(
-      await readFile(receipt.files.prompt, 'utf8'),
-      turn.request.params.input[0].text,
-    );
+test('prompt files and unknown effective settings stay explicit, and run records cannot be reused', async (t) => {
+  const f = await fixture(t);
+  const prompt = path.join(f.root, 'prompt file.txt');
+  await writeFile(prompt, 'Read this synthetic prompt file.\n');
+  const result = spawnSync(
+    process.execPath,
+    f.args('prompt-file', ['--prompt-file', prompt]),
+    {
+      env: { ...f.env, FAKE_UNKNOWN_SETTINGS: '1' },
+      encoding: 'utf8',
+      timeout: 10_000,
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = await f.receipt('prompt-file');
+  assert.deepEqual(receipt.observed, { model: null, effort: null });
+  assert.deepEqual(receipt.threadSettings, {
+    model: 'observed-model',
+    effort: 'high',
   });
+  const before = await readFile(receipt.files.result, 'utf8');
+  assert.equal(f.run('prompt-file').status, 1);
+  assert.equal(await readFile(receipt.files.result, 'utf8'), before);
+  const turn = (await f.events()).find(
+    (event) => event.request?.method === 'turn/start',
+  );
+  assert.equal(
+    await readFile(receipt.files.prompt, 'utf8'),
+    turn.request.params.input[0].text,
+  );
+});
 
 for (const [method, variable] of [
   ['initialize', 'FAKE_HOLD_INITIALIZE'],
@@ -590,8 +515,6 @@ test('explicit sandbox selection is recorded without changing the default or wri
     f.run('explicit-access', 'Synthetic authorized access.', [
       '--sandbox',
       'danger-full-access',
-      '--approval-mode',
-      'never',
     ]).status,
     0,
   );
@@ -652,209 +575,4 @@ test('Codex transport injects its receiving executor and the bundled shared cont
     prompt.indexOf('Shared receiving fixture context.') <
       prompt.indexOf('Task\n\n'),
   );
-});
-
-for (const sandbox of ['read-only', 'workspace-write'])
-  test(`default auto-review confirms ${sandbox} policy before both start and exact resume`, async (t) => {
-    const f = await fixture(t);
-    const extra = sandbox === 'read-only' ? [] : ['--write'];
-    const first = f.run('review-start', 'Synthetic reviewed task.', extra);
-    assert.equal(first.status, 0, first.stderr);
-    const started = await f.receipt('review-start');
-    const resumedRun = f.run('review-resume', 'Synthetic continuation.', [
-      ...extra,
-      '--resume',
-      started.threadId,
-    ]);
-    assert.equal(resumedRun.status, 0, resumedRun.stderr);
-    const resumed = await f.receipt('review-resume');
-    assert.equal(resumed.threadId, started.threadId);
-    const observed = {
-      approvalPolicy: 'on-request',
-      approvalsReviewer: 'auto_review',
-      sandbox: {
-        type: sandbox === 'read-only' ? 'readOnly' : 'workspaceWrite',
-        networkAccess: false,
-      },
-    };
-    for (const receipt of [started, resumed]) {
-      const request = JSON.parse(await readFile(receipt.files.request, 'utf8'));
-      assert.equal(request.approvalMode, 'auto-review');
-      assert.deepEqual(receipt.executionPolicy, {
-        requested: { approvalMode: 'auto-review', sandbox },
-        observed,
-      });
-      assert.equal(receipt.status, 'completed');
-    }
-    const events = await f.events();
-    for (const method of ['thread/start', 'thread/resume']) {
-      const event = events.find((event) => event.request?.method === method);
-      assert.equal(event.request.params.approvalPolicy, 'on-request');
-      assert.equal(event.request.params.approvalsReviewer, 'auto_review');
-      assert.equal(event.request.params.sandbox, sandbox);
-    }
-    assert.equal(
-      events.filter((event) => event.request?.method === 'turn/start').length,
-      2,
-    );
-    const explicitResume = f.run(
-      'explicit-resume',
-      'Continue with an explicit reviewed policy.',
-      [
-        '--resume',
-        started.threadId,
-        '--approval-mode',
-        'auto-review',
-        '--sandbox',
-        sandbox,
-      ],
-    );
-    assert.equal(explicitResume.status, 0, explicitResume.stderr);
-    const explicitReceipt = await f.receipt('explicit-resume');
-    assert.equal(explicitReceipt.threadId, started.threadId);
-    assert.deepEqual(explicitReceipt.executionPolicy, {
-      requested: { approvalMode: 'auto-review', sandbox },
-      observed,
-    });
-    const resumes = (await f.events()).filter(
-      (event) => event.request?.method === 'thread/resume',
-    );
-    assert.equal(resumes.at(-1).request.params.approvalPolicy, 'on-request');
-    assert.equal(
-      resumes.at(-1).request.params.approvalsReviewer,
-      'auto_review',
-    );
-  });
-
-test('approval mode validation rejects unknown modes and unrestricted auto-review before launch', async (t) => {
-  const f = await fixture(t);
-  for (const extra of [
-    ['--approval-mode', 'invented'],
-    ['--sandbox', 'danger-full-access'],
-    ['--approval-mode', 'auto-review', '--sandbox', 'danger-full-access'],
-  ]) {
-    const result = f.run('invalid-policy', 'Synthetic task.', extra);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /approval-mode|auto-review/i);
-  }
-  assert.deepEqual(await f.events().catch(() => []), []);
-});
-
-for (const altered of [
-  'missing-all',
-  'missing-approval',
-  'missing-reviewer',
-  'missing-sandbox',
-  'wrong-approval',
-  'wrong-reviewer',
-  'wrong-sandbox',
-])
-  for (const resumed of [false, true])
-    test(`default auto-review rejects ${altered} on ${resumed ? 'resume' : 'start'} before task execution`, async (t) => {
-      const f = await fixture(t);
-      const result = f.run(
-        'policy-mismatch',
-        'Must never execute this task.',
-        ['--write', ...(resumed ? ['--resume', 'exact-existing-thread'] : [])],
-        { FAKE_POLICY_FIELDS: altered },
-      );
-      assert.equal(result.status, 1, result.stderr);
-      const receipt = await f.receipt('policy-mismatch');
-      assert.equal(receipt.status, 'failed');
-      assert.equal(receipt.turnId, null);
-      assert.equal(receipt.process.closed, true);
-      assert.equal(receipt.error.code, 'APPROVAL_POLICY_MISMATCH');
-      assert.deepEqual(receipt.executionPolicy.requested, {
-        approvalMode: 'auto-review',
-        sandbox: 'workspace-write',
-      });
-      const observed = receipt.executionPolicy.observed;
-      assert(observed);
-      assert.equal(
-        observed.approvalPolicy,
-        ['missing-all', 'missing-approval'].includes(altered)
-          ? null
-          : altered === 'wrong-approval'
-            ? 'never'
-            : 'on-request',
-      );
-      assert.equal(
-        observed.approvalsReviewer,
-        ['missing-all', 'missing-reviewer'].includes(altered)
-          ? null
-          : altered === 'wrong-reviewer'
-            ? 'user'
-            : 'auto_review',
-      );
-      assert.deepEqual(
-        observed.sandbox,
-        ['missing-all', 'missing-sandbox'].includes(altered)
-          ? null
-          : altered === 'wrong-sandbox'
-            ? { type: 'dangerFullAccess' }
-            : { type: 'workspaceWrite', networkAccess: false },
-      );
-      assert(
-        !(await f.events()).some(
-          (event) => event.request?.method === 'turn/start',
-        ),
-      );
-      const diagnostics = await readFile(receipt.files.diagnostics, 'utf8');
-      assert(diagnostics.includes('thread/' + (resumed ? 'resume' : 'start')));
-    });
-
-test('managed auto-review rejection keeps policy evidence and never starts a task', async (t) => {
-  const f = await fixture(t);
-  const result = f.run(
-    'managed-rejection',
-    'Must never execute this task.',
-    ['--write'],
-    { FAKE_MANAGED_REJECTION: '1' },
-  );
-  assert.equal(result.status, 1, result.stderr);
-  const receipt = await f.receipt('managed-rejection');
-  assert.equal(receipt.status, 'failed');
-  assert.deepEqual(receipt.executionPolicy, {
-    requested: { approvalMode: 'auto-review', sandbox: 'workspace-write' },
-    observed: null,
-  });
-  assert.match(receipt.error.message, /managed policy rejects auto-review/);
-  assert.equal(receipt.error.data.code, -32000);
-  assert(
-    !(await f.events()).some((event) => event.request?.method === 'turn/start'),
-  );
-});
-
-test('same numeric server request id is refused without consuming client response diagnostics', async (t) => {
-  const f = await fixture(t);
-  const result = f.run('collision', 'Synthetic task.', [], {
-    FAKE_SERVER_REQUEST: '1',
-  });
-  assert.equal(result.status, 0, result.stderr);
-  const receipt = await f.receipt('collision');
-  assert.deepEqual(receipt.threadSettings, {
-    model: 'observed-model',
-    effort: 'high',
-  });
-  const events = await f.events();
-  const start = events.find(
-    (event) => event.request?.method === 'thread/start',
-  );
-  const refusal = events.find((event) => event.request?.error?.code === -32601);
-  assert.equal(refusal.request.id, start.request.id);
-  assert.deepEqual(receipt.capabilityGaps, [
-    {
-      id: start.request.id,
-      method: 'item/commandExecution/requestApproval',
-      response: { error: refusal.request.error },
-    },
-  ]);
-  assert(!('result' in refusal.request));
-  assert.equal(receipt.executionPolicy.observed.approvalPolicy, 'on-request');
-  assert.equal(
-    receipt.executionPolicy.observed.approvalsReviewer,
-    'auto_review',
-  );
-  const diagnostics = await readFile(receipt.files.diagnostics, 'utf8');
-  assert(diagnostics.includes('synthetic unsupported command'));
 });

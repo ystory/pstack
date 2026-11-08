@@ -50,3 +50,5 @@ shared/0006-worker-command-boundary.patch
 shared/0007-lf-only-config-framing.patch
 shared/0008-frozen-command-boundary-generations.patch
 0044-native-owned-boundary-generations.patch
+0045-item-anchored-agent-registration.patch
+0046-express-registration-span-ownership.patch

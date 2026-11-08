@@ -16,8 +16,19 @@ const pluginRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const parser = fileURLToPath(
   new URL('./parse-agent-config.py', import.meta.url),
 );
-const blockStart = '# >>> pstack-codex managed agents v1\n';
-const blockEnd = '# <<< pstack-codex managed agents v1\n';
+const markerName = 'pstack-codex managed agents';
+const blockStart = `# >>> ${markerName} v2\n`;
+// Native writes preserve a value suffix but displace standalone EOF comments.
+const blockClose = ` # <<< ${markerName} v2\n`;
+const legacyStart = `# >>> ${markerName} v1\n`;
+const legacyEnd = `# <<< ${markerName} v1\n`;
+const anyMarker = /# (?:>>>|<<<) pstack-codex managed agents v\d+/;
+const blockFormat = (block) =>
+  block.startsWith(blockStart) && block.endsWith(blockClose)
+    ? 'v2'
+    : block.startsWith(legacyStart) && block.endsWith(legacyEnd)
+      ? 'v1'
+      : undefined;
 
 function argumentsFor(argv) {
   const options = {
@@ -89,22 +100,39 @@ function parseToml(python, mode, request) {
   return JSON.parse(result.stdout);
 }
 
-function renderBlock(roles) {
-  return (
-    blockStart +
-    roleNames
-      .filter((name) => Object.hasOwn(roles, name))
-      .map((name) => {
-        const role = roles[name];
-        const configFile =
-          name === genericRole
-            ? ''
-            : `config_file = ${JSON.stringify(role.config_file)}\n`;
-        return `[agents.${name}]\n${configFile}description = ${JSON.stringify(role.description)}\n`;
-      })
-      .join('\n') +
-    blockEnd
-  );
+function renderBlock(roles, format = 'v2') {
+  const tables = roleNames
+    .filter((name) => Object.hasOwn(roles, name))
+    .map((name) => {
+      const role = roles[name];
+      const configFile =
+        name === genericRole
+          ? ''
+          : `config_file = ${JSON.stringify(role.config_file)}\n`;
+      return `[agents.${name}]\n${configFile}description = ${JSON.stringify(role.description)}\n`;
+    })
+    .join('\n');
+  return format === 'v1'
+    ? legacyStart + tables + legacyEnd
+    : blockStart + tables.slice(0, -1) + blockClose;
+}
+
+function ownedSpan(text, block) {
+  const legacy = blockFormat(block) === 'v1';
+  const body = legacy ? block.slice(0, -legacyEnd.length) : block;
+  const index = text.indexOf(body);
+  if (index < 0) return undefined;
+  const before = text.slice(0, index);
+  const rest = text.slice(index + body.length);
+  if (!legacy) return { before, after: rest };
+  const end = rest.indexOf(legacyEnd);
+  if (end < 0 || (end > 0 && rest[end - 1] !== '\n')) return undefined;
+  const displacedForeignBytes = rest.slice(0, end);
+  const afterClosingMarker = rest.slice(end + legacyEnd.length);
+  return {
+    before,
+    after: displacedForeignBytes + afterClosingMarker,
+  };
 }
 
 function parseRegistry(bytes, pluginName) {
@@ -140,8 +168,7 @@ function parseRegistry(bytes, pluginName) {
     registry.schemaVersion === 2 &&
     (!registry.config ||
       typeof registry.config.block !== 'string' ||
-      !registry.config.block.startsWith(blockStart) ||
-      !registry.config.block.endsWith(blockEnd) ||
+      !blockFormat(registry.config.block) ||
       !['', '\n'].includes(registry.config.prefix) ||
       typeof registry.config.created !== 'boolean')
   )
@@ -166,7 +193,7 @@ function withoutOwnedConfig(text, ownership, python) {
       throw new Error(
         'Existing pstack agent declarations are not managed by this plugin; preserve or relocate those roles before registering.',
       );
-    if (text.includes(blockStart) || text.includes(blockEnd))
+    if (anyMarker.test(text))
       throw new Error(
         'Unowned pstack registration markers already exist in config.toml.',
       );
@@ -200,21 +227,21 @@ function withoutOwnedConfig(text, ownership, python) {
         Object.keys(declared.roles[genericRole]).length !== 1 ||
         declared.roles[genericRole].description !==
           blockRoles[genericRole].description)) ||
-    renderBlock(blockRoles) !== ownership.block
+    renderBlock(blockRoles, blockFormat(ownership.block)) !== ownership.block
   )
     throw new Error(
       'Managed agent declarations were modified; refusing to overwrite or remove them.',
     );
-  const index = text.indexOf(ownership.block);
-  if (index < 0 || text.indexOf(ownership.block, index + 1) >= 0)
+  const span = ownedSpan(text, ownership.block);
+  if (!span || anyMarker.test(span.before + span.after))
     throw new Error(
       'Managed config block was modified or duplicated; refusing to overwrite or remove it.',
     );
-  let before = text.slice(0, index);
-  const after = text.slice(index + ownership.block.length);
-  // Restore a preexisting missing final newline only when no later user text needs it.
-  if (ownership.prefix && before.endsWith(ownership.prefix) && !after)
-    before = before.slice(0, -ownership.prefix.length);
+  let before = span.before;
+  const after = span.after;
+  const addedSeparator = ownership.prefix;
+  if (addedSeparator && before.endsWith(addedSeparator) && !after)
+    before = before.slice(0, -addedSeparator.length);
   const base = before + after;
   parseToml(python, 'compare-remove', {
     text,

@@ -1,0 +1,44 @@
+diff --git a/skills/setup-pstack/scripts/register-agents.mjs b/skills/setup-pstack/scripts/register-agents.mjs
+index ea3f561..dd26858 100644
+--- a/skills/setup-pstack/scripts/register-agents.mjs
++++ b/skills/setup-pstack/scripts/register-agents.mjs
+@@ -125,12 +125,13 @@ function ownedSpan(text, block) {
+   const before = text.slice(0, index);
+   const rest = text.slice(index + body.length);
+   if (!legacy) return { before, after: rest };
+-  // The read-only v1 migration keeps foreign bytes before a displaced close.
+   const end = rest.indexOf(legacyEnd);
+   if (end < 0 || (end > 0 && rest[end - 1] !== '\n')) return undefined;
++  const displacedForeignBytes = rest.slice(0, end);
++  const afterClosingMarker = rest.slice(end + legacyEnd.length);
+   return {
+     before,
+-    after: rest.slice(0, end) + rest.slice(end + legacyEnd.length),
++    after: displacedForeignBytes + afterClosingMarker,
+   };
+ }
+ 
+@@ -232,16 +233,16 @@ function withoutOwnedConfig(text, ownership, python) {
+       'Managed agent declarations were modified; refusing to overwrite or remove them.',
+     );
+   const span = ownedSpan(text, ownership.block);
+-  let before = span?.before;
+-  const after = span?.after;
+-  // Restore a preexisting missing final newline only when no later user text needs it.
+-  if (span && ownership.prefix && before.endsWith(ownership.prefix) && !after)
+-    before = before.slice(0, -ownership.prefix.length);
+-  const base = span && before + after;
+-  if (!span || anyMarker.test(base))
++  if (!span || anyMarker.test(span.before + span.after))
+     throw new Error(
+       'Managed config block was modified or duplicated; refusing to overwrite or remove it.',
+     );
++  let before = span.before;
++  const after = span.after;
++  const addedSeparator = ownership.prefix;
++  if (addedSeparator && before.endsWith(addedSeparator) && !after)
++    before = before.slice(0, -addedSeparator.length);
++  const base = before + after;
+   parseToml(python, 'compare-remove', {
+     text,
+     afterText: base,

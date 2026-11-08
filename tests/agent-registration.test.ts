@@ -662,10 +662,13 @@ async function makeTwoRoleRecord(f: Awaited<ReturnType<typeof fixture>>) {
   const config = path.join(f.codexHome, 'config.toml');
   const registry = JSON.parse(await readFile(record, 'utf8'));
   const currentBlock = registry.config.block as string;
-  const originalBlock = currentBlock.replace(
-    /\n\[agents\.pstack-general-purpose\]\ndescription = [^\n]*\n/,
-    '',
-  );
+  const originalBlock =
+    '# >>> pstack-codex managed agents v1\n' +
+    currentBlock.slice(
+      currentBlock.indexOf('[agents.poteto-agent]'),
+      currentBlock.indexOf('\n[agents.pstack-general-purpose]'),
+    ) +
+    '# <<< pstack-codex managed agents v1\n';
   assert.notEqual(originalBlock, currentBlock);
   registry.config.block = originalBlock;
   await writeFile(
@@ -965,8 +968,12 @@ async function historicalNativeRegistrationFixture(t: TestContext) {
       'description = "Updated bundle delegate"',
     ),
   );
-  const boundaryControl = async (generation = 1, failAfterPersist = false) =>
-    writeFile(control, JSON.stringify({ generation, failAfterPersist }));
+  const boundaryControl = async (
+    generation = 1,
+    failAfterPersist = false,
+    mode?: number,
+  ) =>
+    writeFile(control, JSON.stringify({ generation, failAfterPersist, mode }));
   await boundaryControl();
   await writeFile(
     f.helper,
@@ -981,7 +988,7 @@ function appendRootTable(text, table) {
 }
 function reconcile(operation) {
   fs.appendFileSync(calls, operation + '\\n');
-  const { generation, failAfterPersist } = JSON.parse(fs.readFileSync(control, 'utf8'));
+  const { generation, failAfterPersist, mode } = JSON.parse(fs.readFileSync(control, 'utf8'));
   const before = fs.readFileSync(config, 'utf8');
   let text = before;
   const command = 'owned-boundary-generation-' + generation;
@@ -1005,6 +1012,7 @@ function reconcile(operation) {
     }
   }
   if (text !== before) fs.writeFileSync(config, text);
+  if (mode !== undefined) fs.chmodSync(config, mode);
   if (failAfterPersist) throw new Error('Injected native failure after config persistence');
   return { status: operation === 'trust' ? 'active' : 'retired', hook: { key } };
 }
@@ -1062,6 +1070,47 @@ test('normal macOS upgrade accepts historical standalone markers after native ro
       await readFile(path.join(f.codexHome, 'agents', `${name}.toml`)),
       await readFile(path.join(f.bundle, 'agents', `${name}.toml`)),
     );
+});
+
+test('normal macOS registration and unregister preserve project trust already displaced inside historical markers', async (t) => {
+  const projectTrust =
+    '\n# native project trust\n[projects."/tmp/user-project"]\ntrust_level = "trusted"\n';
+  for (const flags of [[], ['--unregister']]) {
+    await t.test(flags.length ? 'unregister' : 'register', async (t) => {
+      const f = await historicalNativeRegistrationFixture(t);
+      const original = await readFile(f.config, 'utf8');
+      await writeFile(
+        f.config,
+        original.replace(
+          '# <<< pstack-codex managed agents v1\n',
+          projectTrust + '# <<< pstack-codex managed agents v1\n',
+        ),
+      );
+      const result = f.nativeInvoke(...flags);
+      assert.equal(result.status, 0, result.stderr);
+      const config = await readFile(f.config, 'utf8');
+      assert.ok(config.startsWith(f.settings));
+      assert.ok(config.includes(projectTrust));
+      assertForeignHookBytes(config);
+      assert.doesNotMatch(config, /pstack-codex managed agents v1/);
+      if (flags.length) {
+        await assertMissing(f.record);
+        for (const name of names)
+          await assertMissing(path.join(f.codexHome, 'agents', `${name}.toml`));
+      } else {
+        assert.equal(JSON.parse(result.stdout).agents[0].status, 'updated');
+      }
+    });
+  }
+});
+
+test('normal macOS registration retains the post-boundary config mode', async (t) => {
+  const f = await historicalNativeRegistrationFixture(t);
+  await chmod(f.config, 0o640);
+  await f.boundaryControl(1, false, 0o600);
+  const result = f.nativeInvoke();
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal((await stat(f.config)).mode & 0o777, 0o600);
 });
 
 test('normal macOS generations repeat and change before unregister preserves foreign hook trust and tombstones', async (t) => {
@@ -1188,6 +1237,34 @@ test('normal macOS failed historical upgrade rejects owned role edits comments a
       name: 'duplicate closing marker',
       edit: (text: string) => text + '# <<< pstack-codex managed agents v1\n',
     },
+    {
+      name: 'extra owned key',
+      edit: (text: string) =>
+        text.replace(
+          /(\[agents\.pstack-general-purpose\]\ndescription = [^\n]*\n)/,
+          '$1model = "user-pinned"\n',
+        ),
+    },
+    {
+      name: 'owned subtable',
+      edit: (text: string) =>
+        text.replace(
+          /(\[agents\.pstack-general-purpose\]\ndescription = [^\n]*\n)/,
+          '$1[agents.pstack-general-purpose.user]\nvalue = true\n',
+        ),
+    },
+    {
+      name: 'close marker in a foreign multiline string',
+      edit: (text: string) =>
+        text.replace(
+          '# <<< pstack-codex managed agents v1\n',
+          "[user]\nnote = '''\n# <<< pstack-codex managed agents v1\n'''\n# <<< pstack-codex managed agents v1\n",
+        ),
+    },
+    {
+      name: 'unknown marker version',
+      edit: (text: string) => text + '# <<< pstack-codex managed agents v42\n',
+    },
   ]) {
     await t.test(name, async (t) => {
       const f = await historicalNativeRegistrationFixture(t);
@@ -1200,6 +1277,7 @@ test('normal macOS failed historical upgrade rejects owned role edits comments a
       const edited = edit(await readFile(f.config, 'utf8'));
       await writeFile(f.config, edited);
       const before = await registrationSnapshot(f);
+      const mode = (await stat(f.config)).mode & 0o777;
       const calls = await readFile(f.calls);
       await f.boundaryControl();
       for (const flags of [[], ['--unregister']]) {
@@ -1207,10 +1285,36 @@ test('normal macOS failed historical upgrade rejects owned role edits comments a
         assert.equal(rejected.status, 1);
         assert.match(rejected.stderr, /modified|duplicated|ownership|marker/i);
         assert.equal(await readFile(f.config, 'utf8'), edited);
+        assert.equal((await stat(f.config)).mode & 0o777, mode);
         assert.deepEqual(await registrationSnapshot(f), before);
         assert.deepEqual(await readFile(f.calls), calls);
       }
     });
+  }
+});
+
+test('a missing v2 inline close rejects registration and removal without writes', async (t) => {
+  const f = await historicalNativeRegistrationFixture(t);
+  const installed = f.nativeInvoke();
+  assert.equal(installed.status, 0, installed.stderr);
+  const config = await readFile(f.config, 'utf8');
+  const edited = config.replace(
+    ' # <<< pstack-codex managed agents v2\n',
+    '\n',
+  );
+  assert.notEqual(edited, config);
+  await writeFile(f.config, edited);
+  const before = await registrationSnapshot(f);
+  const mode = (await stat(f.config)).mode & 0o777;
+  const calls = await readFile(f.calls);
+  for (const flags of [[], ['--unregister']]) {
+    const rejected = f.nativeInvoke(...flags);
+    assert.equal(rejected.status, 1);
+    assert.match(rejected.stderr, /modified|ownership|marker/i);
+    assert.equal(await readFile(f.config, 'utf8'), edited);
+    assert.equal((await stat(f.config)).mode & 0o777, mode);
+    assert.deepEqual(await registrationSnapshot(f), before);
+    assert.deepEqual(await readFile(f.calls), calls);
   }
 });
 

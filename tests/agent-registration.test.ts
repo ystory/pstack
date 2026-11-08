@@ -109,7 +109,7 @@ function decodePackagedAgent(toml: string) {
 const cursorSkillLookup =
   'search `~/.cursor/plugins/` for a file whose path ends in `skills/poteto-mode/SKILL.md`. If more than one file matches, use the copy whose `.cursor-plugin/plugin.json` has the highest `version`.';
 const codexSkillLookup =
-  "locate this loaded plugin's root from the host's plugin metadata and read its `skills/poteto-mode/SKILL.md`. If discovery is unavailable, search only `pstack-codex/<version>/` directories under `${CODEX_HOME:-~/.codex}/plugins/cache/` for that file and use the copy whose `plugin.json` has the highest `version`. Do not select a different plugin or guess a workspace-relative path.";
+  "locate this loaded plugin's root from the host's plugin metadata and read its `skills/poteto-mode/SKILL.md`. If discovery is unavailable, search `${CODEX_HOME:-~/.codex}/plugins/cache/` for a file whose path ends in `pstack-codex/<version>/skills/poteto-mode/SKILL.md`. If more than one file matches, use the copy whose `plugin.json` has the highest `version`. Do not select a different plugin or guess a workspace-relative path.";
 
 function codexBody(name: (typeof names)[number], upstream: string) {
   if (name !== 'poteto-agent') return upstream;

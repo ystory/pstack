@@ -172,7 +172,7 @@ await run(async () => {
       discovered: false,
       confirmationRequired: true,
       guidance:
-        'Use the actual host model catalog and supported efforts. If unavailable, confirm exact model IDs and efforts manually. Configuration entries are candidates, not entitlement evidence.',
+        'This helper does not enumerate native models. Read exact model IDs from the session environment context and effort levels from the native Agent tool schema. Confirm manually only when neither provides them. Configuration entries are candidates, not entitlement evidence.',
     },
     execution: { verified: false },
   };

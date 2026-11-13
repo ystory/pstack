@@ -35,7 +35,9 @@ For selected Pi workers, use the prerequisite guide and run the sibling `poteto-
 
 For native Claude workers, use exact model IDs and supported efforts exposed by the current host or its model catalog. Inspect the current host and configuration rather than copying a fixed list from this skill. Detection lists configured model candidates, including `settings.json` model choices and model-specific environment variables. Those candidates require confirmation. A configured name or allowlist does not prove entitlement or supported efforts.
 
-If the host cannot enumerate exact IDs and efforts, ask the user to confirm them and label the resulting catalog source `manual-confirmation`. Keep that fallback visible. Do not substitute moving aliases such as `opus` or `sonnet` for exact selections.
+The detector does not enumerate native models; its `modelCatalog.discovered: false` describes the helper, not the host. Claude Code states the exact model IDs available to the session in your environment context, and the native Agent tool schema lists the accepted `effort` levels. Use those as a `host` catalog source and name both origins in its description. The host does not state per-model effort support; say so in that description.
+
+If neither the session context nor the tool schema provides exact IDs and efforts, ask the user to confirm them and label the resulting catalog source `manual-confirmation`. Keep that fallback visible. Do not substitute moving aliases such as `opus` or `sonnet` for exact selections.
 
 Normalize the selected routes with `scripts/models.mjs catalog --input ABSOLUTE_CODEX_RECEIPT --native-catalog ABSOLUTE_NATIVE_CATALOG`. Omit the Codex input for Claude-only setup. Every explicit selection must match its executor's catalog. A matching ID under another executor does not validate it.
 

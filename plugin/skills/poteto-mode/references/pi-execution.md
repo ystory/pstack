@@ -1,0 +1,30 @@
+# Pi workers
+
+Read this reference for every resolved `executor: "pi"` seat. The launching host's role helper remains the selection authority. A Pi entry supplies `provider`, exact `model`, and separate `reasoningEffort`. Preserve every ordered seat, including duplicates. Parent aliases stay on the native parent. Use a fresh run directory and Pi session for each new seat or round.
+
+Launch the foreground runner through the launching host's asynchronous command controls. Keep the command attached until its terminal result. Do not shell-background or detach it.
+
+```sh
+node "<poteto-mode>/scripts/run-pi.mjs" run \
+  --cwd "/absolute/assigned-worktree" --run-dir "/absolute/unique-local-run" \
+  --provider "<selected-provider>" --model "<exact-model-id>" --effort "<supported-effort>" \
+  --tools read,bash,edit,write --role "/absolute/original-role.md" \
+  --instruction "/absolute/project/AGENTS.md" --skill "/absolute/relevant/SKILL.md" \
+  --prompt-file "/absolute/consolidated-task.txt"
+```
+
+Use Codex's exposed command/session controls. On Claude Code use background Bash with `run_in_background: true` and the task's supported timeout, as for its Codex worker route. Track and collect the host command identity. The runner has no default overall task deadline. Set `--timeout-ms N` when the task needs one. It bounds startup, individual commands, and shutdown separately. Stop through the host's actual process controls and collect the receipt. Signal delivery alone does not prove closure.
+
+Pass the complete consolidated brief, assigned checkout, ownership, constraints, expected result, and required artifact paths. Repeat `--instruction` for project rules, templates, rubrics, and references, and `--skill` for skill bodies. Use `--role` for the selected original agent body. A general-purpose seat has no added role body. Pass the absolute poteto-mode skill for a poteto-agent. The runner embeds these complete files plus the shared [receiving-worker context](worker-context.md) deterministically. Linked references and principle leaves still require complete supplied bodies or actual reads.
+
+Choose tools explicitly for the task. `--tools read,grep,find,ls` supplies file inspection. Add `bash` only when the task needs shell commands. Writers normally use `read,bash,edit,write`. `--tools none` disables built-in tools. These controls do not enforce OS read-only access. Pi inherits existing Pi authentication through its environment, but no parent tool inventory, MCP, complete conversation, native subagent controls, or permissions. Discovered extensions, MCP, context files, skills, prompt templates, and startup network refresh are disabled. Do not assume nested delegation is available. Keep a required missing capability as the calling workflow's gap.
+
+The runner requires Pi 1.5.2 or newer and rejects older or malformed versions before RPC launch. It uses RPC exact provider/model selection and thinking-level readback. Model IDs can contain slashes. Pi effort levels are `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. `off` is a real setting, distinct from native `none`. Do not translate it. A clamp or unsupported setting rejects the task before its prompt. The runner never changes provider, model, or executor.
+
+Inspect `result.json` and `final.txt` in the run directory. The stdout receipt can truncate under the host. `requested`, `selected`, and `observedAssistant` are distinct evidence. `usage` sums current-turn assistant completions, including tool-call turns and retries. Its cost is a Pi/provider estimate, not settled billing. `lastAssistantUsage` describes only the final assistant call. A configured virtual route can report a different physical assistant model. Only `status: "completed"`, a current-turn nonaborted `agent_settled`, a new assistant answer with `stopReason: "stop"`, and orderly zero-exit process closure establish success. Prompt acceptance, `agent_end`, a previous answer, and process exit zero alone do not. Error, length, tool-only, aborted, queued, handled, or missing terminal output remains failure. Review files and verification evidence under the calling workflow's own rules.
+
+An `effort-rejected` receipt includes `rejection.availableLevels`. If a task adjustment was rejected, the binding may retry once in a fresh run directory at the saved starting effort for the identical provider/model, only if that level remains available and was not rejected. Disclose this retry. Keep rejected settings by exact executor/provider/model/effort and rejected models by exact executor/provider/model. Never resubmit them. If the starting effort is unavailable or fails, use only the caller's existing fallback or gap outcome. A provider authentication failure is a failed run, not evidence that the exact model is invalid.
+
+Continue a session only under poteto-mode's costly-state exception. Pass `--resume /absolute/prior-run/result.json` with the identical provider, model, effort, and canonical cwd. The runner validates the terminal receipt, confirmed process closure, regular persisted transcript, header identity, content hash, exact restored state, and exclusive session lease. Never use a latest selector, session prefix, naked ID, or silent fresh fallback. A terminal failed, interrupted, or timed-out receipt can resume only when its exact selected settings, persisted transcript, and process closure are confirmed. A new continuation has fresh artifacts. An existing lease is an explicit conflict. Preserve diagnostic files and investigate before removing a stale lease.
+
+Pi and provider names do not establish model-family diversity. Use known exact-model lineage. Parent aliases, ambiguous custom IDs, and virtual routes with unknown lineage cannot satisfy a different-family gate. Do not strip a provider-looking prefix from an exact ID to invent a family. Preserve the calling workflow's selected-pool rules, required gates, fresh-worker requirements, dropout handling, and Arena's disclosed judge skip.

@@ -11,3 +11,5 @@ The launching parent's external-run background recipe starts this worker. Native
 On macOS, a Codex receiving executor's default workspace sandbox blocks Chromium-based browsers, local listening ports, Git metadata writes, and network access. Run those task-authorized commands with escalated sandbox permissions on the first attempt. The configured reviewer decides whether they run.
 
 Exact selections for another executor keep their chosen route. If the available controls cannot express a required executor, model, effort, or worker role, report the exact capability gap. Preserve the workflow's existing fallback and diversity rules without inventing a substitute or expanding permissions.
+
+A Pi receiving executor has no established native nested delegation. Its explicitly selected built-in tools do not inherit the parent's MCP, full conversation, permissions, or OS read-only enforcement. Keep the launching host's saved provider, model, effort, role shape, fresh-worker rules, and required diversity gates. Report a missing required capability instead of inventing native tools or a parent launch route.

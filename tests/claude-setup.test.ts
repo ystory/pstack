@@ -113,6 +113,10 @@ async function fixture(t: TestContext) {
   await mkdir(path.join(plugin, 'skills/poteto-mode/scripts'), {
     recursive: true,
   });
+  await cp(
+    path.join(project, 'plugin-claude/skills/poteto-mode/scripts/pi-route.mjs'),
+    path.join(plugin, 'skills/poteto-mode/scripts/pi-route.mjs'),
+  );
   await writeFile(
     path.join(plugin, 'skills/poteto-mode/scripts/run-codex.mjs'),
     'process.stdout.write(JSON.stringify(JSON.parse(process.env.PSTACK_FIXTURE_CODEX)));\n',

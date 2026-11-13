@@ -47,3 +47,10 @@ shared/0005-complete-instruction-bodies.patch
 shared/0006-codex-sandbox-escalation.patch
 0042-release-codex-worker-guidance.patch
 0043-codex-skill-lookup-depth.patch
+shared/0007-pi-executor.patch
+shared/0008-pi-lifecycle-validation.patch
+shared/0009-pi-resume-and-usage.patch
+0044-pi-worker-setup.patch
+0045-pi-only-prerequisites.patch
+shared/0010-pi-selection-failures.patch
+0046-pi-only-catalog.patch

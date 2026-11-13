@@ -31,3 +31,10 @@ shared/0006-codex-sandbox-escalation.patch
 0025-standalone-app-server-workers.patch
 0026-require-workflow-path.patch
 0027-setup-owns-runtime-preparation.patch
+shared/0007-pi-executor.patch
+shared/0008-pi-lifecycle-validation.patch
+shared/0009-pi-resume-and-usage.patch
+0028-pi-worker-setup.patch
+0029-pi-only-prerequisites.patch
+shared/0010-pi-selection-failures.patch
+0030-pi-only-catalog.patch

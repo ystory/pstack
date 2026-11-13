@@ -38,7 +38,7 @@ Ordered lists preserve duplicate seats. The budget ladder is `unlimited: max`, `
 - `budget --budget unlimited|large|medium|small --catalog ABS [--codex-home ABS]` previews the sparse saved config while preserving role model choices, lists, and aliases. `needsChoice` lists entries without a confirmed effort at or below the target. This command never writes.
 - `write --input ABS --catalog ABS --expected-hash HASH|absent [--codex-home ABS] [--dry-run]` validates then saves an accepted config or a resolved `budget` result. Use the hash from the read that informed the confirmed choices. A stale hash, malformed preference, unconfirmed model, or unsupported effort prevents writing. Dry run validates the full proposal without creating a destination.
 
-Budget and write accept the normalized combined catalog, or native `--catalog ABS` plus `--claude-runtime ABS`. Catalog validation keys each model by executor and ID. External entries require model-specific capability records and a compatible CLI that can express their efforts. A native model entry with the same ID does not validate them. The helper does not install or authenticate Claude or change its configuration.
+Budget and write accept the normalized combined catalog, or native `--catalog ABS` plus `--claude-runtime ABS`. Catalog validation keys native models by executor and ID, and Pi models by executor, provider, and exact ID. External entries require model-specific capability records and a compatible CLI that can express their efforts. A native model entry with the same ID does not validate them. The helper does not install or authenticate Claude or change its configuration.
 
 ## Model capability records
 
@@ -73,3 +73,15 @@ Native subagent tool names and argument names vary by Codex version. Bind the re
 Budget affects default reasoning. Keep the original different-model and different-family review rules in the consuming workflow when assessing results.
 
 Unknown role keys fail boundary validation without dropping or migrating them. Preferences remain unchanged.
+
+## Pi routes
+
+A Pi choice is `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "off" }`. The provider is required for Pi and rejected for other executors. Model IDs keep their exact bytes, including slashes. `auto` and `inherit-parent` remain native-only. Saved role shapes, sparse choices, order, and duplicate seats stay unchanged. Read and resolve preserve Pi choices offline and create no native `agentType`.
+
+Run `poteto-mode/scripts/run-pi.mjs catalog --cwd ABS --run-dir ABS_NEW_DIRECTORY` from its actual installed path. Pass its sanitized `catalog.json` to `models.mjs catalog --pi-catalog ABS` alongside any native catalog inputs. Pi-only normalization may omit `--input`. Merge the normalized result into the existing budget and hash-guarded write flow. No task prompt is submitted for catalog collection.
+
+Each Pi capability has `executor`, `provider`, `model`, `supportedReasoningEfforts`, a labeled `source`, and optional `runtimeVersion`. Normalization retains these fields and discards other full-model fields. Repeated normalization is idempotent. Provider collisions are independent routes. Configured model availability and local thinking-level readback do not prove remote inference or fresh authentication.
+
+Pi's effort ladder is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. `off` differs from native `none`. Budget mapping selects the highest reported level at or below its target on this ladder. An off-only route maps to `off` under every budget. Unsupported efforts or missing exact routes prevent a save without changing preferences.
+
+Follow [Pi execution](../../poteto-mode/references/pi-execution.md) for process receipts, exact resume, structured rejections, explicit tool capabilities, and required model-family gates. Pi entries never become native agent definitions.

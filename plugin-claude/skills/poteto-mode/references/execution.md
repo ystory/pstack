@@ -58,6 +58,10 @@ Track the native Bash task ID and collect its terminal outcome through the host'
 
 The outbound runner automatically includes the shared [receiving-worker execution context](worker-context.md) in its task payload. It keeps the launching configuration authority and distinguishes native receiving tools from parent launch recipes. The task still supplies its original role, selected model and effort, scope, and permissions.
 
+## Pi workers
+
+For `executor: "pi"`, preserve the returned exact `provider`, `model`, and separate `reasoningEffort`. Read [Pi execution](pi-execution.md) for the owned RPC runner, explicit tool selection, context delivery, structured rejection handling, terminal receipts, and exact resume. Use this host's asynchronous command controls and collect every terminal receipt. Pi entries have no native agent type. Parent aliases stay native. Known model lineage establishes family diversity. Pi, provider names, ambiguous custom IDs, and virtual routes with unknown lineage do not. Preserve the calling workflow's selected-pool, fresh-worker, required capability, and family gates.
+
 ## Worktrees and state transfer
 
 Native `isolation: "worktree"` is available when its base and copy behavior meet the workflow. Otherwise create an explicit Git worktree at the resolved base commit before dispatch. Every independent writer owns a branch and checkout. A Cursor cloud-agent instruction maps to an exclusive local worktree, not a new machine. For a task that needs a remote host, use a real configured remote environment and identify it.

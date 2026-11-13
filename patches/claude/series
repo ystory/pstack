@@ -38,3 +38,4 @@ shared/0009-pi-resume-and-usage.patch
 0029-pi-only-prerequisites.patch
 shared/0010-pi-selection-failures.patch
 0030-pi-only-catalog.patch
+0031-host-native-model-catalog.patch

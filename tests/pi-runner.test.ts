@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import {
   mkdtemp,
   readFile,
@@ -186,6 +187,40 @@ test('Pi rejects exact model and effort mismatches before prompting without rout
     assert.equal(trace.split('"type":"set_model"').length, 2);
   }
 });
+
+test(
+  'Pi descendant fixture stops and reaps its child before exiting on EOF',
+  { timeout: 5000 },
+  async (t) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'pstack-pi-descendant-'));
+    temporaryRoots.add(root);
+    const childPid = path.join(root, 'child-pid');
+    const child = spawn(process.execPath, [fixture], {
+      detached: true,
+      env: { ...process.env, PI_FIXTURE: 'descendant', PI_CHILD_PID: childPid },
+      stdio: ['pipe', 'ignore', 'inherit'],
+    });
+    const closed = once(child, 'close');
+    t.after(async () => {
+      if (child.pid) {
+        try {
+          process.kill(-child.pid, 'SIGKILL');
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'ESRCH') throw error;
+        }
+      }
+      await closed;
+    });
+    child.stdin.end(
+      `${JSON.stringify({ id: 'prompt', type: 'prompt', message: 'task' })}\n`,
+    );
+    const [code, signal] = await closed;
+    assert.equal(code, 0);
+    assert.equal(signal, null);
+    const pid = Number(await readFile(childPid, 'utf8'));
+    assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+  },
+);
 
 test('Pi cancellation and task timeout override late success and stop owned descendants', async () => {
   for (const mode of ['late-success', 'descendant', 'no-settle']) {

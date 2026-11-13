@@ -2,6 +2,7 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { createInterface } from 'node:readline';
 
 if (process.argv.includes('--version')) {
@@ -101,6 +102,7 @@ const events = () => {
 };
 let count = 0;
 let prompted = false;
+let descendant;
 createInterface({ input: process.stdin, crlfDelay: Infinity })
   .on('line', (line) => {
     const request = JSON.parse(line);
@@ -217,6 +219,7 @@ createInterface({ input: process.stdin, crlfDelay: Infinity })
             ['-e', 'setInterval(() => {}, 1000)'],
             { stdio: 'ignore' },
           );
+          descendant = { child, closed: once(child, 'close') };
           if (process.env.PI_CHILD_PID)
             fs.writeFileSync(process.env.PI_CHILD_PID, String(child.pid));
         }
@@ -234,7 +237,13 @@ createInterface({ input: process.stdin, crlfDelay: Infinity })
       respond();
     } else respond();
   })
-  .on('close', () => {
+  .on('close', async () => {
     if (mode === 'ignore-eof') setInterval(() => {}, 1000);
-    else process.exit(0);
+    else {
+      if (descendant) {
+        descendant.child.kill('SIGTERM');
+        await descendant.closed;
+      }
+      process.exit(0);
+    }
   });

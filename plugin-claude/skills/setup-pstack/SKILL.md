@@ -1,6 +1,6 @@
 ---
 name: setup-pstack
-description: Configure pstack's per-role Claude or Codex workers in Claude Code. Prepare selected official runtimes and login, save independent model choices, and register exact-model native agents. Use for /setup-pstack, "configure pstack models", or "pstack budget".
+description: Configure pstack's per-role Claude, Codex, or Pi workers in Claude Code. Prepare selected official runtimes and login, save independent model choices, and register exact-model native agents. Use for /setup-pstack, "configure pstack models", or "pstack budget".
 ---
 
 # Setup pstack
@@ -11,17 +11,17 @@ Resolve helpers relative to this installed skill and invoke their absolute paths
 
 ## 1. Choose worker executors
 
-Start with worker executor selection unless already supplied in the conversation. Offer native Claude only, or native Claude with Codex workers. The parent chat stays in Claude Code. Prefill executors used by saved entries on a rerun. A harness choice does not choose a model. If a saved entry uses an executor the user excludes, show it and obtain its replacement before saving. Preserve other choices.
+Start with worker executor selection unless already supplied in the conversation. Offer the available worker executors independently. Native Claude, Codex, and Pi can be selected in any combination. The parent chat stays in Claude Code. Prefill executors used by saved entries on a rerun. A harness choice does not choose a model. If a saved entry uses an executor the user excludes, show it and obtain its replacement before saving. Preserve other choices.
 
 ## 2. Prepare selected runtimes
 
 Check `node --version` first. The helpers require Node.js 24.12 or newer. If Node is missing, use the [prerequisite guide](references/prerequisites.md).
 
-Run `scripts/detect.mjs detect --executors claude-code` for native-only choices. When Codex workers are selected, use `--executors claude-code,codex` instead. Report runtime versions, native effort support, and login state. Unselected Codex is neither probed nor required. The detection helper is read-only; it does not perform installation or login.
+When native Claude workers are selected, run `scripts/detect.mjs detect --executors claude-code`. Include `codex` in that list only when Codex workers are also selected. When Codex is selected without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs detect` directly. For Pi-only workers, skip both detectors and use the Pi catalog procedure below. Report runtime versions, native effort support, and login state. Unselected Codex and Pi CLIs are neither probed nor required. The detection helper is read-only; it does not perform installation or login.
 
 Within the authorized setup, prepare missing selected tools yourself using their official installation guidance and the host's normal tools. For Codex workers, install the official standalone server when needed and make `codex-app-server` available on the PATH inherited by this host and future workers. Choose suitable installation details for this machine. Recheck detection without an executable override before completing setup. Do not leave installation or PATH preparation as a user checklist. Hand off only steps that require human interaction, such as login or an operating-system approval.
 
-Report `configuration.claudeHome` as the setup configuration target and `claude.cli.environment` as the inherited CLI environment used for authentication. `--claude-home` changes the configuration target only. Existing CLI authentication stays in the inherited environment, including an existing `CLAUDE_CONFIG_DIR`. An intentionally selected environment profile keeps its own login state.
+When the Claude detector runs, report `configuration.claudeHome` as the setup configuration target and `claude.cli.environment` as the inherited CLI environment used for authentication. `--claude-home` changes the configuration target only. Existing CLI authentication stays in the inherited environment, including an existing `CLAUDE_CONFIG_DIR`. An intentionally selected environment profile keeps its own login state.
 
 Claude-only choices do not require Codex. Use [the prerequisite guide](references/prerequisites.md) for selected tools that need preparation, then rerun detection. Reuse existing installations and authentication. Distinguish ChatGPT subscription login from OpenAI API-key billing. Keep interactive login in the user's terminal or the host's normal login flow. Never ask the user to paste credentials into the conversation.
 
@@ -29,15 +29,19 @@ Native exact-model choices use generated agent definitions and per-invocation ef
 
 ## 3. Collect actual model options
 
-For Codex workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT` through inherited PATH. For diagnostics, `--codex-executable ABS` overrides only that catalog invocation. The bundled runner uses the selected server for safe account status and every `model/list` page. Its receipt separates runtime capability, authentication, catalog, and execution evidence.
+For Codex workers with selected native Claude workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT` through inherited PATH. For Codex workers without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs catalog --cwd ABSOLUTE_PROJECT` directly. These routes use the same official standalone runtime. For diagnostics, `--codex-executable ABS` overrides only that catalog invocation. The bundled runner uses the selected server for safe account status and every `model/list` page. Its receipt separates runtime capability, authentication, catalog, and execution evidence.
+
+For selected Pi workers, use the prerequisite guide and run the sibling `poteto-mode/scripts/run-pi.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. This queries exact provider/model routes and per-model thinking levels without submitting a prompt. Pass its `catalog.json` through `--pi-catalog ABSOLUTE_PI_CATALOG` when normalizing. Configured availability does not prove fresh authentication or successful inference.
 
 For native Claude workers, use exact model IDs and supported efforts exposed by the current host or its model catalog. Inspect the current host and configuration rather than copying a fixed list from this skill. Detection lists configured model candidates, including `settings.json` model choices and model-specific environment variables. Those candidates require confirmation. A configured name or allowlist does not prove entitlement or supported efforts.
 
 If the host cannot enumerate exact IDs and efforts, ask the user to confirm them and label the resulting catalog source `manual-confirmation`. Keep that fallback visible. Do not substitute moving aliases such as `opus` or `sonnet` for exact selections.
 
-Normalize both routes with `scripts/models.mjs catalog --input ABSOLUTE_CODEX_RECEIPT --native-catalog ABSOLUTE_NATIVE_CATALOG`. Omit the Codex input for Claude-only setup. Every explicit selection must match its executor's catalog. A matching ID under another executor does not validate it.
+Normalize the selected routes with `scripts/models.mjs catalog --input ABSOLUTE_CODEX_RECEIPT --native-catalog ABSOLUTE_NATIVE_CATALOG`. Omit the Codex input for Claude-only setup. Every explicit selection must match its executor's catalog. A matching ID under another executor does not validate it.
 
-`auto` and `inherit-parent` always mean the actual native Claude parent. They omit effort and executor overrides on invocation. They cannot select Codex. Use the [Claude execution binding](../poteto-mode/references/execution.md) when dispatching.
+For Pi-only worker choices, skip native and other external model collection. Normalize with `scripts/models.mjs catalog --pi-catalog ABSOLUTE_PI_CATALOG` alone. Omit `--input`, `--native-catalog`, and `--claude-runtime` when unused. Native parent aliases remain available without a native model catalog.
+
+`auto` and `inherit-parent` always mean the actual native Claude parent. They omit effort and executor overrides on invocation. They cannot select Codex or Pi. Use the [Claude execution binding](../poteto-mode/references/execution.md) when dispatching.
 
 ## 4. Load current choices
 
@@ -58,9 +62,11 @@ Use a budget already specified in the conversation. Otherwise show the saved bud
 
 Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below the target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
 
-Show every role's current and proposed executor, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices and parent aliases. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
+Show every role's current and proposed executor, Pi provider when applicable, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices and parent aliases. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
 
 Scalar roles hold one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` hold nonempty lists. Run one independent delegate per entry, including duplicates and aliases. `arena cross-judge pool` is an ordered candidate pool, from which Arena runs one eligible judge. Parent aliases never judge. Preserve Arena's ordered selected pool and disclosed judge skip, plus every other workflow's original diversity, verifier, retry, and fresh-worker requirements.
+
+Pi choices retain `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "LEVEL" }`. Choose provider and model separately. Pi uses `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Budget previews select only reported levels on that ladder, including `off` for nonreasoning models. Native aliases stay native, and native registration creates no Pi model definitions. Follow [Pi execution](../poteto-mode/references/pi-execution.md) for explicit tools, context, fresh sessions, capability gaps, and required family gates.
 
 ## 6. Review, register, and save
 
@@ -76,7 +82,7 @@ After registration succeeds, run the same `models.mjs write` command without `--
 
 ## 7. Finish setup
 
-Report the preferences path, selected executors, registered exact-model definitions, and detected CLI versions. State which choices came from a catalog or manual confirmation. A saved preference or definition does not verify execution. Explain that a new Claude Code session refreshes the registered agent list when needed. When the user requests execution verification, use the emitted `agentType` with the selected effort and the installed namespace for a small task with the selected worker. Keep observed model identity separate from requested settings. Distinguish fixture checks, native CLI execution, and Desktop UI evidence. A helper-only check does not establish first-time onboarding.
+Report the preferences path, selected executors, registered exact-model definitions, and detected CLI versions. State which choices came from a catalog or manual confirmation. A saved preference or definition does not verify execution. Explain that a new Claude Code session refreshes the registered agent list when needed. When the user requests execution verification, use the selected executor binding and effort. Native Claude workers use the emitted `agentType` and the installed namespace for a small task with the selected worker. Keep observed model identity separate from requested settings. Distinguish fixture checks, native CLI execution, and Desktop UI evidence. A helper-only check does not establish first-time onboarding.
 
 When the user requests removal, run `scripts/register-agents.mjs --unregister` before uninstalling the plugin. It removes only unchanged owned definitions and their registration record. It retains model preferences and unrelated files.
 

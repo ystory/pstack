@@ -1,0 +1,13 @@
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 0291654..57e4774 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -35,6 +35,8 @@ For selected Pi workers, run the sibling `poteto-mode/scripts/run-pi.mjs catalog
+ 
+ Normalize the combined catalog with `scripts/models.mjs catalog --input ABSOLUTE_JSON`. Include `--claude-runtime ABSOLUTE_DETECT_JSON` only when configuring external Claude entries. Every Claude entry needs its own source and efforts expressible by that runtime. Pi entries carry their own per-model RPC source and provider. See [model capability records](references/models-contract.md#model-capability-records). No fixed Sol, Opus, or other model is required.
+ 
++For Pi-only worker choices, skip native and other external model collection. Normalize with `scripts/models.mjs catalog --pi-catalog ABSOLUTE_PI_CATALOG` alone. Omit `--input`, `--native-catalog`, and `--claude-runtime` when unused. Native parent aliases remain available without a native model catalog.
++
+ `auto` and `inherit-parent` always mean the actual native Codex parent. They omit a separate effort and cannot select the external executor. Bind them through Codex execution's parent-selection rules.
+ 
+ ## 4. Choose roles and reasoning budget

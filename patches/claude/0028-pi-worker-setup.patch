@@ -1,0 +1,270 @@
+diff --git a/.claude-plugin/plugin.json b/.claude-plugin/plugin.json
+index b7d42c6..d533a32 100644
+--- a/.claude-plugin/plugin.json
++++ b/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pstack-cc",
+-  "version": "0.1.0-dev.20",
++  "version": "0.1.0-dev.21",
+   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+   "author": {
+     "name": "pstack contributors"
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 651f73c..97fae9a 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -58,6 +58,10 @@ Track the native Bash task ID and collect its terminal outcome through the host'
+ 
+ The outbound runner automatically includes the shared [receiving-worker execution context](worker-context.md) in its task payload. It keeps the launching configuration authority and distinguishes native receiving tools from parent launch recipes. The task still supplies its original role, selected model and effort, scope, and permissions.
+ 
++## Pi workers
++
++For `executor: "pi"`, preserve the returned exact `provider`, `model`, and separate `reasoningEffort`. Read [Pi execution](pi-execution.md) for the owned RPC runner, explicit tool selection, context delivery, structured rejection handling, terminal receipts, and exact resume. Use this host's asynchronous command controls and collect every terminal receipt. Pi entries have no native agent type. Parent aliases stay native. Known model lineage establishes family diversity. Pi, provider names, ambiguous custom IDs, and virtual routes with unknown lineage do not. Preserve the calling workflow's selected-pool, fresh-worker, required capability, and family gates.
++
+ ## Worktrees and state transfer
+ 
+ Native `isolation: "worktree"` is available when its base and copy behavior meet the workflow. Otherwise create an explicit Git worktree at the resolved base commit before dispatch. Every independent writer owns a branch and checkout. A Cursor cloud-agent instruction maps to an exclusive local worktree, not a new machine. For a task that needs a remote host, use a real configured remote environment and identify it.
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 3dc246a..0cd4674 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -1,6 +1,6 @@
+ ---
+ name: setup-pstack
+-description: Configure pstack's per-role Claude or Codex workers in Claude Code. Prepare selected official runtimes and login, save independent model choices, and register exact-model native agents. Use for /setup-pstack, "configure pstack models", or "pstack budget".
++description: Configure pstack's per-role Claude, Codex, or Pi workers in Claude Code. Prepare selected official runtimes and login, save independent model choices, and register exact-model native agents. Use for /setup-pstack, "configure pstack models", or "pstack budget".
+ ---
+ 
+ # Setup pstack
+@@ -11,13 +11,13 @@ Resolve helpers relative to this installed skill and invoke their absolute paths
+ 
+ ## 1. Choose worker executors
+ 
+-Start with worker executor selection unless already supplied in the conversation. Offer native Claude only, or native Claude with Codex workers. The parent chat stays in Claude Code. Prefill executors used by saved entries on a rerun. A harness choice does not choose a model. If a saved entry uses an executor the user excludes, show it and obtain its replacement before saving. Preserve other choices.
++Start with worker executor selection unless already supplied in the conversation. Offer the available worker executors independently. Native Claude, Codex, and Pi can be selected in any combination. The parent chat stays in Claude Code. Prefill executors used by saved entries on a rerun. A harness choice does not choose a model. If a saved entry uses an executor the user excludes, show it and obtain its replacement before saving. Preserve other choices.
+ 
+ ## 2. Prepare selected runtimes
+ 
+ Check `node --version` first. The helpers require Node.js 24.12 or newer. If Node is missing, use the [prerequisite guide](references/prerequisites.md).
+ 
+-Run `scripts/detect.mjs detect --executors claude-code` for native-only choices. When Codex workers are selected, use `--executors claude-code,codex` instead. Report runtime versions, native effort support, and login state. Unselected Codex is neither probed nor required. The detection helper is read-only; it does not perform installation or login.
++Run `scripts/detect.mjs detect --executors claude-code` for native-only choices. When Codex workers are selected, use `--executors claude-code,codex` instead. Report runtime versions, native effort support, and login state. Unselected Codex and Pi CLIs are neither probed nor required. The detection helper is read-only; it does not perform installation or login.
+ 
+ Within the authorized setup, prepare missing selected tools yourself using their official installation guidance and the host's normal tools. For Codex workers, install the official standalone server when needed and make `codex-app-server` available on the PATH inherited by this host and future workers. Choose suitable installation details for this machine. Recheck detection without an executable override before completing setup. Do not leave installation or PATH preparation as a user checklist. Hand off only steps that require human interaction, such as login or an operating-system approval.
+ 
+@@ -31,13 +31,15 @@ Native exact-model choices use generated agent definitions and per-invocation ef
+ 
+ For Codex workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT` through inherited PATH. For diagnostics, `--codex-executable ABS` overrides only that catalog invocation. The bundled runner uses the selected server for safe account status and every `model/list` page. Its receipt separates runtime capability, authentication, catalog, and execution evidence.
+ 
++For selected Pi workers, use the prerequisite guide and run the sibling `poteto-mode/scripts/run-pi.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. This queries exact provider/model routes and per-model thinking levels without submitting a prompt. Pass its `catalog.json` through `--pi-catalog ABSOLUTE_PI_CATALOG` when normalizing. Configured availability does not prove fresh authentication or successful inference.
++
+ For native Claude workers, use exact model IDs and supported efforts exposed by the current host or its model catalog. Inspect the current host and configuration rather than copying a fixed list from this skill. Detection lists configured model candidates, including `settings.json` model choices and model-specific environment variables. Those candidates require confirmation. A configured name or allowlist does not prove entitlement or supported efforts.
+ 
+ If the host cannot enumerate exact IDs and efforts, ask the user to confirm them and label the resulting catalog source `manual-confirmation`. Keep that fallback visible. Do not substitute moving aliases such as `opus` or `sonnet` for exact selections.
+ 
+-Normalize both routes with `scripts/models.mjs catalog --input ABSOLUTE_CODEX_RECEIPT --native-catalog ABSOLUTE_NATIVE_CATALOG`. Omit the Codex input for Claude-only setup. Every explicit selection must match its executor's catalog. A matching ID under another executor does not validate it.
++Normalize the selected routes with `scripts/models.mjs catalog --input ABSOLUTE_CODEX_RECEIPT --native-catalog ABSOLUTE_NATIVE_CATALOG`. Omit the Codex input for Claude-only setup. Every explicit selection must match its executor's catalog. A matching ID under another executor does not validate it.
+ 
+-`auto` and `inherit-parent` always mean the actual native Claude parent. They omit effort and executor overrides on invocation. They cannot select Codex. Use the [Claude execution binding](../poteto-mode/references/execution.md) when dispatching.
++`auto` and `inherit-parent` always mean the actual native Claude parent. They omit effort and executor overrides on invocation. They cannot select Codex or Pi. Use the [Claude execution binding](../poteto-mode/references/execution.md) when dispatching.
+ 
+ ## 4. Load current choices
+ 
+@@ -58,10 +60,12 @@ Use a budget already specified in the conversation. Otherwise show the saved bud
+ 
+ Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below the target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
+ 
+-Show every role's current and proposed executor, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices and parent aliases. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
++Show every role's current and proposed executor, Pi provider when applicable, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices and parent aliases. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
+ 
+ Scalar roles hold one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` hold nonempty lists. Run one independent delegate per entry, including duplicates and aliases. `arena cross-judge pool` is an ordered candidate pool, from which Arena runs one eligible judge. Parent aliases never judge. Preserve Arena's ordered selected pool and disclosed judge skip, plus every other workflow's original diversity, verifier, retry, and fresh-worker requirements.
+ 
++Pi choices retain `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "LEVEL" }`. Choose provider and model separately. Pi uses `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Budget previews select only reported levels on that ladder, including `off` for nonreasoning models. Native aliases stay native, and native registration creates no Pi model definitions. Follow [Pi execution](../poteto-mode/references/pi-execution.md) for explicit tools, context, fresh sessions, capability gaps, and required family gates.
++
+ ## 6. Review, register, and save
+ 
+ Show accepted roles, remaining unconfigured roles, budget, and evidence sources. Write the accepted sparse config to an absolute temporary JSON file. Validate it with `scripts/models.mjs write --input ABSOLUTE_JSON --catalog ABSOLUTE_CATALOG --expected-hash HASH --dry-run`. Use the read hash, or `absent` if no file exists. Missing roles keep their disclosed native-parent fallback.
+@@ -76,7 +80,7 @@ After registration succeeds, run the same `models.mjs write` command without `--
+ 
+ ## 7. Finish setup
+ 
+-Report the preferences path, selected executors, registered exact-model definitions, and detected CLI versions. State which choices came from a catalog or manual confirmation. A saved preference or definition does not verify execution. Explain that a new Claude Code session refreshes the registered agent list when needed. When the user requests execution verification, use the emitted `agentType` with the selected effort and the installed namespace for a small task with the selected worker. Keep observed model identity separate from requested settings. Distinguish fixture checks, native CLI execution, and Desktop UI evidence. A helper-only check does not establish first-time onboarding.
++Report the preferences path, selected executors, registered exact-model definitions, and detected CLI versions. State which choices came from a catalog or manual confirmation. A saved preference or definition does not verify execution. Explain that a new Claude Code session refreshes the registered agent list when needed. When the user requests execution verification, use the selected executor binding and effort. Native Claude workers use the emitted `agentType` and the installed namespace for a small task with the selected worker. Keep observed model identity separate from requested settings. Distinguish fixture checks, native CLI execution, and Desktop UI evidence. A helper-only check does not establish first-time onboarding.
+ 
+ When the user requests removal, run `scripts/register-agents.mjs --unregister` before uninstalling the plugin. It removes only unchanged owned definitions and their registration record. It retains model preferences and unrelated files.
+ 
+diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
+index 05a8454..878cf96 100644
+--- a/skills/setup-pstack/references/models-contract.md
++++ b/skills/setup-pstack/references/models-contract.md
+@@ -83,7 +83,7 @@ The same server handles safe `account/read` and all `model/list` pages. Auth and
+ 
+ Detection reports the configuration target in `configuration.claudeHome`. Claude version, help, and authentication checks use the unchanged inherited CLI environment. `claude.cli.environment.source` is `inherited`. Its `claudeConfigDir` contains the inherited `CLAUDE_CONFIG_DIR` value, or `null` when the CLI uses its default lookup. `--claude-home` does not relocate credentials or select another authentication profile. A profile selected through the inherited environment keeps its own login state. Detection copies no credentials and writes no setup files.
+ 
+-`KIND` is `general-purpose`, `poteto-agent`, `comment-sicko`, or `read-only`. An explicit Claude selection resolves to `pstack-cc-KIND-HASH`, where `HASH` is the first 16 hexadecimal characters of the exact model ID's SHA-256. Definitions are in `agents/pstack-cc/` under the Claude home. Parent aliases and unconfigured roles resolve to `pstack-cc:KIND`. The readonly kind disallows `Write`, `Edit`, and `NotebookEdit` and retains the general-purpose body. Codex entries do not receive a native agent type.
++`KIND` is `general-purpose`, `poteto-agent`, `comment-sicko`, or `read-only`. An explicit Claude selection resolves to `pstack-cc-KIND-HASH`, where `HASH` is the first 16 hexadecimal characters of the exact model ID's SHA-256. Definitions are in `agents/pstack-cc/` under the Claude home. Parent aliases and unconfigured roles resolve to `pstack-cc:KIND`. The readonly kind disallows `Write`, `Edit`, and `NotebookEdit` and retains the general-purpose body. Codex and Pi entries do not receive a native agent type.
+ 
+ ## Registration ownership
+ 
+@@ -94,3 +94,15 @@ Registration adds or refreshes the proposed variants and retains every other own
+ The registrar changes neither Claude settings nor plugin cache files. Unregister checks every owned definition before removing any. A native host must load the resulting definitions before they can be invoked. Registration alone is not live compatibility evidence.
+ 
+ Unknown role keys fail boundary validation without dropping or migrating them. Preferences remain unchanged.
++
++## Pi routes
++
++A Pi choice is `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "off" }`. The provider is required for Pi and rejected for other executors. Model IDs keep their exact bytes, including slashes. `auto` and `inherit-parent` remain native-only. Saved role shapes, sparse choices, order, and duplicate seats stay unchanged. Read and resolve preserve Pi choices offline and create no native `agentType`.
++
++Run `poteto-mode/scripts/run-pi.mjs catalog --cwd ABS --run-dir ABS_NEW_DIRECTORY` from its actual installed path. Pass its sanitized `catalog.json` to `models.mjs catalog --pi-catalog ABS` alongside any native catalog inputs. Pi-only normalization may omit `--input`. Merge the normalized result into the existing budget and hash-guarded write flow. No task prompt is submitted for catalog collection.
++
++Each Pi capability has `executor`, `provider`, `model`, `supportedReasoningEfforts`, a labeled `source`, and optional `runtimeVersion`. Normalization retains these fields and discards other full-model fields. Repeated normalization is idempotent. Provider collisions are independent routes. Configured model availability and local thinking-level readback do not prove remote inference or fresh authentication.
++
++Pi's effort ladder is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. `off` differs from native `none`. Budget mapping selects the highest reported level at or below its target on this ladder. An off-only route maps to `off` under every budget. Unsupported efforts or missing exact routes prevent a save without changing preferences.
++
++Follow [Pi execution](../../poteto-mode/references/pi-execution.md) for process receipts, exact resume, structured rejections, explicit tool capabilities, and required model-family gates. Pi entries never become native agent definitions.
+diff --git a/skills/setup-pstack/references/prerequisites.md b/skills/setup-pstack/references/prerequisites.md
+index cc19db8..a98d946 100644
+--- a/skills/setup-pstack/references/prerequisites.md
++++ b/skills/setup-pstack/references/prerequisites.md
+@@ -41,3 +41,11 @@ The CLI and standalone server must inherit the same `CODEX_HOME`, or both use it
+ ChatGPT login uses the account's Codex plan. API-key login uses OpenAI API billing. Let the user choose the intended method, and follow the official auth guide for API-key setup outside the conversation. Never print a key, credential cache, or full authentication response. The bundled runner reports safe status and method fields.
+ 
+ Rerun detection and collect the catalog after login. Runtime capability, login state, model catalog, and successful worker execution are separate evidence.
++
++## Pi workers
++
++Pi is optional. Prepare it only when selected. The runner requires Pi 1.5.2 or newer and checks the inspected RPC controls at runtime. Use the [Pi installation guide](https://pi.dev/) for the official `@earendil-works/pi-coding-agent` package, then check `pi --version` on the PATH inherited by future workers. An absolute `--executable` overrides one invocation for diagnostics and is never saved.
++
++Reuse existing Pi authentication and provider configuration. Do not read or copy credential files, change personal defaults, or create a separate authentication home. Guide an interactive `/login` only when required and authorized for the user's selected provider. Existing cloud credentials can supply provider authentication through their normal environment. A model appearing in the catalog does not prove that its credentials can complete inference.
++
++Run the sibling `poteto-mode/scripts/run-pi.mjs catalog --cwd ABS --run-dir ABS_NEW_LOCAL_DIRECTORY`. It disables discovered extensions, MCP, context files, skills, templates, and startup refresh. It uses inherited configuration and authentication, selects each exact provider/model, reads supported thinking levels, and writes only sanitized catalog evidence. No model prompt is sent. Session storage is isolated without replacing the user's Pi agent directory. If required RPC controls or selected routes fail, report the capability gap. Runtime detection, catalog availability, task execution, and release approval remain separate evidence.
+diff --git a/skills/setup-pstack/scripts/models.mjs b/skills/setup-pstack/scripts/models.mjs
+index 35052ad..eaa3083 100644
+--- a/skills/setup-pstack/scripts/models.mjs
++++ b/skills/setup-pstack/scripts/models.mjs
+@@ -26,6 +26,13 @@ import {
+   kinds,
+ } from './roles.mjs';
+ 
++import {
++  piEntry,
++  piCapability,
++  piEfforts,
++  routeKey,
++} from '../../poteto-mode/scripts/pi-route.mjs';
++
+ const nativeAliases = new Set([
+   'default',
+   'best',
+@@ -39,8 +46,9 @@ const nativeAliases = new Set([
+ const executorEfforts = {
+   'claude-code': new Set(['low', 'medium', 'high', 'xhigh', 'max']),
+   codex: new Set(efforts),
++  pi: new Set(piEfforts),
+ };
+-const keyFor = (entry) => `${entry.executor}\0${entry.model}`;
++const keyFor = (entry) => routeKey(entry, 'claude-code');
+ 
+ function isNativeAlias(model) {
+   const base = model.split('[')[0];
+@@ -59,8 +67,10 @@ function entryFor(value, role) {
+   )
+     throw new Error(`Invalid model entry for ${role}.`);
+   const executor = value.executor ?? 'claude-code';
+-  if (!['claude-code', 'codex'].includes(executor))
++  if (!['claude-code', 'codex', 'pi'].includes(executor))
+     throw new Error(`Unknown executor for ${role}.`);
++  routeKey({ ...value, executor });
++  if (executor === 'pi') return piEntry(value);
+   if (aliases.has(value.model)) {
+     if (executor !== 'claude-code' || value.reasoningEffort !== undefined)
+       throw new Error(
+@@ -148,7 +158,7 @@ function executionDefault(kind) {
+   };
+ }
+ 
+-export function normalizeCatalog(input, native) {
++export function normalizeCatalog(input, native, piCatalog) {
+   const response = input?.codex?.models
+     ? input.codex
+     : (input?.result ?? input ?? { models: [] });
+@@ -171,9 +181,16 @@ export function normalizeCatalog(input, native) {
+     throw new Error('Native catalog must contain a models array.');
+   if (nativeResponse?.nextCursor || nativeResponse?.next_cursor)
+     throw new Error('Native catalog is incomplete.');
++  if (
++    piCatalog &&
++    (!Array.isArray(piCatalog.models) ||
++      piCatalog.models.some((entry) => entry.executor !== 'pi'))
++  )
++    throw new Error('--pi-catalog requires a Pi models array.');
+   const seen = new Set();
+   const models = [
+     ...data,
++    ...(piCatalog?.models ?? []),
+     ...nativeModels.map((entry) => ({
+       ...entry,
+       executor: 'claude-code',
+@@ -190,7 +207,7 @@ export function normalizeCatalog(input, native) {
+         : (effort.reasoningEffort ?? effort.reasoning_effort),
+     );
+     if (
+-      !['claude-code', 'codex'].includes(executor) ||
++      !['claude-code', 'codex', 'pi'].includes(executor) ||
+       typeof model !== 'string' ||
+       !model ||
+       model.trim() !== model ||
+@@ -216,10 +233,12 @@ export function normalizeCatalog(input, native) {
+       throw new Error(
+         'Native Claude models require an exact ID and a labeled host, configuration, or manual-confirmation source.',
+       );
+-    const key = keyFor({ executor, model });
++    const key = keyFor({ ...entry, executor, model });
+     if (seen.has(key))
+       throw new Error(`Duplicate catalog model: ${executor} ${model}`);
+     seen.add(key);
++    if (executor === 'pi')
++      return piCapability({ ...entry, model, supportedReasoningEfforts });
+     return {
+       executor,
+       model,
+@@ -299,6 +318,9 @@ async function main(options) {
+       options.nativeCatalog
+         ? await inputJson(options.nativeCatalog, '--native-catalog')
+         : undefined,
++      options.piCatalog
++        ? await inputJson(options.piCatalog, '--pi-catalog')
++        : undefined,
+     );
+   const home = claudeHome(options.claudeHome);
+   const loaded = await loadConfig(home);
+@@ -371,8 +393,9 @@ async function main(options) {
+       for (const [index, entry] of entriesFor(value).entries()) {
+         if (typeof entry === 'string' || aliases.has(entry.model)) continue;
+         const supported = detected.get(keyFor(entry)) ?? [];
+-        const resolved = efforts
+-          .slice(0, efforts.indexOf(target) + 1)
++        const ladder = entry.executor === 'pi' ? piEfforts : efforts;
++        const resolved = ladder
++          .slice(0, ladder.indexOf(target) + 1)
+           .reverse()
+           .find((effort) => supported.includes(effort));
+         if (resolved) entry.reasoningEffort = resolved;
+@@ -446,6 +469,7 @@ if (
+         '--budget',
+         '--catalog',
+         '--native-catalog',
++        '--pi-catalog',
+         '--input',
+         '--expected-hash',
+       ],
+@@ -453,7 +477,7 @@ if (
+     );
+     if (options.help) {
+       process.stdout.write(
+-        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
++        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG] [--pi-catalog ABS]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
+       );
+       return;
+     }

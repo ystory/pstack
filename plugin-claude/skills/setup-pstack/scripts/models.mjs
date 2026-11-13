@@ -26,6 +26,13 @@ import {
   kinds,
 } from './roles.mjs';
 
+import {
+  piEntry,
+  piCapability,
+  piEfforts,
+  routeKey,
+} from '../../poteto-mode/scripts/pi-route.mjs';
+
 const nativeAliases = new Set([
   'default',
   'best',
@@ -39,8 +46,9 @@ const nativeAliases = new Set([
 const executorEfforts = {
   'claude-code': new Set(['low', 'medium', 'high', 'xhigh', 'max']),
   codex: new Set(efforts),
+  pi: new Set(piEfforts),
 };
-const keyFor = (entry) => `${entry.executor}\0${entry.model}`;
+const keyFor = (entry) => routeKey(entry, 'claude-code');
 
 function isNativeAlias(model) {
   const base = model.split('[')[0];
@@ -59,8 +67,10 @@ function entryFor(value, role) {
   )
     throw new Error(`Invalid model entry for ${role}.`);
   const executor = value.executor ?? 'claude-code';
-  if (!['claude-code', 'codex'].includes(executor))
+  if (!['claude-code', 'codex', 'pi'].includes(executor))
     throw new Error(`Unknown executor for ${role}.`);
+  routeKey({ ...value, executor });
+  if (executor === 'pi') return piEntry(value);
   if (aliases.has(value.model)) {
     if (executor !== 'claude-code' || value.reasoningEffort !== undefined)
       throw new Error(
@@ -148,7 +158,7 @@ function executionDefault(kind) {
   };
 }
 
-export function normalizeCatalog(input, native) {
+export function normalizeCatalog(input, native, piCatalog) {
   const response = input?.codex?.models
     ? input.codex
     : (input?.result ?? input ?? { models: [] });
@@ -171,9 +181,16 @@ export function normalizeCatalog(input, native) {
     throw new Error('Native catalog must contain a models array.');
   if (nativeResponse?.nextCursor || nativeResponse?.next_cursor)
     throw new Error('Native catalog is incomplete.');
+  if (
+    piCatalog &&
+    (!Array.isArray(piCatalog.models) ||
+      piCatalog.models.some((entry) => entry.executor !== 'pi'))
+  )
+    throw new Error('--pi-catalog requires a Pi models array.');
   const seen = new Set();
   const models = [
     ...data,
+    ...(piCatalog?.models ?? []),
     ...nativeModels.map((entry) => ({
       ...entry,
       executor: 'claude-code',
@@ -190,7 +207,7 @@ export function normalizeCatalog(input, native) {
         : (effort.reasoningEffort ?? effort.reasoning_effort),
     );
     if (
-      !['claude-code', 'codex'].includes(executor) ||
+      !['claude-code', 'codex', 'pi'].includes(executor) ||
       typeof model !== 'string' ||
       !model ||
       model.trim() !== model ||
@@ -216,10 +233,12 @@ export function normalizeCatalog(input, native) {
       throw new Error(
         'Native Claude models require an exact ID and a labeled host, configuration, or manual-confirmation source.',
       );
-    const key = keyFor({ executor, model });
+    const key = keyFor({ ...entry, executor, model });
     if (seen.has(key))
       throw new Error(`Duplicate catalog model: ${executor} ${model}`);
     seen.add(key);
+    if (executor === 'pi')
+      return piCapability({ ...entry, model, supportedReasoningEfforts });
     return {
       executor,
       model,
@@ -299,6 +318,9 @@ async function main(options) {
       options.nativeCatalog
         ? await inputJson(options.nativeCatalog, '--native-catalog')
         : undefined,
+      options.piCatalog
+        ? await inputJson(options.piCatalog, '--pi-catalog')
+        : undefined,
     );
   const home = claudeHome(options.claudeHome);
   const loaded = await loadConfig(home);
@@ -371,8 +393,9 @@ async function main(options) {
       for (const [index, entry] of entriesFor(value).entries()) {
         if (typeof entry === 'string' || aliases.has(entry.model)) continue;
         const supported = detected.get(keyFor(entry)) ?? [];
-        const resolved = efforts
-          .slice(0, efforts.indexOf(target) + 1)
+        const ladder = entry.executor === 'pi' ? piEfforts : efforts;
+        const resolved = ladder
+          .slice(0, ladder.indexOf(target) + 1)
           .reverse()
           .find((effort) => supported.includes(effort));
         if (resolved) entry.reasoningEffort = resolved;
@@ -446,6 +469,7 @@ if (
         '--budget',
         '--catalog',
         '--native-catalog',
+        '--pi-catalog',
         '--input',
         '--expected-hash',
       ],
@@ -453,7 +477,7 @@ if (
     );
     if (options.help) {
       process.stdout.write(
-        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
+        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG] [--pi-catalog ABS]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
       );
       return;
     }

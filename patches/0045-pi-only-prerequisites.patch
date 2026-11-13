@@ -1,0 +1,13 @@
+diff --git a/skills/setup-pstack/references/cli-prerequisites.md b/skills/setup-pstack/references/cli-prerequisites.md
+index bf61072..79eb3d5 100644
+--- a/skills/setup-pstack/references/cli-prerequisites.md
++++ b/skills/setup-pstack/references/cli-prerequisites.md
+@@ -4,7 +4,7 @@ Check Node.js and the executors selected for this Codex host. Detection and mode
+ 
+ ## Node.js and Codex
+ 
+-Run `node --version` and `codex --version`. The setup helpers need Node.js 24.12 or newer from the [official Node.js downloads](https://nodejs.org/en/download).
++Run `node --version`. Check `codex --version` only when native Codex workers are selected. The setup helpers need Node.js 24.12 or newer from the [official Node.js downloads](https://nodejs.org/en/download).
+ 
+ For a missing Codex CLI, follow the [official installation guide](https://developers.openai.com/codex/cli). Its npm route is `npm install -g @openai/codex`. Run `codex login` in a terminal. In a headless environment, or when a localhost browser callback cannot complete, use `codex login --device-auth` as described in the [authentication guide](https://learn.chatgpt.com/docs/auth). Device login may require account or workspace enablement.
+ 

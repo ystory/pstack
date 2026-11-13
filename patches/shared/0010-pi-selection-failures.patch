@@ -1,0 +1,52 @@
+diff --git a/skills/poteto-mode/scripts/run-pi.mjs b/skills/poteto-mode/scripts/run-pi.mjs
+index ec16071..7798180 100644
+--- a/skills/poteto-mode/scripts/run-pi.mjs
++++ b/skills/poteto-mode/scripts/run-pi.mjs
+@@ -400,7 +400,12 @@ class RpcProcess {
+         this.fail(
+           error instanceof PiFailure
+             ? error
+-            : new PiFailure('protocol', error.message),
++            : new PiFailure(
++                'protocol',
++                error instanceof SyntaxError
++                  ? 'Invalid Pi RPC JSON record.'
++                  : error.message,
++              ),
+         );
+       }
+     });
+@@ -415,7 +420,14 @@ class RpcProcess {
+             ),
+           );
+       } catch (error) {
+-        this.fail(new PiFailure('protocol', error.message));
++        this.fail(
++          new PiFailure(
++            'protocol',
++            error instanceof SyntaxError
++              ? 'Invalid Pi RPC JSON record.'
++              : error.message,
++          ),
++        );
+       }
+     });
+     for (const stream of [
+@@ -835,7 +847,7 @@ async function selectRoute(rpc, route) {
+   const state = selectedState(await rpc.request('get_state'));
+   if (state.provider !== route.provider || state.model !== route.model)
+     throw new PiFailure(
+-      'model-rejected',
++      'selection-changed',
+       'Pi selected a different provider or model.',
+       { selected: state },
+     );
+@@ -878,7 +890,7 @@ async function selectEffort(rpc, requested) {
+     selected.provider !== requested.provider ||
+     selected.model !== requested.model
+   )
+-    throw new PiFailure('model-rejected', 'Pi changed the selected route.', {
++    throw new PiFailure('selection-changed', 'Pi changed the selected route.', {
+       selected,
+     });
+   if (selected.reasoningEffort !== requested.reasoningEffort)

@@ -75,6 +75,10 @@ Start each independent seat or new round with a distinct run directory and a fre
 
 The outbound runner automatically includes the shared [receiving-worker execution context](worker-context.md) in its task payload. It keeps the launching configuration authority and distinguishes native receiving tools from parent launch recipes. The task still supplies its original role, selected model and effort, scope, and permissions.
 
+## Pi workers
+
+For `executor: "pi"`, preserve the returned exact `provider`, `model`, and separate `reasoningEffort`. Read [Pi execution](pi-execution.md) for the owned RPC runner, explicit tool selection, context delivery, structured rejection handling, terminal receipts, and exact resume. Use this host's asynchronous command controls and collect every terminal receipt. Pi entries have no native agent type. Parent aliases stay native. Known model lineage establishes family diversity. Pi, provider names, ambiguous custom IDs, and virtual routes with unknown lineage do not. Preserve the calling workflow's selected-pool, fresh-worker, required capability, and family gates.
+
 ## Local worktrees
 
 Workers run on the current host through their selected executor. Give each independent worker an exclusive Git worktree and branch when it writes code. Use native managed-worktree tools when exposed, waiting for creation to complete, or `git worktree add` with an explicit base ref and a local `codex/` branch. The worker's prompt names its absolute checkout, branch, and resolved starting SHA; every shell command runs in that checkout. Keep the coordinator's checkout separate.

@@ -1,0 +1,263 @@
+diff --git a/plugin.json b/plugin.json
+index 2b17879..94597a1 100644
+--- a/plugin.json
++++ b/plugin.json
+@@ -1,7 +1,7 @@
+ {
+   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+   "name": "pstack-codex",
+-  "version": "0.1.0-dev.13",
++  "version": "0.1.0-dev.14",
+   "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
+   "author": {
+     "name": "Lauren Tan"
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index cc575f3..4513db9 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -75,6 +75,10 @@ Start each independent seat or new round with a distinct run directory and a fre
+ 
+ The outbound runner automatically includes the shared [receiving-worker execution context](worker-context.md) in its task payload. It keeps the launching configuration authority and distinguishes native receiving tools from parent launch recipes. The task still supplies its original role, selected model and effort, scope, and permissions.
+ 
++## Pi workers
++
++For `executor: "pi"`, preserve the returned exact `provider`, `model`, and separate `reasoningEffort`. Read [Pi execution](pi-execution.md) for the owned RPC runner, explicit tool selection, context delivery, structured rejection handling, terminal receipts, and exact resume. Use this host's asynchronous command controls and collect every terminal receipt. Pi entries have no native agent type. Parent aliases stay native. Known model lineage establishes family diversity. Pi, provider names, ambiguous custom IDs, and virtual routes with unknown lineage do not. Preserve the calling workflow's selected-pool, fresh-worker, required capability, and family gates.
++
+ ## Local worktrees
+ 
+ Workers run on the current host through their selected executor. Give each independent worker an exclusive Git worktree and branch when it writes code. Use native managed-worktree tools when exposed, waiting for creation to complete, or `git worktree add` with an explicit base ref and a local `codex/` branch. The worker's prompt names its absolute checkout, branch, and resolved starting SHA; every shell command runs in that checkout. Keep the coordinator's checkout separate.
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index ecdbdbe..0291654 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -11,9 +11,9 @@ For removal, run `scripts/register-agents.mjs --unregister` while this bundle is
+ 
+ ## 1. Choose worker executors
+ 
+-Start by asking which worker executors to use, unless the conversation already supplies the choice. Offer native Codex only, or native Codex with Claude Code workers. The parent chat stays in Codex. Prefill the executors used by saved choices on a rerun. Do not infer a worker model from the chosen executors.
++Start by asking which worker executors to use, unless the conversation already supplies the choice. Offer the available worker executors independently. Native Codex, Claude Code, and Pi can be selected in any combination. The parent chat stays in Codex. Prefill the executors used by saved choices on a rerun. Do not infer a worker model from the chosen executors.
+ 
+-Only selected executors need installation and login checks. Codex-only setup must not invoke or require Claude Code. If a previously saved entry uses an executor the user now excludes, show that entry and obtain its replacement before saving. Preserve every other accepted choice.
++Only selected executors need installation and login checks. Unselected Claude Code and Pi CLIs are neither invoked nor required. If a previously saved entry uses an executor the user now excludes, show that entry and obtain its replacement before saving. Preserve every other accepted choice.
+ 
+ ## 2. Prepare the selected CLIs
+ 
+@@ -21,6 +21,8 @@ Check `node --version`. Helpers require Node.js 24.12 or newer. Codex registrati
+ 
+ For selected Claude Code workers, run the sibling `poteto-mode/scripts/run-claude.mjs detect`. Report its executable, version, compatibility, safe auth status, and guidance. If missing, guide the authorized CLI installation. If logged out, guide human login in the user's terminal. Rerun detection afterward. Reuse existing authentication and configuration. Never copy credentials into a test home or setup file. Detection does not install tools, authenticate, or prove model access. If login status cannot be established, inspect the selected CLI's normal status flow with the user before choosing its models.
+ 
++For selected Pi workers, use the Pi prerequisite section and catalog procedure below.
++
+ The [execution binding](../poteto-mode/references/execution.md) describes runtime capability checks. A global CLI effort list proves syntax only. It supplies no default model or account entitlement.
+ 
+ ## 3. Load choices and collect supported models
+@@ -29,13 +31,15 @@ Run `scripts/models.mjs read` and retain `config`, `proposal`, `needsChoice`, an
+ 
+ Enumerate exact model IDs and supported efforts from this session's native tools or Codex `model/list`. Collect every page. For selected Claude workers, collect model-specific host or configuration evidence, or ask for confirmation of the exact model and its efforts. Label that source. A configured candidate alone does not prove access. Honor confirmation already supplied in the conversation.
+ 
+-Normalize the combined catalog with `scripts/models.mjs catalog --input ABSOLUTE_JSON`. Include `--claude-runtime ABSOLUTE_DETECT_JSON` only when configuring external Claude entries. Every external entry needs its own source and efforts expressible by that runtime. See [model capability records](references/models-contract.md#model-capability-records). No fixed Sol, Opus, or other model is required.
++For selected Pi workers, run the sibling `poteto-mode/scripts/run-pi.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. It queries exact provider/model routes and their supported efforts without submitting a task prompt. Use its `catalog.json` with `--pi-catalog ABSOLUTE_PI_CATALOG` when normalizing. Configured availability does not prove authentication freshness or successful inference.
++
++Normalize the combined catalog with `scripts/models.mjs catalog --input ABSOLUTE_JSON`. Include `--claude-runtime ABSOLUTE_DETECT_JSON` only when configuring external Claude entries. Every Claude entry needs its own source and efforts expressible by that runtime. Pi entries carry their own per-model RPC source and provider. See [model capability records](references/models-contract.md#model-capability-records). No fixed Sol, Opus, or other model is required.
+ 
+ `auto` and `inherit-parent` always mean the actual native Codex parent. They omit a separate effort and cannot select the external executor. Bind them through Codex execution's parent-selection rules.
+ 
+ ## 4. Choose roles and reasoning budget
+ 
+-Present every role and its proposed executor, model or parent alias, and effort. Offer detected exact choices and parent aliases. A user can apply one selection to several roles. Resolve proposed slots that the user accepts as saved choices. A user may leave roles unconfigured after seeing their native-parent behavior. Do not persist unresolved proposal slots.
++Present every role and its proposed executor, Pi provider when applicable, model or parent alias, and effort. Offer detected exact choices and parent aliases. A user can apply one selection to several roles. Resolve proposed slots that the user accepts as saved choices. A user may leave roles unconfigured after seeing their native-parent behavior. Do not persist unresolved proposal slots.
+ 
+ Use an already specified budget. Otherwise offer these original four targets.
+ 
+@@ -68,7 +72,9 @@ Keep these original role names and initial counts.
+ | architect runners | 2 |
+ | interrogate reviewers | 2 |
+ 
+-Panels run every ordered entry, including duplicates and aliases. Arena's cross-judge pool selects one eligible judge in order. Parent aliases never establish a different family. Arena skips its judge with disclosure if no selected eligible entry runs. Required diversity gates elsewhere keep their own unmet outcome. No unused executor is a blanket requirement.
++Panels run every ordered entry, including duplicates and aliases. Arena's cross-judge pool selects one eligible judge in order. Parent aliases never establish a different family. Pi provider names and ambiguous virtual model IDs do not establish model lineage. Arena skips its judge with disclosure if no selected eligible entry runs. Required diversity gates elsewhere keep their own unmet outcome. No unused executor is a blanket requirement.
++
++Pi choices retain `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "LEVEL" }`. Choose provider and model separately. Pi uses `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Budget previews select only reported levels on that ladder, including `off` for nonreasoning models. Native aliases stay native, and native registration creates no Pi model definitions. Follow [Pi execution](../poteto-mode/references/pi-execution.md) for explicit tools, context, fresh sessions, capability gaps, and required family gates.
+ 
+ ## 5. Review, register, and save
+ 
+diff --git a/skills/setup-pstack/references/cli-prerequisites.md b/skills/setup-pstack/references/cli-prerequisites.md
+index fa6b729..bf61072 100644
+--- a/skills/setup-pstack/references/cli-prerequisites.md
++++ b/skills/setup-pstack/references/cli-prerequisites.md
+@@ -17,3 +17,11 @@ When the user selects the existing external Claude route, run the bundled `run-c
+ Run `claude auth status` to inspect login. If logged out, guide `claude auth login` in a terminal, or `/login` inside Claude Code. The [authentication guide](https://code.claude.com/docs/en/authentication) describes subscription, Console, and provider methods. Reuse the user's intended account and organization settings.
+ 
+ Rerun the existing capability detector after installation or login. The external route requires a supported exact model choice and the required CLI options. Detection reports global effort syntax and does not enumerate account models. Confirm each exact model and its supported efforts separately as described in the [model contract](models-contract.md#model-capability-records). CLI capability, login state, model access, and successful execution remain separate evidence. Choosing Claude workers leaves the Codex parent's authentication unchanged. Codex-only setup never invokes the Claude detector.
++
++## Pi workers
++
++Pi is optional. Prepare it only when selected. The runner requires Pi 1.5.2 or newer and checks the inspected RPC controls at runtime. Use the [Pi installation guide](https://pi.dev/) for the official `@earendil-works/pi-coding-agent` package, then check `pi --version` on the PATH inherited by future workers. An absolute `--executable` overrides one invocation for diagnostics and is never saved.
++
++Reuse existing Pi authentication and provider configuration. Do not read or copy credential files, change personal defaults, or create a separate authentication home. Guide an interactive `/login` only when required and authorized for the user's selected provider. Existing cloud credentials can supply provider authentication through their normal environment. A model appearing in the catalog does not prove that its credentials can complete inference.
++
++Run the sibling `poteto-mode/scripts/run-pi.mjs catalog --cwd ABS --run-dir ABS_NEW_LOCAL_DIRECTORY`. It disables discovered extensions, MCP, context files, skills, templates, and startup refresh. It uses inherited configuration and authentication, selects each exact provider/model, reads supported thinking levels, and writes only sanitized catalog evidence. No model prompt is sent. Session storage is isolated without replacing the user's Pi agent directory. If required RPC controls or selected routes fail, report the capability gap. Runtime detection, catalog availability, task execution, and release approval remain separate evidence.
+diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
+index 34a793e..47b9339 100644
+--- a/skills/setup-pstack/references/models-contract.md
++++ b/skills/setup-pstack/references/models-contract.md
+@@ -38,7 +38,7 @@ Ordered lists preserve duplicate seats. The budget ladder is `unlimited: max`, `
+ - `budget --budget unlimited|large|medium|small --catalog ABS [--codex-home ABS]` previews the sparse saved config while preserving role model choices, lists, and aliases. `needsChoice` lists entries without a confirmed effort at or below the target. This command never writes.
+ - `write --input ABS --catalog ABS --expected-hash HASH|absent [--codex-home ABS] [--dry-run]` validates then saves an accepted config or a resolved `budget` result. Use the hash from the read that informed the confirmed choices. A stale hash, malformed preference, unconfirmed model, or unsupported effort prevents writing. Dry run validates the full proposal without creating a destination.
+ 
+-Budget and write accept the normalized combined catalog, or native `--catalog ABS` plus `--claude-runtime ABS`. Catalog validation keys each model by executor and ID. External entries require model-specific capability records and a compatible CLI that can express their efforts. A native model entry with the same ID does not validate them. The helper does not install or authenticate Claude or change its configuration.
++Budget and write accept the normalized combined catalog, or native `--catalog ABS` plus `--claude-runtime ABS`. Catalog validation keys native models by executor and ID, and Pi models by executor, provider, and exact ID. External entries require model-specific capability records and a compatible CLI that can express their efforts. A native model entry with the same ID does not validate them. The helper does not install or authenticate Claude or change its configuration.
+ 
+ ## Model capability records
+ 
+@@ -73,3 +73,15 @@ Native subagent tool names and argument names vary by Codex version. Bind the re
+ Budget affects default reasoning. Keep the original different-model and different-family review rules in the consuming workflow when assessing results.
+ 
+ Unknown role keys fail boundary validation without dropping or migrating them. Preferences remain unchanged.
++
++## Pi routes
++
++A Pi choice is `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "off" }`. The provider is required for Pi and rejected for other executors. Model IDs keep their exact bytes, including slashes. `auto` and `inherit-parent` remain native-only. Saved role shapes, sparse choices, order, and duplicate seats stay unchanged. Read and resolve preserve Pi choices offline and create no native `agentType`.
++
++Run `poteto-mode/scripts/run-pi.mjs catalog --cwd ABS --run-dir ABS_NEW_DIRECTORY` from its actual installed path. Pass its sanitized `catalog.json` to `models.mjs catalog --pi-catalog ABS` alongside any native catalog inputs. Pi-only normalization may omit `--input`. Merge the normalized result into the existing budget and hash-guarded write flow. No task prompt is submitted for catalog collection.
++
++Each Pi capability has `executor`, `provider`, `model`, `supportedReasoningEfforts`, a labeled `source`, and optional `runtimeVersion`. Normalization retains these fields and discards other full-model fields. Repeated normalization is idempotent. Provider collisions are independent routes. Configured model availability and local thinking-level readback do not prove remote inference or fresh authentication.
++
++Pi's effort ladder is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. `off` differs from native `none`. Budget mapping selects the highest reported level at or below its target on this ladder. An off-only route maps to `off` under every budget. Unsupported efforts or missing exact routes prevent a save without changing preferences.
++
++Follow [Pi execution](../../poteto-mode/references/pi-execution.md) for process receipts, exact resume, structured rejections, explicit tool capabilities, and required model-family gates. Pi entries never become native agent definitions.
+diff --git a/skills/setup-pstack/scripts/models.mjs b/skills/setup-pstack/scripts/models.mjs
+index d414ccc..026b914 100644
+--- a/skills/setup-pstack/scripts/models.mjs
++++ b/skills/setup-pstack/scripts/models.mjs
+@@ -9,6 +9,13 @@ import {
+   normalizeClaudeRuntime,
+ } from '../../poteto-mode/scripts/claude-capabilities.mjs';
+ 
++import {
++  piEntry,
++  piCapability,
++  piEfforts,
++  routeKey,
++} from '../../poteto-mode/scripts/pi-route.mjs';
++
+ const roles = {
+   'feature, refactoring': 1,
+   'bug-fix': 1,
+@@ -58,6 +65,7 @@ function argumentsFor(argv) {
+     '--budget': 'budget',
+     '--catalog': 'catalog',
+     '--claude-runtime': 'claudeRuntime',
++    '--pi-catalog': 'piCatalog',
+     '--input': 'input',
+     '--expected-hash': 'expectedHash',
+   };
+@@ -118,11 +126,11 @@ async function inputJson(file, label) {
+ 
+ const executorFor = (entry) =>
+   entry.executor === undefined ? 'codex' : entry.executor;
+-const modelKey = (entry) => `${executorFor(entry)}\0${entry.model}`;
++const modelKey = (entry) => routeKey(entry);
+ 
+-function normalizeCatalog(input, suppliedRuntime) {
++function normalizeCatalog(input, suppliedRuntime, piCatalog) {
+   const response = input?.result ?? input;
+-  const data = Array.isArray(response)
++  let data = Array.isArray(response)
+     ? response
+     : (response?.data ?? response?.models);
+   if (!Array.isArray(data))
+@@ -131,6 +139,14 @@ function normalizeCatalog(input, suppliedRuntime) {
+     throw new Error(
+       'Model catalog has another page; collect all model/list pages before configuring.',
+     );
++  if (piCatalog) {
++    if (
++      !Array.isArray(piCatalog.models) ||
++      piCatalog.models.some((entry) => entry.executor !== 'pi')
++    )
++      throw new Error('--pi-catalog requires a Pi models array.');
++    data = [...data, ...piCatalog.models];
++  }
+   if (!Array.isArray(response?.runtimes ?? []))
+     throw new Error('Model catalog runtimes must be an array.');
+   const runtimes = [...(response?.runtimes ?? [])];
+@@ -151,7 +167,7 @@ function normalizeCatalog(input, suppliedRuntime) {
+     if (
+       typeof id !== 'string' ||
+       !id ||
+-      !['codex', 'claude-code'].includes(executorFor(model)) ||
++      !['codex', 'claude-code', 'pi'].includes(executorFor(model)) ||
+       seen.has(modelKey({ ...model, model: id })) ||
+       !Array.isArray(reasoningEfforts) ||
+       !reasoningEfforts.length ||
+@@ -185,6 +201,12 @@ function normalizeCatalog(input, suppliedRuntime) {
+         );
+     }
+     seen.add(modelKey({ ...model, model: id }));
++    if (executorFor(model) === 'pi')
++      return piCapability({
++        ...model,
++        model: id,
++        supportedReasoningEfforts: reasoningEfforts,
++      });
+     return {
+       ...(model.executor !== undefined ? { executor: model.executor } : {}),
+       model: id,
+@@ -212,8 +234,10 @@ function validateEntry(entry, role) {
+     entry.model !== entry.model.trim()
+   )
+     throw new Error(`Invalid model entry for ${role}.`);
+-  if (!['codex', 'claude-code'].includes(executorFor(entry)))
++  if (!['codex', 'claude-code', 'pi'].includes(executorFor(entry)))
+     throw new Error(`Unknown executor for ${role}.`);
++  routeKey(entry);
++  if (executorFor(entry) === 'pi') return piEntry(entry);
+   const executor =
+     entry.executor === undefined ? {} : { executor: entry.executor };
+   if (aliases.has(entry.model)) {
+@@ -336,8 +360,9 @@ function applyBudget(config, budget, catalog) {
+     entries.forEach((entry, index) => {
+       if (aliases.has(entry.model)) return;
+       const supported = detected.get(modelKey(entry)) ?? [];
+-      const resolved = efforts
+-        .slice(0, efforts.indexOf(target) + 1)
++      const ladder = executorFor(entry) === 'pi' ? piEfforts : efforts;
++      const resolved = ladder
++        .slice(0, ladder.indexOf(target) + 1)
+         .reverse()
+         .find((effort) => supported.includes(effort));
+       if (!resolved)
+@@ -345,6 +370,7 @@ function applyBudget(config, budget, catalog) {
+           role,
+           index,
+           ...(entry.executor !== undefined ? { executor: entry.executor } : {}),
++          ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
+           model: entry.model,
+           targetReasoningEffort: target,
+         });
+@@ -359,7 +385,15 @@ async function main(options) {
+     ? await inputJson(options.claudeRuntime, '--claude-runtime')
+     : undefined;
+   if (options.command === 'catalog')
+-    return normalizeCatalog(await inputJson(options.input, '--input'), runtime);
++    return normalizeCatalog(
++      options.input
++        ? await inputJson(options.input, '--input')
++        : { models: [] },
++      runtime,
++      options.piCatalog
++        ? await inputJson(options.piCatalog, '--pi-catalog')
++        : undefined,
++    );
+   const selectedHome =
+     options.codexHome ??
+     process.env.CODEX_HOME ??
+@@ -473,7 +507,7 @@ try {
+   const options = argumentsFor(process.argv.slice(2));
+   if (options.help)
+     process.stdout.write(
+-      'Usage: node models.mjs read|resolve|budget|write|catalog [options]\nread/resolve: [--codex-home ABS] [--role ROLE]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\ncatalog: --input ABS (native model/list or combined model capabilities) [--claude-runtime ABS]\nbudget/write also accept --claude-runtime ABS or a normalized catalog containing its runtime receipt.\n',
++      'Usage: node models.mjs read|resolve|budget|write|catalog [options]\nread/resolve: [--codex-home ABS] [--role ROLE]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\ncatalog: --input ABS (native model/list or combined model capabilities) [--claude-runtime ABS] [--pi-catalog ABS]\nbudget/write also accept --claude-runtime ABS or a normalized catalog containing its runtime receipt.\n',
+     );
+   else
+     process.stdout.write(`${JSON.stringify(await main(options), null, 2)}\n`);

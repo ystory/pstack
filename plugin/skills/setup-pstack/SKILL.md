@@ -11,15 +11,17 @@ For removal, run `scripts/register-agents.mjs --unregister` while this bundle is
 
 ## 1. Choose worker executors
 
-Start by asking which worker executors to use, unless the conversation already supplies the choice. Offer native Codex only, or native Codex with Claude Code workers. The parent chat stays in Codex. Prefill the executors used by saved choices on a rerun. Do not infer a worker model from the chosen executors.
+Start by asking which worker executors to use, unless the conversation already supplies the choice. Offer the available worker executors independently. Native Codex, Claude Code, and Pi can be selected in any combination. The parent chat stays in Codex. Prefill the executors used by saved choices on a rerun. Do not infer a worker model from the chosen executors.
 
-Only selected executors need installation and login checks. Codex-only setup must not invoke or require Claude Code. If a previously saved entry uses an executor the user now excludes, show that entry and obtain its replacement before saving. Preserve every other accepted choice.
+Only selected executors need installation and login checks. Unselected Claude Code and Pi CLIs are neither invoked nor required. If a previously saved entry uses an executor the user now excludes, show that entry and obtain its replacement before saving. Preserve every other accepted choice.
 
 ## 2. Prepare the selected CLIs
 
 Check `node --version`. Helpers require Node.js 24.12 or newer. Codex registration also needs Python 3.11 or newer. Use [CLI installation and login](references/cli-prerequisites.md) when a prerequisite is missing.
 
 For selected Claude Code workers, run the sibling `poteto-mode/scripts/run-claude.mjs detect`. Report its executable, version, compatibility, safe auth status, and guidance. If missing, guide the authorized CLI installation. If logged out, guide human login in the user's terminal. Rerun detection afterward. Reuse existing authentication and configuration. Never copy credentials into a test home or setup file. Detection does not install tools, authenticate, or prove model access. If login status cannot be established, inspect the selected CLI's normal status flow with the user before choosing its models.
+
+For selected Pi workers, use the Pi prerequisite section and catalog procedure below.
 
 The [execution binding](../poteto-mode/references/execution.md) describes runtime capability checks. A global CLI effort list proves syntax only. It supplies no default model or account entitlement.
 
@@ -29,13 +31,17 @@ Run `scripts/models.mjs read` and retain `config`, `proposal`, `needsChoice`, an
 
 Enumerate exact model IDs and supported efforts from this session's native tools or Codex `model/list`. Collect every page. For selected Claude workers, collect model-specific host or configuration evidence, or ask for confirmation of the exact model and its efforts. Label that source. A configured candidate alone does not prove access. Honor confirmation already supplied in the conversation.
 
-Normalize the combined catalog with `scripts/models.mjs catalog --input ABSOLUTE_JSON`. Include `--claude-runtime ABSOLUTE_DETECT_JSON` only when configuring external Claude entries. Every external entry needs its own source and efforts expressible by that runtime. See [model capability records](references/models-contract.md#model-capability-records). No fixed Sol, Opus, or other model is required.
+For selected Pi workers, run the sibling `poteto-mode/scripts/run-pi.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. It queries exact provider/model routes and their supported efforts without submitting a task prompt. Use its `catalog.json` with `--pi-catalog ABSOLUTE_PI_CATALOG` when normalizing. Configured availability does not prove authentication freshness or successful inference.
+
+Normalize the combined catalog with `scripts/models.mjs catalog --input ABSOLUTE_JSON`. Include `--claude-runtime ABSOLUTE_DETECT_JSON` only when configuring external Claude entries. Every Claude entry needs its own source and efforts expressible by that runtime. Pi entries carry their own per-model RPC source and provider. See [model capability records](references/models-contract.md#model-capability-records). No fixed Sol, Opus, or other model is required.
+
+For Pi-only worker choices, skip native and other external model collection. Normalize with `scripts/models.mjs catalog --pi-catalog ABSOLUTE_PI_CATALOG` alone. Omit `--input`, `--native-catalog`, and `--claude-runtime` when unused. Native parent aliases remain available without a native model catalog.
 
 `auto` and `inherit-parent` always mean the actual native Codex parent. They omit a separate effort and cannot select the external executor. Bind them through Codex execution's parent-selection rules.
 
 ## 4. Choose roles and reasoning budget
 
-Present every role and its proposed executor, model or parent alias, and effort. Offer detected exact choices and parent aliases. A user can apply one selection to several roles. Resolve proposed slots that the user accepts as saved choices. A user may leave roles unconfigured after seeing their native-parent behavior. Do not persist unresolved proposal slots.
+Present every role and its proposed executor, Pi provider when applicable, model or parent alias, and effort. Offer detected exact choices and parent aliases. A user can apply one selection to several roles. Resolve proposed slots that the user accepts as saved choices. A user may leave roles unconfigured after seeing their native-parent behavior. Do not persist unresolved proposal slots.
 
 Use an already specified budget. Otherwise offer these original four targets.
 
@@ -68,7 +74,9 @@ Keep these original role names and initial counts.
 | architect runners | 2 |
 | interrogate reviewers | 2 |
 
-Panels run every ordered entry, including duplicates and aliases. Arena's cross-judge pool selects one eligible judge in order. Parent aliases never establish a different family. Arena skips its judge with disclosure if no selected eligible entry runs. Required diversity gates elsewhere keep their own unmet outcome. No unused executor is a blanket requirement.
+Panels run every ordered entry, including duplicates and aliases. Arena's cross-judge pool selects one eligible judge in order. Parent aliases never establish a different family. Pi provider names and ambiguous virtual model IDs do not establish model lineage. Arena skips its judge with disclosure if no selected eligible entry runs. Required diversity gates elsewhere keep their own unmet outcome. No unused executor is a blanket requirement.
+
+Pi choices retain `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "LEVEL" }`. Choose provider and model separately. Pi uses `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Budget previews select only reported levels on that ladder, including `off` for nonreasoning models. Native aliases stay native, and native registration creates no Pi model definitions. Follow [Pi execution](../poteto-mode/references/pi-execution.md) for explicit tools, context, fresh sessions, capability gaps, and required family gates.
 
 ## 5. Review, register, and save
 

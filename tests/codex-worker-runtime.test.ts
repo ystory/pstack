@@ -58,11 +58,11 @@ lines.on('line', (line) => {
   threadId = p.threadId ?? 'thread-'+process.pid;
   respond(request,{thread:{id:threadId},model:'observed-model',reasoningEffort:'high',cwd:p.cwd}); break;
  case 'turn/start': {
+  if (process.env.FAKE_HOLD_TURN_STARTED) break;
   turnId = 'turn-'+process.pid;
   const prompt = p.input[0].text;
-  if (!prompt.includes('NO_ID')) notify('turn/started',{threadId,turn:{id:turnId,status:'inProgress'}});
+  notify('turn/started',{threadId,turn:{id:turnId,status:'inProgress'}});
   const started = () => {
-   if (prompt.includes('NO_ID')) notify('turn/started',{threadId,turn:{id:turnId,status:'inProgress'}});
    respond(request,{turn:{id:turnId,status:'inProgress'},...(process.env.FAKE_UNKNOWN_SETTINGS ? {} : {model:'observed-model',effort:'high'})});
    if (prompt.includes('WAIT')) return;
    if (process.env.FAKE_MALFORMED_OUTPUT) { process.stdout.write('{"method":\n'); return; }
@@ -88,7 +88,7 @@ lines.on('line', (line) => {
    if (prompt.includes('EXIT')) { setTimeout(()=>process.exit(7),40); return; }
    timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?{message:'actual terminal failure'}:null}}),prompt.includes('FAIL')?450:40);
   };
-  if (prompt.includes('EARLY') || prompt.includes('NO_ID')) setTimeout(started,180); else started();
+  if (!process.env.FAKE_HOLD_TURN_RESPONSE) started();
   break;
  }
  case 'turn/interrupt': clearTimeout(timer); if (process.env.FAKE_IGNORE_INTERRUPT) break; respond(request,{}); notify('turn/completed',{threadId,turn:{id:turnId,status:'interrupted'}}); break;
@@ -692,11 +692,35 @@ test('parallel workers and interleaved exact continuation retain separate identi
   );
 });
 
-for (const prompt of ['WAIT', 'EARLY WAIT'])
-  test(`signal interrupts the exact active turn and closes its process for ${prompt}`, async (t) => {
+for (const { prompt, signal, turnKnown, startPending } of [
+  {
+    prompt: 'WAIT',
+    signal: 'SIGTERM',
+    turnKnown: true,
+    startPending: false,
+  },
+  {
+    prompt: 'EARLY WAIT',
+    signal: 'SIGINT',
+    turnKnown: true,
+    startPending: true,
+  },
+  {
+    prompt: 'NO_ID WAIT',
+    signal: 'SIGINT',
+    turnKnown: false,
+    startPending: true,
+  },
+] as const)
+  test(`signal cancels the active turn and closes its process for ${prompt}`, async (t) => {
     const f = await fixture(t),
       child = spawn(process.execPath, f.args('cancelled'), {
-        env: { ...f.env, FAKE_IGNORE_INTERRUPT: '1' },
+        env: {
+          ...f.env,
+          FAKE_IGNORE_INTERRUPT: '1',
+          FAKE_HOLD_TURN_STARTED: turnKnown ? '' : '1',
+          FAKE_HOLD_TURN_RESPONSE: startPending ? '1' : '',
+        },
       });
     let stderr = '';
     child.stderr.on('data', (chunk) => (stderr += chunk));
@@ -705,31 +729,69 @@ for (const prompt of ['WAIT', 'EARLY WAIT'])
       child.on('exit', resolve),
     );
     const deadline = Date.now() + 5000;
-    while (
-      !(await f.events().catch(() => [])).some(
+    let startRequestId: number | undefined;
+    while (true) {
+      startRequestId = (await f.events().catch(() => [])).find(
         (event) => event.request?.method === 'turn/start',
+      )?.request.id;
+      const diagnostics = await readFile(
+        path.join(f.root, 'cancelled/diagnostics.jsonl'),
+        'utf8',
+      ).catch(() => '');
+      const received = diagnostics
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line))
+        .filter((event) => event.direction === 'receive')
+        .map((event) => JSON.parse(event.line));
+      if (
+        startRequestId !== undefined &&
+        (!turnKnown ||
+          received.some((message) =>
+            startPending
+              ? message.method === 'turn/started'
+              : message.id === startRequestId,
+          ))
       )
-    ) {
+        break;
       assert(Date.now() < deadline, stderr);
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
-    child.kill(prompt.startsWith('EARLY') ? 'SIGINT' : 'SIGTERM');
-    assert.equal(await exited, prompt.startsWith('EARLY') ? 130 : 143, stderr);
+    child.kill(signal);
+    assert.equal(await exited, signal === 'SIGINT' ? 130 : 143, stderr);
     const receipt = await f.receipt('cancelled');
     assert.equal(receipt.status, 'interrupted');
     assert.equal(receipt.process.closed, true);
+    const diagnostics = (await readFile(receipt.files.diagnostics, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    assert.equal(
+      diagnostics.some(
+        (event) =>
+          event.direction === 'receive' &&
+          JSON.parse(event.line).id === startRequestId,
+      ),
+      !startPending,
+    );
     const events = await f.events(),
-      interrupt = events.find(
+      interrupts = events.filter(
         (event) => event.request?.method === 'turn/interrupt',
       );
-    assert.equal(interrupt.request.params.threadId, receipt.threadId);
-    assert.equal(interrupt.request.params.turnId, receipt.turnId);
+    assert.equal(interrupts.length, turnKnown ? 1 : 0);
+    if (turnKnown) {
+      assert.equal(receipt.turnId, `turn-${receipt.process.pid}`);
+      assert.equal(interrupts[0].request.params.threadId, receipt.threadId);
+      assert.equal(interrupts[0].request.params.turnId, receipt.turnId);
+      assert.equal(interrupts[0].pid, receipt.process.pid);
+    } else assert.equal(receipt.turnId, null);
     assert(
       events.some(
-        (event) => event.pid === interrupt.pid && event.exitCode === 0,
+        (event) => event.pid === receipt.process.pid && event.exitCode === 0,
       ),
     );
-    assert.throws(() => process.kill(interrupt.pid, 0), /ESRCH/);
+    assert.throws(() => process.kill(receipt.process.pid, 0), /ESRCH/);
   });
 
 test('catalog walks every page and keeps authentication distinct from model execution', async (t) => {

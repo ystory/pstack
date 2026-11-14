@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import * as fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createInterface } from 'node:readline';
@@ -19,18 +20,24 @@ const mode = process.env.PI_FIXTURE ?? 'early';
 const args = process.argv.slice(2);
 const value = (flag) => args[args.indexOf(flag) + 1];
 const resumed = args.includes('--session');
+const freshId = randomUUID();
 const sessionFile = resumed
   ? value('--session')
-  : args.includes('--session-dir')
-    ? path.join(value('--session-dir'), 'fixture.jsonl')
-    : null;
+  : args.includes('--no-session')
+    ? null
+    : path.join(
+        args.includes('--session-dir')
+          ? value('--session-dir')
+          : process.env.PI_CODING_AGENT_SESSION_DIR,
+        `${freshId}.jsonl`,
+      );
 const saved = resumed
   ? JSON.parse(fs.readFileSync(sessionFile, 'utf8').split('\n')[0])
   : null;
 let provider = saved?.provider ?? 'one';
 let model = saved?.model ?? 'vendor/model';
 let thinkingLevel = saved?.thinkingLevel ?? 'off';
-const sessionId = saved?.id ?? 'fixture-session';
+const sessionId = saved?.id ?? freshId;
 const state = () => ({
   model: {
     provider,

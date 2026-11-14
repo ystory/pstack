@@ -45,21 +45,24 @@ lines.on('line', (line) => {
  const request = JSON.parse(line); log({request});
  const p = request.params;
  switch (request.method) {
- case 'initialize': if (!process.env.FAKE_HOLD_INITIALIZE) respond(request,{userAgent:'fixture'}); break;
+ case 'initialize': if (process.env.FAKE_INSPECT_CASE === 'initialize-error') { send({id:request.id,error:{code:-32000,message:'initialize unavailable'}}); break; } if (!process.env.FAKE_HOLD_INITIALIZE) respond(request,{userAgent:'fixture'}); break;
  case 'initialized': break;
- case 'account/read': respond(request,process.env.FAKE_NO_AUTH ? {account:null,requiresOpenaiAuth:true} : {account:{type:'chatgpt',email:'private@example.invalid'},requiresOpenaiAuth:true}); break;
+ case 'account/read':
+  if (process.env.FAKE_INSPECT_CASE === 'account-error') { send({id:request.id,error:{code:-32000,message:'account unavailable'}}); break; }
+  if (process.env.FAKE_ACCOUNT_JSON) { respond(request,JSON.parse(process.env.FAKE_ACCOUNT_JSON)); break; }
+  respond(request,process.env.FAKE_NO_AUTH ? {account:null,requiresOpenaiAuth:true} : {account:{type:'chatgpt',email:'private@example.invalid'},requiresOpenaiAuth:true}); break;
  case 'config/read': respond(request,{config:{model_provider:'openai'}}); break;
- case 'model/list': respond(request,p.cursor ? {data:[{id:'second-model',model:'second-model',supportedReasoningEfforts:[{reasoningEffort:'high'}]}],nextCursor:null} : {data:[{id:'selected-model',model:'selected-model',supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'xhigh'}]}],nextCursor:'second-page'}); break;
+ case 'model/list': if (process.env.FAKE_INSPECT_CASE === 'catalog-error') { send({id:request.id,error:{code:-32000,message:'catalog unavailable'}}); break; } respond(request,p.cursor ? {data:[{id:'second-model',model:'second-model',supportedReasoningEfforts:[{reasoningEffort:'high'}]}],nextCursor:null} : {data:[{id:'selected-model',model:'selected-model',supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'xhigh'}]}],nextCursor:'second-page'}); break;
  case 'thread/start': case 'thread/resume':
   if (process.env.FAKE_HOLD_THREAD) break;
   threadId = p.threadId ?? 'thread-'+process.pid;
   respond(request,{thread:{id:threadId},model:'observed-model',reasoningEffort:'high',cwd:p.cwd}); break;
  case 'turn/start': {
+  if (process.env.FAKE_HOLD_TURN_STARTED) break;
   turnId = 'turn-'+process.pid;
   const prompt = p.input[0].text;
-  if (!prompt.includes('NO_ID')) notify('turn/started',{threadId,turn:{id:turnId,status:'inProgress'}});
+  notify('turn/started',{threadId,turn:{id:turnId,status:'inProgress'}});
   const started = () => {
-   if (prompt.includes('NO_ID')) notify('turn/started',{threadId,turn:{id:turnId,status:'inProgress'}});
    respond(request,{turn:{id:turnId,status:'inProgress'},...(process.env.FAKE_UNKNOWN_SETTINGS ? {} : {model:'observed-model',effort:'high'})});
    if (prompt.includes('WAIT')) return;
    if (process.env.FAKE_MALFORMED_OUTPUT) { process.stdout.write('{"method":\n'); return; }
@@ -85,7 +88,7 @@ lines.on('line', (line) => {
    if (prompt.includes('EXIT')) { setTimeout(()=>process.exit(7),40); return; }
    timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?{message:'actual terminal failure'}:null}}),prompt.includes('FAIL')?450:40);
   };
-  if (prompt.includes('EARLY') || prompt.includes('NO_ID')) setTimeout(started,180); else started();
+  if (!process.env.FAKE_HOLD_TURN_RESPONSE) started();
   break;
  }
  case 'turn/interrupt': clearTimeout(timer); if (process.env.FAKE_IGNORE_INTERRUPT) break; respond(request,{}); notify('turn/completed',{threadId,turn:{id:turnId,status:'interrupted'}}); break;
@@ -460,6 +463,7 @@ for (const kind of [
     assert.equal(detected.schemaVersion, 1);
     assert.equal(detected.cli.available, false);
     assert.equal(detected.auth.available, false);
+    assert.equal(detected.auth.loggedIn, null);
     assert.equal(detected.cli.executable, selected);
   });
 
@@ -688,11 +692,35 @@ test('parallel workers and interleaved exact continuation retain separate identi
   );
 });
 
-for (const prompt of ['WAIT', 'EARLY WAIT'])
-  test(`signal interrupts the exact active turn and closes its process for ${prompt}`, async (t) => {
+for (const { prompt, signal, turnKnown, startPending } of [
+  {
+    prompt: 'WAIT',
+    signal: 'SIGTERM',
+    turnKnown: true,
+    startPending: false,
+  },
+  {
+    prompt: 'EARLY WAIT',
+    signal: 'SIGINT',
+    turnKnown: true,
+    startPending: true,
+  },
+  {
+    prompt: 'NO_ID WAIT',
+    signal: 'SIGINT',
+    turnKnown: false,
+    startPending: true,
+  },
+] as const)
+  test(`signal cancels the active turn and closes its process for ${prompt}`, async (t) => {
     const f = await fixture(t),
       child = spawn(process.execPath, f.args('cancelled'), {
-        env: { ...f.env, FAKE_IGNORE_INTERRUPT: '1' },
+        env: {
+          ...f.env,
+          FAKE_IGNORE_INTERRUPT: '1',
+          FAKE_HOLD_TURN_STARTED: turnKnown ? '' : '1',
+          FAKE_HOLD_TURN_RESPONSE: startPending ? '1' : '',
+        },
       });
     let stderr = '';
     child.stderr.on('data', (chunk) => (stderr += chunk));
@@ -701,31 +729,69 @@ for (const prompt of ['WAIT', 'EARLY WAIT'])
       child.on('exit', resolve),
     );
     const deadline = Date.now() + 5000;
-    while (
-      !(await f.events().catch(() => [])).some(
+    let startRequestId: number | undefined;
+    while (true) {
+      startRequestId = (await f.events().catch(() => [])).find(
         (event) => event.request?.method === 'turn/start',
+      )?.request.id;
+      const diagnostics = await readFile(
+        path.join(f.root, 'cancelled/diagnostics.jsonl'),
+        'utf8',
+      ).catch(() => '');
+      const received = diagnostics
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line))
+        .filter((event) => event.direction === 'receive')
+        .map((event) => JSON.parse(event.line));
+      if (
+        startRequestId !== undefined &&
+        (!turnKnown ||
+          received.some((message) =>
+            startPending
+              ? message.method === 'turn/started'
+              : message.id === startRequestId,
+          ))
       )
-    ) {
+        break;
       assert(Date.now() < deadline, stderr);
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
-    child.kill(prompt.startsWith('EARLY') ? 'SIGINT' : 'SIGTERM');
-    assert.equal(await exited, prompt.startsWith('EARLY') ? 130 : 143, stderr);
+    child.kill(signal);
+    assert.equal(await exited, signal === 'SIGINT' ? 130 : 143, stderr);
     const receipt = await f.receipt('cancelled');
     assert.equal(receipt.status, 'interrupted');
     assert.equal(receipt.process.closed, true);
+    const diagnostics = (await readFile(receipt.files.diagnostics, 'utf8'))
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    assert.equal(
+      diagnostics.some(
+        (event) =>
+          event.direction === 'receive' &&
+          JSON.parse(event.line).id === startRequestId,
+      ),
+      !startPending,
+    );
     const events = await f.events(),
-      interrupt = events.find(
+      interrupts = events.filter(
         (event) => event.request?.method === 'turn/interrupt',
       );
-    assert.equal(interrupt.request.params.threadId, receipt.threadId);
-    assert.equal(interrupt.request.params.turnId, receipt.turnId);
+    assert.equal(interrupts.length, turnKnown ? 1 : 0);
+    if (turnKnown) {
+      assert.equal(receipt.turnId, `turn-${receipt.process.pid}`);
+      assert.equal(interrupts[0].request.params.threadId, receipt.threadId);
+      assert.equal(interrupts[0].request.params.turnId, receipt.turnId);
+      assert.equal(interrupts[0].pid, receipt.process.pid);
+    } else assert.equal(receipt.turnId, null);
     assert(
       events.some(
-        (event) => event.pid === interrupt.pid && event.exitCode === 0,
+        (event) => event.pid === receipt.process.pid && event.exitCode === 0,
       ),
     );
-    assert.throws(() => process.kill(interrupt.pid, 0), /ESRCH/);
+    assert.throws(() => process.kill(receipt.process.pid, 0), /ESRCH/);
   });
 
 test('catalog walks every page and keeps authentication distinct from model execution', async (t) => {
@@ -883,4 +949,75 @@ test('Codex transport injects its receiving executor and the bundled shared cont
     prompt.indexOf('Shared receiving fixture context.') <
       prompt.indexOf('Task\n\n'),
   );
+});
+
+test('Codex auth remains unknown until explicit account evidence and survives catalog failure', async (t) => {
+  const f = await fixture(t);
+  const cases: {
+    env: Record<string, string>;
+    loggedIn: boolean | null;
+    verified: boolean;
+  }[] = [
+    {
+      env: { FAKE_INSPECT_CASE: 'initialize-error' },
+      loggedIn: null,
+      verified: false,
+    },
+    {
+      env: { FAKE_INSPECT_CASE: 'account-error' },
+      loggedIn: null,
+      verified: false,
+    },
+    ...[
+      null,
+      {},
+      { account: null },
+      { requiresOpenaiAuth: true },
+      { account: { type: 7 }, requiresOpenaiAuth: true },
+    ].map((account) => ({
+      env: { FAKE_ACCOUNT_JSON: JSON.stringify(account) },
+      loggedIn: null,
+      verified: false,
+    })),
+    { env: { FAKE_NO_AUTH: '1' }, loggedIn: false, verified: false },
+    {
+      env: {
+        FAKE_ACCOUNT_JSON: JSON.stringify({
+          account: null,
+          requiresOpenaiAuth: false,
+        }),
+      },
+      loggedIn: true,
+      verified: false,
+    },
+    {
+      env: { FAKE_INSPECT_CASE: 'catalog-error' },
+      loggedIn: true,
+      verified: true,
+    },
+    {
+      env: { FAKE_INSPECT_CASE: 'catalog-error', FAKE_NO_AUTH: '1' },
+      loggedIn: false,
+      verified: false,
+    },
+  ];
+  for (const entry of cases) {
+    const result = spawnSync(
+      process.execPath,
+      [f.runner, 'catalog', '--cwd', f.cwd, '--executable', f.executable],
+      { env: { ...f.env, ...entry.env }, encoding: 'utf8', timeout: 10_000 },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const detected = JSON.parse(result.stdout);
+    assert.equal(
+      detected.auth.loggedIn,
+      entry.loggedIn,
+      JSON.stringify(entry.env),
+    );
+    assert.equal(detected.auth.verified, entry.verified);
+    if (entry.env.FAKE_INSPECT_CASE === 'catalog-error') {
+      assert.match(detected.error, /catalog unavailable/);
+      assert.equal(detected.auth.error, null);
+    }
+  }
 });

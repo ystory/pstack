@@ -1,0 +1,34 @@
+diff --git a/skills/poteto-mode/references/pi-execution.md b/skills/poteto-mode/references/pi-execution.md
+index 5f7f977..73d32dd 100644
+--- a/skills/poteto-mode/references/pi-execution.md
++++ b/skills/poteto-mode/references/pi-execution.md
+@@ -21,6 +21,8 @@ Choose tools explicitly for the task. `--tools read,grep,find,ls` supplies file
+ 
+ The runner requires Pi 1.5.2 or newer and rejects older or malformed versions before RPC launch. It uses RPC exact provider/model selection and thinking-level readback. Model IDs can contain slashes. Pi effort levels are `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. `off` is a real setting, distinct from native `none`. Do not translate it. A clamp or unsupported setting rejects the task before its prompt. The runner never changes provider, model, or executor.
+ 
++Pi owns transcript storage. Fresh runs use Pi's configured session directory, including `PI_CODING_AGENT_SESSION_DIR`, `settings.sessionDir`, and its native default. Each fresh worker still gets a distinct session. Worker transcripts appear in native Pi history, and `pi --continue` can select a worker session. Invocation receipts and logs stay in the run directory. Existing transcripts stay in place, including those under older run directories. Opening or changing a transcript in native Pi can invalidate its receipt hash.
++
+ Inspect `result.json` and `final.txt` in the run directory. The stdout receipt can truncate under the host. `requested`, `selected`, and `observedAssistant` are distinct evidence. `usage` sums current-turn assistant completions, including tool-call turns and retries. Its cost is a Pi/provider estimate, not settled billing. `lastAssistantUsage` describes only the final assistant call. A configured virtual route can report a different physical assistant model. Only `status: "completed"`, a current-turn nonaborted `agent_settled`, a new assistant answer with `stopReason: "stop"`, and orderly zero-exit process closure establish success. Prompt acceptance, `agent_end`, a previous answer, and process exit zero alone do not. Error, length, tool-only, aborted, queued, handled, or missing terminal output remains failure. Review files and verification evidence under the calling workflow's own rules.
+ 
+ An `effort-rejected` receipt includes `rejection.availableLevels`. If a task adjustment was rejected, the binding may retry once in a fresh run directory at the saved starting effort for the identical provider/model, only if that level remains available and was not rejected. Disclose this retry. Keep rejected settings by exact executor/provider/model/effort and rejected models by exact executor/provider/model. Never resubmit them. If the starting effort is unavailable or fails, use only the caller's existing fallback or gap outcome. A provider authentication failure is a failed run, not evidence that the exact model is invalid.
+diff --git a/skills/poteto-mode/scripts/run-pi.mjs b/skills/poteto-mode/scripts/run-pi.mjs
+index 7798180..733fa1e 100644
+--- a/skills/poteto-mode/scripts/run-pi.mjs
++++ b/skills/poteto-mode/scripts/run-pi.mjs
+@@ -799,7 +799,7 @@ async function resumeFor(options) {
+     if (error.code === 'EEXIST')
+       throw new PiFailure(
+         'session-lease',
+-        'Another continuation owns the Pi session lease.',
++        `Pi session lease already exists at ${lease}. Inspect it before retrying continuation.`,
+       );
+     throw error;
+   }
+@@ -989,7 +989,6 @@ async function execute(options) {
+         args.push('--tools', options.toolList.join(','));
+       else args.push('--no-tools');
+       if (resumed) args.push('--session', resumed.file);
+-      else args.push('--session-dir', path.join(options.runDir, 'sessions'));
+     }
+     const request = {
+       schemaVersion: 1,

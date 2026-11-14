@@ -1004,6 +1004,13 @@ if(args.join(' ')!=='--session-source app-server') process.exit(3);
 const lines=readline.createInterface({input:process.stdin});
 lines.on('line',(line)=>{
  const request=JSON.parse(line); log({method:request.method});
+ const fault=process.env.PSTACK_AUTH_CASE;
+ if ((fault==='initialize-error' && request.method==='initialize') || (fault==='account-error' && request.method==='account/read') || (fault==='catalog-error' && request.method==='model/list')) {
+  console.log(JSON.stringify({id:request.id,error:{code:-32000,message:fault}})); return;
+ }
+ if (request.method==='account/read' && process.env.PSTACK_ACCOUNT_JSON) {
+  console.log(JSON.stringify({id:request.id,result:JSON.parse(process.env.PSTACK_ACCOUNT_JSON)})); return;
+ }
  const result=request.method==='account/read' ? {account:{type:'chatgpt',email:'secret@example.invalid'},requiresOpenaiAuth:true}
  : request.method==='model/list' ? request.params.cursor ? {data:[{id:'page-two'}],nextCursor:null} : {data:[{id:'page-one'}],nextCursor:'next'} : {};
  if(request.id!==undefined) console.log(JSON.stringify({id:request.id,result}));
@@ -1061,6 +1068,69 @@ lines.on('close',()=>process.exit(0));
       { method: 'model/list' },
     ],
   );
+  const authCases: {
+    env: Record<string, string>;
+    loggedIn: boolean | null;
+  }[] = [
+    { env: { PSTACK_AUTH_CASE: 'initialize-error' }, loggedIn: null },
+    { env: { PSTACK_AUTH_CASE: 'account-error' }, loggedIn: null },
+    ...[
+      null,
+      {},
+      { account: null },
+      { requiresOpenaiAuth: true },
+      { account: { type: 7 }, requiresOpenaiAuth: true },
+    ].map((account) => ({
+      env: { PSTACK_ACCOUNT_JSON: JSON.stringify(account) },
+      loggedIn: null,
+    })),
+    {
+      env: {
+        PSTACK_ACCOUNT_JSON: JSON.stringify({
+          account: null,
+          requiresOpenaiAuth: true,
+        }),
+      },
+      loggedIn: false,
+    },
+    { env: { PSTACK_AUTH_CASE: 'catalog-error' }, loggedIn: true },
+  ];
+  for (const entry of authCases) {
+    const probe = f.invoke(
+      'detect.mjs',
+      [
+        'catalog',
+        '--executors',
+        'claude-code,codex',
+        '--cwd',
+        f.root,
+        '--claude-executable',
+        claude,
+        '--codex-executable',
+        server,
+      ],
+      entry.env,
+    );
+    assert.equal(probe.status, 0, probe.stderr);
+    const observed = JSON.parse(probe.stdout);
+    assert.equal(
+      observed.codex.auth.loggedIn,
+      entry.loggedIn,
+      JSON.stringify(entry.env),
+    );
+    assert.equal(observed.codex.auth.verified, entry.loggedIn === true);
+    assert.equal(
+      observed.guidance.some(
+        (item: { executor: string; action: string }) =>
+          item.executor === 'codex' && item.action === 'login',
+      ),
+      entry.loggedIn === false,
+    );
+    if (entry.env.PSTACK_AUTH_CASE === 'catalog-error') {
+      assert.match(observed.codex.error, /catalog-error/);
+      assert.equal(observed.codex.auth.error, null);
+    }
+  }
   await assert.rejects(stat(f.home), { code: 'ENOENT' });
 });
 

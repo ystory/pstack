@@ -799,7 +799,7 @@ async function resumeFor(options) {
     if (error.code === 'EEXIST')
       throw new PiFailure(
         'session-lease',
-        'Another continuation owns the Pi session lease.',
+        `Pi session lease already exists at ${lease}. Inspect it before retrying continuation.`,
       );
     throw error;
   }
@@ -989,7 +989,6 @@ async function execute(options) {
         args.push('--tools', options.toolList.join(','));
       else args.push('--no-tools');
       if (resumed) args.push('--session', resumed.file);
-      else args.push('--session-dir', path.join(options.runDir, 'sessions'));
     }
     const request = {
       schemaVersion: 1,

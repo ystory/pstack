@@ -45,11 +45,14 @@ lines.on('line', (line) => {
  const request = JSON.parse(line); log({request});
  const p = request.params;
  switch (request.method) {
- case 'initialize': if (!process.env.FAKE_HOLD_INITIALIZE) respond(request,{userAgent:'fixture'}); break;
+ case 'initialize': if (process.env.FAKE_INSPECT_CASE === 'initialize-error') { send({id:request.id,error:{code:-32000,message:'initialize unavailable'}}); break; } if (!process.env.FAKE_HOLD_INITIALIZE) respond(request,{userAgent:'fixture'}); break;
  case 'initialized': break;
- case 'account/read': respond(request,process.env.FAKE_NO_AUTH ? {account:null,requiresOpenaiAuth:true} : {account:{type:'chatgpt',email:'private@example.invalid'},requiresOpenaiAuth:true}); break;
+ case 'account/read':
+  if (process.env.FAKE_INSPECT_CASE === 'account-error') { send({id:request.id,error:{code:-32000,message:'account unavailable'}}); break; }
+  if (process.env.FAKE_ACCOUNT_JSON) { respond(request,JSON.parse(process.env.FAKE_ACCOUNT_JSON)); break; }
+  respond(request,process.env.FAKE_NO_AUTH ? {account:null,requiresOpenaiAuth:true} : {account:{type:'chatgpt',email:'private@example.invalid'},requiresOpenaiAuth:true}); break;
  case 'config/read': respond(request,{config:{model_provider:'openai'}}); break;
- case 'model/list': respond(request,p.cursor ? {data:[{id:'second-model',model:'second-model',supportedReasoningEfforts:[{reasoningEffort:'high'}]}],nextCursor:null} : {data:[{id:'selected-model',model:'selected-model',supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'xhigh'}]}],nextCursor:'second-page'}); break;
+ case 'model/list': if (process.env.FAKE_INSPECT_CASE === 'catalog-error') { send({id:request.id,error:{code:-32000,message:'catalog unavailable'}}); break; } respond(request,p.cursor ? {data:[{id:'second-model',model:'second-model',supportedReasoningEfforts:[{reasoningEffort:'high'}]}],nextCursor:null} : {data:[{id:'selected-model',model:'selected-model',supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'xhigh'}]}],nextCursor:'second-page'}); break;
  case 'thread/start': case 'thread/resume':
   if (process.env.FAKE_HOLD_THREAD) break;
   threadId = p.threadId ?? 'thread-'+process.pid;
@@ -460,6 +463,7 @@ for (const kind of [
     assert.equal(detected.schemaVersion, 1);
     assert.equal(detected.cli.available, false);
     assert.equal(detected.auth.available, false);
+    assert.equal(detected.auth.loggedIn, null);
     assert.equal(detected.cli.executable, selected);
   });
 
@@ -883,4 +887,75 @@ test('Codex transport injects its receiving executor and the bundled shared cont
     prompt.indexOf('Shared receiving fixture context.') <
       prompt.indexOf('Task\n\n'),
   );
+});
+
+test('Codex auth remains unknown until explicit account evidence and survives catalog failure', async (t) => {
+  const f = await fixture(t);
+  const cases: {
+    env: Record<string, string>;
+    loggedIn: boolean | null;
+    verified: boolean;
+  }[] = [
+    {
+      env: { FAKE_INSPECT_CASE: 'initialize-error' },
+      loggedIn: null,
+      verified: false,
+    },
+    {
+      env: { FAKE_INSPECT_CASE: 'account-error' },
+      loggedIn: null,
+      verified: false,
+    },
+    ...[
+      null,
+      {},
+      { account: null },
+      { requiresOpenaiAuth: true },
+      { account: { type: 7 }, requiresOpenaiAuth: true },
+    ].map((account) => ({
+      env: { FAKE_ACCOUNT_JSON: JSON.stringify(account) },
+      loggedIn: null,
+      verified: false,
+    })),
+    { env: { FAKE_NO_AUTH: '1' }, loggedIn: false, verified: false },
+    {
+      env: {
+        FAKE_ACCOUNT_JSON: JSON.stringify({
+          account: null,
+          requiresOpenaiAuth: false,
+        }),
+      },
+      loggedIn: true,
+      verified: false,
+    },
+    {
+      env: { FAKE_INSPECT_CASE: 'catalog-error' },
+      loggedIn: true,
+      verified: true,
+    },
+    {
+      env: { FAKE_INSPECT_CASE: 'catalog-error', FAKE_NO_AUTH: '1' },
+      loggedIn: false,
+      verified: false,
+    },
+  ];
+  for (const entry of cases) {
+    const result = spawnSync(
+      process.execPath,
+      [f.runner, 'catalog', '--cwd', f.cwd, '--executable', f.executable],
+      { env: { ...f.env, ...entry.env }, encoding: 'utf8', timeout: 10_000 },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const detected = JSON.parse(result.stdout);
+    assert.equal(
+      detected.auth.loggedIn,
+      entry.loggedIn,
+      JSON.stringify(entry.env),
+    );
+    assert.equal(detected.auth.verified, entry.verified);
+    if (entry.env.FAKE_INSPECT_CASE === 'catalog-error') {
+      assert.match(detected.error, /catalog unavailable/);
+      assert.equal(detected.auth.error, null);
+    }
+  }
 });

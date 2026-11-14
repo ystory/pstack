@@ -39,3 +39,5 @@ shared/0009-pi-resume-and-usage.patch
 shared/0010-pi-selection-failures.patch
 0030-pi-only-catalog.patch
 0031-host-native-model-catalog.patch
+shared/0011-native-pi-session-storage.patch
+0032-codex-auth-observation.patch

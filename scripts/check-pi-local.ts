@@ -107,7 +107,11 @@ await fs.writeFile(
     },
   }),
 );
-const settings = JSON.stringify({});
+let settings = JSON.stringify({});
+let sessionDirectory: string | undefined;
+let expectedStorage = path.join(agent, 'sessions');
+const inheritedEnv = { ...process.env };
+delete inheritedEnv.PI_CODING_AGENT_SESSION_DIR;
 await fs.writeFile(path.join(agent, 'settings.json'), settings);
 async function run(
   target: string,
@@ -137,7 +141,13 @@ async function run(
     ...extra,
   ];
   const child = spawn(process.execPath, args, {
-    env: { ...process.env, PI_CODING_AGENT_DIR: agent },
+    env: {
+      ...inheritedEnv,
+      PI_CODING_AGENT_DIR: agent,
+      ...(sessionDirectory
+        ? { PI_CODING_AGENT_SESSION_DIR: sessionDirectory }
+        : {}),
+    },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   child.stdin.end(
@@ -164,6 +174,23 @@ async function run(
   );
   assert.equal(code, cancel ? 130 : 0, stderr);
   assert.equal(receipt.process.shutdown, 'orderly');
+  assert.equal(receipt.args.includes('--session-dir'), false);
+  assert.ok(receipt.session?.id);
+  const relativeSession = path.relative(expectedStorage, receipt.session.file);
+  assert.ok(
+    relativeSession &&
+      !relativeSession.startsWith('..') &&
+      !path.isAbsolute(relativeSession),
+    'Pi persists the session in its native configured storage',
+  );
+  assert.equal(receipt.session.cwd, cwd);
+  assert.equal(
+    (await fs.readFile(receipt.session.file, 'utf8'))
+      .split('\n')
+      .map((line) => line && JSON.parse(line))
+      .filter(Boolean)[0].id,
+    receipt.session.id,
+  );
   assert.deepEqual(receipt.observedAssistant, {
     provider: 'pstack-local',
     model: 'synthetic',
@@ -177,24 +204,51 @@ async function run(
 }
 const receipts = [];
 try {
-  for (const target of ['plugin', 'plugin-claude']) {
-    phase = 'fresh';
-    toolsRequested = false;
-    const fresh = await run(target, `${target}-fresh`);
-    assert.equal(
-      fresh.result,
-      `LOCAL_RESULT ${evidence.alpha} ${evidence.beta}`,
+  for (const storage of ['default', 'settings', 'environment']) {
+    const configuredStorage = path.join(cwd, `${storage}-configured-sessions`);
+    sessionDirectory =
+      storage === 'environment'
+        ? path.join(cwd, 'environment-sessions')
+        : undefined;
+    settings = JSON.stringify(
+      storage === 'default' ? {} : { sessionDir: configuredStorage },
     );
-    phase = 'resume';
-    toolsRequested = false;
-    const resumed = await run(target, `${target}-resume`, [
-      '--resume',
-      fresh.artifacts.result,
-    ]);
-    assert.equal(resumed.session.id, fresh.session.id);
-    assert.equal(resumed.result, `RESUME_RESULT ${evidence.gamma}`);
-    receipts.push(fresh, resumed);
+    expectedStorage =
+      sessionDirectory ??
+      (storage === 'settings'
+        ? configuredStorage
+        : path.join(agent, 'sessions'));
+    await fs.writeFile(path.join(agent, 'settings.json'), settings);
+    for (const target of ['plugin', 'plugin-claude']) {
+      phase = 'fresh';
+      toolsRequested = false;
+      const fresh = await run(target, `${target}-${storage}-fresh`);
+      assert.equal(
+        fresh.result,
+        `LOCAL_RESULT ${evidence.alpha} ${evidence.beta}`,
+      );
+      toolsRequested = false;
+      const second = await run(target, `${target}-${storage}-second`);
+      assert.notEqual(second.session.id, fresh.session.id);
+      assert.notEqual(second.session.file, fresh.session.file);
+      phase = 'resume';
+      toolsRequested = false;
+      const resumed = await run(target, `${target}-${storage}-resume`, [
+        '--resume',
+        fresh.artifacts.result,
+      ]);
+      assert.equal(resumed.session.id, fresh.session.id);
+      assert.equal(resumed.session.file, fresh.session.file);
+      assert.equal(resumed.result, `RESUME_RESULT ${evidence.gamma}`);
+      receipts.push(fresh, second, resumed);
+    }
+    if (storage === 'environment')
+      await assert.rejects(fs.stat(configuredStorage), { code: 'ENOENT' });
   }
+  sessionDirectory = undefined;
+  expectedStorage = path.join(agent, 'sessions');
+  settings = JSON.stringify({});
+  await fs.writeFile(path.join(agent, 'settings.json'), settings);
   phase = 'cancel';
   const cancelled = await run('plugin', 'cancel', [], true);
   receipts.push(cancelled);
@@ -213,7 +267,7 @@ try {
   );
   await fs.writeFile(
     path.join(cwd, 'summary.json'),
-    `${JSON.stringify({ synthetic: true, providerCompatibilityVerified: false, receipts: receipts.map((receipt) => ({ status: receipt.status, result: receipt.result, resultPath: receipt.artifacts.result, session: receipt.session, process: receipt.process })) }, null, 2)}\n`,
+    `${JSON.stringify({ synthetic: true, providerCompatibilityVerified: false, storageChecks: ['isolated-default', 'settings.sessionDir', 'PI_CODING_AGENT_SESSION_DIR overrides settings', 'distinct fresh sessions', 'exact resume', 'cancel and resume', 'settings unchanged'], receipts: receipts.map((receipt) => ({ status: receipt.status, result: receipt.result, resultPath: receipt.artifacts.result, session: receipt.session, process: receipt.process })) }, null, 2)}\n`,
   );
   console.log(
     `Verified installed Pi against the local synthetic provider. Evidence ${cwd}`,

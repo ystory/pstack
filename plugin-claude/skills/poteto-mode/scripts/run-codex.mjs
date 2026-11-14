@@ -147,7 +147,7 @@ async function inspect(options, server) {
     cli,
     auth: {
       available: false,
-      loggedIn: false,
+      loggedIn: null,
       method: null,
       verified: false,
       requiresOpenaiAuth: null,
@@ -168,13 +168,24 @@ async function inspect(options, server) {
     const account = await client.request('account/read', {
       refreshToken: false,
     });
-    const method = account.account?.type ?? null;
+    const method =
+      typeof account?.account?.type === 'string' && account.account.type.length
+        ? account.account.type
+        : null;
     result.auth = {
       available: true,
-      loggedIn: method !== null || account.requiresOpenaiAuth === false,
+      loggedIn:
+        method !== null || account?.requiresOpenaiAuth === false
+          ? true
+          : account?.account === null && account?.requiresOpenaiAuth === true
+            ? false
+            : null,
       method,
       verified: method === 'chatgpt',
-      requiresOpenaiAuth: account.requiresOpenaiAuth ?? null,
+      requiresOpenaiAuth:
+        typeof account?.requiresOpenaiAuth === 'boolean'
+          ? account.requiresOpenaiAuth
+          : null,
       error: null,
     };
     if (options.command === 'catalog') {

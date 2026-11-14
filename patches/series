@@ -54,3 +54,4 @@ shared/0009-pi-resume-and-usage.patch
 0045-pi-only-prerequisites.patch
 shared/0010-pi-selection-failures.patch
 0046-pi-only-catalog.patch
+shared/0011-native-pi-session-storage.patch

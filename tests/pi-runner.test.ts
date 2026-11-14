@@ -3,7 +3,9 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import {
   mkdtemp,
+  mkdir,
   readFile,
+  realpath,
   writeFile,
   symlink,
   rm,
@@ -31,6 +33,7 @@ async function invoke(
 ) {
   root ??= await mkdtemp(path.join(os.tmpdir(), 'pstack-pi-run-'));
   temporaryRoots.add(root);
+  root = await realpath(root);
   const runDir = path.join(root, `run-${crypto.randomUUID()}`);
   const trace = path.join(root, `trace-${crypto.randomUUID()}`);
   const childPid = path.join(root, 'child-pid');
@@ -70,6 +73,7 @@ async function invoke(
     env: {
       ...process.env,
       PI_FIXTURE: mode,
+      PI_CODING_AGENT_SESSION_DIR: path.join(root, 'native-sessions'),
       PI_TRACE: trace,
       PI_CHILD_PID: childPid,
     },
@@ -197,7 +201,12 @@ test(
     const childPid = path.join(root, 'child-pid');
     const child = spawn(process.execPath, [fixture], {
       detached: true,
-      env: { ...process.env, PI_FIXTURE: 'descendant', PI_CHILD_PID: childPid },
+      env: {
+        ...process.env,
+        PI_FIXTURE: 'descendant',
+        PI_CHILD_PID: childPid,
+        PI_CODING_AGENT_SESSION_DIR: path.join(root, 'native-sessions'),
+      },
       stdio: ['pipe', 'ignore', 'inherit'],
     });
     const closed = once(child, 'close');
@@ -262,6 +271,8 @@ test('Pi exact receipt resume validates session bytes, route, cwd, identity and 
   await writeFile(lease, 'occupied');
   const conflict = await invoke('early', ['--resume', current], first.root);
   assert.match(conflict.stderr, /lease/);
+  assert.ok(conflict.stderr.includes(lease));
+  assert.equal(await readFile(lease, 'utf8'), 'occupied');
 });
 
 test('Pi refuses unsafe run dirs, symlink session inputs and unpersisted continuation', async () => {
@@ -326,6 +337,8 @@ test('Pi catalog sanitizes full model records and reports per-route effort suppo
     ),
     [['off'], ['off']],
   );
+  assert.ok(receipt.args.includes('--no-session'));
+  assert.equal(receipt.session, null);
   assert.equal(stdout.includes('SECRET'), false);
   assert.equal(
     (await readFile(path.join(root, 'catalog/events.jsonl'), 'utf8')).includes(
@@ -448,4 +461,45 @@ test('Pi readback mismatches fail without rejecting the requested model identity
       false,
     );
   }
+});
+
+test('Pi fresh workers use distinct native sessions and exact receipts resume legacy run-directory transcripts', async () => {
+  const first = await invoke();
+  const second = await invoke('early', [], first.root);
+  assert.equal(first.code, 0, first.stderr);
+  assert.equal(second.code, 0, second.stderr);
+  assert.notEqual(first.receipt.session.id, second.receipt.session.id);
+  assert.notEqual(first.receipt.session.file, second.receipt.session.file);
+  assert.equal(
+    path.dirname(first.receipt.session.file),
+    path.join(first.root, 'native-sessions'),
+  );
+  assert.equal(first.receipt.args.includes('--session-dir'), false);
+  assert.equal(first.receipt.args.includes('--session'), false);
+  for (const flag of [
+    '--offline',
+    '--no-extensions',
+    '--no-mcp',
+    '--no-context-files',
+    '--no-skills',
+    '--no-prompt-templates',
+    '--no-themes',
+    '--no-approve',
+  ])
+    assert.ok(first.receipt.args.includes(flag));
+  const legacyFile = path.join(first.runDir, 'sessions', 'legacy.jsonl');
+  await mkdir(path.dirname(legacyFile));
+  await rename(first.receipt.session.file, legacyFile);
+  first.receipt.session.file = legacyFile;
+  first.receipt.selected.sessionFile = legacyFile;
+  const prior = path.join(first.runDir, 'result.json');
+  await writeFile(prior, JSON.stringify(first.receipt));
+  const resumed = await invoke('early', ['--resume', prior], first.root);
+  assert.equal(resumed.code, 0, resumed.stderr);
+  assert.equal(resumed.receipt.session.file, legacyFile);
+  assert.equal(resumed.receipt.session.id, first.receipt.session.id);
+  assert.equal(
+    resumed.receipt.args[resumed.receipt.args.indexOf('--session') + 1],
+    legacyFile,
+  );
 });

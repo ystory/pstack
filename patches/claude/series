@@ -41,3 +41,4 @@ shared/0010-pi-selection-failures.patch
 0031-host-native-model-catalog.patch
 shared/0011-native-pi-session-storage.patch
 0032-codex-auth-observation.patch
+0033-native-state-release-version.patch

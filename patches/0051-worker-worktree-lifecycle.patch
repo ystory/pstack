@@ -1,0 +1,49 @@
+diff --git a/plugin.json b/plugin.json
+index dfdf5b0..6cde000 100644
+--- a/plugin.json
++++ b/plugin.json
+@@ -1,7 +1,7 @@
+ {
+   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+   "name": "pstack-codex",
+-  "version": "0.1.0-dev.18",
++  "version": "0.1.0-dev.19",
+   "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
+   "author": {
+     "name": "Lauren Tan"
+diff --git a/skills/poteto-mode/playbooks/worktree-cleanup.md b/skills/poteto-mode/playbooks/worktree-cleanup.md
+index 2b2a975..4a43784 100644
+--- a/skills/poteto-mode/playbooks/worktree-cleanup.md
++++ b/skills/poteto-mode/playbooks/worktree-cleanup.md
+@@ -4,7 +4,7 @@
+ 2. The bucket is advice, not permission. The pinned and active chats are the real artifact (principle-prove-it-works). Get that set from the user or sidebar and cross-check every candidate. The lever has marked `safe` a worktree the user had pinned, so the pinned set wins.
+ 3. Verify usage before deleting. For every `verify-recent-chat` or `verify-history` row, or anything you doubt, fan subagents out to read the scoped Codex transcripts via the **recall** helper and report whether the chat is pinned or ongoing and which worktrees it touches (principle-guard-the-context-window, transcripts are bulk). A pinned chat spawns arena and repro trees into sibling worktrees via background subagents, and those are in use even when their names never hit the sidebar. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+ 4. Pause on irreversible loss. `wip:N` is N tracked uncommitted edits. Show the diff and get a decision first, since removing a clean worktree is recoverable from its branch but uncommitted work is gone. `scratch:N` is untracked throwaway, safe to drop, but name the files. Per Autonomy, clean and merged and not-in-use proceeds. `wip` and in-use pause.
+-5. Prune the confirmed set through its owner. For a Codex-managed worktree, identify its attachment with `list_artifacts`, then call `archive_worktree` with the exact worktree `identityKey` as `root` and its attached PR identity keys as `pullRequestIdentityKeys` when present. This preserves a recoverable snapshot of local changes, unpushed commits, and non-ignored untracked files; preserve needed ignored files separately. Follow the live tool's eligibility rules: it archives only managed worktrees attached to this chat, and cannot archive primary, pinned, or shared worktrees, or checkouts with initialized submodules or embedded Git repositories. Managed candidates outside that contract remain held. For an ordinary Git worktree, use `git worktree remove --force <path>`; if the dir survives on ignored build artifacts, `rm -rf` it, then `git worktree prune`. Branch refs survive. Confirm with `df -h /` and re-list worktrees and attachments.
++5. Prune the confirmed set through its owner after workers release the checkout and needed artifacts are preserved outside it. For a Codex-managed worktree, identify its attachment with `list_artifacts`, then have its attached owner call `archive_worktree` with the exact worktree `identityKey` as `root` and its attached PR identity keys as `pullRequestIdentityKeys` when present. This preserves a recoverable snapshot of local changes, unpushed commits, and non-ignored untracked files; preserve needed ignored files separately. A recoverable snapshot does not require retaining an active completed checkout. Follow the live tool's eligibility rules. It archives only managed worktrees attached to the calling chat, and cannot archive primary, pinned, or shared worktrees, or checkouts with initialized submodules or embedded Git repositories. Hold ineligible candidates without bypassing protection or moving or archiving the coordinator chat. A queued archive request is not completion. Confirm an `archived_worktree` attachment, removal of the checkout, and removal of its Git worktree entry before reporting cleanup complete. For an ordinary Git worktree, use `git worktree remove --force <path>`; if the dir survives on ignored build artifacts, `rm -rf` it, then `git worktree prune`. Branch refs survive. Confirm with `df -h /` and re-list worktrees and attachments.
+ 6. Simulators and other reclaimers. Simulators are usually the next-biggest win. `xcrun simctl --set testing delete all` (XCTestDevices clones), `xcrun simctl delete unavailable`, and `xcrun simctl runtime list` then `runtime delete <id>` for old runtimes. More when needed: Xcode `DerivedData` and `iOS DeviceSupport`, app caches whose exact paths and recoverability have been inspected on this host (Codex chats, auth, skills, and configuration are user state rather than disposable caches), package caches (pnpm, uv, brew, yarn). Clear only caches the user has not said to keep.
+ 
+ This is the one playbook that deletes user state with no code review to catch a slip, so the gates above are the review.
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 40d1df4..eab7f74 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -85,13 +85,15 @@ For `executor: "antigravity"`, preserve the returned exact `model` and separate
+ 
+ ## Local worktrees
+ 
+-Workers run on the current host through their selected executor. Give each independent worker an exclusive Git worktree and branch when it writes code. Use native managed-worktree tools when exposed, waiting for creation to complete, or `git worktree add` with an explicit base ref and a local `codex/` branch. The worker's prompt names its absolute checkout, branch, and resolved starting SHA; every shell command runs in that checkout. Keep the coordinator's checkout separate.
++Workers run on the current host through their selected executor. Give each independent worker an exclusive Git worktree and branch when it writes code. Use native managed-worktree tools when exposed, or `git worktree add` with an explicit base ref and a local `codex/` branch. The worker's prompt names its absolute checkout, branch, and resolved starting SHA; every shell command runs in that checkout. Keep the coordinator's checkout separate.
+ 
+ For workflows that previously started from the repository's default branch, resolve the actual default ref and SHA before creating the worker checkouts. A caller-supplied non-default ref replaces that base. Measurements and verification pin the exact SHAs required by their brief. Local uncommitted changes enter a worker's input only when the brief explicitly includes them.
+ 
+-The coordinator creates and removes worktrees and coordinates shared repository metadata. Each branch owner performs the pushes, rebases, and PR operations its calling workflow assigns. Workers own their assigned checkout and output only. Worktrees isolate files and indexes; they share the host, repository metadata, credentials, and other machine resources. Assign distinct ports, temporary/cache/data directories, simulator/device resources, and output locations for work that uses them. Serialize a machine resource that cannot be separated. Restrict the brief's commands to the assigned resources.
++The coordinator owns worktree preparation and cleanup coordination. Inspect the native tool's caller and attachment semantics. When managed creation retargets its caller, invoke it from a native child preparation context instead of the coordinator chat. For an external worker, a short native setup child may return the ready checkout before the selected runner launches. Preserve the chosen worker executor and model. Wait for terminal creation and use the returned absolute cwd explicitly, even when the child's thread cwd stays unchanged. Check host thread and attachment state before and after preparation to confirm that the coordinator's primary checkout and archive state stay unchanged. Shell `pwd` alone does not establish this. User-requested chat moves remain separate operations. Worker preparation and cleanup must not move or archive the coordinator chat.
+ 
+-After collecting and verifying artifacts, integrate accepted work deliberately. Retain any unintegrated changes and evidence. Remove temporary worktrees and local branches only after their needed work has been integrated or preserved, following the worktree cleanup playbook. A completed worker alone does not authorize discarding its checkout.
++The coordinator manages shared repository metadata. Each branch owner performs the pushes, rebases, and PR operations its calling workflow assigns. Workers own their assigned checkout and output only. Worktrees isolate files and indexes; they share the host, repository metadata, credentials, and other machine resources. Assign distinct ports, temporary/cache/data directories, simulator/device resources, and output locations for work that uses them. Serialize a machine resource that cannot be separated. Restrict the brief's commands to the assigned resources.
++
++After workers release their checkouts, collect and verify their artifacts and integrate accepted work deliberately. Preserve needed unintegrated changes and evidence outside each temporary checkout before removing it. Follow the worktree cleanup playbook through the checkout's proper owner and confirm cleanup completion. Remove local branches only after their needed work has been integrated or preserved. A completed worker alone does not authorize discarding its checkout.
+ 
+ ### Working-tree transfer
+ 

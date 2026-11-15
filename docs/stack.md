@@ -35,7 +35,7 @@ node dist/cli.js generate-patch --target claude-code --name NNNN-next-adaptation
 node dist/cli.js verify-patches --target all
 ```
 
-Replace `NNNN` with the next unused four-digit number in the selected target's series. Codex uses `patches/series`; Claude uses `patches/claude/series`. Omitting `--target` retains the Codex command behavior. `--paths` accepts comma-separated files or directories relative to the selected target tree; omitting it includes all unrecorded changes. Existing patches are not overwritten. Replay applies the ordered series to a temporary copy of the combined upstream baseline and must reproduce every plugin byte, file type, and permission.
+Replace `NNNN` with the next unused four-digit number in the selected target's series. The new patch may change a path that an earlier patch owns; [a compaction](#compact-the-patch-series) later folds it into that path's themed patch. Codex uses `patches/series`; Claude uses `patches/claude/series`. Omitting `--target` retains the Codex command behavior. `--paths` accepts comma-separated files or directories relative to the selected target tree; omitting it includes all unrecorded changes. Existing patches are not overwritten. Replay applies the ordered series to a temporary copy of the combined upstream baseline and must reproduce every plugin byte, file type, and permission.
 
 Before publishing changes to `plugin-claude/`, increment the version in `plugin-claude/.claude-plugin/plugin.json`. Claude's native updater can retain cached plugin bytes when only the Git revision changes. Record the version bump in a new Claude patch. The Codex manifest and maintainer package have independent versions.
 
@@ -53,6 +53,45 @@ node dist/cli.js verify-patches --target all
 `--from`, `--name`, and `--paths` are required. `--from claude-code` reads the Claude output instead. This selects the edited input, not a preferred host or model. The command verifies one patch against both replayed inputs, materializes the other output, and appends both series references. Unrelated working changes remain. A conflicting unrecorded edit in the selected other files is reported before the patch is recorded.
 
 Commit the shared patch, both series references, and both materialized outputs. Keep native changes in target patches. Initial transfer uses target-specific deletion patches followed by one shared addition, so different old host bodies do not have to match. Those full-file deletion inputs also expose upstream changes during candidate replay. Do not replace the locked original or add a third whole skill tree.
+
+## Compact the patch series
+
+Recorded adaptations append to a series, so over time many patches change the same file. An upstream update then has to move every one of them onto the new source. A compaction rewrites both series so that each changed path belongs to exactly one patch in each target. An upstream change to a file can then conflict with one patch only.
+
+Run a compaction as its own change, separate from any adaptation or upstream update. It changes no byte under `plugin/`, `plugin-claude/`, or `upstream/`. It discards the per-patch history of the series, so name the commit that holds the previous series in the change description.
+
+1. Build the CLI and record the two tree digests that `node dist/cli.js verify-patches --target all` prints.
+
+2. Write the compacted series to a new directory in ignored storage:
+
+   ```sh
+   node dist/cli.js compact-patches --output "$PWD/.local/compacted-patches"
+   ```
+
+   The command first replays the current series and stops if it does not reproduce a target tree. It then diffs each target tree against its pristine baseline and gives every changed path to the first matching theme in `pstackThemes` in [compact.ts](../src/distribution/compact.ts). A path that a shared patch changes today goes to a shared theme instead. Its pristine and final bytes and mode must be the same in both targets. A theme keeps its number in both series, and a theme with no path in a target is left out of that series. Each series lists its target themes first and the shared patches last. The command replays the new series and writes output only when each target reaches its previous tree digest.
+
+   | Theme                                | Paths                                                                                 |
+   | ------------------------------------ | ------------------------------------------------------------------------------------- |
+   | `identity-and-distribution`          | manifests, `README.md`, `PRIVACY.md`, `TERMS.md`, licenses, assets                    |
+   | `agents-and-invocation`              | `agents/` and each skill's `agents/` metadata                                         |
+   | `setup-and-models`                   | the rest of `skills/setup-pstack/`                                                    |
+   | `poteto-mode-references-and-scripts` | `skills/poteto-mode/references/` and `skills/poteto-mode/scripts/`                    |
+   | `poteto-mode-playbooks`              | the rest of `skills/poteto-mode/`                                                     |
+   | `workflow-skills`                    | every other skill                                                                     |
+   | `guides`                             | `docs/`                                                                               |
+   | `vendored-codex-runtime`             | `vendor/`, which only the Claude target has                                           |
+   | `shared/workflow-bodies`             | the common How and No comments bodies                                                 |
+   | `shared/worker-execution`            | common files under `skills/poteto-mode/references/` and `skills/poteto-mode/scripts/` |
+
+   A changed path that no theme matches stops the command. Add or widen a theme in the same change. A shared path that differs between targets also stops it. Restore the common body with a recorded adaptation before compacting.
+
+3. Read `compaction-report.json`, which lists every patch with its paths. Replace `patches/` with the output's `patches/` directory. Run `node dist/cli.js verify-patches --target all` and require the digests from step 1. Confirm that `git status` shows no change under `plugin/`, `plugin-claude/`, or `upstream/`.
+
+4. Run `corepack pnpm verify`. No plugin version changes, because no plugin byte changes.
+
+Patch numbers restart at `0001` in a compaction. A branch that added a patch to the previous series must record its adaptation again on the compacted series.
+
+Between compactions, `generate-patch` and `generate-shared-patch` append as before. A new patch may change a path that a themed patch already owns. The one-path-one-patch property holds again after the next compaction.
 
 ## Build and select an artifact
 

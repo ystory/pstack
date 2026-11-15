@@ -2101,7 +2101,7 @@ index 446342c..901d8c4 100644
 +Use the same field names in the UI and in the receiver prompt.
  Keep the field list small.
 diff --git a/skills/no-comments/SKILL.md b/skills/no-comments/SKILL.md
-index 6122cf7..fa2fe1b 100644
+index 6122cf7..86bdc2d 100644
 --- a/skills/no-comments/SKILL.md
 +++ b/skills/no-comments/SKILL.md
 @@ -16,9 +16,4 @@ Use the caller's files or diff. Otherwise use the current diff against the base
@@ -2115,6 +2115,7 @@ index 6122cf7..fa2fe1b 100644
 -5. Constraint comments say `do not remove`, `do not change wording`, or `talk to X before changing`. Leave keeps about things we cannot change. Offer the cheapest in-scope type, runtime, test, or CI lint. Wait for interactive approval. Unattended and eval require caller pre-approval. If approved, encode then delete. Otherwise delete, report the constraint open, and sketch out-of-scope work.
 -6. Report the deletion count, restored comments, reruns, architect sketch, fixes, encoding offers, encodings, unenforced constraints, and other open work.
 +1. Read [Claude Code execution](../poteto-mode/references/claude-execution.md), resolve `judgment and prose` with worker kind `comment-sicko`, and dispatch its original agent instructions through the selected executor. Pass the scope and use poteto-mode's task effort and speed guidance. Do not restate its rules.
+\ No newline at end of file
 diff --git a/skills/poteto-help/SKILL.md b/skills/poteto-help/SKILL.md
 index 8e4c506..59b9f8f 100644
 --- a/skills/poteto-help/SKILL.md

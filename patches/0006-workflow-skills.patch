@@ -1,0 +1,1162 @@
+diff --git a/skills/architect/SKILL.md b/skills/architect/SKILL.md
+index 403ce4b..8e75380 100644
+--- a/skills/architect/SKILL.md
++++ b/skills/architect/SKILL.md
+@@ -28,7 +28,7 @@ Skip Phase A only when the work is genuinely greenfield with no surrounding syst
+ 
+ Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt.
+ 
+-Take the runners from the `architect runners` line in the `pstack-models.mdc` rule, in place of the `arena runners` line. If the rule or that line is missing, use `claude-fable-5-2-high`, `claude-opus-5-5-high-fast`, and `gemini-4-carbon-high`. Alias and rejected entries follow the runner rules in the **arena** skill's Phase A.
++Resolve the `architect runners` role using [Codex execution](../poteto-mode/references/execution.md), in place of `arena runners`. Preserve every configured ordered seat, including duplicates, dispatch each through its executor as a general-purpose arena runner, and pass this skill's absolute path with `references/runner-prompt.md`. Alias and rejected entries follow the runner rules in the **arena** skill's Phase A.
+ 
+ Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
+ 
+diff --git a/skills/arena/SKILL.md b/skills/arena/SKILL.md
+index 381c1f6..3ad1e87 100644
+--- a/skills/arena/SKILL.md
++++ b/skills/arena/SKILL.md
+@@ -14,18 +14,18 @@ Every candidate gets the same prompt, so the prompt is the contract.
+ 
+ 1. State the artifact each candidate is producing.
+ 2. Derive the rubric, 3-6 concrete gradeable criteria for what success looks like on *this* task. It is the picker's tool in Phase D. Candidates only see the task.
+-3. Pick the runners. Use the `arena runners` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, default to one each on `claude-fable-5-2-high`, `claude-opus-5-5-high-fast`, and `gemini-4-carbon-high`. An `auto` or `inherit-parent` entry in this line means the parent model, so omit `model` for it. If the Task tool rejects a configured entry, run that seat on its family's default and say so. Families go by prefix, and the longest matching prefix wins: `claude-fable-*`, `claude-*`, and `gemini-*`. Drop a leading `cursor-` before you compare. Any other slug's family is its text before the first hyphen. A family's default is its entry in the default list above. If the family has no default, or the Task tool rejects that default, use the closest valid slug of the same family from its error message, or drop the seat and say so when there is none. If dropped seats leave fewer than two runners, add runners until there are two, or one when the line has one entry. Run each added runner on a remaining runner's model, or omit `model` so it runs on the parent model when none remain, and say so. Spawn more runners when the arena covers multiple design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+-4. Give each candidate its own output location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`), per the **separate-before-serializing-shared-state** principle skill.
++3. Pick the runners using [Codex execution](../poteto-mode/references/execution.md). Resolve the `arena runners` role with the sibling setup helper. An unconfigured list has three native-parent seats. Preserve the ordered entries, including duplicates. An `auto` or `inherit-parent` entry means the parent model. Bind it through Codex execution's parent-selection rules. Families go by model prefix, and the longest matching prefix wins, such as `claude-fable-*`, `claude-*`, `gemini-*`, and `gpt-*`. Drop a leading `cursor-` before you compare. Any other model's family is its text before the first hyphen when its lineage is known. If the selected executor rejects a configured model, use the closest valid model of the same family from its error message and disclose it. Drop the seat and say so when none is available. Do not retry a model already rejected by that executor. If dropped seats leave fewer than two runners, add runners until there are two, or one when the configured role has one entry. Run each added runner on a surviving runner's model and executor, or use Codex execution's parent-selection binding when none remain, and say so. An unavailable executor makes that seat unavailable. Disclose it and apply the dropped-seat rule without claiming that executor ran. Spawn more runners when the arena covers multiple design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
++4. Give each candidate its own output location, per the **separate-before-serializing-shared-state** principle skill. Code-writing candidates get exclusive local Git worktrees and branches through Codex execution. Other artifacts can use `/tmp/arena-<slug>/candidate-<n>/`.
+ 
+ ## Phase B: Fan out
+ 
+-Spawn all N subagents in one message with `run_in_background: true`, each with the task, the path to the shared grounding, its own output path, and instructions to produce the artifact and a short rationale naming the alternatives it considered and what it rejected.
++Launch all N general-purpose delegates through Codex execution without waiting between them, using `agent_type: "pstack-general-purpose"` on the native path, each with the task, the path to the shared grounding, its own output path, and instructions to produce the artifact and a short rationale naming the alternatives it considered and what it rejected.
+ 
+ If a candidate produces no output, proceed with N-1 and note the dropout.
+ 
+ ## Phase C: Cross-judge
+ 
+-After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, choose from `claude-fable-5-2-high`, `claude-opus-5-5-high-fast`, and `gemini-4-carbon-high`. Spawn one readonly judge subagent. The judge is never from the parent's vendor. A vendor is a family as Phase A step 3 defines families, except that `claude-fable-*` and `claude-*` are one vendor. Try only the entries from another vendor, in pool order. An `auto` or `inherit-parent` entry is the parent model, so it never judges. With the default pool, a Claude parent gets `gemini-4-carbon-high`. A parent from any other vendor gets `claude-fable-5-2-high` first, then `claude-opus-5-5-high-fast`. If the Task tool rejects an entry, use a valid slug of the same model at the closest level or speed from the error message, or move to the next entry when there is none. If no entry from another vendor runs, try the default pool's entries from another vendor the same way. If none of those runs, skip the judge, pick the base alone in Phase D, and say so. If you do not know the parent's model, try the pool's real slugs in pool order and say that the vendor check did not run. The judge sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with your reading in Phase D. Don't spawn it while candidates are still writing.
++After all Phase B candidates complete, resolve the `arena cross-judge pool` role. Launch one general-purpose judge through Codex execution with a read-only brief, using `agent_type: "pstack-general-purpose"` on the native path. The judge must be from another vendor than the parent. A vendor is a family as Phase A step 3 defines families, except that `claude-fable-*` and `claude-*` are one vendor. Try only entries from another vendor, in pool order. An `auto` or `inherit-parent` entry is the parent model and never judges. If the selected executor rejects an entry, use a valid setting for that same model from the error message, or move to the next entry when none is available. Keep model, effort, and speed separate. If no selected eligible entry runs, skip the judge, pick the base alone in Phase D, and say so. Do not replace it with a judge from the parent's vendor. If the parent's model is unknown, try the pool's explicit model entries in order and say that the vendor check did not run. Pass this skill's absolute path and the candidates by path label. The judge sees the rubric, scores each criterion, and recommends a base with rationale. It runs in parallel with your reading in Phase D. Don't spawn it while candidates are still writing.
+ 
+ ## Phase D: Pick a base
+ 
+diff --git a/skills/automate-me/SKILL.md b/skills/automate-me/SKILL.md
+index 50971b8..9b5f7ce 100644
+--- a/skills/automate-me/SKILL.md
++++ b/skills/automate-me/SKILL.md
+@@ -1,20 +1,22 @@
+ ---
+ name: automate-me
+-description: "Use for \"automate me\", \"create/update/refresh my -mode skill\", \"turn/capture my preferences or working style into a skill\", or wanting agents to follow how the user works. Drafts or revises a personal -mode skill via create-skill + unslop, optionally pulling fresh evidence from recent transcripts."
++description: "Use for \"automate me\", \"create/update/refresh my -mode skill\", \"turn/capture my preferences or working style into a skill\", or wanting agents to follow how the user works. Drafts or revises a personal -mode skill via skill-creator + unslop, optionally pulling fresh evidence from recent transcripts."
+ disable-model-invocation: true
+ ---
+ 
+ # Automate me
+ 
++Read [Codex execution](../poteto-mode/references/execution.md) for installed paths, model settings, and subagent calls.
++
+ A guided flow for turning the user's working conventions into a skill agents will follow. The output is one `-mode` skill tailored to them (e.g. `jay-mode`, `priya-mode`).
+ 
+-This skill orchestrates three others: an inline mining pass (see step 1), Cursor's built-in `create-skill` (authoring), and the **unslop** skill (prose discipline). It sequences them. It doesn't replace them.
++This skill orchestrates three others: an inline mining pass (see step 1), Codex's `skill-creator` (authoring), and the **unslop** skill (prose discipline). It sequences them. It doesn't replace them.
+ 
+ ## Flow
+ 
+ ### 0. Check for an existing skill
+ 
+-Look recursively for `.cursor/skills/**/*-mode/SKILL.md` and `~/.cursor/skills/*-mode/SKILL.md` matching the user's handle. Mode skills can live in a personal category directory (`.cursor/skills/<handle>/`), not only at the top level. If one exists, confirm intent with `AskQuestion` (unless they already said "update my skill" or similar):
++Look recursively for matching `*-mode/SKILL.md` files under the project's `.agents/skills/` and the personal roots `~/.agents/skills/` and `$CODEX_HOME/skills/` (`~/.codex/skills/` when unset). Mode skills can live in a personal category directory (`.agents/skills/<handle>/`), not only at the top level. If one exists, confirm intent with `request_user_input` when the current host exposes it, otherwise ask the same choice in chat and wait (unless they already said "update my skill" or similar):
+ 
+ - Update the existing skill (default for repeat runs)
+ - Start fresh (rare, ask why before doing it)
+@@ -26,9 +28,9 @@ Update mode changes the rest of the flow:
+ 
+ ### 1. Mine their history
+ 
+-Locate the active workspace's transcripts before fanning out. The system prompt names the workspace's `agent-transcripts/` directory. Use only that path. Don't glob across `~/.cursor/projects/*/`. That crosses workspace boundaries and reads private chats from unrelated projects.
++Use the [project history lookup](../recall/SKILL.md) before fanning out. Resolve `../recall/scripts/codex-history.mjs` from this skill directory and list only the active project in the requested window. Its Codex query includes inherited prefixes and reads the same current conversation returned by list. Include known existing Claude runner directories with repeatable `--claude-runs "<absolute-run-root>"` arguments; locate them from task artifacts and existing project `.local/` runs. Only supplied roots and matching project/worktree cwd metadata are searched. Pass each miner the scoped Codex UUIDs and exact Claude receipt paths, executor, run roots, and helper read command. For Claude, read the exact receipt with `--source claude-code --receipt "<result.json>"` and the same project/run roots, then open the returned prompt and stdout paths for attempts, failures, and tool evidence; consult request and stderr when relevant. A result summary alone is insufficient. Preserve distinct receipt paths for resumed runs sharing one session UUID, and cite that identity with each pattern.
+ 
+-Survey recent agent conversations within that scope for recurring patterns. Run multiple parallel subagents across slices of history (e.g. last 2-4 weeks, split into 3 slices so each has enough material). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill. Each slice mining subagent reads transcripts from the workspace-scoped path the parent provides, looks for the signals below, and returns a short structured list of patterns it saw with evidence pointers. Default signals worth hunting:
++Survey recent agent conversations within that scope for recurring patterns. Resolve the existing `swarm workers` role through the setup helper per **Codex execution**, then run multiple parallel subagents with `agent_type: "pstack-general-purpose"` across slices of history (e.g. last 2-4 weeks, split into 3 slices so each has enough material). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill. Each slice mining subagent reads the project-scoped conversations and raw runner evidence the parent supplies, looks for the signals below, and returns a short structured list of patterns it saw with evidence pointers. Default signals worth hunting:
+ 
+ - Response preferences (length, tone, format, "dumb it down" corrections)
+ - Delegation habits (subagents, models, specialized workflows, parallelism)
+@@ -41,9 +43,9 @@ Cross-check across slices before elevating a signal. Patterns seen in 2+ slices
+ 
+ ### 2. Ask the user directly
+ 
+-Mining misses intent that hasn't come up yet. Use the `AskQuestion` tool (structured multi-choice) rather than asking the user to type from scratch.
++Mining misses intent that hasn't come up yet. Use the available `request_user_input` tool for a short structured interview. If this host exposes it only in Plan mode, conduct the same interview in chat.
+ 
+-Shape: one or two questions with 4-6 options each, `allow_multiple: true` for category questions. Start broad ("Which areas matter most?"), then follow up on selected areas with specific options. After the structured rounds, one free-form chat question catches anything the options missed.
++Shape: one or two focused questions with the tool-supported number of mutually exclusive choices. For categories that need multiple selections, collect them in a follow-up chat answer. Start broad ("Which areas matter most?"), then follow up on selected areas with specific options. After the structured rounds, one free-form chat question catches anything the options missed.
+ 
+ Don't dump 20 questions.
+ 
+@@ -64,17 +66,17 @@ The **poteto-mode** skill shows the shape. Read it for granularity. Don't copy i
+ 
+ ### 4. Draft the skill
+ 
+-Use Cursor's built-in `create-skill` skill to author the skill. Placement:
++Use Codex's `skill-creator` skill to author the skill. Placement:
+ 
+-- Path: preserve an existing mode skill's category. For a new mode, use `.cursor/skills/<handle>/<handle>-mode/SKILL.md` when the repo has an established personal category for that handle. Otherwise default to `.cursor/skills/<handle>-mode/SKILL.md` in the project (or `~/.cursor/skills/<handle>-mode/` if the user prefers a personal skill).
++- Path: preserve an existing mode skill's category. For a new mode, use `.agents/skills/<handle>/<handle>-mode/SKILL.md` when the repo has an established personal category for that handle. Otherwise default to `.agents/skills/<handle>-mode/SKILL.md` in the project (or `$CODEX_HOME/skills/<handle>-mode/` if the user prefers a personal skill).
+ - Handle: the user's first name or chosen identifier.
+ - Frontmatter `description`: trigger on their name + `/<handle>-mode` + "work in their style", not on generic keywords like "write code" or "review PR".
+-- Frontmatter formatting: follow `create-skill`'s YAML rules. Keep `description` as one YAML scalar. Quote it or use `description: >-` with indented continuation lines when punctuation or wrapping requires it.
+-- Frontmatter `disable-model-invocation: true` by default. Opt out only if the user explicitly wants their mode to apply on every turn.
++- Frontmatter formatting: follow `skill-creator`'s YAML rules. Keep `description` as one YAML scalar. Quote it or use `description: >-` with indented continuation lines when punctuation or wrapping requires it.
++- Preserve the explicit-only default in `agents/openai.yaml` with `policy.allow_implicit_invocation: false`. Opt out only if the user explicitly wants their mode to apply on every turn. Codex frontmatter contains `name` and `description`; this invocation policy belongs in the companion metadata file.
+ 
+ ### 5. Iterate on prose
+ 
+-Apply the **unslop** skill and `create-skill`'s writing guidelines to every line.
++Apply the **unslop** skill and `skill-creator`'s writing guidelines to every line.
+ 
+ Show the draft to the user and take feedback. Expect multiple iterations. Cut ruthlessly. A mode skill is not a manual.
+ 
+@@ -93,12 +95,12 @@ Work in a worktree off main. Commit and open a PR. Don't push to main directly.
+ 
+ ## Evaluation
+ 
+-A `-mode` skill is subjective output. A `create-skill`-style test/iterate benchmark loop isn't useful here. Vibe-check with the user: does it read like them? Did it miss anything? Then ship.
++A `-mode` skill is subjective output. A `skill-creator`-style test/iterate benchmark loop isn't useful here. Vibe-check with the user: does it read like them? Did it miss anything? Then ship.
+ 
+ Run a description-optimization loop only if the skill's trigger accuracy turns out to be a problem in practice.
+ 
+ ## When not to use
+ 
+-- User wants a task-specific skill (not working conventions): `create-skill` alone, no mining required.
++- User wants a task-specific skill (not working conventions): `skill-creator` alone, no mining required.
+ - User wants to capture one narrow workflow (e.g. "how I write commit messages"). That's a regular skill, not a mode skill.
+ 
+diff --git a/skills/create-formal-verification-skill/SKILL.md b/skills/create-formal-verification-skill/SKILL.md
+index 92f7aa4..a4116e4 100644
+--- a/skills/create-formal-verification-skill/SKILL.md
++++ b/skills/create-formal-verification-skill/SKILL.md
+@@ -32,7 +32,7 @@ Pick the tool that answers the question at the lowest cost: a model checker, a p
+ 
+ Write a project-local skill with frontmatter that names the area and says when to use it. Without frontmatter, the skill never registers. From the skill alone, the next agent must be able to tell whether a change touches the verified code, run the check, tell a real bug from a modeling error, and update the verification when a change is intended. Put the coverage record and the sync commit in the skill, and tell the next agent to move the sync commit forward only after it confirms that the verification describes the code at the new commit. Use this repo's real commands, paths, and nouns, and leave no placeholders.
+ 
+-If the check is a TLA+ model, tell the next agent to read every result with the pstack [`/statechart`](../statechart/SKILL.md) skill. It shows each invariant violation the checker finds as its shortest path in plain words. When the check passes, `/statechart` draws a chart of how the system moves between states. Refer to `/statechart` by name. Its commands, options, and file paths change between releases and machines, so copy none of them into the generated skill or its scripts.
++If the check is a TLA+ model, tell the next agent to read every result with the pstack [`$pstack-codex:statechart`](../statechart/SKILL.md) skill. It shows each invariant violation the checker finds as its shortest path in plain words. When the check passes, `$pstack-codex:statechart` draws a chart of how the system moves between states. Refer to `$pstack-codex:statechart` by its installed invocation name, and resolve its installed `SKILL.md` when the generated skill runs. Its commands, options, and file paths change between releases and machines, so copy none of them into the generated skill or its scripts.
+ 
+ ## Prove it before you hand off
+ 
+@@ -40,4 +40,4 @@ Follow the generated skill once, as the next agent would, on a scratch change th
+ 
+ ## Hand off
+ 
+-Tell the user what you verified, which tool you used and why, the bounds, what the check found in plain words, how to run it, and what it does not cover. Suggest a second target only if you found a close one. Point the user at `/maintain-formal-verification-skill` for bringing the verification back in line after changes that did not recheck it.
++Tell the user what you verified, which tool you used and why, the bounds, what the check found in plain words, how to run it, and what it does not cover. Suggest a second target only if you found a close one. Point the user at `$pstack-codex:maintain-formal-verification-skill` for bringing the verification back in line after changes that did not recheck it.
+diff --git a/skills/create-verification-skill/SKILL.md b/skills/create-verification-skill/SKILL.md
+index 140d033..2719d57 100644
+--- a/skills/create-verification-skill/SKILL.md
++++ b/skills/create-verification-skill/SKILL.md
+@@ -6,7 +6,7 @@ disable-model-invocation: true
+ 
+ # Create a verification skill
+ 
+-Every serious project needs a scripted way to drive the real app and prove behavior: launch it, exercise a feature the way a user would, and capture evidence. This skill generates that as a project-local skill (`.cursor/skills/verify-<app>/`) tailored to the repo. You write the generator's output for the next agent, not for a human: it will be read cold, mid-task, by an agent that has never seen the app.
++Every serious project needs a scripted way to drive the real app and prove behavior: launch it, exercise a feature the way a user would, and capture evidence. This skill generates that as a project-local skill (`.agents/skills/verify-<app>/`) tailored to the repo. You write the generator's output for the next agent, not for a human: it will be read cold, mid-task, by an agent that has never seen the app.
+ 
+ ## 1. Interview the repo, not the user
+ 
+@@ -22,7 +22,7 @@ If the checkout doesn't build or start as-is, fix that first (or report it preci
+ 
+ ## 2. Generate the skill
+ 
+-Write `.cursor/skills/verify-<app>/SKILL.md` with YAML frontmatter (`name: verify-<app>` and a `description` that names the app, the surface, and when to reach for it — without frontmatter the skill never registers) and these sections, each grounded in what the interview actually found (no placeholders left):
++Write `.agents/skills/verify-<app>/SKILL.md` with YAML frontmatter (`name: verify-<app>` and a `description` that names the app, the surface, and when to reach for it — without frontmatter the skill never registers) and these sections, each grounded in what the interview actually found (no placeholders left):
+ 
+ - **Launch:** the exact command that starts the app for verification, and how to tell it's ready (a log line, a prompt). Launch must reach a usable state from an empty data dir, including any migrations and seed data. Ready means usable, not just that a process answers. A database health check can pass while its init scripts are still running. Include teardown. For a short-lived CLI or TUI there is no server to keep alive: launch means build the binary (or install deps) once, then start each drive in its own isolated PTY or tmux session.
+ - **Doctor:** one read-only check that answers "is this instance worth driving?" — process up, right version/build, port owned by us, auth valid. An agent runs this first whenever anything looks off.
+@@ -33,7 +33,7 @@ Write `.cursor/skills/verify-<app>/SKILL.md` with YAML frontmatter (`name: verif
+ 
+ ## 3. Seed the feature map
+ 
+-Create `.cursor/skills/verify-<app>/features/README.md` plus one file per user-facing feature you can identify (aim for the top 3-5 to start, from routes, commands, menus, or docs). Follow the shape in [`references/feature-map-example/`](references/feature-map-example/), with a README index and one file per feature. Each file answers, from the user's point of view: what the feature is, how to reach it, how to drive it with the harness, and what observable end state proves it works. The four H2s are `Sub-features`, `How to get to it (user POV)`, `Driving it with <harness>`, and `Gotchas`. If the seed data lacks a precondition that a journey needs, the journey reports a failure and the reason goes in that feature's `Gotchas`. Never weaken the journey to make it pass. The map is the repo's maintained verification source; a proof that drives one convenient entry point is incomplete when the map lists others.
++Create `.agents/skills/verify-<app>/features/README.md` plus one file per user-facing feature you can identify (aim for the top 3-5 to start, from routes, commands, menus, or docs). Follow the shape in [`references/feature-map-example/`](references/feature-map-example/), with a README index and one file per feature. Each file answers, from the user's point of view: what the feature is, how to reach it, how to drive it with the harness, and what observable end state proves it works. The four H2s are `Sub-features`, `How to get to it (user POV)`, `Driving it with <harness>`, and `Gotchas`. If the seed data lacks a precondition that a journey needs, the journey reports a failure and the reason goes in that feature's `Gotchas`. Never weaken the journey to make it pass. The map is the repo's maintained verification source; a proof that drives one convenient entry point is incomplete when the map lists others.
+ 
+ ## 4. Prove the generated skill before handing it over
+ 
+diff --git a/skills/interrogate/SKILL.md b/skills/interrogate/SKILL.md
+index 169f5b4..3dcd9a6 100644
+--- a/skills/interrogate/SKILL.md
++++ b/skills/interrogate/SKILL.md
+@@ -14,13 +14,13 @@ The scope is what the user names. Otherwise it is the branch diff from its merge
+ 
+ ## Fan out
+ 
+-Run Phase A steps 3 and 4 and Phase B of the **arena** skill, with four changes. Read the `interrogate reviewers` line in place of `arena runners`. Copy the scope's uncommitted changes into each worktree. Spawn each adversary as `generalPurpose`. In place of the arena task and rationale, give each adversary the scope, the intent, and this brief:
++Run Phase A steps 3 and 4 and Phase B of the **arena** skill, with four changes. Resolve the `interrogate reviewers` role in place of `arena runners` through [Codex execution](../poteto-mode/references/execution.md). Preserve saved entries, ordered duplicate seats, and Arena's runner fallback. Start each adversary's exclusive local worktree at the scope's exact source HEAD. Copy the scope's actual uncommitted changes into every worktree through Codex execution's working-tree transfer, including scoped staged, unstaged, and untracked files. A supplied diff or a conversation fork does not copy those files. Launch each adversary through its selected executor, using `agent_type: "pstack-general-purpose"` on the native path. Pass absolute paths to this skill, the assigned worktree, required source files, and runnable tools. In place of the arena task and rationale, give each adversary the scope, the intent, and this brief:
+ 
+ > Break this change. Prove each finding with a run against the real code, such as a failing test, a repro script, or command output that shows the wrong behavior. For a design or plan, run a prototype or probe the current tree. Keep repros in your own worktree. Report each finding with a title, the exact command, the output it printed, and the output the intent requires. Leave out anything you did not run. That covers style, naming, structure, and risks that need a future change to matter. No findings is a valid result.
+ 
+ ## Verify
+ 
+-Verify each finding per arena Phase F by rerunning its command. Keep a finding when the output shows the failure and the failure breaks the intent. Drop the rest. Merge findings that share a root cause.
++Verify every finding yourself per arena Phase F by rerunning its exact command against the reviewed scope. Read the adversary's repro and run it in its isolated worktree, preserving the scope's input and any needed repro files. Keep a finding when the output shows the failure and the failure breaks the intent. Drop the rest. Merge findings that share a root cause.
+ 
+ Skip arena Phases C, D, and E. Adversaries find different failures, so the verdict keeps every verified finding, not one adversary's list.
+ 
+diff --git a/skills/ketchup-video/SKILL.md b/skills/ketchup-video/SKILL.md
+index c0c6142..beead73 100644
+--- a/skills/ketchup-video/SKILL.md
++++ b/skills/ketchup-video/SKILL.md
+@@ -6,7 +6,7 @@ disable-model-invocation: true
+ 
+ # Ketchup video
+ 
+-Follow [`/ketchup`](../ketchup/SKILL.md), but show what happened in a short subtitled video instead of its summary and visuals. Its window starts at the last message the user wrote before `/ketchup-video`, not before any earlier `/ketchup`. Writing and rendering the video, outside the repo, is the one exception to its read-only rule. The reply is ketchup's opening sentence, the embedded video, one line naming any work left that you can do yourself, and the action items. When the video shows a call's options, call each option by the name the video gives it. If the render fails, say so in one line and give only the calls.
++Follow [`$pstack-codex:ketchup`](../ketchup/SKILL.md), but show what happened in a short subtitled video instead of its summary and visuals. Its window starts at the last message the user wrote before `$pstack-codex:ketchup-video`, not before any earlier `$pstack-codex:ketchup`. Writing and rendering the video, outside the repo, is the one exception to its read-only rule. The reply is ketchup's opening sentence, the embedded video, one line naming any work left that you can do yourself, and the action items. When the video shows a call's options, call each option by the name the video gives it. If the render fails, say so in one line and give only the calls.
+ 
+ ## Slides
+ 
+diff --git a/skills/maintain-verification-skill/SKILL.md b/skills/maintain-verification-skill/SKILL.md
+index a2680b9..d60474f 100644
+--- a/skills/maintain-verification-skill/SKILL.md
++++ b/skills/maintain-verification-skill/SKILL.md
+@@ -6,6 +6,8 @@ disable-model-invocation: true
+ 
+ # Maintain a verification skill
+ 
++Read [Codex execution](../poteto-mode/references/execution.md) before dispatching the read-only source wave.
++
+ A feature map rots the moment the app changes. This skill is the upkeep loop for a skill generated by `/create-verification-skill` (or any project-local verification skill with a feature map). The unit of rigor is the feature, not every sentence: cover every feature file from source and exercise every feature live, without terminalising every bullet.
+ 
+ ## Outcomes
+@@ -22,11 +24,11 @@ Only edit the verification skill's own directory (its SKILL.md, features/, and a
+ 
+ ## Pass
+ 
+-0. **Locate the target.** Find the verification skill to maintain: the project-local skill whose body has launch/drive sections and a feature map (usually `.cursor/skills/verify-*/`). Several candidates → ask which one; none → stop and point at `/create-verification-skill` instead of inventing a target.
++0. **Locate the target.** Find the verification skill to maintain: the project-local skill whose body has launch/drive sections and a feature map (usually `.agents/skills/verify-*/`). Several candidates → ask which one; none → stop and point at `/create-verification-skill` instead of inventing a target.
+ 
+ 1. **Index hygiene.** Read the feature map README and glob its sibling files. Fix missing, extra, duplicate, or dead entries. Lightweight; no generated inventory.
+ 
+-2. **Source wave.** One read-only subagent per feature file, launched concurrently. Each explains "how does this user-facing feature work?" from source, flags likely doc drift with citations, and returns one concise live-verification recipe. Children never drive the app and never edit files. Return shape: feature summary / source entry points / likely drift or none / one recipe.
++2. **Source wave.** One read-only subagent per feature file with `agent_type: "pstack-general-purpose"`, launched concurrently through **Codex execution**. Each explains "how does this user-facing feature work?" from source, flags likely doc drift with citations, and returns one concise live-verification recipe. Children never drive the app and never edit files. Return shape: feature summary / source entry points / likely drift or none / one recipe.
+ 
+ 3. **Reconcile.** Every feature file has a returned summary. Merge overlapping recipes into as few app states as practical. Spot-check cited drift; don't re-prove clean claims. Sweep recent churn for user-facing surfaces missing from the map — require a concrete source path before calling one missing.
+ 
+diff --git a/skills/make-bot-ui/SKILL.md b/skills/make-bot-ui/SKILL.md
+index 446342c..1fb1254 100644
+--- a/skills/make-bot-ui/SKILL.md
++++ b/skills/make-bot-ui/SKILL.md
+@@ -8,6 +8,8 @@ disable-model-invocation: true
+ ---
+ # How to make a bot UI
+ 
++This workflow targets the external Cursor Grok Bot product. It is not a Codex heartbeat or an OpenAI model-selection workflow. Before starting, verify that the current host exposes routine creation (`update_state`), the secret-request card (`SendToUser`), and access to that product's routine panel and credential store. If any is absent, report that concrete external dependency and stop before creating a different automation or collecting a key. The public webhook and sender-key contract below stays unchanged. A Codex-only host does not supply these Cursor product capabilities merely by loading this skill.
++
+ Build a page the user clicks. A server on this computer POSTs JSON to a webhook routine. The bot wakes with that JSON. Keep the sender key on the server. Do not put the sender key in the browser, in chat, or in this skill.
+ 
+ ## Create the webhook routine
+diff --git a/skills/poteto-help/SKILL.md b/skills/poteto-help/SKILL.md
+index 8e4c506..8e35fb9 100644
+--- a/skills/poteto-help/SKILL.md
++++ b/skills/poteto-help/SKILL.md
+@@ -1,6 +1,6 @@
+ ---
+ name: poteto-help
+-description: Guides users through pstack setup, /poteto-mode, and picking the skill, playbook, or principle for a task. Type /poteto-help with a question.
++description: Guides users through pstack setup, $pstack-codex:poteto-mode, and picking the skill, playbook, or principle for a task. Type $pstack-codex:poteto-help with a question.
+ disable-model-invocation: true
+ ---
+ 
+@@ -8,118 +8,114 @@ disable-model-invocation: true
+ 
+ Answer the user's question about pstack, hand them a prompt they can send, and link the file the answer came from. For a help question, don't start the work. The user asked how, and a pstack run spends real tokens, so let them send the prompt.
+ 
+-A message that asks for work, such as "use pstack to fix this bug", is not a help question. Read [`poteto-mode`](../poteto-mode/SKILL.md), do the work under it, and mention once that a Custom Mode keeps it on.
++A message that asks for work, such as "use pstack to fix this bug", is not a help question. Read [`poteto-mode`](../poteto-mode/SKILL.md), do the work under it. Invoke the skill explicitly at the start of each task; a Codex chat has no Cursor Custom Mode to configure.
+ 
+-This file maps questions to the skills and guide pages that hold the answers. Those files own the details. Read the file you route to before you quote it, and trust it when it disagrees with this map. The links here point into the installed plugin, which the user may not be able to open, so give the user the file's public copy: `https://github.com/cursor/plugins/blob/main/pstack/` followed by its path.
++This file maps questions to the skills and guide pages that hold the answers. Those files own the details. Read the file you route to before you quote it, and trust it when it disagrees with this map. Resolve links to the actual installed absolute file paths so the user can inspect this Codex adaptation. Use the pinned upstream public source only when explaining original pstack behavior; it does not describe the Codex execution bindings.
+ 
+ ## Find out what they need
+ 
+ Infer the need from the message and the conversation. A named situation, such as "which skill reviews a PR?", goes straight to its section. If the need is still unclear, ask one multiple-choice question with these options, then answer only the section they pick:
+ 
+ - Get set up
+-- Start a task with `/poteto-mode`
++- Start a task with `$pstack-codex:poteto-mode`
+ - Pick a skill for a situation
+ - Fix a run that went wrong
+ - Make pstack my own
+ 
+ Check the state that changes the answer, and mention it only when it does:
+ 
+-- No `~/.cursor/rules/pstack-models.mdc` means `/setup-pstack` hasn't run for this user, so every role uses its default model.
+-- No `verify-*` skill or other app harness in the project means agents have no scripted way to drive the app. Mention `/create-verification-skill` when the question is about proving a change works.
+-- No formal verification skill in the project means no property is checked past what tests reach. Mention `/create-formal-verification-skill` when the question is about a race, an invariant, or another case tests rarely hit. When one exists and the code it covers changed after the commit it records as last in sync, mention `/maintain-formal-verification-skill` if the question touches that code.
++- Read the setup helper's model configuration with its absolute `scripts/models.mjs read` command. `exists: false` means no preferences file exists. A role absent from `config.roles` has no saved choice and uses the actual native parent with its original cardinality. The `resolve --role "<role>"` command reports that role's `source: unconfigured`.
++- No `verify-*` skill or other app harness in the project means agents have no scripted way to drive the app. Mention `$pstack-codex:create-verification-skill` when the question is about proving a change works.
++- No formal verification skill in the project means no property is checked past what tests reach. Mention `$pstack-codex:create-formal-verification-skill` when the question is about a race, an invariant, or another case tests rarely hit. When one exists and the code it covers changed after the commit it records as last in sync, mention `$pstack-codex:maintain-formal-verification-skill` if the question touches that code.
+ 
+ When the model rule is missing and it matters, ask whether the user wants to pick a model for each role and a reasoning budget now. It matters when the user is new, the question is about setup or cost, or the answer depends on which models run. Ask at most once per chat. If the need is also unclear, ask both questions together. Offer two choices:
+ 
+-- Now: give them `/setup-pstack` to type, and answer their question too.
+-- Later: answer their question, and add one line saying every role keeps its default model until they run `/setup-pstack`.
++- Now: give them `$pstack-codex:setup-pstack` to type, and answer their question too.
++- Later: answer their question, and add one line saying unconfigured roles inherit the native parent, while saved choices remain authoritative.
+ 
+ ## Get set up
+ 
+-1. Install with `/add-plugin pstack` in chat, or from Customize in the sidebar.
+-2. Run [`/setup-pstack`](../setup-pstack/SKILL.md). It asks for a reasoning budget, maps a model to each role, and writes a rule. The rule applies to new chats. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
+-3. Start a real task with `/poteto-mode`, a goal, and a check that can pass or fail.
++1. Install this Codex plugin using the path described in the bundled [README](../../README.md) and setup guide. Distinguish source packaging from runtime discovery and activation.
++2. Run [`$pstack-codex:setup-pstack`](../setup-pstack/SKILL.md). Choose worker executors first. Setup checks installation and authentication only for selected CLIs and guides any needed installation and human login. Then choose supported models, role assignments, and a reasoning budget. Review and save the preferences and register the bundled custom agents. Start a new chat after registration so native agent discovery can reload them. Then it offers once each to generate a verification skill and a formal verification skill for the project, unless the project already has one.
++3. Start a real task with `$pstack-codex:poteto-mode`, a goal, and a check that can pass or fail.
+ 
+-Installing changes nothing until the user invokes a skill. Only `/setup-pstack` loads from the user's words. The [README](../../README.md) and [guide page 1](../../docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).
++`$pstack-codex:setup-pstack`, `$pstack-codex:control-ui`, `$pstack-codex:control-cli`, and `$pstack-codex:deslop` allow implicit invocation from the user's words. The other bundled skills load when the user invokes them explicitly or when `$pstack-codex:poteto-mode` reads them for a task. The [README](../../README.md) and [guide page 1](../../docs/guide/01-setup.md) have the details. Offer to word their first prompt with them, per [`references/prompting.md`](references/prompting.md).
+ 
+-If cost is the worry, say where the tokens go and how to spend fewer. pstack spends extra tokens on subagents and review panels. Rerun `/setup-pstack` and pick a smaller budget or cheaper models. A role set to `auto` or `inherit-parent` runs on the chat's model, which saves tokens when the chat runs on Auto or a cheaper model. A shorter panel list runs fewer subagents, one for each entry. Save `/poteto-mode` for work that needs rigor.
++If cost is the worry, say where the tokens go and how to spend fewer. pstack spends extra tokens on subagents and review panels. Rerun `$pstack-codex:setup-pstack` and pick a smaller budget or cheaper models. A role set to `auto` or `inherit-parent` runs on the chat's actual model through the parent-selection binding in **Codex execution**; omitted native parameters alone do not prove inheritance. A shorter panel list runs fewer subagents, one for each entry. Save `$pstack-codex:poteto-mode` for work that needs rigor.
+ 
+-pstack is built for Cursor, and it also installs in Claude Code with `/plugin marketplace add cursor/plugins`, then `/plugin install pstack@cursor-plugins`. There, each command takes a `pstack:` prefix, such as `/pstack:poteto-mode`. The [Claude Code adapter](../../docs/harness/claude-code.md) maps the Cursor names, and a step that needs a Cursor-only feature, such as Bugbot or Automations, is skipped with a one-line note.
++This distribution uses saved worker choices or the actual native parent for unconfigured roles. Setup chooses executors before checking their CLI and login requirements, then models, roles, and budget. Shared role configuration, project-scoped history, and event-watch/heartbeat continuation bind workers to this host. Read [Codex execution](../poteto-mode/references/execution.md) for these bindings and permission boundaries. Worktrees replace cloud placement and share machine resources. Different-model and different-family requirements apply at the workflow step that needs them.
+ 
+-Other tools can read the skills, because they use the Agent Skills format. But most workflow skills, including `/poteto-mode`, `/how`, and `/teach`, spawn Cursor subagents, some with per-role models, and Custom Modes and `/loop` are Cursor features, so those parts may not work there.
++## Start a task with `$pstack-codex:poteto-mode`
+ 
+-## Start a task with `/poteto-mode`
++`$pstack-codex:poteto-mode` matches the task to a playbook, copies the playbook's steps into the todo list, and runs the other skills as the steps need them. A step it skips stays in the list as `skip: <reason>`. A good prompt states the goal and how to tell it's done. It doesn't list skills, because a hand-written sequence tends to drop or reorder steps the playbook would keep. Read [`references/prompting.md`](references/prompting.md) before you help word one. [Guide page 2](../../docs/guide/02-poteto-mode.md) has examples.
+ 
+-`/poteto-mode` matches the task to a playbook, copies the playbook's steps into the todo list, and runs the other skills as the steps need them. A step it skips stays in the list as `skip: <reason>`. A good prompt states the goal and how to tell it's done. It doesn't list skills, because a hand-written sequence tends to drop or reorder steps the playbook would keep. Read [`references/prompting.md`](references/prompting.md) before you help word one. [Guide page 2](../../docs/guide/02-poteto-mode.md) has examples.
++Load the mode for each task:
++- Invoke `$pstack-codex:poteto-mode` explicitly at the start of each task. Its instructions remain part of this task's context; a fresh task gets a fresh invocation.
++- Codex supports explicit skill references, not Cursor Custom Modes. Persisting this mode in project guidance is a separate activation choice.
+ 
+-Whether `/poteto-mode` stays on depends on how the user starts it:
+-
+-- Enter on `/poteto-mode` attaches the skill to one message. It fades as the chat moves on.
+-- Option+Enter on Mac or Alt+Enter on Windows, or Use as Mode from the skill entry, makes it a Custom Mode. It stays in context every turn until the user exits the mode, and it stays out of casual turns.
+-- Cursor's docs list Custom Modes in the Agents Window and the CLI. Elsewhere, start each new task with `/poteto-mode`.
+-
+-Link [Cursor's skills docs](https://cursor.com/docs/skills) when this comes up. Mid-chat, "new task" makes the mode match a fresh playbook. `/poteto-mode` already uses `poteto-agent` for the subagents its playbook steps spawn. To get the same style from a subagent of your own, spawn it with `subagent_type: "poteto-agent"`.
++Mid-chat, "new task" makes the mode match a fresh playbook. `$pstack-codex:poteto-mode` already uses `poteto-agent` for its playbook delegates. For a subagent of your own, select `agent_type: "poteto-agent"` on the native path or pass its original instruction file on the Claude Code path through [Codex execution](../poteto-mode/references/execution.md).
+ 
+ ## Pick a skill
+ 
+-The default answer is `/poteto-mode`, which runs most of the others when its steps need them. Name a skill directly when the user wants more or less of something than the playbook gives. Read the skill before you recommend it, and give one example prompt.
++The default answer is `$pstack-codex:poteto-mode`, which runs most of the others when its steps need them. Name a skill directly when the user wants more or less of something than the playbook gives. Read the skill before you recommend it, and give one example prompt.
+ 
+ | The user wants to | Skill |
+ |---|---|
+-| Do any non-trivial task with rigor | [`/poteto-mode`](../poteto-mode/SKILL.md) |
+-| Check that the agent understood their goal and the problem before it starts | [`/in-your-own-words`](../in-your-own-words/SKILL.md) |
+-| Get a prompt rewritten deeper, not bigger, before sending it: what a top professional would add, their raw material and methods, and an outside check. It returns the prompt and doesn't do the task | [`/sharpen`](../sharpen/SKILL.md) |
+-| Know how code works now, or where new code should live | [`/how`](../how/SKILL.md) |
+-| Know why code is shaped this way, or where a number came from | [`/why`](../why/SKILL.md) |
+-| Understand a change or subsystem, explained plainly | [`/teach`](../teach/SKILL.md) |
+-| Catch up on their own recent work on a topic | [`/recall`](../recall/SKILL.md) |
+-| Catch up on what changed in this chat since their last message, in plain words and small visuals, with every item waiting on them listed and decidable from the reply alone | [`/ketchup`](../ketchup/SKILL.md) |
+-| Catch up like `/ketchup`, in a short subtitled video of slides, with the waiting calls as text under it | [`/ketchup-video`](../ketchup-video/SKILL.md) |
+-| Know what a small diff could break outside itself | [`/blast-radius`](../blast-radius/SKILL.md) |
+-| Settle types and module shape before code that crosses a function boundary | [`/architect`](../architect/SKILL.md) |
+-| Get several attempts at one brief, merged into the best one | [`/arena`](../arena/SKILL.md) |
+-| Run parallel checks over slices, or race workers, as cloud agents | [`/swarm`](../swarm/SKILL.md) |
+-| Have different models review a diff and try to break it | [`/interrogate`](../interrogate/SKILL.md) |
+-| Fix a bug test-first when a cheap local test exists | [`/tdd`](../tdd/SKILL.md) |
+-| Apply TypeScript rules to `.ts` or `.tsx` work | [`/typescript-best-practices`](../typescript-best-practices/SKILL.md) |
+-| Strip comments before review, using a reviewer that didn't write them | [`/no-comments`](../no-comments/SKILL.md) |
+-| Clean AI tells out of prose | [`/unslop`](../unslop/SKILL.md) |
+-| Write docs, an RFC, a README, a PR description, or a commit message to a standard | [`/technical-writing`](../technical-writing/SKILL.md) |
+-| Hear the last reply again in plain words | [`/bro`](../bro/SKILL.md) |
+-| Give agents a scripted way to drive the app and prove behavior | [`/create-verification-skill`](../create-verification-skill/SKILL.md) |
+-| Bring a verification skill and its feature map back in line with the app | [`/maintain-verification-skill`](../maintain-verification-skill/SKILL.md) |
+-| Formally verify a race, invariant, or other property that tests rarely reach | [`/create-formal-verification-skill`](../create-formal-verification-skill/SKILL.md) |
+-| Bring a formal verification back in line after the code it covers changed, and learn whether a failure is drift or a bug | [`/maintain-formal-verification-skill`](../maintain-formal-verification-skill/SKILL.md) |
+-| Show a PM or designer what the user sees as a chart checked by a TLA+ model, with the shortest path to each state that breaks a rule | [`/statechart`](../statechart/SKILL.md) |
+-| Vet a performance number before reporting or acting on it | [`/benchmark-checklist`](../benchmark-checklist/SKILL.md) |
+-| Run a large or cross-cutting change, or one to review after stepping away | [`/figure-it-out`](../figure-it-out/SKILL.md) |
+-| Keep a decision log during a run, and review it afterward | [`/show-me-your-work`](../show-me-your-work/SKILL.md) |
+-| Pick a model for each role and a reasoning budget | [`/setup-pstack`](../setup-pstack/SKILL.md) |
+-| Turn their own working habits into a personal mode skill | [`/automate-me`](../automate-me/SKILL.md) |
+-| Turn what a finished task taught into skill edits | [`/reflect`](../reflect/SKILL.md) |
+-| Stop agents from repeating the same mistakes in this repo | [`/correct`](../correct/SKILL.md) |
+-| Build a page whose buttons wake a Grok Bot over a webhook | [`/make-bot-ui`](../make-bot-ui/SKILL.md) |
+-| Find their way around pstack | `/poteto-help` |
++| Do any non-trivial task with rigor | [`$pstack-codex:poteto-mode`](../poteto-mode/SKILL.md) |
++| Check that the agent understood their goal and the problem before it starts | [`$pstack-codex:in-your-own-words`](../in-your-own-words/SKILL.md) |
++| Get a prompt rewritten deeper, not bigger, before sending it: what a top professional would add, their raw material and methods, and an outside check. It returns the prompt and doesn't do the task | [`$pstack-codex:sharpen`](../sharpen/SKILL.md) |
++| Know how code works now, or where new code should live | [`$pstack-codex:how`](../how/SKILL.md) |
++| Know why code is shaped this way, or where a number came from | [`$pstack-codex:why`](../why/SKILL.md) |
++| Understand a change or subsystem, explained plainly | [`$pstack-codex:teach`](../teach/SKILL.md) |
++| Catch up on their own recent work on a topic | [`$pstack-codex:recall`](../recall/SKILL.md) |
++| Catch up on what changed in this chat since their last message, in plain words and small visuals, with every item waiting on them listed and decidable from the reply alone | [`$pstack-codex:ketchup`](../ketchup/SKILL.md) |
++| Catch up like `$pstack-codex:ketchup`, in a short subtitled video of slides, with the waiting calls as text under it | [`$pstack-codex:ketchup-video`](../ketchup-video/SKILL.md) |
++| Know what a small diff could break outside itself | [`$pstack-codex:blast-radius`](../blast-radius/SKILL.md) |
++| Settle types and module shape before code that crosses a function boundary | [`$pstack-codex:architect`](../architect/SKILL.md) |
++| Get several attempts at one brief, merged into the best one | [`$pstack-codex:arena`](../arena/SKILL.md) |
++| Run parallel checks over slices, or race workers, in dedicated local worktrees | [`$pstack-codex:swarm`](../swarm/SKILL.md) |
++| Have different models review a diff and try to break it | [`$pstack-codex:interrogate`](../interrogate/SKILL.md) |
++| Fix a bug test-first when a cheap local test exists | [`$pstack-codex:tdd`](../tdd/SKILL.md) |
++| Apply TypeScript rules to `.ts` or `.tsx` work | [`$pstack-codex:typescript-best-practices`](../typescript-best-practices/SKILL.md) |
++| Strip comments before review, using a reviewer that didn't write them | [`$pstack-codex:no-comments`](../no-comments/SKILL.md) |
++| Clean AI tells out of prose | [`$pstack-codex:unslop`](../unslop/SKILL.md) |
++| Write docs, an RFC, a README, a PR description, or a commit message to a standard | [`$pstack-codex:technical-writing`](../technical-writing/SKILL.md) |
++| Hear the last reply again in plain words | [`$pstack-codex:bro`](../bro/SKILL.md) |
++| Give agents a scripted way to drive the app and prove behavior | [`$pstack-codex:create-verification-skill`](../create-verification-skill/SKILL.md) |
++| Bring a verification skill and its feature map back in line with the app | [`$pstack-codex:maintain-verification-skill`](../maintain-verification-skill/SKILL.md) |
++| Formally verify a race, invariant, or other property that tests rarely reach | [`$pstack-codex:create-formal-verification-skill`](../create-formal-verification-skill/SKILL.md) |
++| Bring a formal verification back in line after the code it covers changed, and learn whether a failure is drift or a bug | [`$pstack-codex:maintain-formal-verification-skill`](../maintain-formal-verification-skill/SKILL.md) |
++| Show a PM or designer what the user sees as a chart checked by a TLA+ model, with the shortest path to each state that breaks a rule | [`$pstack-codex:statechart`](../statechart/SKILL.md) |
++| Vet a performance number before reporting or acting on it | [`$pstack-codex:benchmark-checklist`](../benchmark-checklist/SKILL.md) |
++| Run a large or cross-cutting change, or one to review after stepping away | [`$pstack-codex:figure-it-out`](../figure-it-out/SKILL.md) |
++| Keep a decision log during a run, and review it afterward | [`$pstack-codex:show-me-your-work`](../show-me-your-work/SKILL.md) |
++| Pick a model for each role and a reasoning budget | [`$pstack-codex:setup-pstack`](../setup-pstack/SKILL.md) |
++| Turn their own working habits into a personal mode skill | [`$pstack-codex:automate-me`](../automate-me/SKILL.md) |
++| Turn what a finished task taught into skill edits | [`$pstack-codex:reflect`](../reflect/SKILL.md) |
++| Stop agents from repeating the same mistakes in this repo | [`$pstack-codex:correct`](../correct/SKILL.md) |
++| Build a page whose buttons wake a Grok Bot over a webhook | [`$pstack-codex:make-bot-ui`](../make-bot-ui/SKILL.md) |
++| Find their way around pstack | `$pstack-codex:poteto-help` |
+ 
+ If a skill directory next to this one is missing from the table, read its frontmatter and route by its description. The `principle-*` directories are covered under principles below.
+ 
+ Close calls:
+ 
+-- `/how` explains what the code does. `/why` explains the reasons. `/teach` runs one or both and explains the result plainly.
+-- `/arena` gives every worker the same brief and merges the best parts. `/swarm` splits work into slices or a race and returns one report.
+-- `/architect` implements right after it settles the design. Add "with checkpoint" to review the design before it writes code.
+-- `/interrogate` reviews the diff. `/blast-radius` looks for breakage outside the diff and proves the one fact that makes the change safe.
+-- `/recall` rebuilds context across recent chats. `/ketchup` covers only this chat since the user's last message. Resuming one specific chat or branch is the Session pickup playbook.
+-- `/figure-it-out` designs one rigorous run. The Orchestrate playbook runs a program that spans days and many PRs. The Autonomous run playbook drives one task to a finish condition.
++- `$pstack-codex:how` explains what the code does. `$pstack-codex:why` explains the reasons. `$pstack-codex:teach` runs one or both and explains the result plainly.
++- `$pstack-codex:arena` gives every worker the same brief and merges the best parts. `$pstack-codex:swarm` splits work into slices or a race and returns one report.
++- `$pstack-codex:architect` implements right after it settles the design. Add "with checkpoint" to review the design before it writes code.
++- `$pstack-codex:interrogate` reviews the diff. `$pstack-codex:blast-radius` looks for breakage outside the diff and proves the one fact that makes the change safe.
++- `$pstack-codex:recall` rebuilds context across recent chats. `$pstack-codex:ketchup` covers only this chat since the user's last message. Resuming one specific chat or branch is the Session pickup playbook.
++- `$pstack-codex:figure-it-out` designs one rigorous run. The Orchestrate playbook runs a program that spans days and many PRs. The Autonomous run playbook drives one task to a finish condition.
+ 
+-Not in pstack:
++Companion bindings:
+ 
+-- `/deslop`, `control-cli`, and `control-ui` ship in the `cursor-team-kit` plugin.
+-- `/loop` and `/create-skill` are Cursor built-ins.
+-- pstack has no `/orchestrate` skill. Orchestrate is a `/poteto-mode` playbook. If the slash menu shows `/orchestrate`, another plugin provides it.
++- `$pstack-codex:deslop`, `$pstack-codex:control-cli`, and `$pstack-codex:control-ui` are bundled unchanged from the pinned `cursor-team-kit` source. They provide code cleanup and browser/terminal harness guidance; repository-managed source updates track them together with pstack.
++- Skill authoring uses Codex's `skill-creator`. Repeated work uses the [Codex event-watch and heartbeat binding](../poteto-mode/references/codex-loops.md).
++- pstack has no `$orchestrate` skill. Orchestrate is a `$pstack-codex:poteto-mode` playbook. If the skill picker shows `$orchestrate`, another plugin provides it.
+ 
+ ## Playbooks and principles
+ 
+-Playbooks are step lists inside `/poteto-mode`, not skills, so they have no slash command. Inside `/poteto-mode`, describing the task picks one, and these phrases name one directly:
++Playbooks are step lists inside `$pstack-codex:poteto-mode`, not skills, so they have no standalone skill invocation. Inside `$pstack-codex:poteto-mode`, describing the task picks one, and these phrases name one directly:
+ 
+ - "babysit this pr" or "check on pr 123" runs Babysit. It drives the PR to merge-ready and stops there. It doesn't merge unless the user asks to merge, land, or ship.
+ - "land the stack" runs Shipping.
+@@ -128,32 +124,32 @@ Playbooks are step lists inside `/poteto-mode`, not skills, so they have no slas
+ - "full autopilot on this queue" runs Autopilot-full. "autopilot, don't merge" runs Autopilot-stack.
+ - "run the eval playbook" runs Eval.
+ 
+-Without `/poteto-mode`, a phrase such as "babysit this pr" can start Cursor's own skill for the same job instead. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) lists every playbook and when it applies. [Guide page 6](../../docs/guide/06-verify-and-ship.md) covers opening, babysitting, and landing a PR.
++Without an explicit invocation of `$pstack-codex:poteto-mode`, a phrase such as "babysit this pr" may select another available skill for the same job. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) lists every playbook and when it applies. [Guide page 6](../../docs/guide/06-verify-and-ship.md) covers opening, babysitting, and landing a PR.
+ 
+-pstack has no planning skill. Cursor's Plan Mode works alongside it. For work that spans phases or stacked PRs, asking `/poteto-mode` for a plan runs the [Multi-phase plan playbook](../poteto-mode/playbooks/multi-phase-plan.md), which writes the plan and doesn't implement it. For a design question, the Prototype playbook or `/architect` settles it in code first.
++pstack has no planning skill. Codex's Plan mode works alongside it. For work that spans phases or stacked PRs, asking `$pstack-codex:poteto-mode` for a plan runs the [Multi-phase plan playbook](../poteto-mode/playbooks/multi-phase-plan.md), which writes the plan and doesn't implement it. For a design question, the Prototype playbook or `$pstack-codex:architect` settles it in code first.
+ 
+-Principles are one-rule skills that `/poteto-mode` reads and cites in its replies. The user rarely invokes one. They steer with the names instead, as in "apply prove it works. show me the real output." Typing `/principle-<name>` still loads one on demand. [Guide page 8](../../docs/guide/08-principles.md) lists them.
++Principles are one-rule skills that `$pstack-codex:poteto-mode` reads and cites in its replies. The user rarely invokes one. They steer with the names instead, as in "apply prove it works. show me the real output." Typing `$pstack-codex:principle-<name>` still loads one on demand. [Guide page 8](../../docs/guide/08-principles.md) lists them.
+ 
+ ## Fix a run that went wrong
+ 
+ | Symptom | Fix |
+ |---|---|
+-| The mode stopped applying after a few turns | It was started with Enter. Start it as a Custom Mode, or start each task with `/poteto-mode`. |
++| The mode stopped applying after a few turns | Invoke `$pstack-codex:poteto-mode` at the start of each task. A Codex chat does not offer Cursor Custom Modes. |
+ | A question got treated as the next step of the last task | Say "new task", or say the turn doesn't need the mode. |
+-| A new model choice had no effect | The rule from `/setup-pstack` applies to new chats. Start one. |
++| A new model choice had no effect | The rule from `$pstack-codex:setup-pstack` applies to new chats. Start one. |
+ | Runs cost more than expected | See the cost paragraph under Get set up. |
+-| A skill didn't load on its own | Only `/setup-pstack` loads from the user's words. The others load when the user types them or when `/poteto-mode` runs them, and it doesn't run every skill. |
+-| Parallel agents overwrote each other | Give each agent its own worktree, or run them as cloud agents, which each get their own machine. |
+-| An overnight run moved but finished nothing | `/loop` needs a check that can pass or fail, not a duration. See [guide page 7](../../docs/guide/07-overnight.md). |
++| A skill didn't load on its own | `$pstack-codex:setup-pstack`, `$pstack-codex:control-ui`, `$pstack-codex:control-cli`, and `$pstack-codex:deslop` allow implicit invocation. The others load when the user invokes them explicitly or when `$pstack-codex:poteto-mode` reads them for a task, and it doesn't read every skill. |
++| Parallel agents overwrote each other | Give each agent its own worktree and independent app ports/data/session resources. Serialize resources the host cannot isolate. |
++| An overnight run moved but finished nothing | Codex continuation needs a check that can pass or fail, an event watcher or heartbeat, and a saved resume point. See [guide page 7](../../docs/guide/07-overnight.md). |
+ | The reply claims success from a green build | Ask for the real command, flow, stored value, or profile. That's the prove-it-works principle. |
+ 
+ For a run that drifts, [`references/prompting.md`](references/prompting.md) has one-line steers. [Guide page 10](../../docs/guide/10-recipes-and-pitfalls.md) has more pitfalls and the recipes worth copying.
+ 
+ ## Make pstack my own
+ 
+-- [`/automate-me`](../automate-me/SKILL.md) drafts a personal mode skill from the user's own history, to use alongside `/poteto-mode`.
+-- [`/reflect`](../reflect/SKILL.md) after a session turns its lessons into skill edits the user approves.
+-- `/poteto-mode write a skill for <workflow>` runs the authoring playbook. The eval playbook tests a skill change blind.
++- [`$pstack-codex:automate-me`](../automate-me/SKILL.md) drafts a personal mode skill from the user's own history, to use alongside `$pstack-codex:poteto-mode`.
++- [`$pstack-codex:reflect`](../reflect/SKILL.md) after a session turns its lessons into skill edits the user approves.
++- `$pstack-codex:poteto-mode write a skill for <workflow>` runs the authoring playbook. The eval playbook tests a skill change blind.
+ - Fix a misbehaving skill in its own PR, not inside the feature work where it went wrong.
+ 
+ [Guide page 9](../../docs/guide/09-make-it-yours.md) covers each of these.
+diff --git a/skills/poteto-help/references/prompting.md b/skills/poteto-help/references/prompting.md
+index 6b72b2e..4f73dea 100644
+--- a/skills/poteto-help/references/prompting.md
++++ b/skills/poteto-help/references/prompting.md
+@@ -19,9 +19,9 @@ A prompt states the intent and the check for done. The playbook supplies the ste
+ ## Load the context first
+ 
+ - For a noisy report, ask the agent to restate the underlying issue in its own words and in plain English before it does anything else. A misreading shows up before any code exists.
+-- In a fresh chat, `/recall` earlier work on the topic. Old chats hold context that the new agent lacks.
+-- Before a change to unfamiliar code, ask `/how` for the mechanics and `/why` for the reasons. An agent with no traced model fixes the symptom at the first plausible spot.
+-- Ask `/teach` to make the case for a choice, as in "convince me it fixes the cause and not the symptom". A case is easier to check than a summary.
++- In a fresh chat, `$pstack-codex:recall` earlier work on the topic. Old chats hold context that the new agent lacks.
++- Before a change to unfamiliar code, ask `$pstack-codex:how` for the mechanics and `$pstack-codex:why` for the reasons. An agent with no traced model fixes the symptom at the first plausible spot.
++- Ask `$pstack-codex:teach` to make the case for a choice, as in "convince me it fixes the cause and not the symptom". A case is easier to check than a summary.
+ 
+ ## Design before the plan
+ 
+@@ -38,7 +38,7 @@ A prompt states the intent and the check for done. The playbook supplies the ste
+ ## Before stepping away
+ 
+ - Say "im going to bed" or "im stepping away" so the agent stops asking.
+-- Write done as checks every iteration can run, and give `/loop` that predicate.
++- Write done as checks every iteration can run, and give the Codex continuation binding that predicate.
+ - Ask for a fresh worktree off a named base.
+ - Pre-answer what the agent would stop for, such as "don't ask me before committing".
+ - Ask for a decision log to audit later.
+diff --git a/skills/poteto-help/references/recipes.md b/skills/poteto-help/references/recipes.md
+index cc7a4e6..97a754a 100644
+--- a/skills/poteto-help/references/recipes.md
++++ b/skills/poteto-help/references/recipes.md
+@@ -4,48 +4,48 @@ Swap in the real paths, skills, and done checks. Informal wording works.
+ 
+ ## Understand
+ 
+-- `/poteto-mode read <thread>. restate the underlying issue in your own words, in plain english.`
+-- `/in-your-own-words <long or messy ask>`
+-- `/sharpen <the prompt you're about to send>`
+-- `/poteto-mode investigate why <symptom>. give me what we know, what data you used, and your best hypotheses. don't change any code yet.`
+-- `use /how to understand <subsystem>. then use /why to find out why it broke recently.`
+-- `/recall my work on <topic> from last week, then read <issue>.`
+-- `/teach me why you implemented it this way and not <other way>. what did you trade off?`
+-- `/poteto-mode take over this branch. read the decision log, find what's done, and continue. don't redo finished work.`
++- `$pstack-codex:poteto-mode read <thread>. restate the underlying issue in your own words, in plain english.`
++- `$pstack-codex:in-your-own-words <long or messy ask>`
++- `$pstack-codex:sharpen <the prompt you're about to send>`
++- `$pstack-codex:poteto-mode investigate why <symptom>. give me what we know, what data you used, and your best hypotheses. don't change any code yet.`
++- `use $pstack-codex:how to understand <subsystem>. then use $pstack-codex:why to find out why it broke recently.`
++- `$pstack-codex:recall my work on <topic> from last week, then read <issue>.`
++- `$pstack-codex:teach me why you implemented it this way and not <other way>. what did you trade off?`
++- `$pstack-codex:poteto-mode take over this branch. read the decision log, find what's done, and continue. don't redo finished work.`
+ 
+ ## Build
+ 
+-- Bug: `/poteto-mode <symptom>. repro first, then fix and verify.`
+-- Bug in an app: `/poteto-mode repro this with /verify-<app>. if it repros on main, fix it and show me a video as proof.`
+-- Bug with a cheap test: `/poteto-mode repro <bug> first. if there's a cheap test path, /tdd it. then fix and rerun.`
+-- Feature: `/poteto-mode add <behavior>. <current output> stays byte-identical. verify both.`
+-- Refactor: `/poteto-mode move <code> into one module, zero behavior change. record the current output first and prove it's unchanged after.`
+-- Perf: `/poteto-mode <operation> takes <time> on <fixture>. trace it, fix the measured cause, show me before and after.`
++- Bug: `$pstack-codex:poteto-mode <symptom>. repro first, then fix and verify.`
++- Bug in an app: `$pstack-codex:poteto-mode repro this with $verify-<app>. if it repros on main, fix it and show me a video as proof.`
++- Bug with a cheap test: `$pstack-codex:poteto-mode repro <bug> first. if there's a cheap test path, $pstack-codex:tdd it. then fix and rerun.`
++- Feature: `$pstack-codex:poteto-mode add <behavior>. <current output> stays byte-identical. verify both.`
++- Refactor: `$pstack-codex:poteto-mode move <code> into one module, zero behavior change. record the current output first and prove it's unchanged after.`
++- Perf: `$pstack-codex:poteto-mode <operation> takes <time> on <fixture>. trace it, fix the measured cause, show me before and after.`
+ 
+ ## Design and plan
+ 
+-- `/poteto-mode prototype a few options for <feature>. take screenshots or videos for me to compare.`
+-- `/poteto-mode we need <feature>. /architect it first, and answer open questions with prototypes. let me review before proceeding.`
+-- `/poteto-mode write a tutorial for how i would use <new package> first. then /teach me why it beats the current one.`
+-- `ask /arena for a second opinion on this thread and our approach.`
+-- `/poteto-mode turn this design into a plan. small verifiable PRs, each with its own verification steps.`
+-- `/poteto-mode plan the migration of <library> to <target>. small verifiable PRs. the result must match the original exactly, bugs included.`
++- `$pstack-codex:poteto-mode prototype a few options for <feature>. take screenshots or videos for me to compare.`
++- `$pstack-codex:poteto-mode we need <feature>. $pstack-codex:architect it first, and answer open questions with prototypes. let me review before proceeding.`
++- `$pstack-codex:poteto-mode write a tutorial for how i would use <new package> first. then $pstack-codex:teach me why it beats the current one.`
++- `ask $pstack-codex:arena for a second opinion on this thread and our approach.`
++- `$pstack-codex:poteto-mode turn this design into a plan. small verifiable PRs, each with its own verification steps.`
++- `$pstack-codex:poteto-mode plan the migration of <library> to <target>. small verifiable PRs. the result must match the original exactly, bugs included.`
+ 
+ ## Review and ship
+ 
+-- `/interrogate the whole branch, but skeptically. don't change anything yet. no nitpicks unless it's a real bug or regression.` Read the Dropped list too.
+-- `/create-formal-verification-skill prove <property> holds in <module>, even when <steps> interleave or retry.` After merges or refactors in that code: `/maintain-formal-verification-skill`.
+-- `/swarm check every package under <dir> against its check script. one worker per package. one report.`
+-- `/poteto-mode open the pr. small ordered commits, evidence in the description.`
+-- `/poteto-mode babysit this pr. get it green.` For status only: `/poteto-mode check on pr <number>. anything outstanding?`
+-- `/poteto-mode land the stack.`
++- `$pstack-codex:interrogate the whole branch, but skeptically. don't change anything yet. no nitpicks unless it's a real bug or regression.` Read the Dropped list too.
++- `$pstack-codex:create-formal-verification-skill prove <property> holds in <module>, even when <steps> interleave or retry.` After merges or refactors in that code: `$pstack-codex:maintain-formal-verification-skill`.
++- `$pstack-codex:swarm check every package under <dir> against its check script. one worker per package. one report.`
++- `$pstack-codex:poteto-mode open the pr. small ordered commits, evidence in the description.`
++- `$pstack-codex:poteto-mode babysit this pr. get it green.` For status only: `$pstack-codex:poteto-mode check on pr <number>. anything outstanding?`
++- `$pstack-codex:poteto-mode land the stack.`
+ 
+ ## Away and back
+ 
+-- `/poteto-mode im going to bed. <goal> in a fresh worktree off <base>. done means <checks>. keep a decision log. don't ask me before committing. /loop until done. if you're truly stuck after a few hours, stop and write up why.`
+-- `/show-me-your-work catch me up on what you did last night.` Read its Attention section first.
+-- `/ketchup` catches you up on this chat since your last message and lists every call that waits on you.
+-- `/poteto-mode full autopilot on this queue. each item is independent.`
+-- `/poteto-mode autopilot these changes, but don't merge. i'll land them.`
+-- `/reflect capture what we learned so the next run doesn't repeat it.` Approve only edits that change a future decision.
+-- `/bro` restates the last reply in plain words.
++- `$pstack-codex:poteto-mode im going to bed. <goal> in a fresh worktree off <base>. done means <checks>. keep a decision log. don't ask me before committing. use the Codex event-watch and heartbeat binding until done. if you're truly stuck after a few hours, stop and write up why.`
++- `$pstack-codex:show-me-your-work catch me up on what you did last night.` Read its Attention section first.
++- `$pstack-codex:ketchup` catches you up on this chat since your last message and lists every call that waits on you.
++- `$pstack-codex:poteto-mode full autopilot on this queue. each item is independent.`
++- `$pstack-codex:poteto-mode autopilot these changes, but don't merge. i'll land them.`
++- `$pstack-codex:reflect capture what we learned so the next run doesn't repeat it.` Approve only edits that change a future decision.
++- `$pstack-codex:bro` restates the last reply in plain words.
+diff --git a/skills/recall/SKILL.md b/skills/recall/SKILL.md
+index 9a4b21f..c97fb1c 100644
+--- a/skills/recall/SKILL.md
++++ b/skills/recall/SKILL.md
+@@ -12,12 +12,14 @@ Keep it tight and on-topic. Read only what the in-scope threads need, then stop.
+ 
+ Your context lives in two records. Your own chat history holds what you did and decided. The shared record holds everything that happened around the same code under other names: the symptoms users keep reporting, the fixes that shipped and got reverted, the errors still firing in prod. That second record lives in source control, the issue tracker, chat and issue channels, long-form docs, and error tracking. A feature with a long bug tail keeps most of its story there, so don't reconstruct it from your transcripts alone.
+ 
+-Transcripts live at `~/.cursor/projects/<slug>/agent-transcripts/<uuid>/<uuid>.jsonl`, where `<slug>` is the workspace path with the leading slash dropped and each "/" turned into "-" (so `/Users/you/proj` becomes `Users-you-proj`). Every line is one chat message.
++Read [Codex execution](../poteto-mode/references/execution.md) before dispatching subagents. For history, resolve `scripts/codex-history.mjs` from this skill's installed directory, then run `node "<absolute-helper>" list --project "<active-project>" --since "<window-start>"`. It scopes Codex rollouts by `session_meta.cwd`, including this repository's current worktrees and archived sessions. Each UUID selects its current rollout; superseded files remain available for inherited prefixes. Results use the selected rollout's modification time. Use `--query "<topic>"` to search that same reconstructed conversation, including older inherited content, and `read --project "<active-project>" --id <uuid>` for its full JSONL. A JSONL line is a metadata, message, tool, or event record, not always a chat message. If a required prefix is missing, use the host's full thread-history API instead of claiming a complete transcript.
++
++Include existing Claude runner evidence by repeating `--claude-runs "<absolute-known-run-directory-or-root>"` on the list command. Find those locations in task artifacts and the project's existing `.local/` run directories; the runner has no universal run root. Only supplied roots inside the project or its worktrees are searched, and `request.json.cwd` must also match that scope before result or transcript content is read. `--query` searches the prompt, raw stdout, and receipt. Results identify the executor, session UUID, exact receipt path, cwd, time, and raw artifact paths. Read an exact run with `read --project "<active-project>" --source claude-code --claude-runs "<known-root>" --receipt "<exact-result.json>"`, then open its returned `requestPath`, `promptPath`, `stdoutPath`, and `stderrPath` as needed. Read the raw stream when reconstructing attempts, failures, or tool use; the final result alone can omit them. Resumed runs retain distinct receipt paths even when their session UUID matches. Keep the executor and receipt path with each finding. Scope metadata before topic searches; do not scan Codex or Claude home directories for unrelated transcript bodies.
+ 
+ 1. Classify, then route. One specific prior chat to resume is the `session-pickup` playbook, not this. Turning habits into a durable skill is `automate-me`. A human-readable summary of your work is a different task. Recall loads working context across recent chats before you act. If the user already gave you a full state capsule (paths, branch, the change), use it and skip the mining.
+ 2. Lock the scope before searching. Pin the window ("recent" is a real range, default the last 7 days), the topic if named, and the workspace (default the active one. Never read another project's transcripts without being asked). State the scope back. Never quietly turn "all" into "recent N".
+-3. Fan out across your chat history. Spawn parallel subagents on a fast, cheap model, each taking a slice of the corpus. Tell every subagent to order candidates by real modification time (`ls -t`) and never by UUID name, grep the topic first and then read only the matching chats and only their relevant regions, and skip the current chat plus obvious noise (subagent, eval, and test chats). Each returns the same schema, one block per chat: topic, the user's goal, decisions, open threads, struggles and corrections, and artifacts (PRs, tickets, branches), each citing the chat UUID. For one or two chats, skip the fan-out and search directly. The raw transcripts stay in the subagents. The main thread gets only their findings. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+-4. Sweep the shared record whenever the topic names a feature, file, subsystem, area, or bug. This is the default, not a judgment call, and "my work on X" does not exempt it. Spawn one investigator subagent per source, in agent mode because readonly strips MCP access, and ask each "what's the current state, what's been tried and didn't hold, and what are users still reporting". Run them in parallel with the chat-history mining. Null results are findings. Skip an unavailable MCP and say so. Fold what comes back into the brief. Skip this step only for pure activity recall with no named target ("what did I do this week"), where your own history and live state are the entire answer.
++3. Fan out across your chat history. Resolve the existing `swarm workers` role through the setup helper's `models.mjs resolve --role "swarm workers"` command per **Codex execution**, then launch parallel general-purpose miners through Codex execution on that saved entry, selecting `agent_type: "pstack-general-purpose"` on the native path, each taking a slice of the corpus. Give miners the scoped Codex UUIDs and exact Claude receipt paths with their run roots. Order candidates by returned activity time, query the topic first, then read the matching chats or raw runner evidence and their relevant regions. Skip the current chat plus obvious noise (subagent, eval, and test chats). Each returns the same schema, one block per chat or run: topic, the user's goal, decisions, open threads, struggles and corrections, and artifacts (PRs, tickets, branches), citing the executor and chat UUID or exact receipt path. For one or two chats, skip the fan-out and search directly. The raw transcripts stay in the subagents. The main thread gets only their findings. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
++4. Sweep the shared record whenever the topic names a feature, file, subsystem, area, or bug. This is the default, not a judgment call, and "my work on X" does not exempt it. Spawn one investigator subagent per source through Codex execution, as a general-purpose seat on the actual native parent selection with `agent_type: "pstack-general-purpose"` on the native path and the parent's MCP access, and ask each "what's the current state, what's been tried and didn't hold, and what are users still reporting". Run them in parallel with the chat-history mining. Null results are findings. Skip an unavailable MCP and say so. Fold what comes back into the brief. Skip this step only for pure activity recall with no named target ("what did I do this week"), where your own history and live state are the entire answer.
+ 5. Verify against live state. Take the PRs, branches, and tickets that the mining and the sweep surfaced and check them with `git` and `gh`. When the answer hinges on what an agent actually did (the tools it ran, files it read, errors it hit), read the full transcript, not just a trimmed local copy.
+ 6. Write the brief to the contract below. Group by thread. Stay on the named topic.
+ 
+diff --git a/skills/recall/scripts/codex-history.mjs b/skills/recall/scripts/codex-history.mjs
+new file mode 100755
+index 0000000..e631942
+--- /dev/null
++++ b/skills/recall/scripts/codex-history.mjs
+@@ -0,0 +1,247 @@
++#!/usr/bin/env node
++// Codex adaptation of pstack's workspace-scoped transcript lookup.
++import { createReadStream } from "node:fs";
++import { lstat, readFile, readdir, realpath, stat } from "node:fs/promises";
++import { execFileSync } from "node:child_process";
++import { homedir } from "node:os";
++import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
++import { pathToFileURL } from "node:url";
++import { createZstdDecompress, zstdDecompressSync } from "node:zlib";
++
++const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
++const inside = (path, root) => {
++  const suffix = relative(root, path);
++  return suffix === "" || (!suffix.startsWith(`..${sep}`) && suffix !== ".." && !isAbsolute(suffix));
++};
++const canonical = async (path) => realpath(resolve(path)).catch(() => resolve(path));
++
++export async function projectRoots(project) {
++  const current = await realpath(resolve(project));
++  try {
++    const output = execFileSync("git", ["-C", current, "worktree", "list", "--porcelain", "-z"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
++    return [...new Set(await Promise.all(output.split("\0").filter((field) => field.startsWith("worktree ")).map((field) => canonical(field.slice(9)))))];
++  } catch {
++    return [current];
++  }
++}
++
++async function* rolloutFiles(root) {
++  const info = await lstat(root).catch(() => undefined);
++  if (!info?.isDirectory() || info.isSymbolicLink()) return;
++  for (const entry of await readdir(root, { withFileTypes: true })) {
++    if (entry.isSymbolicLink()) continue;
++    const path = join(root, entry.name);
++    if (entry.isDirectory()) yield* rolloutFiles(path);
++    else if (entry.isFile() && /\.jsonl(?:\.zst)?$/.test(entry.name)) yield path;
++  }
++}
++
++async function metadata(path) {
++  const input = createReadStream(path);
++  const decoded = path.endsWith(".zst") ? input.pipe(createZstdDecompress()) : input;
++  if (decoded !== input) input.on("error", (error) => decoded.destroy(error));
++  let first = Buffer.alloc(0);
++  try {
++    for await (const chunk of decoded) {
++      const newline = chunk.indexOf(10);
++      first = Buffer.concat([first, newline < 0 ? chunk : chunk.subarray(0, newline)]);
++      if (first.length > 1024 * 1024) throw new Error("Oversized session metadata");
++      if (newline >= 0) break;
++    }
++    const line = JSON.parse(first.toString("utf8"));
++    if (line.type !== "session_meta" || typeof line.payload?.cwd !== "string" || !isAbsolute(line.payload.cwd) || !UUID.test(line.payload.id)) return undefined;
++    return line.payload;
++  } finally {
++    decoded.destroy();
++    input.destroy();
++  }
++}
++
++async function historyInventory({ project = process.cwd(), codexHome = process.env.CODEX_HOME || join(homedir(), ".codex") } = {}) {
++  const roots = await projectRoots(project);
++  const home = await canonical(codexHome);
++  const items = [];
++  for (const directory of ["sessions", "archived_sessions"]) {
++    for await (const path of rolloutFiles(join(home, directory))) {
++      let meta;
++      try { meta = await metadata(path); } catch { continue; }
++      if (!meta) continue;
++      const cwd = await canonical(meta.cwd);
++      if (!roots.some((root) => inside(cwd, root))) continue;
++      const info = await stat(path);
++      const rolloutId = basename(path).match(/([0-9a-f-]{36})\.jsonl(?:\.zst)?$/i)?.[1] || meta.id;
++      const item = { id: meta.id, executor: "codex", rolloutId, path, cwd: meta.cwd, modified: info.mtime.toISOString(), timestamp: meta.timestamp, source: meta.source, parentThreadId: meta.parent_thread_id, historyBase: meta.history_base, archived: directory === "archived_sessions" };
++      items.push(item);
++    }
++  }
++  return items;
++}
++
++function currentRollouts(inventory) {
++  const order = (item) => {
++    const name = basename(item.path).match(/^rollout-(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2})-([0-9a-f-]{36})(?:_([0-9a-f-]{36}))?\.jsonl(?:\.zst)?$/i);
++    // Match Codex's filesystem fallback: filename time, then physical rollout UUID.
++    return name && name[2] === item.id ? `${name[1]}_${item.rolloutId}` : item.modified;
++  };
++  const current = new Map();
++  for (const item of inventory) {
++    const previous = current.get(item.id);
++    if (!previous || order(item) > order(previous)) current.set(item.id, item);
++  }
++  return [...current.values()];
++}
++
++async function* runnerReceipts(root) {
++  for (const entry of await readdir(root, { withFileTypes: true })) {
++    if (entry.isSymbolicLink()) continue;
++    const path = join(root, entry.name);
++    if (entry.isDirectory()) yield* runnerReceipts(path);
++    else if (entry.isFile() && entry.name === "result.json") yield path;
++  }
++}
++
++async function readRunFile(path) {
++  if ((await lstat(path)).isSymbolicLink() || await realpath(path) !== path) throw new Error("Runner artifact traverses a symlink");
++  return readFile(path);
++}
++
++async function claudeInventory(project, claudeRuns = []) {
++  const roots = await projectRoots(project);
++  const items = new Map();
++  for (const supplied of Array.isArray(claudeRuns) ? claudeRuns : [claudeRuns]) {
++    if (!isAbsolute(supplied)) throw new Error("--claude-runs must be an absolute existing run directory or root");
++    const root = await realpath(supplied);
++    if (!roots.some((projectRoot) => inside(root, projectRoot))) throw new Error("--claude-runs must be inside this project or its worktrees");
++    for await (const path of runnerReceipts(root)) {
++      try {
++        const requestPath = join(dirname(path), "request.json");
++        const request = JSON.parse((await readRunFile(requestPath)).toString("utf8"));
++        if (request.executor !== "claude-code" || typeof request.cwd !== "string" || !isAbsolute(request.cwd)) continue;
++        // request.json is metadata only; scope it before opening the result or transcript.
++        const cwd = await canonical(request.cwd);
++        if (!roots.some((projectRoot) => inside(cwd, projectRoot))) continue;
++        const receipt = JSON.parse((await readRunFile(path)).toString("utf8"));
++        if (receipt.executor !== "claude-code" || receipt.cwd !== request.cwd || receipt.startedAt !== request.startedAt || (receipt.sessionId !== null && !UUID.test(receipt.sessionId || ""))) continue;
++        const paths = { requestPath, resultPath: path, promptPath: join(dirname(path), "prompt.txt"), stdoutPath: join(dirname(path), "stdout.jsonl"), stderrPath: join(dirname(path), "stderr.log") };
++        let valid = true;
++        for (const [key, expected] of Object.entries(paths)) {
++          if (typeof receipt[key] !== "string" || !isAbsolute(receipt[key]) || await canonical(receipt[key]) !== expected) valid = false;
++        }
++        const modified = receipt.completedAt || request.startedAt;
++        if (!valid || Number.isNaN(Date.parse(request.startedAt)) || Number.isNaN(Date.parse(modified))) continue;
++        items.set(path, { id: receipt.sessionId, executor: "claude-code", source: "claude-code", path, cwd: request.cwd, timestamp: request.startedAt, modified, completedAt: receipt.completedAt, model: request.model, observedModel: receipt.observedModel, ...paths });
++      } catch {
++        // Incomplete runs and unrelated result.json files are not runner receipts.
++      }
++    }
++  }
++  return [...items.values()];
++}
++
++function validateSource(source) {
++  if (source !== undefined && source !== "codex" && source !== "claude-code") throw new Error("--source must be codex or claude-code");
++}
++
++export async function listHistory({ project = process.cwd(), codexHome, since, query, touching, exclude, claudeRuns, source } = {}) {
++  validateSource(source);
++  const cutoff = since === undefined ? -Infinity : Date.parse(since);
++  if (Number.isNaN(cutoff)) throw new Error("--since must be an ISO date or timestamp");
++  const inventory = source === "claude-code" ? [] : await historyInventory({ project, codexHome });
++  const candidates = [...currentRollouts(inventory), ...(source === "codex" ? [] : await claudeInventory(project, claudeRuns))];
++  const items = [];
++  for (const item of candidates) {
++    if (item.id === exclude || Date.parse(item.modified) < cutoff) continue;
++    if (query !== undefined || touching !== undefined) {
++      const content = item.executor === "codex" ? (await expandHistory(item, inventory)).toString("utf8") : (await Promise.all([item.path, item.promptPath, item.stdoutPath].map(readRunFile))).map((bytes) => bytes.toString("utf8")).join("\n");
++      if (query !== undefined && !content.includes(query)) continue;
++      if (touching !== undefined) {
++        const target = await canonical(touching);
++        const literal = JSON.stringify(resolve(touching)).slice(1, -1);
++        if (!inside(await canonical(item.cwd), target) && !content.includes(`${literal}/`) && !content.includes(`${literal}"`)) continue;
++      }
++    }
++    items.push(item);
++  }
++  return items.sort((a, b) => b.modified.localeCompare(a.modified) || a.path.localeCompare(b.path));
++}
++
++async function readRollout(item) {
++  // The inventory validates session metadata before opening message content.
++  if ((await lstat(item.path)).isSymbolicLink()) throw new Error("Rollout became a symlink");
++  if (await realpath(item.path) !== item.path) throw new Error("Rollout path traverses a symlink");
++  const latest = await metadata(item.path);
++  if (latest?.id !== item.id || latest?.cwd !== item.cwd) throw new Error("Session metadata changed after scoping");
++  const bytes = await readFile(item.path);
++  return item.path.endsWith(".zst") ? zstdDecompressSync(bytes) : bytes;
++}
++
++async function expandHistory(selected, inventory) {
++  const seen = new Set();
++  async function expand(item, byteLimit) {
++    if (seen.has(item.path)) throw new Error("Cyclic inherited history");
++    seen.add(item.path);
++    let prefix = Buffer.alloc(0);
++    if (item.historyBase) {
++      const base = item.historyBase;
++      const inherited = inventory.find((entry) => entry.rolloutId === base.thread_id);
++      if (!inherited) throw new Error("Inherited rollout is unavailable in this project; use the host's full thread-history API");
++      if (!Number.isSafeInteger(base.end_byte_offset) || base.end_byte_offset < 0) throw new Error("Invalid inherited history byte boundary");
++      prefix = await expand(inherited, base.end_byte_offset);
++    }
++    const bytes = await readRollout(item);
++    const own = byteLimit === undefined ? bytes : bytes.subarray(0, byteLimit);
++    if (byteLimit !== undefined && (byteLimit > bytes.length || (byteLimit > 0 && own.at(-1) !== 10))) throw new Error("Inherited history boundary is outside a complete record");
++    seen.delete(item.path);
++    return Buffer.concat([prefix, own]);
++  }
++  return expand(selected);
++}
++
++export async function readHistory(options) {
++  validateSource(options.source);
++  if (options.source === "claude-code" || options.receipt) {
++    if (options.source === "codex") throw new Error("--receipt requires --source claude-code");
++    const inventory = await claudeInventory(options.project || process.cwd(), options.claudeRuns);
++    let matches;
++    if (options.receipt) {
++      if (!isAbsolute(options.receipt) || basename(options.receipt) !== "result.json") throw new Error("--receipt must be an exact absolute result.json path");
++      const path = await canonical(options.receipt);
++      matches = inventory.filter((item) => item.path === path && (options.id === undefined || item.id === options.id));
++    } else {
++      if (!UUID.test(options.id || "")) throw new Error("--id must be an exact chat UUID");
++      matches = inventory.filter((item) => item.id === options.id);
++    }
++    if (matches.length > 1) throw new Error("Session has multiple runs; select the exact receipt with --receipt");
++    if (!matches.length) throw new Error("Receipt is absent from this project's supplied run roots");
++    const bytes = await readRunFile(matches[0].path);
++    const latest = JSON.parse(bytes.toString("utf8"));
++    if (latest.sessionId !== matches[0].id || latest.cwd !== matches[0].cwd) throw new Error("Runner receipt changed after scoping");
++    return bytes;
++  }
++  if (!UUID.test(options.id || "")) throw new Error("--id must be an exact chat UUID");
++  const inventory = await historyInventory(options);
++  const selected = currentRollouts(inventory).find((item) => item.id === options.id);
++  if (!selected) throw new Error("Chat is absent from this project's scoped history");
++  return expandHistory(selected, inventory);
++}
++
++async function main(argv) {
++  const command = argv.shift();
++  if (command === "--help" || command === "help" || !command) {
++    console.log("Usage: codex-history.mjs list|read --project ABS [--codex-home ABS] [--since ISO] [--query TEXT] [--touching ABS] [--exclude UUID] [--id UUID] [--source codex|claude-code] [--claude-runs ABS]... [--receipt ABS/result.json]\nLists metadata-scoped project/worktree history, newest activity first. Codex read emits current JSONL with inherited prefixes. Supply existing project-local Claude run roots explicitly; Claude read emits the exact result receipt and its raw artifact paths. No files are written.");
++    return;
++  }
++  const options = {};
++  const names = { "--project": "project", "--codex-home": "codexHome", "--since": "since", "--query": "query", "--touching": "touching", "--exclude": "exclude", "--id": "id", "--source": "source", "--claude-runs": "claudeRuns", "--receipt": "receipt" };
++  while (argv.length) {
++    const flag = argv.shift();
++    if (!names[flag] || argv.length === 0) throw new Error(`Unknown or incomplete option: ${flag}`);
++    if (flag === "--claude-runs") (options.claudeRuns ??= []).push(argv.shift());
++    else options[names[flag]] = argv.shift();
++  }
++  if (command === "list") for (const item of await listHistory(options)) console.log(JSON.stringify(item));
++  else if (command === "read") process.stdout.write(await readHistory(options));
++  else throw new Error(`Unknown command: ${command}`);
++}
++
++if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main(process.argv.slice(2)).catch((error) => { console.error(error.message); process.exitCode = 1; });
+diff --git a/skills/reflect/SKILL.md b/skills/reflect/SKILL.md
+index 2a067f5..b76e17c 100644
+--- a/skills/reflect/SKILL.md
++++ b/skills/reflect/SKILL.md
+@@ -12,31 +12,27 @@ Invoke when the user says "reflect" or "/reflect". Skip when the conversation is
+ 
+ ## 1. Locate the active transcript
+ 
+-Before fanning out, find this conversation's transcript in the `agent-transcripts/` directory the system prompt names. Do not glob across `~/.cursor/projects/*/`. That crosses workspace boundaries and reads private chats from unrelated projects.
++Use the current conversation context first. When the runtime exposes an active local transcript identity, resolve the sibling `recall/scripts/codex-history.mjs` helper from this skill's actual directory. Run `list --project <absolute project path>` to obtain project-scoped metadata, then `read --project <absolute project path> --id <session UUID>` for the matching session. Confirm the opening user prompt before passing a path or transcript. The helper gates project ownership before reading session content.
+ 
+-```bash
+-ls -t <agent-transcripts>/*.jsonl <agent-transcripts>/*/*.jsonl <agent-transcripts>/*/subagents/*.jsonl 2>/dev/null | head -10
+-```
+-
+-That covers the legacy flat (`<id>.jsonl`), current nested (`<id>/<id>.jsonl`), and subagent (`<parent>/subagents/<child>.jsonl`) layouts. For each candidate, read the first JSONL line. Take the file whose `message.content[0].text` contains the conversation's opening user prompt. If none matches, pass a tight digest of the session instead.
++If the active transcript cannot be matched, pass a tight digest of this conversation instead. Keep unrelated projects' chats outside the search.
+ 
+ ## 2. Spawn three reviewers in parallel
+ 
+-One message, three `Task` calls, `subagent_type: generalPurpose`, agent mode (`readonly: false`). Reviewers need MCP access to look up the tickets, chat threads, and observability traces the transcript references, and readonly strips MCPs.
++Read [Codex execution](../poteto-mode/references/execution.md). Launch three general-purpose reviewers through each selected executor without waiting between them, selecting `agent_type: "pstack-general-purpose"` on the native path. Native reviewers retain the parent's MCP access; Claude Code reviewers use its configured MCPs to look up tickets, chat threads, and observability traces.
+ 
+-Each reviewer and the synthesizer name a role line in the `pstack-models.mdc` rule and a default. Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
++Resolve each table role with the sibling setup helper. Apply task effort and budget guidance from poteto-mode. Pass absolute paths to this skill, each template, and the scoped transcript or digest.
+ 
+-| Lens | Role line | Default `model` | Prompt template |
++| Lens | Model role | Missing role | Prompt template |
+ |---|---|---|---|
+-| Judgment | `reflect judgment, divergent, synthesizer` | `claude-opus-5-5-xhigh` | `references/judgment-reviewer.md` |
+-| Tooling | `reflect tooling` | `claude-opus-5-5-high-fast` | `references/tooling-reviewer.md` |
+-| Divergent | `reflect judgment, divergent, synthesizer` | `claude-opus-5-5-xhigh` | `references/divergent-reviewer.md` |
++| Judgment | `reflect judgment, divergent, synthesizer` | native parent | `references/judgment-reviewer.md` |
++| Tooling | `reflect tooling` | native parent | `references/tooling-reviewer.md` |
++| Divergent | `reflect judgment, divergent, synthesizer` | native parent | `references/divergent-reviewer.md` |
+ 
+-Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `Task` response body.
++Pass each template verbatim, substituting the transcript path or digest where marked. Collect each reviewer's terminal report through Codex execution before synthesis.
+ 
+ ## 3. Synthesize
+ 
+-One `Task` call, `subagent_type: generalPurpose`, `model` from the `reflect judgment, divergent, synthesizer` line (default `claude-opus-5-5-xhigh`), agent mode (`readonly: false`). It spot-verifies citations through MCP, and readonly strips MCPs. Pass `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns an Accepted / Rejected / Backlog list.
++Launch one general-purpose synthesizer through the selected executor, using `agent_type: "pstack-general-purpose"` on the native path and the `reflect judgment, divergent, synthesizer` role. It uses the selected executor's MCP access for citation spot-checks. Pass `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns an Accepted / Rejected / Backlog list.
+ 
+ ## 4. Structural enforcement check
+ 
+@@ -48,14 +44,14 @@ Present the synthesizer's full Accepted / Rejected / Backlog output and wait for
+ 
+ File each Backlog item to your team's devex or backlog tracker without waiting. Only the Accepted list waits for approval.
+ 
+-Never edit a skill under `plugins/cache/`. Before approval, show its destination, `.cursor/skills/<skill>/` or `~/.cursor/skills/<skill>/`. After approval, copy the skill folder there and edit the copy. Never open a PR or push.
++Find existing editable skills under the project's `.agents/skills/`, `~/.agents/skills/`, and `$CODEX_HOME/skills/` (`~/.codex/skills/` when unset). Preserve the discovered path. Never edit a skill under `plugins/cache/`. Before approval, show the destination. For a new personal copy, default to `$CODEX_HOME/skills/<skill>/`, or `~/.codex/skills/<skill>/` when unset. After approval, edit the existing skill in place or copy a cached skill folder to that destination and edit the copy. Never open a PR or push.
+ 
+ Follow each approved row's Routing exactly:
+ 
+ - Trivial existing-skill edit (a one-line bullet, a tightened sentence, a stale fact corrected): the parent does it directly.
+-- Substantive existing-skill edit (a new section, a new pattern table, more than ~10 lines): hand to Cursor's built-in `create-skill` skill and run its draft / test / iterate loop.
+-- `tune description: <skill path>` (the skill exists but didn't trigger when it should have): hand to `create-skill` and run its description-optimization loop.
+-- `new skill via create-skill: <kebab-name>`: hand creation to `create-skill`. Do not invent the shape ad hoc.
++- Substantive existing-skill edit (a new section, a new pattern table, more than ~10 lines): hand to Codex's `skill-creator` skill and run its draft / test / iterate loop.
++- `tune description: <skill path>` (the skill exists but didn't trigger when it should have): hand to `skill-creator` and run its description-optimization loop.
++- `new skill via skill-creator: <kebab-name>`: hand creation to `skill-creator`. Do not invent the shape ad hoc.
+ 
+ If your environment ships a SKILL.md validator, run it on every touched skill before declaring done.
+ 
+diff --git a/skills/reflect/references/divergent-reviewer.md b/skills/reflect/references/divergent-reviewer.md
+index 1e070a2..9b2bf78 100644
+--- a/skills/reflect/references/divergent-reviewer.md
++++ b/skills/reflect/references/divergent-reviewer.md
+@@ -18,7 +18,7 @@ Scan for:
+ 
+ ## Scope to skills and tools the session actually used
+ 
+-Route findings only to skills, tools, or MCPs this transcript used. A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (under `.cursor/skills/`, `~/.cursor/skills/`, or `~/.cursor/plugins/`), a `Task` prompt naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands. Speculative routings to skills the parent never opened do not count.
++Route findings only to skills, tools, or MCPs this transcript used. A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (at the absolute skill path supplied by the parent), a delegate prompt or runner request naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands. Speculative routings to skills the parent never opened do not count.
+ 
+ Two finding shapes are valid:
+ - The parent invoked the skill and you found a real gap in its body. Route to the skill's relevant section.
+diff --git a/skills/reflect/references/judgment-reviewer.md b/skills/reflect/references/judgment-reviewer.md
+index 61d15d7..e440090 100644
+--- a/skills/reflect/references/judgment-reviewer.md
++++ b/skills/reflect/references/judgment-reviewer.md
+@@ -17,7 +17,7 @@ Scan for:
+ 
+ ## Scope to skills and tools the session actually used
+ 
+-Route findings only to skills, tools, or MCPs this transcript used. A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (under `.cursor/skills/`, `~/.cursor/skills/`, or `~/.cursor/plugins/`), a `Task` prompt naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands. Speculative routings to skills the parent never opened do not count.
++Route findings only to skills, tools, or MCPs this transcript used. A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (at the absolute skill path supplied by the parent), a delegate prompt or runner request naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands. Speculative routings to skills the parent never opened do not count.
+ 
+ Two finding shapes are valid:
+ - The parent invoked the skill and you found a real gap in its body. Route to the skill's relevant section.
+diff --git a/skills/reflect/references/synthesizer.md b/skills/reflect/references/synthesizer.md
+index 60f2f9d..3c8cb56 100644
+--- a/skills/reflect/references/synthesizer.md
++++ b/skills/reflect/references/synthesizer.md
+@@ -14,7 +14,7 @@ Apply each criterion to every finding:
+ 
+ - Durability: still true in 6 months once paths, SHAs, tool versions, and code shapes have changed.
+ - Specificity: broad enough to apply across tasks, precise enough that a future agent recognizes when to use it. Reject vague platitudes ("write good code") and hyper-specific facts ("`<specific-skill-name>` has 175 tokens at limit 80").
+-- Existing-skill-first: propose `new skill via create-skill:` only when no existing skill is a real home, the pattern recurs, and the topic deserves its own skill.
++- Existing-skill-first: propose `new skill via skill-creator:` only when no existing skill is a real home, the pattern recurs, and the topic deserves its own skill.
+ - Convergence: findings echoed by 2+ reviewers carry higher confidence. Singletons must clear a higher bar on the other criteria.
+ - Decision-changing: a future agent does something different because of the edit, not just reads more text.
+ - Structural-mechanism check: route to Backlog when a lint rule, script, metadata flag, or runtime check already enforces the rule or could enforce it cheaply. Skill prose is for things mechanisms cannot enforce.
+@@ -41,7 +41,7 @@ Output exactly the format below. No preamble, no narration. One sentence per cel
+ |---|---|---|
+ | <failure mode in a skill the parent used> | <change to that skill's body> | <skill path + section> |
+ | <skill existed but didn't trigger> | <tune the skill's description so it fires next time> | <tune description: <skill path>> |
+-| <new pattern, no existing skill is a real home> | <draft a new skill via create-skill> | <new skill via create-skill: <kebab-name>> |
++| <new pattern, no existing skill is a real home> | <draft a new skill via skill-creator> | <new skill via skill-creator: <kebab-name>> |
+ 
+ One row per finding. The user approves row by row.
+ 
+diff --git a/skills/reflect/references/tooling-reviewer.md b/skills/reflect/references/tooling-reviewer.md
+index a839db4..12bac83 100644
+--- a/skills/reflect/references/tooling-reviewer.md
++++ b/skills/reflect/references/tooling-reviewer.md
+@@ -28,7 +28,7 @@ Scan for:
+ 
+ ## Scope to skills and tools the session actually used
+ 
+-Route findings only to skills, tools, or MCPs this transcript used. A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (under `.cursor/skills/`, `~/.cursor/skills/`, or `~/.cursor/plugins/`), a `Task` prompt naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands. Speculative routings to skills the parent never opened do not count.
++Route findings only to skills, tools, or MCPs this transcript used. A skill counts as used when the transcript shows a `Read` of its `SKILL.md` (at the absolute skill path supplied by the parent), a delegate prompt or runner request naming its path, or a tool call (Shell, Grep, MCP, etc.) matching its documented commands. Speculative routings to skills the parent never opened do not count.
+ 
+ Two finding shapes are valid:
+ - The parent invoked the skill and you found a real gap in its body. Route to the skill's relevant section.
+diff --git a/skills/show-me-your-work/SKILL.md b/skills/show-me-your-work/SKILL.md
+index ada1bba..7df59c4 100644
+--- a/skills/show-me-your-work/SKILL.md
++++ b/skills/show-me-your-work/SKILL.md
+@@ -6,6 +6,8 @@ disable-model-invocation: true
+ 
+ # Show me your work
+ 
++Read [Codex execution](../poteto-mode/references/execution.md) and resolve `judgment and prose` through the sibling setup helper before dispatching the trail reviewer. Select an eligible exact different-family entry already resolved by this workflow or an explicit task counterpart under that binding. Parent aliases and unknown families do not satisfy the required review.
++
+ Keep one canonical log.
+ 
+ ## The format
+@@ -35,7 +37,7 @@ ts	phase	decision	why	evidence	result
+ 
+ Write each entry the way you'd tell a teammate what you did. Plain words, concrete actions, no AI speak or abstract jargon (the **unslop** skill applies to log text too).
+ 
+-Use the helper `scripts/log.sh <logfile> <phase> <decision> <why> <evidence> <result>`. It stamps `ts`, writes the header on first use, strips stray tabs/newlines, and prefixes any cell starting with `=`, `+`, `-`, or `@` with a single quote. A bare `printf` appending a row works too, but mind those same bytes if cells come from generated or user-supplied text.
++Resolve `scripts/log.sh` from this skill's installed directory and invoke its absolute path with `<logfile> <phase> <decision> <why> <evidence> <result>`. It stamps `ts`, writes the header on first use, strips stray tabs/newlines, and prefixes any cell starting with `=`, `+`, `-`, or `@` with a single quote. A bare `printf` appending a row works too, but mind those same bytes if cells come from generated or user-supplied text.
+ 
+ Log decision points and checkpoints, not every action: a fork chosen, a unit completed with its verification result, a pivot or revert with its trigger, a blocker surfaced, a gate fixed. For loop runs, one row per iteration. Skip the trivial and self-evident.
+ 
+@@ -54,7 +56,7 @@ Commit it only when the work is ambitious enough that a reviewer needs the trail
+ 
+ ## Audit the log against the transcript
+ 
+-At the end of the run, before handing back, check the log told the truth. Read this run's transcript under the active workspace's `agent-transcripts/` directory (the system prompt names the path). Don't glob across `~/.cursor/projects/*/`. That reads unrelated private chats. Walk this run's rows against what actually happened. Each stretch of them begins at one of this run's `start` rows, or at the first row if this run created the log, and ends at the next `start` row of another run:
++At the end of the run, before handing back, check the log told the truth. For a native Codex run, use the [Codex history lookup](../recall/SKILL.md) to read its exact UUID within the active project. Resolve `../recall/scripts/codex-history.mjs` from this skill directory. For a Claude Code run, use its recorded runner directory and exact session ID to read the scoped request, prompt, and raw stream described in Codex execution. If the current transcript is still being appended, preserve a timestamped snapshot of the scoped read before auditing. Walk this run's rows against what actually happened. Each stretch of them begins at one of this run's `start` rows, or at the first row if this run created the log, and ends at the next `start` row of another run:
+ 
+ - Check that every row maps to a real decision or action.
+ - Check that each row's evidence resolves and shows what the row claims.
+@@ -64,14 +66,14 @@ Correct the log, not the story. The audit never edits or removes a row, even an
+ 
+ ## Cross-model review of the trail
+ 
+-Before handing back, spawn a subagent on a different model family from the one that did the work. Self-review is not a substitute. The subagent reads the audit trail and the run's transcript, then flags what the user should pay attention to. Not a redo of the work, a scan for what's suboptimal or risky. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
++Before handing back, launch a general-purpose delegate on a different model family from the one that did the work. Select a different-family counterpart through Codex execution, using `agent_type: "pstack-general-purpose"` on the native path and the audit task with its source files on the Claude Code path. Self-review is not a substitute. The subagent reads the audit trail and the run's transcript, then flags what the user should pay attention to. Not a redo of the work, a scan for what's suboptimal or risky. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+ 
+ - Decisions logged with weak or absent evidence.
+ - Verification steps skipped or claimed without proof in the transcript.
+ - Choices that look risky in hindsight (premature, scope-creeping, papering over a symptom).
+ - Gaps the user would otherwise miss on a casual skim.
+ 
+-Every reply for a run that produced a trail ends with an "Attention" section. Lead with the reviewer's model on its own line (`reviewed by <model>`), then list each flag pointing to specific rows or moments. "No flags" is a valid value. The model name is not.
++Every reply for a run that produced a trail ends with an "Attention" section. After a completed review, lead with the reviewer's model on its own line (`reviewed by <model>`), then list each flag pointing to specific rows or moments. "No flags" is a valid value. The model name is not. If no eligible reviewer can run, lead with `review not completed`, state the specific configuration or capability gap, and keep the required review unmet. Do not claim a completed review or "No flags" for an unrun review.
+ 
+ ## Reviewing the trail
+ 
+diff --git a/skills/statechart/SKILL.md b/skills/statechart/SKILL.md
+index f5a64a8..9b45635 100644
+--- a/skills/statechart/SKILL.md
++++ b/skills/statechart/SKILL.md
+@@ -10,10 +10,10 @@ The chart shows how a system moves between states, in the words of the person wh
+ 
+ ## Run
+ 
+-Work in a scratch folder outside the repo. Write a TLA+ spec and its config. Then run:
++Work in a scratch folder outside the repo. Write a TLA+ spec and its config. Resolve `<skill dir>` from this installed `SKILL.md` to an absolute path. Then run:
+ 
+ ```sh
+-<skill dir>/scripts/statechart SPEC.tla [--config FILE] [--view FILE] [--out DIR]
++"<skill dir>/scripts/statechart" SPEC.tla [--config FILE] [--view FILE] [--out DIR]
+ ```
+ 
+ `scripts/statechart.ts` is TypeScript, so run it with a runtime that can execute TypeScript.
+diff --git a/skills/swarm/SKILL.md b/skills/swarm/SKILL.md
+index f30da87..c85bc36 100644
+--- a/skills/swarm/SKILL.md
++++ b/skills/swarm/SKILL.md
+@@ -19,14 +19,14 @@ Open a todolist with one entry per phase before launching anything.
+ 
+ 1. State the done predicate and the artifact or report the swarm must return.
+ 2. Choose the shape. Partition into slices, race N workers on identical briefs, or mix both. For a race or mixed shape, declare `first pass`, `rank all`, or `best-of` before spawning.
+-3. Pick the worker model from the `swarm workers` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, use `claude-opus-5-5-high-fast`. For `auto` or `inherit-parent`, omit `model` so the workers run on the parent model. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message. For a model race, name each arm's model up front. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+-4. Give each worker its own writable output when it writes. When workers verify or measure commits, each brief names the exact SHAs. A measurement brief also names the method (sample count, what one sample is, order). The worker records both in its result.
++3. Read [Codex execution](../poteto-mode/references/execution.md) and resolve the `swarm workers` role with the sibling setup helper. A missing role uses the actual native parent with disclosure. For `auto` or `inherit-parent`, use Codex execution's parent-selection binding so the workers run on the parent model. If the selected executor rejects a model, follow the execution binding and disclose a supported same-family choice from its error message. For a model race, name each arm's configured model and executor up front; an explicit race uses the configured participants and their exact models. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
++4. Give every code-writing worker an exclusive local worktree, branch, and writable output as described in Codex execution. Assign distinct machine resources, such as ports and data directories, when its verification uses them. When workers verify or measure commits, each brief names the exact SHAs. A measurement brief also names the method (sample count, what one sample is, order). The worker records both in its result.
+ 
+ ## Phase B: Fan out
+ 
+-Spawn all N workers in one message with `subagent_type: generalPurpose`, `environment: "cloud"`, `run_in_background: true`, and the step 3 model, left unset for `auto` or `inherit-parent`. Use `environment: "local"` only when the worker needs access to something on the user's computer.
++Create the worker checkouts from the detected repository default ref, or the caller's specified non-default ref. Resolve and record the starting SHA. Launch all N workers through Codex execution without waiting between them, selecting `agent_type: "pstack-general-purpose"` on the native path. Pass each step 3 entry's executor, model, and effort through its supported controls, using Codex execution's parent-selection binding for inherited aliases. Give each worker its absolute checkout, branch, input and output paths, required skill paths, and assigned host resources. Each writer is told that other workers are active and must preserve their changes.
+ 
+-When a worker must start from a non-default pushed branch, pass `cloud_base_branch`.
++A local worker can access resources on the user's computer, subject to the parent's permissions. Its brief must identify those resources and restrict commands to its assigned checkout and outputs. The worktree provides filesystem separation; it does not provide a separate VM or credentials.
+ 
+ Every brief stands alone. Include the goal, scope, exact slice or race arm, how to verify, and what to report. Reports use `PASS`, `ISSUES`, or `BLOCKED` with evidence. A worker that can prove a defect reports `ISSUES` and lists every issue it can prove, not only the first.
+ 
+@@ -34,7 +34,7 @@ If a worker drops out, proceed with N-1 and note it.
+ 
+ ## Phase C: Aggregate
+ 
+-Read the terminal results. Drop a result that does not record the SHAs and method its brief names, and respawn that worker once. After a second miss, record a gap. A gap does not count as a pass. For coverage, every required slice needs a result. For a race, apply the selection rule declared up front. Use first pass, rank all, or best-of. Do not paste raw worker dumps.
++Drain every worker and read its terminal report and artifacts. Drop a result that does not record the SHAs and method its brief names, and respawn that worker once. After a second miss, record a gap. A gap does not count as a pass. For coverage, every required slice needs a result. For a race, apply the selection rule declared up front. Use first pass, rank all, or best-of. Do not paste raw worker dumps.
+ 
+ ## Phase D: Report
+ 
+diff --git a/skills/teach/SKILL.md b/skills/teach/SKILL.md
+index 6146b65..916a12d 100644
+--- a/skills/teach/SKILL.md
++++ b/skills/teach/SKILL.md
+@@ -8,7 +8,7 @@ disable-model-invocation: true
+ 
+ **You explain what a thing is, how it works, and why it's built that way, in one plain account at the person's pace. The goal is that they understand it, not that you change anything.**
+ 
+-Teach sits on top of `how` and `why`. Get your bearings on what the work is and what it touches, then run `how` for how it works and `why` for why it's that way. Those are real skill invocations that do their own digging. Blend what they find into one plain explanation, lead with what matters to the person, and go deeper when they ask. Reword freely for teaching, with one exception. Keep `why`'s confidence language intact (its hedges are findings, not style).
++Teach sits on top of [`how`](../how/SKILL.md) and [`why`](../why/SKILL.md). Get your bearings on what the work is and what it touches, then run `how` for how it works and `why` for why it's that way. Those are real skill invocations that do their own digging. Blend what they find into one plain explanation, lead with what matters to the person, and go deeper when they ask. Reword freely for teaching, with one exception. Keep `why`'s confidence language intact (its hedges are findings, not style).
+ 
+ 1. Decide the few things they should walk away understanding. Choose them from why they're asking (about to change it, reviewing it, debugging it, new to it) and what they already know, both read from the conversation, not quizzed out of them. Skip what they plainly already know. Put the depth where their question is.
+ 2. Let `how` and `why` do the work, don't redo it. Read the code yourself to get oriented, then run `how` for how it works and `why` for why. Run them in parallel and combine the results. Match the size to the question. Run both for a subsystem, maybe one is enough for a small change.
+@@ -16,6 +16,6 @@ Teach sits on top of `how` and `why`. Get your bearings on what the work is and
+ 4. Keep it a conversation, not a lecture or a performance. Offer to go deeper or move on, and follow their lead. No quizzes. No pacing theater. Don't print "Pause", don't ask them to say it back, don't announce "the sentence to nail", and don't flag a part as important or hard ("here is the part worth slowing down on", "this is the tricky part", "here is where it gets interesting"). Just say it. When you would pause, stop and let them respond. Running one-shot with no live human, deliver it cleanly and put any offer to go deeper at the end.
+ 5. Show, don't only tell, and build the picture up diagram by diagram. Open the diff, the code, or the debugger when that is the fastest way to land it. Draw when a picture lands faster than words. For anything with three or more moving parts, do not draw one diagram with all of them at once. Draw a short series instead, where each diagram redraws the last and adds a single part, so the reader watches the system assemble. A single all-at-once diagram, especially one saved for the end, is a reference, not teaching. Concretely, to teach a flow from A to B to C, draw it three times. First A to B. Then redraw and add C. Then redraw and add the return edge or the next piece. Match the medium to the idea, and use both kinds when both help. A mermaid diagram fits a flow or structure where the labels carry the meaning. When the idea is spatial, like layout, overlap, scroll position, or a before and after, reach for the image-generation tool and draw it marker-on-whiteboard style with a few short labels, since image models garble long text. Generate that picture, don't settle for describing it in words. The build-up rule holds for generated images too. A single simple point needs no figure.
+ 
+-Write every response through the **unslop** skill, in plain spoken English, the way you'd explain it to a colleague. Be tight, not terse. Cut filler and hedging, keep the part that makes it click. State the concrete mechanism, not a metaphor, a framing, or a preview of what is coming. This is the target density: "Virtualization runs in two parts, one for rendering and one for loading from disk. When an item scrolls out past the buffer, both its DOM node and its in-memory data are evicted." Normal sentence case, not all-lowercase. No em dashes. Prefer periods over commas. Keep each sentence to one or two commas. If clauses pile up, split them into separate sentences. Give each concept one name and keep it. Avoid mirror sentences ("A without B, or B without A") and tidy closers ("the rest follows", "it all falls out"). The words in these steps are directions to you, not labels to print. Don't echo the structure as headers or stock phrases.
++Write every response through the [**unslop**](../unslop/SKILL.md) skill, in plain spoken English, the way you'd explain it to a colleague. Be tight, not terse. Cut filler and hedging, keep the part that makes it click. State the concrete mechanism, not a metaphor, a framing, or a preview of what is coming. This is the target density: "Virtualization runs in two parts, one for rendering and one for loading from disk. When an item scrolls out past the buffer, both its DOM node and its in-memory data are evicted." Normal sentence case, not all-lowercase. No em dashes. Prefer periods over commas. Keep each sentence to one or two commas. If clauses pile up, split them into separate sentences. Give each concept one name and keep it. Avoid mirror sentences ("A without B, or B without A") and tidy closers ("the rest follows", "it all falls out"). The words in these steps are directions to you, not labels to print. Don't echo the structure as headers or stock phrases.
+ 
+ **Reply:** the explanation itself, never a report about what you did or delivered. Lead with the main point, then the plain account of what it is, how it works, and why, and the threads worth chasing with `how` or `why`.
+diff --git a/skills/technical-writing/SKILL.md b/skills/technical-writing/SKILL.md
+index 3e6d261..27fc3eb 100644
+--- a/skills/technical-writing/SKILL.md
++++ b/skills/technical-writing/SKILL.md
+@@ -90,7 +90,7 @@ Don't mix modes: no reference tables inside a tutorial, no tutorial hand-holding
+ 
+ ## Voice and repo specifics
+ 
+-- Apply the **unslop** skill to every doc this skill touches. That skill owns the slop-pattern catalog: AI vocabulary, filler, hedging, formatting tells.
++- Apply the [**unslop**](../unslop/SKILL.md) skill to every doc this skill touches. That skill owns the slop-pattern catalog: AI vocabulary, filler, hedging, formatting tells.
+ - PR descriptions and commit messages are writing too. Every layer except Diátaxis applies to them. A PR body is a briefing that a reviewer can read in under a minute. Do not paste swarm logs, SHA lists, or metric tables. Link them.
+ - Product UI strings are not documentation. Use your product's copy guidelines for those.
+ - Indent code snippets with tabs. Write real paths. Make every count or tree claim true at the commit that lands it, and include the command that regenerates it.
+diff --git a/skills/typescript-best-practices/SKILL.md b/skills/typescript-best-practices/SKILL.md
+index e1e5aa7..d38effe 100644
+--- a/skills/typescript-best-practices/SKILL.md
++++ b/skills/typescript-best-practices/SKILL.md
+@@ -7,7 +7,7 @@ disable-model-invocation: true
+ 
+ # TypeScript best practices
+ 
+-Apply the **type-system-discipline** principle skill first.
++Apply the [**type-system-discipline**](../principle-type-system-discipline/SKILL.md) principle skill first.
+ 
+ | Rule | Summary |
+ |------|---------|
+@@ -22,7 +22,7 @@ Apply the **type-system-discipline** principle skill first.
+ | Type guards | Must verify the claim. A lying guard is worse than `as` because the bug hides behind a name that says it's safe. Name them `isX` or `hasX`. |
+ | Exhaustiveness | Inline `const _exhaustive: never = x;` in default arms so the compiler errors when a new variant is added. |
+ | `satisfies` over `as` | Validates the value without widening literal types. |
+-| Boundary validation | Parse where data crosses in, into a named domain type. `Record<string, unknown>` (however spelled) stops at that parse. Trust types inside. See the **boundary-discipline** principle skill. |
++| Boundary validation | Parse where data crosses in, into a named domain type. `Record<string, unknown>` (however spelled) stops at that parse. Trust types inside. See the [**boundary-discipline**](../principle-boundary-discipline/SKILL.md) principle skill. |
+ | Schema-derived types | Reach for `Pick`/`Omit`/`Parameters`/`ReturnType`/`Awaited`/`typeof` before declaring a new interface. |
+ | Object args | Pass objects, not positional, so argument order is self-documenting. Skip on hot paths (per-frame render, tokenizers, parsers). |
+ | Real tests | Don't mock what you can run. Prefer the framework's real test primitives with leak/disposable checks, and verify UI in a running build. Mock only what you can't run locally. |

@@ -103,7 +103,7 @@ for (const host of ['codex', 'claude-code']) {
       '--role',
       'interrogate reviewers',
     );
-    assert.equal(absent.entries.length, 2);
+    assert.equal(absent.entries.length, 3);
     assert.ok(
       absent.entries.every(
         (value: { model: string }) => value.model === 'inherit-parent',

@@ -9,10 +9,6 @@
     "hillclimb": "scalar",
     "judgment and prose": "scalar",
     "hardest tasks": "scalar",
-    "how explorer": "scalar",
-    "how explainer": "scalar",
-    "why investigators": "scalar",
-    "why synthesizer": "scalar",
     "reflect tooling": "scalar",
     "reflect judgment, divergent, synthesizer": "scalar",
     "arena runners": "list",
@@ -62,26 +58,9 @@
     },
     {
       "path": "skills/how/SKILL.md",
-      "classification": "configured",
-      "roles": [
-        "how explorer",
-        "how explainer"
-      ],
+      "classification": "inherits-caller",
+      "roles": [],
       "workerKind": "read-only",
-      "binding": "skills/poteto-mode/references/execution.md"
-    },
-    {
-      "path": "skills/how/references/explainer-prompt.md",
-      "classification": "context",
-      "roles": [],
-      "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/execution.md"
-    },
-    {
-      "path": "skills/how/references/explorer-prompt.md",
-      "classification": "context",
-      "roles": [],
-      "workerKind": "general-purpose",
       "binding": "skills/poteto-mode/references/execution.md"
     },
     {
@@ -140,10 +119,6 @@
         "hillclimb",
         "judgment and prose",
         "hardest tasks",
-        "how explorer",
-        "how explainer",
-        "why investigators",
-        "why synthesizer",
         "reflect tooling",
         "reflect judgment, divergent, synthesizer",
         "arena runners",
@@ -393,23 +368,6 @@
       ],
       "workerKind": "general-purpose",
       "binding": "skills/poteto-mode/references/execution.md"
-    },
-    {
-      "path": "skills/why/SKILL.md",
-      "classification": "configured",
-      "roles": [
-        "why investigators",
-        "why synthesizer"
-      ],
-      "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/execution.md"
-    },
-    {
-      "path": "skills/why/references/source-playbook.md",
-      "classification": "context",
-      "roles": [],
-      "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/execution.md"
     }
   ],
   "sourceAdaptations": [
@@ -495,7 +453,7 @@
     },
     {
       "path": "skills/how/SKILL.md",
-      "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
+      "reason": "Map host-specific paths, tooling or lifecycle to shared native execution, history, wakeup or authoring guidance."
     },
     {
       "path": "skills/interrogate/SKILL.md",
@@ -670,16 +628,8 @@
       "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
     },
     {
-      "path": "skills/why/SKILL.md",
-      "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
-    },
-    {
       "path": "skills/statechart/SKILL.md",
       "reason": "Preserve the accepted absolute installed-path and quoting guidance for the CLI."
-    },
-    {
-      "path": "skills/how/references/explainer-prompt.md",
-      "reason": "Preserve the no-edits explanation brief with the actual execution host reading and search tools."
     }
   ],
   "omittedMetadata": [

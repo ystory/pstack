@@ -1,0 +1,2470 @@
+diff --git a/skills/poteto-mode/references/agy-execution.md b/skills/poteto-mode/references/agy-execution.md
+new file mode 100644
+index 0000000..6a41176
+--- /dev/null
++++ b/skills/poteto-mode/references/agy-execution.md
+@@ -0,0 +1,33 @@
++# Antigravity workers
++
++Read this reference for every resolved `executor: "antigravity"` seat. The launching host's role helper remains the selection authority. An Antigravity entry supplies an exact `model` and separate `reasoningEffort`. Preserve ordered seats and duplicates. Parent aliases stay on the native parent. Each new seat or round gets a fresh run directory and native agy conversation.
++
++Launch the foreground runner through the launching host's asynchronous command controls. Keep the command attached until its terminal result. Do not shell-background or detach it.
++
++```sh
++node "<poteto-mode>/scripts/run-agy.mjs" run \
++	--cwd "/absolute/assigned-worktree" --run-dir "/absolute/unique-local-run" \
++	--model "<selected-exact-model>" --effort "<supported-effort>" \
++	--role "/absolute/original-role.md" \
++	--instruction "/absolute/project/AGENTS.md" --skill "/absolute/relevant/SKILL.md" \
++	--allow-permission 'command(git)' \
++	--prompt-file "/absolute/consolidated-task.txt"
++```
++
++On Codex, use the exposed command and session controls. Request reviewed escalation with a task-specific justification when the host sandbox blocks required existing runtime access. On Claude Code, use native background Bash with `run_in_background: true` and the task's supported timeout. Track the host command identity and collect its terminal receipt. Set `--timeout-ms N` when the task needs an overall deadline. Stop through the host's actual process controls and collect the resulting receipt. Signal delivery alone does not prove closure.
++
++Pass the complete consolidated brief, assigned checkout, ownership, constraints, expected result, and artifact paths. Repeat `--instruction` for project rules, templates, rubrics, and references, and `--skill` for skill bodies. Use `--role` for the selected original agent body. A general-purpose seat has no added role body. Pass the absolute poteto-mode skill for a poteto-agent. The runner embeds these complete files and the shared [receiving-worker context](worker-context.md). Linked references and principle leaves still require complete supplied bodies or actual reads.
++
++The runner uses the official agy CLI version 1.5.8 or newer. Setup prepares only selected executors. It inherits the existing official CLI environment and authentication. `AGY_ADC_AUTH=true` selects inherited ADC mode. Otherwise the receipt records `inherited-default`. Do not read or copy credentials, change authentication routes, or save personal defaults. A missing executor remains a capability gap.
++
++Keep normal session permissions. Repeat `--allow-permission RULE` for already-authorized operations the task needs. The runner supplies these rules through agy's documented inline `--settings` object for that invocation. Use scoped rules such as `command(git)`, `command(regex:npm run (build|lint|test))`, or `write_file(src/)`. These permissions do not enforce OS read-only access. The worker uses agy's native tools and customizations. It does not inherit the parent's MCP inventory, complete conversation, native subagent controls, or permissions. Keep a required missing capability as the calling workflow's gap.
++
++Preserve the exact model ID and selected effort. A catalog label with a fixed effort confirms only that variant's configured availability. It does not prove inference or support for other efforts. Use each model's source-labeled capabilities for adjustments. If no supported effort is at or below the requested budget, report the required choice. Never switch model IDs or authentication routes silently. Keep rejected settings by executor, exact model, and effort. Never resubmit a rejected setting. Follow the caller's supported starting-effort retry or existing fallback rules with disclosure.
++
++Inspect `result.json` and `final.txt` in the run directory. Host stdout can truncate. Requested model and effort, CLI-observed model, and effective effort are separate evidence. The CLI does not separately report effective effort, so that value remains unknown. Native usage is conversation-cumulative. Do not add resumed usage to prior totals or describe it as current-turn usage or settled billing. Only a completed receipt with matching init and result conversation IDs, one successful terminal result, a nonempty response, and orderly zero-exit process closure establishes success. A late apparent success cannot override an error, cancellation, or timeout. Review files and verification evidence under the calling workflow's own rules.
++
++Continue only under poteto-mode's costly-state exception. Pass `--resume /absolute/prior-run/result.json` for an exact successful closed receipt with identical model, effort, canonical cwd, and inherited authentication mode. Each receipt permits one continuation. The runner retains a permanent `continued-by.json` edge before launch, so a second continuation from that predecessor fails even after the first finishes. A new successful receipt can continue once. Keep failed continuation evidence and investigate it. Never use a latest selector, a naked conversation ID, or a fresh fallback.
++
++The official CLI owns native conversation storage and history. The receipt does not hash that transcript or prevent direct native clients from changing it. No native host history inheritance is claimed. Antigravity entries do not install or register native parent roles.
++
++Use known exact-model lineage for family diversity. The Antigravity executor name does not establish a family. Ambiguous custom IDs and virtual routes with unknown lineage cannot satisfy a different-family gate. Preserve the calling workflow's selected-pool rules, cardinality, fresh-worker requirements, dropout handling, required gates, and Arena's disclosed judge skip.
+diff --git a/skills/poteto-mode/references/pi-execution.md b/skills/poteto-mode/references/pi-execution.md
+new file mode 100644
+index 0000000..73d32dd
+--- /dev/null
++++ b/skills/poteto-mode/references/pi-execution.md
+@@ -0,0 +1,32 @@
++# Pi workers
++
++Read this reference for every resolved `executor: "pi"` seat. The launching host's role helper remains the selection authority. A Pi entry supplies `provider`, exact `model`, and separate `reasoningEffort`. Preserve every ordered seat, including duplicates. Parent aliases stay on the native parent. Use a fresh run directory and Pi session for each new seat or round.
++
++Launch the foreground runner through the launching host's asynchronous command controls. Keep the command attached until its terminal result. Do not shell-background or detach it.
++
++```sh
++node "<poteto-mode>/scripts/run-pi.mjs" run \
++  --cwd "/absolute/assigned-worktree" --run-dir "/absolute/unique-local-run" \
++  --provider "<selected-provider>" --model "<exact-model-id>" --effort "<supported-effort>" \
++  --tools read,bash,edit,write --role "/absolute/original-role.md" \
++  --instruction "/absolute/project/AGENTS.md" --skill "/absolute/relevant/SKILL.md" \
++  --prompt-file "/absolute/consolidated-task.txt"
++```
++
++Use Codex's exposed command/session controls. On Claude Code use background Bash with `run_in_background: true` and the task's supported timeout, as for its Codex worker route. Track and collect the host command identity. The runner has no default overall task deadline. Set `--timeout-ms N` when the task needs one. It bounds startup, individual commands, and shutdown separately. Stop through the host's actual process controls and collect the receipt. Signal delivery alone does not prove closure.
++
++Pass the complete consolidated brief, assigned checkout, ownership, constraints, expected result, and required artifact paths. Repeat `--instruction` for project rules, templates, rubrics, and references, and `--skill` for skill bodies. Use `--role` for the selected original agent body. A general-purpose seat has no added role body. Pass the absolute poteto-mode skill for a poteto-agent. The runner embeds these complete files plus the shared [receiving-worker context](worker-context.md) deterministically. Linked references and principle leaves still require complete supplied bodies or actual reads.
++
++Choose tools explicitly for the task. `--tools read,grep,find,ls` supplies file inspection. Add `bash` only when the task needs shell commands. Writers normally use `read,bash,edit,write`. `--tools none` disables built-in tools. These controls do not enforce OS read-only access. Pi inherits existing Pi authentication through its environment, but no parent tool inventory, MCP, complete conversation, native subagent controls, or permissions. Discovered extensions, MCP, context files, skills, prompt templates, and startup network refresh are disabled. Do not assume nested delegation is available. Keep a required missing capability as the calling workflow's gap.
++
++The runner requires Pi 1.5.2 or newer and rejects older or malformed versions before RPC launch. It uses RPC exact provider/model selection and thinking-level readback. Model IDs can contain slashes. Pi effort levels are `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. `off` is a real setting, distinct from native `none`. Do not translate it. A clamp or unsupported setting rejects the task before its prompt. The runner never changes provider, model, or executor.
++
++Pi owns transcript storage. Fresh runs use Pi's configured session directory, including `PI_CODING_AGENT_SESSION_DIR`, `settings.sessionDir`, and its native default. Each fresh worker still gets a distinct session. Worker transcripts appear in native Pi history, and `pi --continue` can select a worker session. Invocation receipts and logs stay in the run directory. Existing transcripts stay in place, including those under older run directories. Opening or changing a transcript in native Pi can invalidate its receipt hash.
++
++Inspect `result.json` and `final.txt` in the run directory. The stdout receipt can truncate under the host. `requested`, `selected`, and `observedAssistant` are distinct evidence. `usage` sums current-turn assistant completions, including tool-call turns and retries. Its cost is a Pi/provider estimate, not settled billing. `lastAssistantUsage` describes only the final assistant call. A configured virtual route can report a different physical assistant model. Only `status: "completed"`, a current-turn nonaborted `agent_settled`, a new assistant answer with `stopReason: "stop"`, and orderly zero-exit process closure establish success. Prompt acceptance, `agent_end`, a previous answer, and process exit zero alone do not. Error, length, tool-only, aborted, queued, handled, or missing terminal output remains failure. Review files and verification evidence under the calling workflow's own rules.
++
++An `effort-rejected` receipt includes `rejection.availableLevels`. If a task adjustment was rejected, the binding may retry once in a fresh run directory at the saved starting effort for the identical provider/model, only if that level remains available and was not rejected. Disclose this retry. Keep rejected settings by exact executor/provider/model/effort and rejected models by exact executor/provider/model. Never resubmit them. If the starting effort is unavailable or fails, use only the caller's existing fallback or gap outcome. A provider authentication failure is a failed run, not evidence that the exact model is invalid.
++
++Continue a session only under poteto-mode's costly-state exception. Pass `--resume /absolute/prior-run/result.json` with the identical provider, model, effort, and canonical cwd. The runner validates the terminal receipt, confirmed process closure, regular persisted transcript, header identity, content hash, exact restored state, and exclusive session lease. Never use a latest selector, session prefix, naked ID, or silent fresh fallback. A terminal failed, interrupted, or timed-out receipt can resume only when its exact selected settings, persisted transcript, and process closure are confirmed. A new continuation has fresh artifacts. An existing lease is an explicit conflict. Preserve diagnostic files and investigate before removing a stale lease.
++
++Pi and provider names do not establish model-family diversity. Use known exact-model lineage. Parent aliases, ambiguous custom IDs, and virtual routes with unknown lineage cannot satisfy a different-family gate. Do not strip a provider-looking prefix from an exact ID to invent a family. Preserve the calling workflow's selected-pool rules, required gates, fresh-worker requirements, dropout handling, and Arena's disclosed judge skip.
+diff --git a/skills/poteto-mode/references/worker-context.md b/skills/poteto-mode/references/worker-context.md
+new file mode 100644
+index 0000000..154f11e
+--- /dev/null
++++ b/skills/poteto-mode/references/worker-context.md
+@@ -0,0 +1,15 @@
++# Receiving worker execution
++
++Sections labeled as complete role, instruction, or skill bodies contain the supplied files' full instruction content. Apply them directly, including nested requests to read the same file, without reopening those files. This also applies to complete instruction bodies already in your context. A path, summary, excerpt, or truncated body does not replace the full file. Read required bodies that are absent or incomplete, including linked references and applied principle leaves. Delivery alone does not show that an instruction was followed.
++
++The receiving executor declared above is the harness running this worker. Supplied pstack files and preference helpers belong to the launching host. Keep their workflow, original role instructions, ordered seats, saved model choices, and configuration authority. Their host-specific tool names describe that launching host.
++
++For a resolved entry whose executor matches this receiving harness, delegate with the native subagent tools actually exposed here. Pass the selected exact model, supported effort, and complete role and template brief. For a read-only workflow such as How, use the native read-only kind where available, or a native general-purpose seat with an explicit no-edits brief when it preserves the requested settings. A host-specific `agentType` applies only in its own host. Parent aliases refer to the actual native parent in this receiving runtime, without acquiring a foreign executor from launching-host metadata.
++
++The launching parent's external-run background recipe starts this worker. Native delegation inside this worker retains upstream's asynchronous launch, steer, and resume behavior through this harness's own completion mechanism. For native Claude `Agent` or `Task` calls, set `run_in_background: true` when the exposed schema supports that field. Native Codex delegation already uses asynchronous handles; use its actual schema without adding a background field. Launch independent seats before waiting and collect their completed results. Native delegation does not require re-entering the external runner or creating an external-run receipt for a native child. Preserve the current task scope and read-only or write permissions.
++
++On macOS, a Codex receiving executor's default workspace sandbox blocks Chromium-based browsers, local listening ports, Git metadata writes, and network access. Run those task-authorized commands with escalated sandbox permissions on the first attempt. The configured reviewer decides whether they run.
++
++Exact selections for another executor keep their chosen route. If the available controls cannot express a required executor, model, effort, or worker role, report the exact capability gap. Preserve the workflow's existing fallback and diversity rules without inventing a substitute or expanding permissions.
++
++A Pi receiving executor has no established native nested delegation. Its explicitly selected built-in tools do not inherit the parent's MCP, full conversation, permissions, or OS read-only enforcement. Keep the launching host's saved provider, model, effort, role shape, fresh-worker rules, and required diversity gates. Report a missing required capability instead of inventing native tools or a parent launch route.
+diff --git a/skills/poteto-mode/scripts/agy-capabilities.mjs b/skills/poteto-mode/scripts/agy-capabilities.mjs
+new file mode 100644
+index 0000000..e6e5121
+--- /dev/null
++++ b/skills/poteto-mode/scripts/agy-capabilities.mjs
+@@ -0,0 +1,142 @@
++export const AGY_MINIMUM_VERSION = '1.5.8';
++export const agyEfforts = ['low', 'medium', 'high', 'xhigh', 'max'];
++
++const aliases = new Set([
++  'auto',
++  'inherit-parent',
++  'default',
++  'latest',
++  'best',
++  'inherit',
++  'gemini',
++  'claude',
++  'opus',
++  'sonnet',
++  'haiku',
++]);
++
++export function agyEntry(value) {
++  if (
++    value?.executor !== 'antigravity' ||
++    Object.keys(value).some((key) =>
++      /^(?:provider|auth|credential|apiKey)/i.test(key),
++    ) ||
++    typeof value.model !== 'string' ||
++    !/^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$/.test(value.model) ||
++    aliases.has(value.model.toLowerCase())
++  )
++    throw new Error(
++      'Antigravity requires an exact CLI model ID without aliases or a provider field.',
++    );
++  if (!agyEfforts.includes(value.reasoningEffort))
++    throw new Error(
++      `Antigravity requires an explicit effort: ${agyEfforts.join(', ')}.`,
++    );
++  return {
++    executor: 'antigravity',
++    model: value.model,
++    reasoningEffort: value.reasoningEffort,
++  };
++}
++
++export function agyCapability(value) {
++  const efforts = value?.supportedReasoningEfforts;
++  if (
++    !Array.isArray(efforts) ||
++    !efforts.length ||
++    efforts.some((level) => !agyEfforts.includes(level))
++  )
++    throw new Error(
++      'Antigravity capabilities require reported per-model efforts.',
++    );
++  const entry = agyEntry({ ...value, reasoningEffort: efforts[0] });
++  if (
++    !['host', 'configuration', 'manual-confirmation'].includes(
++      value.source?.kind,
++    ) ||
++    typeof value.source.description !== 'string' ||
++    !value.source.description.trim()
++  )
++    throw new Error(
++      'Antigravity capabilities require a labeled per-model source.',
++    );
++  if (value.source.kind === 'host' && new Set(efforts).size !== 1)
++    throw new Error('Antigravity host evidence covers one fixed variant effort.');
++  return {
++    executor: entry.executor,
++    model: entry.model,
++    supportedReasoningEfforts: [...new Set(efforts)],
++    source: { kind: value.source.kind, description: value.source.description },
++    ...(typeof value.label === 'string' ? { label: value.label } : {}),
++    ...(typeof value.runtimeVersion === 'string'
++      ? { runtimeVersion: value.runtimeVersion }
++      : {}),
++  };
++}
++
++export function supportedAgyVersion(version) {
++  if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version))
++    return false;
++  const current = version.split('.').map(Number);
++  const minimum = AGY_MINIMUM_VERSION.split('.').map(Number);
++  for (let index = 0; index < 3; index++) {
++    if (current[index] !== minimum[index])
++      return current[index] > minimum[index];
++  }
++  return true;
++}
++
++export function parseAgyModels(text, runtimeVersion) {
++  const rawModels = [],
++    models = [],
++    candidates = [];
++  const seen = new Set();
++  const clean = text.replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '');
++  for (const line of clean.split(/\r?\n/)) {
++    if (!line.trim()) continue;
++    const fields = line.split('\t');
++    if (fields.length !== 2 || /[\p{Cc}\p{Cf}]/u.test(fields.join('')))
++      throw new Error(
++        'agy models must return exact tab-separated model ID and label rows.',
++      );
++    const [model, label] = fields;
++    if (!label.trim())
++      throw new Error('agy models returned an empty model label.');
++    agyEntry({ executor: 'antigravity', model, reasoningEffort: 'low' });
++    if (seen.has(model))
++      throw new Error(`agy models returned duplicate ID ${model}.`);
++    seen.add(model);
++    rawModels.push({ model, label });
++    const variants = [
++      ...label.matchAll(/\((XHigh|High|Medium|Low|Max)\)$/gi),
++    ].map((match) => match[1].toLowerCase());
++    if (new Set(variants).size === 1) {
++      models.push(
++        agyCapability({
++          executor: 'antigravity',
++          model,
++          label,
++          runtimeVersion,
++          supportedReasoningEfforts: [variants[0]],
++          source: {
++            kind: 'host',
++            description: `agy models label ${JSON.stringify(label)} reports only the fixed ${variants[0]} variant; configured availability, not inference or adjustable effort evidence.`,
++          },
++        }),
++      );
++    } else {
++      candidates.push({
++        executor: 'antigravity',
++        model,
++        label,
++        source: {
++          kind: 'host',
++          description:
++            'agy models lists this exact ID; its label does not establish a single supported effort. Additional per-model evidence is required.',
++        },
++      });
++    }
++  }
++  if (!rawModels.length) throw new Error('agy models returned no model rows.');
++  return { models, candidates, rawModels };
++}
+diff --git a/skills/poteto-mode/scripts/pi-route.mjs b/skills/poteto-mode/scripts/pi-route.mjs
+new file mode 100644
+index 0000000..1f1d68b
+--- /dev/null
++++ b/skills/poteto-mode/scripts/pi-route.mjs
+@@ -0,0 +1,91 @@
++export const piMinimumVersion = '1.5.2';
++
++export function supportedPiVersion(value) {
++  if (typeof value !== 'string' || !/^\d+\.\d+\.\d+$/.test(value)) return false;
++  const parts = value.split('.').map(Number);
++  const minimum = piMinimumVersion.split('.').map(Number);
++  for (let index = 0; index < parts.length; index += 1) {
++    if (parts[index] !== minimum[index]) return parts[index] > minimum[index];
++  }
++  return true;
++}
++
++export const piEfforts = [
++  'off',
++  'minimal',
++  'low',
++  'medium',
++  'high',
++  'xhigh',
++  'max',
++];
++const aliases = new Set(['auto', 'inherit-parent']);
++
++function exact(value, label) {
++  if (
++    typeof value !== 'string' ||
++    !value ||
++    value.trim() !== value ||
++    /[\x00-\x1f\x7f]/.test(value)
++  )
++    throw new Error(`${label} must be an exact nonempty identifier.`);
++  return value;
++}
++
++export function routeKey(entry, native = 'codex') {
++  const executor = entry.executor ?? native;
++  if (executor === 'pi')
++    return `pi\0${exact(entry.provider, 'Pi provider')}\0${exact(entry.model, 'Pi model')}`;
++  if (entry.provider !== undefined)
++    throw new Error('provider is valid only for the Pi executor.');
++  return `${executor}\0${entry.model}`;
++}
++
++export function piEntry(value) {
++  const provider = exact(value.provider, 'Pi provider');
++  const model = exact(value.model, 'Pi model');
++  if (aliases.has(model))
++    throw new Error('Pi requires an exact model, not a native parent alias.');
++  if (!piEfforts.includes(value.reasoningEffort))
++    throw new Error(
++      'Pi requires an explicit supported reasoning effort, including off.',
++    );
++  return {
++    executor: 'pi',
++    provider,
++    model,
++    reasoningEffort: value.reasoningEffort,
++  };
++}
++
++export function piCapability(value) {
++  const supportedReasoningEfforts = value.supportedReasoningEfforts;
++  if (
++    !Array.isArray(supportedReasoningEfforts) ||
++    !supportedReasoningEfforts.length ||
++    supportedReasoningEfforts.some((level) => !piEfforts.includes(level))
++  )
++    throw new Error('Pi capabilities require reported thinking levels.');
++  const entry = piEntry({
++    ...value,
++    reasoningEffort: supportedReasoningEfforts[0],
++  });
++  if (
++    !['host', 'configuration', 'manual-confirmation'].includes(
++      value.source?.kind,
++    ) ||
++    typeof value.source?.description !== 'string' ||
++    !value.source.description.trim()
++  )
++    throw new Error('Pi capabilities require a labeled per-model source.');
++  return {
++    executor: 'pi',
++    provider: entry.provider,
++    model: entry.model,
++    supportedReasoningEfforts: [...new Set(supportedReasoningEfforts)],
++    source: { kind: value.source.kind, description: value.source.description },
++    ...(typeof value.runtimeVersion === 'string'
++      ? { runtimeVersion: value.runtimeVersion }
++      : {}),
++  };
++}
+diff --git a/skills/poteto-mode/scripts/run-agy.mjs b/skills/poteto-mode/scripts/run-agy.mjs
+new file mode 100644
+index 0000000..d75af28
+--- /dev/null
++++ b/skills/poteto-mode/scripts/run-agy.mjs
+@@ -0,0 +1,923 @@
++#!/usr/bin/env node
++import { spawn } from 'node:child_process';
++import { createHash } from 'node:crypto';
++import { constants, openSync, closeSync, writeSync } from 'node:fs';
++import * as fs from 'node:fs/promises';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++import {
++  agyEntry,
++  agyEfforts,
++  AGY_MINIMUM_VERSION,
++  supportedAgyVersion,
++  parseAgyModels,
++} from './agy-capabilities.mjs';
++
++const executor = 'antigravity';
++const pluginRoot = fileURLToPath(new URL('../../../', import.meta.url));
++const workerContext = fileURLToPath(
++  new URL('../references/worker-context.md', import.meta.url),
++);
++const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
++const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
++const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
++const contains = (root, target) =>
++  target === root || target.startsWith(`${root}${path.sep}`);
++const uuid = (value) =>
++  typeof value === 'string' &&
++  /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(value);
++const authMode = () =>
++  process.env.AGY_ADC_AUTH === 'true' ? 'adc' : 'inherited-default';
++const limitations = [
++  'Native agy inherits its environment, credentials, tools and customizations; it does not inherit parent MCP, conversation or permissions and is not an OS read-only boundary.',
++  'Native agy owns conversation storage. This receipt does not establish transcript integrity or protect against direct native clients.',
++  'Requested effort is not independently observed effective effort. Native usage is conversation-cumulative, not per-turn or settled billing.',
++];
++const capabilities = {
++  harness: 'official-agy-cli',
++  parentMcpInherited: false,
++  parentPermissionsInherited: false,
++  parentConversationInherited: false,
++  osReadOnlyEnforcement: false,
++};
++const usage =
++  'Usage: run-agy.mjs detect [--executable ABS] | catalog --cwd ABS --run-dir ABS [--executable ABS] | run --cwd ABS --run-dir ABS --model EXACT_ID --effort LEVEL [--instruction ABS] [--skill ABS] [--role ABS] [--prompt-file ABS] [--resume ABS_PRIOR_RECEIPT] [--allow-permission RULE] [--timeout-ms N] [--executable ABS]';
++
++function optionsFor(argv) {
++  const options = {
++    command: argv[0],
++    instruction: [],
++    skill: [],
++    allowPermission: [],
++  };
++  if (['--help', '-h'].includes(options.command)) return { command: 'help' };
++  if (!['detect', 'catalog', 'run'].includes(options.command))
++    throw new Error(usage);
++  const names = {
++    '--cwd': 'cwd',
++    '--run-dir': 'runDir',
++    '--model': 'model',
++    '--effort': 'effort',
++    '--instruction': 'instruction',
++    '--skill': 'skill',
++    '--role': 'role',
++    '--prompt-file': 'promptFile',
++    '--resume': 'resume',
++    '--allow-permission': 'allowPermission',
++    '--timeout-ms': 'timeoutMs',
++    '--executable': 'executable',
++  };
++  for (let index = 1; index < argv.length; index += 2) {
++    const key = names[argv[index]],
++      value = argv[index + 1];
++    if (!key || !value || value.startsWith('--'))
++      throw new Error(`Invalid option ${argv[index]}. ${usage}`);
++    if (options.command === 'detect' && key !== 'executable')
++      throw new Error('detect accepts only --executable.');
++    if (
++      options.command === 'catalog' &&
++      !['cwd', 'runDir', 'executable', 'timeoutMs'].includes(key)
++    )
++      throw new Error('catalog accepts only paths, executable and timeout.');
++    if (Array.isArray(options[key])) options[key].push(value);
++    else if (options[key] !== undefined)
++      throw new Error(`Repeated option ${argv[index]}.`);
++    else options[key] = value;
++  }
++  if (options.timeoutMs !== undefined) {
++    if (
++      !/^\d+$/.test(options.timeoutMs) ||
++      !Number.isSafeInteger(Number(options.timeoutMs)) ||
++      Number(options.timeoutMs) < 1 ||
++      Number(options.timeoutMs) > 2147483647
++    )
++      throw new Error('--timeout-ms must be a positive bounded integer.');
++    options.timeoutMs = Number(options.timeoutMs);
++  }
++  if (options.command === 'run') {
++    options.requested = agyEntry({
++      executor,
++      model: options.model,
++      reasoningEffort: options.effort,
++    });
++    for (const rule of options.allowPermission)
++      if (/[\p{Cc}\p{Cf}]/u.test(rule) || !/^[a-z][a-z_]*\(.+\)$/.test(rule))
++        throw new Error(
++          'Expected a nonempty native permission rule such as command(git).',
++        );
++    options.allowPermission = [...new Set(options.allowPermission)];
++  }
++  return options;
++}
++
++function absolute(value, label) {
++  if (
++    typeof value !== 'string' ||
++    !path.isAbsolute(value) ||
++    value.includes('\0')
++  )
++    throw new Error(`${label} must be an absolute path.`);
++  return path.resolve(value);
++}
++async function canonicalNew(file) {
++  try {
++    return await fs.realpath(file);
++  } catch (error) {
++    if (error.code !== 'ENOENT') throw error;
++    return path.join(
++      await canonicalNew(path.dirname(file)),
++      path.basename(file),
++    );
++  }
++}
++async function regular(file, canonical = false) {
++  const normalized = absolute(file, 'Input');
++  const info = await fs.lstat(normalized);
++  if (
++    !info.isFile() ||
++    (canonical && (await fs.realpath(normalized)) !== normalized)
++  )
++    throw new Error(
++      `Expected a regular${canonical ? ' canonical' : ''} file: ${file}`,
++    );
++  return fs.readFile(normalized);
++}
++async function outsidePlugins(lexical, canonical) {
++  const roots = [
++    pluginRoot,
++    path.resolve(pluginRoot, '../plugin'),
++    path.resolve(pluginRoot, '../plugin-claude'),
++  ];
++  for (const root of roots) {
++    if (
++      contains(root, lexical) ||
++      contains(root, canonical) ||
++      contains(await canonicalNew(root), canonical)
++    )
++      throw new Error('Artifact paths must be outside plugin trees.');
++  }
++}
++async function preparePaths(options) {
++  if (process.platform === 'win32')
++    throw new Error('Antigravity process group ownership requires POSIX.');
++  const cwd = await fs.realpath(absolute(options.cwd, '--cwd'));
++  if (!(await fs.stat(cwd)).isDirectory())
++    throw new Error('--cwd must be a directory.');
++  const lexical = absolute(options.runDir, '--run-dir');
++  const runDir = await canonicalNew(lexical);
++  await outsidePlugins(lexical, runDir);
++  try {
++    await fs.lstat(lexical);
++    throw new Error('--run-dir already exists.');
++  } catch (error) {
++    if (error.code !== 'ENOENT') throw error;
++  }
++  return { cwd, runDir };
++}
++async function executablePath(requested) {
++  if (requested !== undefined) {
++    const file = absolute(requested, '--executable');
++    if (!(await fs.stat(file)).isFile())
++      throw new Error('--executable must be a regular executable.');
++    await fs.access(file, constants.X_OK);
++    return file;
++  }
++  for (const directory of (process.env.PATH ?? '').split(path.delimiter)) {
++    if (!directory) continue;
++    const file = path.resolve(directory, 'agy');
++    try {
++      if (!(await fs.stat(file)).isFile()) continue;
++      await fs.access(file, constants.X_OK);
++      return file;
++    } catch (error) {
++      if (!['ENOENT', 'EACCES', 'ENOTDIR'].includes(error.code)) throw error;
++    }
++  }
++  throw new Error('agy was not found on PATH.');
++}
++function groupExists(pid) {
++  if (!pid) return false;
++  try {
++    process.kill(-pid, 0);
++    return true;
++  } catch (error) {
++    if (error.code === 'ESRCH') return false;
++    throw error;
++  }
++}
++function signalGroup(pid, signal) {
++  if (!pid) return;
++  try {
++    process.kill(-pid, signal);
++  } catch (error) {
++    if (error.code !== 'ESRCH') throw error;
++  }
++}
++
++async function ownedProcess(executable, args, options) {
++  const hasInput = typeof options.input === 'string' && options.input.length > 0;
++  let child,
++    firstError = null,
++    cause = null,
++    code = null,
++    signal = null;
++  let closed = false,
++    sent = false,
++    identityBeforeInput = false,
++    output = '',
++    diagnostics = '',
++    stopping = false;
++  const cleanupErrors = new Set();
++  const sendSignal = (signal) => {
++    try {
++      signalGroup(child?.pid, signal);
++    } catch (error) {
++      cleanupErrors.add(error.message);
++    }
++  };
++  const alive = () => {
++    try {
++      return groupExists(child?.pid);
++    } catch (error) {
++      cleanupErrors.add(error.message);
++      return true;
++    }
++  };
++  const timers = new Set();
++  const outputDecoder = new TextDecoder('utf-8', { fatal: true });
++  const diagnosticDecoder = new TextDecoder('utf-8', { fatal: true });
++  const later = (fn, ms) => {
++    const timer = setTimeout(fn, ms);
++    timers.add(timer);
++    return timer;
++  };
++  let settle;
++  const completion = new Promise((resolve) => {
++    settle = resolve;
++  });
++  const fail = (message, kind = 'failed') => {
++    firstError ??= message;
++    cause ??= kind;
++    if (child?.pid && !stopping) {
++      stopping = true;
++      sendSignal(kind === 'interrupted' ? 'SIGINT' : 'SIGTERM');
++      later(() => sendSignal('SIGKILL'), 400);
++      later(() => {
++        child.stdin?.destroy();
++        child.stdout.destroy();
++        child.stderr.destroy();
++        settle();
++      }, 1200);
++    }
++  };
++  const send = () => {
++    if (!hasInput || sent || firstError || !child?.stdin) return;
++    sent = true;
++    child.stdin.end(options.input);
++  };
++  const interrupt = () => fail('Interrupted by SIGINT.', 'interrupted');
++  const terminate = () => fail('Interrupted by SIGTERM.', 'terminated');
++  process.on('SIGINT', interrupt);
++  process.on('SIGTERM', terminate);
++  try {
++    child = spawn(executable, args, {
++      cwd: options.cwd,
++      detached: true,
++      stdio: [hasInput ? 'pipe' : 'ignore', 'pipe', 'pipe'],
++    });
++    child.once('error', (error) => {
++      fail(error.message);
++      settle();
++    });
++    child.stdin?.on('error', (error) => fail(`stdin: ${error.message}`));
++    child.stdout.on('error', (error) => fail(`stdout: ${error.message}`));
++    child.stderr.on('error', (error) => fail(`stderr: ${error.message}`));
++    child.stdout.on('data', (bytes) => {
++      try {
++        options.stdout?.(bytes);
++        if (options.receive) {
++          options.receive(bytes, () => {
++            identityBeforeInput = !sent;
++            send();
++          });
++        } else {
++          output += outputDecoder.decode(bytes, { stream: true });
++          if (output.length > 8 * 1024 * 1024)
++            throw new Error('CLI probe output exceeded its limit.');
++        }
++      } catch (error) {
++        fail(error.message);
++      }
++    });
++    child.stderr.on('data', (bytes) => {
++      try {
++        options.stderr?.(bytes);
++        if (!options.receive) {
++          diagnostics += diagnosticDecoder.decode(bytes, { stream: true });
++          if (diagnostics.length > 8 * 1024 * 1024)
++            throw new Error('CLI probe diagnostic output exceeded its limit.');
++        }
++      } catch (error) {
++        fail(error.message);
++      }
++    });
++    child.once('exit', (exitCode, exitSignal) => {
++      code = exitCode;
++      signal = exitSignal;
++      if (code !== 0 || signal) fail(`agy exited ${code ?? signal}.`);
++      later(() => {
++        if (!closed) fail('Owned CLI exited with open descendant pipes.');
++      }, 1000);
++    });
++    child.once('close', () => {
++      closed = true;
++      settle();
++    });
++    if (hasInput && options.waitForInit)
++      later(() => {
++        if (!sent)
++          fail('Native init did not arrive before task input deadline.');
++      }, 30000);
++    else send();
++    if (options.timeoutMs)
++      later(
++        () => fail('Antigravity deadline exceeded.', 'timed-out'),
++        options.timeoutMs,
++      );
++    await completion;
++    if (alive()) {
++      fail('Owned CLI left descendant processes alive.');
++      const deadline = Date.now() + 1300;
++      while (alive() && Date.now() < deadline) {
++        sendSignal('SIGKILL');
++        await pause(20);
++      }
++    }
++    try {
++      if (options.end) options.end();
++      else {
++        output += outputDecoder.decode();
++        diagnostics += diagnosticDecoder.decode();
++      }
++    } catch (error) {
++      fail(error.message);
++    }
++    return {
++      output,
++      diagnostics,
++      error: firstError,
++      cause,
++      inputSent: sent,
++      identityBeforeInput,
++      process: {
++        pid: child.pid ?? null,
++        exitCode: code,
++        signal,
++        closed,
++        groupClosed: !alive(),
++        cleanupErrors: [...cleanupErrors],
++        shutdown: closed && !firstError ? 'orderly' : 'terminated',
++      },
++    };
++  } finally {
++    for (const timer of timers) clearTimeout(timer);
++    process.off('SIGINT', interrupt);
++    process.off('SIGTERM', terminate);
++  }
++}
++
++async function detect(options) {
++  let executable;
++  try {
++    executable = await executablePath(options.executable);
++  } catch (error) {
++    if (
++      !['ENOENT', 'ENOTDIR'].includes(error.code) &&
++      !error.message.includes('not found on PATH')
++    )
++      throw error;
++    return {
++      executor,
++      available: false,
++      compatible: false,
++      auth: { mode: authMode(), verified: false },
++      modelExecutionVerified: false,
++    };
++  }
++  const versionProbe = await ownedProcess(executable, ['--version'], {
++    timeoutMs: 5000,
++  });
++  const helpProbe = ['interrupted', 'terminated'].includes(versionProbe.cause)
++    ? {
++        output: '',
++        diagnostics: '',
++        error: versionProbe.error,
++        cause: versionProbe.cause,
++      }
++    : await ownedProcess(executable, ['--help'], { timeoutMs: 5000 });
++  const version =
++    [versionProbe.output, versionProbe.diagnostics]
++      .map(
++        (text) =>
++          text.trim().match(/^(?:agy\s+)?(\d+\.\d+\.\d+)(?:\s.*)?$/)?.[1],
++      )
++      .find(Boolean) ?? null;
++  const help = helpProbe.output.trim()
++    ? helpProbe.output
++    : helpProbe.diagnostics;
++  const requiredOptions = Object.fromEntries(
++    [
++      '--model',
++      '--effort',
++      '--input-format',
++      '--output-format',
++      '--conversation',
++      '--settings',
++    ].map((flag) => [
++      flag.slice(2),
++      new RegExp(`(?:^|[\\s,])${flag}(?:[\\s=<]|$)`, 'm').test(help),
++    ]),
++  );
++  requiredOptions.streamJson = /\bstream-json\b/.test(help);
++  requiredOptions.models = /(?:^|\n)\s*models\b/.test(help);
++  const effortStart = help.indexOf('--effort');
++  const effortHelp =
++    effortStart < 0 ? '' : help.slice(effortStart).split(/\n\s*--/)[0];
++  const effortSyntax = agyEfforts.filter((level) =>
++    new RegExp(`\\b${level}\\b`).test(effortHelp),
++  );
++  return {
++    executor,
++    executable,
++    available: true,
++    version,
++    minimumVersion: AGY_MINIMUM_VERSION,
++    requiredOptions,
++    effortSyntax,
++    compatible:
++      !versionProbe.error &&
++      !helpProbe.error &&
++      supportedAgyVersion(version) &&
++      Object.values(requiredOptions).every(Boolean) &&
++      effortSyntax.length > 0,
++    auth: {
++      mode: authMode(),
++      verified: false,
++      description:
++        'Inherited environment only; no credential or authentication probe.',
++    },
++    modelExecutionVerified: false,
++    probeError: versionProbe.error ?? helpProbe.error ?? null,
++    probeCause: versionProbe.cause ?? helpProbe.cause ?? null,
++  };
++}
++
++async function contextFor(options) {
++  const context = [];
++  for (const [kind, files] of [
++    ['instruction', options.instruction],
++    ['skill', options.skill],
++    ['role', options.role ? [options.role] : []],
++    ['worker-context', [workerContext]],
++  ]) {
++    for (const file of files) {
++      const bytes = await regular(file);
++      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
++      const content =
++        kind === 'role'
++          ? text.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '')
++          : text;
++      context.push({
++        kind,
++        path: path.resolve(file),
++        sha256: sha256(bytes),
++        contentSha256: sha256(content),
++        content,
++      });
++    }
++  }
++  const task = options.promptFile
++    ? await regular(options.promptFile)
++    : await new Promise((resolve, reject) => {
++        const chunks = [];
++        process.stdin.on('data', (bytes) => chunks.push(bytes));
++        process.stdin.once('error', reject);
++        process.stdin.once('end', () => resolve(Buffer.concat(chunks)));
++      });
++  const taskText = new TextDecoder('utf-8', { fatal: true }).decode(task);
++  if (!taskText.trim())
++    throw new Error('Supply a nonempty task on stdin or --prompt-file.');
++  const prompt = [
++    `Working directory: ${options.cwd}\nApply the complete supplied instruction, skill and role bodies to this task.`,
++    ...context
++      .filter((file) => file.kind !== 'worker-context')
++      .map(
++        (file) =>
++          `## Complete ${file.kind} body from ${file.path}\n\n${file.content}`,
++      ),
++    `Receiving executor: ${executor}.\n\n${context.find((file) => file.kind === 'worker-context').content}`,
++    limitations[0],
++    `## Assigned task\n\n${taskText}`,
++  ].join('\n\n');
++  return {
++    prompt,
++    context: context.map(({ content, ...metadata }) => metadata),
++    taskSha256: sha256(task),
++  };
++}
++
++async function priorFor(options) {
++  if (!options.resume) return null;
++  const file = absolute(options.resume, '--resume');
++  await outsidePlugins(file, await fs.realpath(file));
++  const bytes = await regular(file, true);
++  const prior = JSON.parse(
++    new TextDecoder('utf-8', { fatal: true }).decode(bytes),
++  );
++  if (
++    path.basename(file) !== 'result.json' ||
++    prior.resultPath !== file ||
++    prior.runDir !== path.dirname(file) ||
++    prior.schemaVersion !== 1 ||
++    prior.command !== 'run' ||
++    prior.executor !== executor ||
++    prior.status !== 'completed'
++  )
++    throw new Error(
++      '--resume requires the exact successful Antigravity terminal result receipt.',
++    );
++  if (
++    JSON.stringify(agyEntry(prior.requested)) !==
++    JSON.stringify(options.requested)
++  )
++    throw new Error('Resume model and effort must be identical.');
++  if (prior.cwd !== options.cwd)
++    throw new Error('Resume requires the same canonical cwd.');
++  if (prior.authMode !== authMode())
++    throw new Error('Resume requires the same inherited auth mode.');
++  if (
++    !prior.process?.closed ||
++    !prior.process.groupClosed ||
++    prior.process.shutdown !== 'orderly' ||
++    prior.process.exitCode !== 0 ||
++    prior.process.signal !== null ||
++    !Number.isInteger(prior.process.pid)
++  )
++    throw new Error(
++      'Resume requires verified closed owned process and process group.',
++    );
++  if (
++    !uuid(prior.conversationId) ||
++    prior.observedModel !== options.model ||
++    prior.terminalResult?.conversation_id !== prior.conversationId ||
++    prior.terminalResult.status !== 'SUCCESS' ||
++    typeof prior.result !== 'string' ||
++    !prior.result.trim() ||
++    prior.result !== prior.terminalResult.response ||
++    prior.init?.conversation_id !== prior.conversationId ||
++    prior.init?.init?.cwd !== options.cwd ||
++    prior.init?.init?.model !== options.model ||
++    !prior.identityBeforeInput ||
++    !prior.inputSent ||
++    !Number.isSafeInteger(prior.terminalResult.num_turns) ||
++    prior.terminalResult.num_turns < 1
++  )
++    throw new Error(
++      'Resume receipt lacks exact conversation and current terminal evidence.',
++    );
++  const continuedByPath = path.join(path.dirname(file), 'continued-by.json');
++  try {
++    await fs.lstat(continuedByPath);
++    throw new Error('Prior receipt already has a permanent continuation edge.');
++  } catch (error) {
++    if (error.code !== 'ENOENT') throw error;
++  }
++  return {
++    file,
++    sha256: sha256(bytes),
++    conversationId: prior.conversationId,
++    numTurns: prior.terminalResult.num_turns,
++    continuedByPath,
++  };
++}
++
++function streamParser(options, prior) {
++  const decoder = new TextDecoder('utf-8', { fatal: true });
++  let pending = '',
++    init = null,
++    result = null,
++    userInput = false,
++    count = 0;
++  const line = (text, ready) => {
++    if (!text.trim()) return;
++    const value = JSON.parse(text);
++    if (
++      !value ||
++      typeof value !== 'object' ||
++      Array.isArray(value) ||
++      typeof value.event !== 'string'
++    )
++      throw new Error('Expected an event-based stream object.');
++    if (value.event === 'error' || value.error || value.is_error === true)
++      throw new Error(`Native agy failure: ${JSON.stringify(value)}`);
++    if (result) throw new Error('Stream continued after terminal result.');
++    if (value.event === 'init') {
++      if (init) throw new Error('Duplicate stream init.');
++      init = value;
++      if (
++        !uuid(init.conversation_id) ||
++        (prior && init.conversation_id !== prior.conversationId)
++      )
++        throw new Error(
++          'Init conversation ID does not match the exact requested conversation.',
++        );
++      if (init.init?.model !== options.model || init.init?.cwd !== options.cwd)
++        throw new Error('Init model or cwd does not match the exact request.');
++      ready();
++    } else if (value.event === 'step_update') {
++      if (!init || value.step_update?.conversation_id !== init.conversation_id)
++        throw new Error('Step conversation ID disagrees with init.');
++      if (
++        ['ERROR', 'FAILED', 'CANCELLED', 'CANCELED', 'ABORTED'].includes(
++          value.step_update.state,
++        ) ||
++        value.step_update.error
++      )
++        throw new Error('Native step reported failure.');
++      if (
++        value.step_update.step_type === 'user_input' &&
++        value.step_update.state === 'DONE'
++      )
++        userInput = true;
++    } else if (value.event === 'result') {
++      count++;
++      const terminal = value.result;
++      if (
++        !init ||
++        !userInput ||
++        !terminal ||
++        terminal.conversation_id !== init.conversation_id ||
++        terminal.status !== 'SUCCESS' ||
++        terminal.error ||
++        terminal.is_error === true ||
++        terminal.success === false ||
++        typeof terminal.response !== 'string' ||
++        !terminal.response.trim()
++      )
++        throw new Error(
++          'Missing matching current-turn SUCCESS terminal result and nonempty response.',
++        );
++      if (
++        !Number.isSafeInteger(terminal.num_turns) ||
++        terminal.num_turns <= (prior?.numTurns ?? 0)
++      )
++        throw new Error(
++          'Terminal result is stale or lacks current-turn count.',
++        );
++      result = terminal;
++    } else throw new Error(`Unsupported native stream event ${value.event}.`);
++  };
++  return {
++    receive(bytes, ready) {
++      pending += decoder.decode(bytes, { stream: true });
++      if (pending.length > 16 * 1024 * 1024)
++        throw new Error('Stream line exceeded its limit.');
++      let end;
++      while ((end = pending.indexOf('\n')) !== -1) {
++        line(pending.slice(0, end).replace(/\r$/, ''), ready);
++        pending = pending.slice(end + 1);
++      }
++    },
++    end() {
++      pending += decoder.decode();
++      if (pending.length)
++        throw new Error('Stream ended without a complete NDJSON line.');
++      if (!init || !result || count !== 1)
++        throw new Error('Stream lacks exactly one matching terminal result.');
++    },
++    evidence() {
++      return {
++        conversationId: init?.conversation_id ?? null,
++        observedModel: init?.init?.model ?? null,
++        init,
++        terminalResult: result,
++      };
++    },
++  };
++}
++
++async function execute(options) {
++  Object.assign(options, await preparePaths(options));
++  const context = options.command === 'run' ? await contextFor(options) : null;
++  const prior = options.command === 'run' ? await priorFor(options) : null;
++  const executable = await executablePath(options.executable);
++  await fs.mkdir(path.dirname(options.runDir), {
++    recursive: true,
++    mode: 0o700,
++  });
++  await fs.mkdir(options.runDir, { mode: 0o700 });
++  const resultPath = path.join(options.runDir, 'result.json');
++  const stdoutPath = path.join(
++    options.runDir,
++    options.command === 'run' ? 'stdout.jsonl' : 'stdout.log',
++  );
++  const stderrPath = path.join(options.runDir, 'stderr.log');
++  const request = {
++    schemaVersion: 1,
++    executor,
++    command: options.command,
++    cwd: options.cwd,
++    runDir: options.runDir,
++    executable,
++    requested: options.requested ?? null,
++    authMode: authMode(),
++    permissions: { scope: 'session-only', allow: options.allowPermission },
++    context: context?.context ?? [],
++    taskSha256: context?.taskSha256 ?? null,
++    resume: prior
++      ? {
++          receiptPath: prior.file,
++          receiptSha256: prior.sha256,
++          conversationId: prior.conversationId,
++        }
++      : null,
++    startedAt: new Date().toISOString(),
++    resultPath,
++    stdoutPath,
++    stderrPath,
++    limitations,
++    capabilities,
++  };
++  let stdoutFd,
++    stderrFd,
++    outcome = null,
++    runtime = null,
++    error = null,
++    failureKind = null,
++    evidence = {},
++    catalog = null;
++  let args = [];
++  try {
++    stdoutFd = openSync(stdoutPath, 'wx', 0o600);
++    stderrFd = openSync(stderrPath, 'wx', 0o600);
++    runtime = await detect({ executable });
++    if (!runtime.compatible) {
++      const rejected = new Error(
++        `Requires official agy >= ${AGY_MINIMUM_VERSION} with native stream, conversation and settings syntax. ${runtime.probeError ?? ''}`,
++      );
++      rejected.kind = runtime.probeCause;
++      throw rejected;
++    }
++    if (context && !runtime.effortSyntax.includes(options.effort))
++      throw new Error(
++        'Requested effort is not supported by the detected CLI syntax.',
++      );
++    if (prior) {
++      if (sha256(await regular(prior.file, true)) !== prior.sha256)
++        throw new Error('Prior receipt changed before continuation claim.');
++      await fs.writeFile(
++        prior.continuedByPath,
++        json({
++          schemaVersion: 1,
++          executor,
++          priorReceipt: prior.file,
++          priorReceiptSha256: prior.sha256,
++          resultPath,
++          runDir: options.runDir,
++          claimedAt: request.startedAt,
++        }),
++        { flag: 'wx', mode: 0o600 },
++      );
++    }
++    if (context) {
++      args = [
++        '--input-format',
++        'stream-json',
++        '--output-format',
++        'stream-json',
++        '--model',
++        options.model,
++        '--effort',
++        options.effort,
++      ];
++      if (prior) args.push('--conversation', prior.conversationId);
++      if (options.allowPermission.length)
++        args.push(
++          '--settings',
++          JSON.stringify({ permissions: { allow: options.allowPermission } }),
++        );
++      const promptPath = path.join(options.runDir, 'prompt.txt');
++      await fs.writeFile(promptPath, context.prompt, {
++        flag: 'wx',
++        mode: 0o600,
++      });
++      request.promptPath = promptPath;
++      request.promptSha256 = sha256(context.prompt);
++    } else args = ['models'];
++    request.args = args;
++    await fs.writeFile(
++      path.join(options.runDir, 'request.json'),
++      json(request),
++      { flag: 'wx', mode: 0o600 },
++    );
++    const parser = context ? streamParser(options, prior) : null;
++    outcome = await ownedProcess(executable, args, {
++      cwd: options.cwd,
++      timeoutMs: options.timeoutMs ?? (context ? null : 30000),
++      input: context
++        ? `${JSON.stringify({ event: 'user', message: { content: context.prompt } })}\n`
++        : undefined,
++      waitForInit: !!context,
++      receive: parser?.receive,
++      end: parser?.end,
++      stdout: (bytes) => writeSync(stdoutFd, bytes),
++      stderr: (bytes) => writeSync(stderrFd, bytes),
++    });
++    if (parser) evidence = parser.evidence();
++    if (outcome.error) throw new Error(outcome.error);
++    if (!outcome.process.closed || !outcome.process.groupClosed)
++      throw new Error('Owned process closure is unconfirmed.');
++    if (context) {
++      request.finalPath = path.join(options.runDir, 'final.txt');
++      await fs.writeFile(request.finalPath, evidence.terminalResult.response, {
++        flag: 'wx',
++        mode: 0o600,
++      });
++    }
++    if (!context) {
++      catalog = {
++        schemaVersion: 1,
++        executor,
++        runtime,
++        ...parseAgyModels(outcome.output, runtime.version),
++      };
++      await fs.writeFile(
++        path.join(options.runDir, 'catalog.json'),
++        json(catalog),
++        { flag: 'wx', mode: 0o600 },
++      );
++    }
++  } catch (failure) {
++    error = failure.message;
++    failureKind = failure.kind;
++  } finally {
++    if (stdoutFd !== undefined) closeSync(stdoutFd);
++    if (stderrFd !== undefined) closeSync(stderrFd);
++  }
++  const status = error
++    ? (outcome?.cause ?? failureKind ?? 'failed')
++    : 'completed';
++  const receipt = {
++    ...request,
++    args,
++    status,
++    error,
++    runtime,
++    process: outcome?.process ?? {
++      pid: null,
++      exitCode: null,
++      signal: null,
++      closed: true,
++      groupClosed: true,
++      shutdown: 'not-started',
++    },
++    ...evidence,
++    effectiveEffort: null,
++    inputSent: outcome?.inputSent ?? false,
++    identityBeforeInput: outcome?.identityBeforeInput ?? false,
++    result: error ? null : (evidence.terminalResult?.response ?? null),
++    usage: evidence.terminalResult?.usage
++      ? {
++          scope: 'conversation-cumulative',
++          source: 'native-agy-result',
++          value: evidence.terminalResult.usage,
++        }
++      : null,
++    ...(catalog
++      ? { catalogPath: path.join(options.runDir, 'catalog.json'), ...catalog }
++      : {}),
++    completedAt: new Date().toISOString(),
++  };
++  await fs.writeFile(resultPath, json(receipt), { flag: 'wx', mode: 0o600 });
++  console.log(JSON.stringify(receipt));
++  process.exitCode = !error
++    ? 0
++    : status === 'interrupted'
++      ? 130
++      : status === 'terminated'
++        ? 143
++        : 1;
++}
++
++try {
++  const options = optionsFor(process.argv.slice(2));
++  if (options.command === 'help') console.log(usage);
++  else if (options.command === 'detect') {
++    const result = await detect(options);
++    console.log(JSON.stringify(result));
++    if (!result.compatible) process.exitCode = 1;
++  } else await execute(options);
++} catch (error) {
++  console.error(error.message);
++  process.exitCode = 1;
++}
+diff --git a/skills/poteto-mode/scripts/run-pi.mjs b/skills/poteto-mode/scripts/run-pi.mjs
+new file mode 100644
+index 0000000..733fa1e
+--- /dev/null
++++ b/skills/poteto-mode/scripts/run-pi.mjs
+@@ -0,0 +1,1192 @@
++#!/usr/bin/env node
++import { spawn, spawnSync } from 'node:child_process';
++import { createHash, randomUUID } from 'node:crypto';
++import { closeSync, openSync, writeSync } from 'node:fs';
++import * as fs from 'node:fs/promises';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++import {
++  piEntry,
++  piCapability,
++  piEfforts,
++  routeKey,
++  piMinimumVersion,
++  supportedPiVersion,
++} from './pi-route.mjs';
++
++const pluginRoot = fileURLToPath(new URL('../../../', import.meta.url));
++const builtins = new Set([
++  'read',
++  'bash',
++  'edit',
++  'write',
++  'grep',
++  'find',
++  'ls',
++]);
++const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
++const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
++const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
++async function closedWithin(closed, ms) {
++  let timer;
++  try {
++    return await Promise.race([
++      closed.then(() => true),
++      new Promise((resolve) => {
++        timer = setTimeout(() => resolve(false), ms);
++      }),
++    ]);
++  } finally {
++    clearTimeout(timer);
++  }
++}
++const contains = (root, file) =>
++  file === root || file.startsWith(`${root}${path.sep}`);
++
++class PiFailure extends Error {
++  constructor(kind, message, details = {}) {
++    super(message);
++    this.kind = kind;
++    this.details = details;
++  }
++}
++
++function optionsFor(argv) {
++  const options = { command: argv[0], instruction: [], skill: [] };
++  if (['--help', '-h'].includes(argv[0])) return { command: 'help' };
++  if (!['run', 'catalog'].includes(options.command))
++    throw new Error('Choose run or catalog.');
++  const names = {
++    '--cwd': 'cwd',
++    '--run-dir': 'runDir',
++    '--provider': 'provider',
++    '--model': 'model',
++    '--effort': 'effort',
++    '--tools': 'tools',
++    '--role': 'role',
++    '--instruction': 'instruction',
++    '--skill': 'skill',
++    '--resume': 'resume',
++    '--prompt-file': 'promptFile',
++    '--executable': 'executable',
++    '--timeout-ms': 'timeoutMs',
++    '--startup-timeout-ms': 'startupTimeoutMs',
++    '--command-timeout-ms': 'commandTimeoutMs',
++    '--shutdown-grace-ms': 'shutdownGraceMs',
++  };
++  for (let index = 1; index < argv.length; index += 2) {
++    const key = names[argv[index]];
++    const value = argv[index + 1];
++    if (!key || !value || value.startsWith('--'))
++      throw new Error(`Invalid option ${argv[index]}.`);
++    if (Array.isArray(options[key])) options[key].push(value);
++    else if (options[key] !== undefined)
++      throw new Error(`Repeated option ${argv[index]}.`);
++    else options[key] = value;
++  }
++  for (const [key, fallback] of Object.entries({
++    startupTimeoutMs: 30000,
++    commandTimeoutMs: 15000,
++    shutdownGraceMs: 5000,
++    timeoutMs: null,
++  })) {
++    if (options[key] === undefined) options[key] = fallback;
++    else {
++      options[key] = Number(options[key]);
++      if (!Number.isSafeInteger(options[key]) || options[key] < 1)
++        throw new Error(`${key} must be a positive integer.`);
++    }
++  }
++  if (options.command === 'run') {
++    options.requested = piEntry({
++      executor: 'pi',
++      provider: options.provider,
++      model: options.model,
++      reasoningEffort: options.effort,
++    });
++    if (!options.tools)
++      throw new Error(
++        'run requires --tools with an explicit built-in tool selection, or none.',
++      );
++    const tools = options.tools === 'none' ? [] : options.tools.split(',');
++    if (
++      tools.some((tool) => !builtins.has(tool)) ||
++      new Set(tools).size !== tools.length
++    )
++      throw new Error('Choose exact, distinct built-in Pi tools.');
++    options.toolList = tools;
++  } else if (
++    options.resume ||
++    options.model ||
++    options.provider ||
++    options.effort ||
++    options.tools ||
++    options.role ||
++    options.instruction.length ||
++    options.skill.length ||
++    options.promptFile
++  )
++    throw new Error(
++      'catalog accepts only paths, executable and deadline options.',
++    );
++  return options;
++}
++
++function absolute(value, label) {
++  if (!value || !path.isAbsolute(value))
++    throw new Error(`${label} requires an absolute path.`);
++  return path.resolve(value);
++}
++
++async function regular(file) {
++  absolute(file, 'File');
++  const stat = await fs.lstat(file);
++  if (!stat.isFile() || stat.isSymbolicLink())
++    throw new Error(`Expected a regular canonical file: ${file}`);
++  return fs.readFile(file);
++}
++
++async function canonicalNew(file) {
++  try {
++    return await fs.realpath(file);
++  } catch (error) {
++    if (error.code !== 'ENOENT') throw error;
++    return path.join(
++      await canonicalNew(path.dirname(file)),
++      path.basename(file),
++    );
++  }
++}
++
++async function preparePaths(options) {
++  if (process.platform === 'win32')
++    throw new PiFailure(
++      'capability',
++      'Pi process group ownership requires a POSIX host.',
++    );
++  const cwd = await fs.realpath(absolute(options.cwd, '--cwd'));
++  if (!(await fs.stat(cwd)).isDirectory())
++    throw new Error('--cwd requires a directory.');
++  const runDir = await canonicalNew(absolute(options.runDir, '--run-dir'));
++  const roots = [
++    pluginRoot,
++    path.resolve(pluginRoot, '../plugin'),
++    path.resolve(pluginRoot, '../plugin-claude'),
++  ];
++  if (roots.some((root) => contains(root, runDir)))
++    throw new Error('--run-dir must be outside plugin trees.');
++  try {
++    await fs.lstat(runDir);
++    throw new Error('--run-dir already exists.');
++  } catch (error) {
++    if (error.code !== 'ENOENT') throw error;
++  }
++  return { cwd, runDir };
++}
++
++async function readBrief() {
++  const chunks = [];
++  for await (const chunk of process.stdin) chunks.push(chunk);
++  return Buffer.concat(chunks);
++}
++
++async function promptFor(options) {
++  const contexts = [];
++  for (const [kind, files] of [
++    ['role', options.role ? [options.role] : []],
++    ['instruction', options.instruction],
++    ['skill', options.skill],
++  ]) {
++    for (const file of files) {
++      const bytes = await regular(file);
++      contexts.push({
++        kind,
++        path: file,
++        sha256: hash(bytes),
++        text: new TextDecoder('utf-8', { fatal: true }).decode(bytes),
++      });
++    }
++  }
++  const workerFile = fileURLToPath(
++    new URL('../references/worker-context.md', import.meta.url),
++  );
++  const worker = await regular(workerFile);
++  const brief = options.promptFile
++    ? await regular(options.promptFile)
++    : await readBrief();
++  const text = new TextDecoder('utf-8', { fatal: true }).decode(brief);
++  if (!text.trim()) throw new Error('A nonempty task brief is required.');
++  return {
++    prompt: [
++      'Receiving executor: pi. You are a Pi worker. Native parent subagent tools, MCP, permissions and full conversation are not inherited. Pi has no established native nested delegation. Report required missing capabilities.',
++      worker.toString('utf8'),
++      ...contexts.map(
++        (context) =>
++          `Complete ${context.kind} body from ${context.path}\n${context.text}`,
++      ),
++      `Task\n${text}`,
++    ].join('\n\n'),
++    contexts: [
++      ...contexts.map(({ text: _text, ...entry }) => entry),
++      { kind: 'receiving-context', path: workerFile, sha256: hash(worker) },
++    ],
++    briefSha256: hash(brief),
++  };
++}
++
++function selectedState(state) {
++  return {
++    provider:
++      typeof state?.model?.provider === 'string' ? state.model.provider : null,
++    model: typeof state?.model?.id === 'string' ? state.model.id : null,
++    reasoningEffort: state?.thinkingLevel ?? null,
++    sessionId: state?.sessionId ?? null,
++    sessionFile: state?.sessionFile ?? null,
++    isStreaming: state?.isStreaming ?? null,
++    isCompacting: state?.isCompacting ?? null,
++    pendingMessageCount: state?.pendingMessageCount ?? null,
++  };
++}
++
++function safeRecord(record) {
++  if (record.type !== 'response') return record;
++  const base = {
++    type: 'response',
++    id: record.id,
++    command: record.command,
++    success: record.success,
++  };
++  if (!record.success)
++    return {
++      ...base,
++      error:
++        'Pi rejected the command. See the structured rejection in result.json.',
++    };
++  if (record.command === 'get_state')
++    return { ...base, data: selectedState(record.data) };
++  if (record.command === 'set_model')
++    return {
++      ...base,
++      data: { provider: record.data?.provider, id: record.data?.id },
++    };
++  if (record.command === 'get_available_models')
++    return {
++      ...base,
++      data: {
++        models: record.data?.models?.map((model) => ({
++          provider: model.provider,
++          id: model.id,
++        })),
++      },
++    };
++  return { ...base, data: record.data };
++}
++
++function commandFailure(record) {
++  const message = typeof record.error === 'string' ? record.error : '';
++  const kind =
++    /no api key|authenticat|oauth|unauthorized|invalid_refresh_token|credential/i.test(
++      message,
++    )
++      ? 'authentication'
++      : /^model not found(?:[.:\s]|$)/i.test(message)
++        ? 'model-not-found'
++        : 'command-rejected';
++  return new PiFailure(
++    kind,
++    kind === 'authentication'
++      ? 'Pi authentication is unavailable for this command.'
++      : kind === 'model-not-found'
++        ? 'Pi could not find the exact model.'
++        : `Pi rejected ${record.command}.`,
++    { command: record.command },
++  );
++}
++
++function assertSelected(selected, requested) {
++  if (
++    selected.provider !== requested.provider ||
++    selected.model !== requested.model ||
++    selected.reasoningEffort !== requested.reasoningEffort
++  )
++    throw new PiFailure(
++      'selection-changed',
++      'Pi changed the exact route or effort during the task.',
++      { selected },
++    );
++  if (
++    selected.isStreaming !== false ||
++    selected.isCompacting !== false ||
++    selected.pendingMessageCount !== 0
++  )
++    throw new PiFailure(
++      'interference',
++      'Pi has active or queued work after settlement.',
++    );
++}
++
++class RpcProcess {
++  constructor(executable, args, options, onEvent) {
++    this.options = options;
++    this.pending = new Map();
++    this.sequence = 0;
++    this.failure = null;
++    this.exit = null;
++    this.closing = false;
++    this.stdoutFd = openSync(
++      path.join(options.runDir, 'events.jsonl'),
++      'wx',
++      0o600,
++    );
++    this.stderrFd = openSync(
++      path.join(options.runDir, 'stderr.txt'),
++      'wx',
++      0o600,
++    );
++    this.failed = new Promise((_, reject) => {
++      this.rejectFailure = reject;
++    });
++    this.failed.catch(() => {});
++    this.child = spawn(executable, args, {
++      cwd: options.cwd,
++      detached: true,
++      stdio: ['pipe', 'pipe', 'pipe'],
++    });
++    this.closed = new Promise((resolve) => {
++      this.resolveClosed = resolve;
++    });
++    this.buffer = '';
++    const decoder = new TextDecoder('utf-8', { fatal: true });
++    this.child.stdout.on('data', (chunk) => {
++      try {
++        this.buffer += decoder.decode(chunk, { stream: true });
++        let end;
++        while ((end = this.buffer.indexOf('\n')) !== -1) {
++          const line = this.buffer.slice(0, end);
++          this.buffer = this.buffer.slice(end + 1);
++          if (
++            Buffer.byteLength(line) > 8 * 1024 * 1024 ||
++            !line ||
++            line.endsWith('\r')
++          )
++            throw new Error('Expected bounded LF JSONL records.');
++          const record = JSON.parse(line);
++          if (
++            !record ||
++            typeof record !== 'object' ||
++            Array.isArray(record) ||
++            typeof record.type !== 'string'
++          )
++            throw new Error('Invalid RPC record.');
++          writeSync(this.stdoutFd, `${JSON.stringify(safeRecord(record))}\n`);
++          if (record.type === 'response') {
++            const pending = this.pending.get(record.id);
++            if (!pending || pending.type !== record.command)
++              throw new Error('Unexpected or mismatched RPC response.');
++            this.pending.delete(record.id);
++            clearTimeout(pending.timer);
++            if (record.success === true) pending.resolve(record.data);
++            else pending.reject(commandFailure(record));
++          } else if (record.type === 'extension_ui_request')
++            throw new PiFailure(
++              'capability',
++              'Unexpected Pi extension UI request.',
++            );
++          else onEvent(record);
++        }
++        if (Buffer.byteLength(this.buffer) > 8 * 1024 * 1024)
++          throw new Error('RPC record exceeds the framing limit.');
++      } catch (error) {
++        this.fail(
++          error instanceof PiFailure
++            ? error
++            : new PiFailure(
++                'protocol',
++                error instanceof SyntaxError
++                  ? 'Invalid Pi RPC JSON record.'
++                  : error.message,
++              ),
++        );
++      }
++    });
++    this.child.stdout.on('end', () => {
++      try {
++        this.buffer += decoder.decode();
++        if (this.buffer)
++          this.fail(
++            new PiFailure(
++              'protocol',
++              'Pi closed with an unterminated JSONL record.',
++            ),
++          );
++      } catch (error) {
++        this.fail(
++          new PiFailure(
++            'protocol',
++            error instanceof SyntaxError
++              ? 'Invalid Pi RPC JSON record.'
++              : error.message,
++          ),
++        );
++      }
++    });
++    for (const stream of [
++      this.child.stdout,
++      this.child.stderr,
++      this.child.stdin,
++    ])
++      stream.on('error', (error) =>
++        this.fail(new PiFailure('stream', error.message)),
++      );
++    this.child.stderr.on('data', (chunk) => {
++      try {
++        writeSync(this.stderrFd, chunk);
++      } catch (error) {
++        this.fail(new PiFailure('artifact', error.message));
++      }
++    });
++    this.child.on('error', (error) =>
++      this.fail(new PiFailure('spawn', error.message)),
++    );
++    this.child.on('close', (exitCode, signal) => {
++      this.exit = { exitCode, signal };
++      if (!this.closing)
++        this.fail(
++          new PiFailure(
++            'process-exit',
++            'Pi exited before the owned task closed.',
++            this.exit,
++          ),
++        );
++      for (const pending of this.pending.values()) {
++        clearTimeout(pending.timer);
++        pending.reject(
++          new PiFailure('process-exit', 'Pi exited during an RPC command.'),
++        );
++      }
++      this.pending.clear();
++      closeSync(this.stdoutFd);
++      closeSync(this.stderrFd);
++      this.resolveClosed(this.exit);
++    });
++  }
++
++  fail(error) {
++    this.failure ??= error;
++    this.rejectFailure(this.failure);
++    for (const pending of this.pending.values()) {
++      clearTimeout(pending.timer);
++      pending.reject(this.failure);
++    }
++    this.pending.clear();
++  }
++
++  request(
++    type,
++    body = {},
++    timeoutMs = this.options.commandTimeoutMs,
++    cleanup = false,
++  ) {
++    if (this.failure && !cleanup) return Promise.reject(this.failure);
++    if (
++      this.exit ||
++      this.child.stdin.destroyed ||
++      this.child.stdin.writableEnded
++    )
++      return Promise.reject(
++        new PiFailure('process-exit', 'Pi input is closed.'),
++      );
++    const id = `pstack-${++this.sequence}`;
++    return new Promise((resolve, reject) => {
++      const timer = setTimeout(() => {
++        this.pending.delete(id);
++        const error = new PiFailure(
++          'command-timeout',
++          `Pi ${type} deadline expired.`,
++          { command: type },
++        );
++        reject(error);
++        if (!cleanup) this.fail(error);
++      }, timeoutMs);
++      this.pending.set(id, { type, resolve, reject, timer });
++      this.child.stdin.write(
++        `${JSON.stringify({ id, type, ...body })}\n`,
++        (error) => {
++          if (error) this.fail(new PiFailure('stdin', error.message));
++        },
++      );
++    });
++  }
++
++  async close(cancel) {
++    this.closing = true;
++    if (cancel && !this.exit) {
++      for (const command of ['clear_queue', 'abort']) {
++        await Promise.race([
++          this.request(
++            command,
++            {},
++            Math.min(1000, this.options.shutdownGraceMs),
++            true,
++          ).catch(() => {}),
++          this.closed,
++        ]);
++      }
++    }
++    this.child.stdin.end();
++    let shutdown = 'orderly';
++    if (
++      !this.exit &&
++      !(await closedWithin(this.closed, this.options.shutdownGraceMs))
++    ) {
++      shutdown = 'forced';
++      this.signalGroup('SIGTERM');
++      if (!(await closedWithin(this.closed, 2000))) {
++        this.signalGroup('SIGKILL');
++        if (!(await closedWithin(this.closed, 2000))) shutdown = 'unconfirmed';
++      }
++    }
++    if (shutdown !== 'unconfirmed') await this.closed;
++    if (this.groupExists()) {
++      shutdown = 'forced';
++      this.signalGroup('SIGTERM');
++      await delay(50);
++      if (this.groupExists()) this.signalGroup('SIGKILL');
++      for (let attempt = 0; attempt < 20 && this.groupExists(); attempt += 1)
++        await delay(50);
++      if (this.groupExists()) shutdown = 'unconfirmed';
++    }
++    return {
++      pid: this.child.pid ?? null,
++      ...(this.exit ?? { exitCode: null, signal: null }),
++      shutdown,
++    };
++  }
++
++  signalGroup(signal) {
++    if (!this.child.pid) return;
++    try {
++      process.kill(-this.child.pid, signal);
++    } catch (error) {
++      if (error.code !== 'ESRCH')
++        this.fail(new PiFailure('shutdown', error.message));
++    }
++  }
++
++  groupExists() {
++    if (!this.child.pid) return false;
++    try {
++      process.kill(-this.child.pid, 0);
++      return true;
++    } catch (error) {
++      return error.code !== 'ESRCH';
++    }
++  }
++}
++
++function currentTurn() {
++  const state = {
++    userSeen: false,
++    assistant: null,
++    settled: null,
++    usage: null,
++  };
++  let finish;
++  const done = new Promise((resolve) => {
++    finish = resolve;
++  });
++  return {
++    state,
++    done,
++    event(record) {
++      if (record.type === 'message_start' && record.message?.role === 'user') {
++        if (state.userSeen)
++          throw new PiFailure('interference', 'Unexpected second user turn.');
++        state.userSeen = true;
++      }
++      if (
++        record.type === 'message_end' &&
++        record.message?.role === 'assistant' &&
++        state.userSeen
++      ) {
++        const message = record.message;
++        const usage = usageFor(message.usage);
++        state.usage = addUsage(state.usage, usage);
++        state.assistant = {
++          stopReason: message.stopReason ?? null,
++          error: Boolean(message.errorMessage),
++          provider:
++            typeof message.provider === 'string' ? message.provider : null,
++          model: typeof message.model === 'string' ? message.model : null,
++          text: Array.isArray(message.content)
++            ? message.content
++                .filter(
++                  (block) =>
++                    block.type === 'text' && typeof block.text === 'string',
++                )
++                .map((block) => block.text)
++                .join('\n')
++            : '',
++          usage,
++        };
++      }
++      if (record.type === 'agent_settled') {
++        state.settled = { aborted: record.aborted };
++        finish();
++      }
++    },
++  };
++}
++
++function addUsage(total, usage) {
++  if (!usage) return total;
++  const sum = total ?? { source: 'pi-provider-estimate', assistantMessages: 0 };
++  sum.assistantMessages += 1;
++  for (const [key, value] of Object.entries(usage)) {
++    if (key === 'cost') {
++      sum.cost ??= {};
++      for (const [name, amount] of Object.entries(value))
++        sum.cost[name] = (sum.cost[name] ?? 0) + amount;
++    } else sum[key] = (sum[key] ?? 0) + value;
++  }
++  return sum;
++}
++
++function usageFor(usage) {
++  if (!usage || typeof usage !== 'object') return null;
++  const result = {};
++  for (const key of [
++    'input',
++    'output',
++    'cacheRead',
++    'cacheWrite',
++    'totalTokens',
++  ])
++    if (Number.isFinite(usage[key])) result[key] = usage[key];
++  if (usage.cost && typeof usage.cost === 'object') {
++    result.cost = {};
++    for (const key of ['input', 'output', 'cacheRead', 'cacheWrite', 'total'])
++      if (Number.isFinite(usage.cost[key])) result.cost[key] = usage.cost[key];
++  }
++  return result;
++}
++
++function verdict(turn) {
++  if (!turn.userSeen)
++    throw new PiFailure('terminal', 'No new user turn was observed.');
++  if (turn.settled?.aborted !== false)
++    throw new PiFailure('terminal', 'Pi did not settle without an abort.');
++  const assistant = turn.assistant;
++  if (
++    !assistant ||
++    assistant.stopReason !== 'stop' ||
++    assistant.error ||
++    !assistant.text.trim()
++  )
++    throw new PiFailure(
++      'terminal',
++      'Pi settled without a nonempty successful current-turn assistant answer.',
++      { stopReason: assistant?.stopReason ?? null },
++    );
++  return assistant.text;
++}
++
++async function sessionSnapshot(state, cwd) {
++  if (
++    typeof state?.sessionFile !== 'string' ||
++    !state.sessionFile ||
++    typeof state.sessionId !== 'string' ||
++    !state.sessionId
++  )
++    return null;
++  const file = absolute(state.sessionFile, 'Pi session');
++  if ((await canonicalNew(file)) !== file)
++    throw new PiFailure(
++      'session',
++      'Pi persisted session path is not canonical.',
++    );
++  let bytes;
++  try {
++    bytes = await regular(file);
++  } catch (error) {
++    if (error.code === 'ENOENT') return null;
++    throw error;
++  }
++  let header;
++  try {
++    header = JSON.parse(bytes.toString('utf8').split('\n')[0]);
++  } catch {
++    throw new PiFailure('session', 'Pi session header is invalid.');
++  }
++  if (
++    header.type !== 'session' ||
++    header.id !== state.sessionId ||
++    header.cwd !== cwd
++  )
++    throw new PiFailure(
++      'session',
++      'Pi persisted session identity does not match the selected state.',
++    );
++  return { id: header.id, file, cwd, sha256: hash(bytes) };
++}
++
++function resumability(selected, requested, session, closure) {
++  if (!session)
++    return { available: false, reason: 'No verified persisted session.' };
++  if (
++    !closure ||
++    !['orderly', 'forced'].includes(closure.shutdown) ||
++    !Number.isInteger(closure.pid) ||
++    (closure.exitCode === null && !closure.signal)
++  )
++    return {
++      available: false,
++      reason: 'Owned process closure is unconfirmed.',
++    };
++  if (
++    !requested ||
++    !selected ||
++    selected.provider !== requested.provider ||
++    selected.model !== requested.model ||
++    selected.reasoningEffort !== requested.reasoningEffort
++  )
++    return {
++      available: false,
++      reason:
++        'The final selected route and effort were not verified for continuation. Prior receipt hashes may have changed.',
++    };
++  return {
++    available: true,
++    reason:
++      'Exact selected route, persisted session and process closure are recorded.',
++  };
++}
++
++async function resumeFor(options) {
++  if (!options.resume) return null;
++  const prior = JSON.parse(
++    (await regular(absolute(options.resume, '--resume'))).toString('utf8'),
++  );
++  if (
++    prior.executor !== 'pi' ||
++    !prior.session ||
++    !['completed', 'failed', 'rejected', 'interrupted', 'timed-out'].includes(
++      prior.status,
++    ) ||
++    JSON.stringify(prior.requested) !== JSON.stringify(options.requested) ||
++    prior.session.cwd !== options.cwd ||
++    !resumability(prior.selected, prior.requested, prior.session, prior.process)
++      .available
++  )
++    throw new PiFailure(
++      'resume',
++      'Resume requires the exact terminal Pi receipt, route, effort, canonical cwd and confirmed process closure.',
++    );
++  const session = await sessionSnapshot(
++    { sessionFile: prior.session.file, sessionId: prior.session.id },
++    options.cwd,
++  );
++  if (!session || session.sha256 !== prior.session.sha256)
++    throw new PiFailure(
++      'resume',
++      'The persisted Pi session is missing or changed.',
++    );
++  const lease = `${session.file}.pstack-lease`;
++  let handle;
++  try {
++    handle = await fs.open(lease, 'wx', 0o600);
++  } catch (error) {
++    if (error.code === 'EEXIST')
++      throw new PiFailure(
++        'session-lease',
++        `Pi session lease already exists at ${lease}. Inspect it before retrying continuation.`,
++      );
++    throw error;
++  }
++  try {
++    await handle.writeFile(
++      json({
++        pid: process.pid,
++        receipt: options.resume,
++        runDir: options.runDir,
++      }),
++    );
++    await handle.close();
++    const locked = await sessionSnapshot(
++      { sessionFile: session.file, sessionId: session.id },
++      options.cwd,
++    );
++    if (!locked || locked.sha256 !== session.sha256)
++      throw new PiFailure(
++        'resume',
++        'Pi session changed before its exclusive continuation lease.',
++      );
++  } catch (error) {
++    await handle.close().catch(() => {});
++    await fs.unlink(lease);
++    throw error;
++  }
++  return { ...session, lease };
++}
++
++async function selectRoute(rpc, route) {
++  try {
++    await rpc.request('set_model', {
++      provider: route.provider,
++      modelId: route.model,
++    });
++  } catch (error) {
++    if (error.kind === 'model-not-found')
++      throw new PiFailure(
++        'model-rejected',
++        'Pi rejected the exact provider and model.',
++        { provider: route.provider, model: route.model },
++      );
++    throw error;
++  }
++  const state = selectedState(await rpc.request('get_state'));
++  if (state.provider !== route.provider || state.model !== route.model)
++    throw new PiFailure(
++      'selection-changed',
++      'Pi selected a different provider or model.',
++      { selected: state },
++    );
++  return state;
++}
++
++async function selectEffort(rpc, requested) {
++  await selectRoute(rpc, requested);
++  const levels = (await rpc.request('get_available_thinking_levels'))?.levels;
++  if (
++    !Array.isArray(levels) ||
++    !levels.length ||
++    levels.some((level) => !piEfforts.includes(level))
++  )
++    throw new PiFailure(
++      'protocol',
++      'Pi reported invalid supported thinking levels.',
++    );
++  if (!levels.includes(requested.reasoningEffort))
++    throw new PiFailure(
++      'effort-rejected',
++      'Pi does not support the requested effort.',
++      { availableLevels: levels },
++    );
++  try {
++    await rpc.request('set_thinking_level', {
++      level: requested.reasoningEffort,
++    });
++  } catch (error) {
++    if (error.kind === 'command-rejected')
++      throw new PiFailure(
++        'effort-rejected',
++        'Pi rejected the requested effort.',
++        { availableLevels: levels },
++      );
++    throw error;
++  }
++  const selected = selectedState(await rpc.request('get_state'));
++  if (
++    selected.provider !== requested.provider ||
++    selected.model !== requested.model
++  )
++    throw new PiFailure('selection-changed', 'Pi changed the selected route.', {
++      selected,
++    });
++  if (selected.reasoningEffort !== requested.reasoningEffort)
++    throw new PiFailure('effort-rejected', 'Pi clamped the requested effort.', {
++      availableLevels: levels,
++      selected,
++    });
++  if (
++    selected.isStreaming !== false ||
++    selected.isCompacting !== false ||
++    selected.pendingMessageCount !== 0
++  )
++    throw new PiFailure('interference', 'Pi is not idle before the task.');
++  return selected;
++}
++
++async function catalogFor(rpc, version) {
++  const available = (await rpc.request('get_available_models'))?.models;
++  if (!Array.isArray(available) || !available.length)
++    throw new PiFailure('capability', 'Pi has no available configured models.');
++  const models = [];
++  const seen = new Set();
++  for (const model of available) {
++    const route = { executor: 'pi', provider: model.provider, model: model.id };
++    const key = routeKey(route);
++    if (seen.has(key))
++      throw new PiFailure('protocol', 'Pi returned a duplicate model route.');
++    seen.add(key);
++    await selectRoute(rpc, route);
++    const levels = (await rpc.request('get_available_thinking_levels'))?.levels;
++    models.push(
++      piCapability({
++        ...route,
++        supportedReasoningEfforts: levels,
++        runtimeVersion: version,
++        source: {
++          kind: 'host',
++          description: `Pi ${version} RPC exact selection and per-model thinking levels. Configured availability, inference unverified.`,
++        },
++      }),
++    );
++  }
++  return { models };
++}
++
++async function atomic(file, value) {
++  const temporary = `${file}.${randomUUID()}.tmp`;
++  await fs.writeFile(temporary, json(value), { flag: 'wx', mode: 0o600 });
++  await fs.rename(temporary, file);
++}
++
++async function execute(options) {
++  Object.assign(options, await preparePaths(options));
++  const delivered = options.command === 'run' ? await promptFor(options) : null;
++  const resumed = await resumeFor(options);
++  let rpc;
++  let timer;
++  let interrupted = null;
++  const cancel = (signal) => {
++    interrupted ??= new PiFailure(
++      signal === 'timeout' ? 'timed-out' : 'interrupted',
++      `Pi task ${signal === 'timeout' ? 'deadline expired' : `received ${signal}`}.`,
++    );
++    rpc?.fail(interrupted);
++  };
++  const onInt = () => cancel('SIGINT');
++  const onTerm = () => cancel('SIGTERM');
++  try {
++    await fs.mkdir(path.dirname(options.runDir), { recursive: true });
++    await fs.mkdir(options.runDir, { mode: 0o700 });
++    const executable = options.executable
++      ? absolute(options.executable, '--executable')
++      : 'pi';
++    const versionProbe = spawnSync(executable, ['--version'], {
++      encoding: 'utf8',
++      timeout: options.startupTimeoutMs,
++      maxBuffer: 4096,
++    });
++    const version =
++      versionProbe.status === 0 ? versionProbe.stdout.trim() : null;
++    const args = [
++      '--mode',
++      'rpc',
++      '--offline',
++      '--no-extensions',
++      '--no-mcp',
++      '--no-context-files',
++      '--no-skills',
++      '--no-prompt-templates',
++      '--no-themes',
++      '--no-approve',
++    ];
++    if (options.command === 'catalog') args.push('--no-session', '--no-tools');
++    else {
++      if (options.toolList.length)
++        args.push('--tools', options.toolList.join(','));
++      else args.push('--no-tools');
++      if (resumed) args.push('--session', resumed.file);
++    }
++    const request = {
++      schemaVersion: 1,
++      executor: 'pi',
++      command: options.command,
++      executable,
++      version,
++      cwd: options.cwd,
++      requested: options.requested ?? null,
++      tools: options.toolList ?? [],
++      resumeReceipt: options.resume ?? null,
++      args,
++      contexts: delivered?.contexts ?? [],
++      promptSha256: delivered ? hash(delivered.prompt) : null,
++      briefSha256: delivered?.briefSha256 ?? null,
++      capabilities: {
++        nativeDelegation: false,
++        inheritedMcp: false,
++        inheritedConversation: false,
++        osReadOnlyEnforcement: false,
++      },
++      startedAt: new Date().toISOString(),
++    };
++    await atomic(path.join(options.runDir, 'request.json'), request);
++    if (delivered)
++      await fs.writeFile(
++        path.join(options.runDir, 'prompt.txt'),
++        delivered.prompt,
++        { flag: 'wx', mode: 0o600 },
++      );
++    const turn = currentTurn();
++    let collecting = false;
++    let selected = null;
++    let startup = null;
++    let result = null;
++    let catalog = null;
++    let failure = null;
++    let session = null;
++    process.on('SIGINT', onInt);
++    process.on('SIGTERM', onTerm);
++    if (options.timeoutMs)
++      timer = setTimeout(() => cancel('timeout'), options.timeoutMs);
++    try {
++      if (!supportedPiVersion(version))
++        throw new PiFailure(
++          'capability',
++          `Pi ${piMinimumVersion} or newer with the required RPC controls is required.`,
++        );
++      rpc = new RpcProcess(executable, args, options, (record) => {
++        if (collecting) turn.event(record);
++      });
++      startup = selectedState(
++        await rpc.request('get_state', {}, options.startupTimeoutMs),
++      );
++      if (
++        resumed &&
++        (startup.sessionId !== resumed.id ||
++          startup.sessionFile !== resumed.file ||
++          startup.provider !== options.requested.provider ||
++          startup.model !== options.requested.model ||
++          startup.reasoningEffort !== options.requested.reasoningEffort)
++      )
++        throw new PiFailure(
++          'resume',
++          'Pi did not restore the exact persisted session and settings.',
++        );
++      if (options.command === 'catalog')
++        catalog = await catalogFor(rpc, version);
++      else {
++        selected = await selectEffort(rpc, options.requested);
++        if (
++          resumed &&
++          (selected.sessionId !== resumed.id ||
++            selected.sessionFile !== resumed.file)
++        )
++          throw new PiFailure(
++            'resume',
++            'Pi changed session identity during exact selection.',
++          );
++        collecting = true;
++        const accepted = await rpc.request('prompt', {
++          message: delivered.prompt,
++        });
++        if (accepted?.disposition !== 'started')
++          throw new PiFailure(
++            'prompt-disposition',
++            `Pi prompt was ${accepted?.disposition ?? 'unrecognized'}.`,
++          );
++        await Promise.race([turn.done, rpc.failed]);
++        result = verdict(turn.state);
++        selected = selectedState(await rpc.request('get_state'));
++        assertSelected(selected, options.requested);
++      }
++    } catch (error) {
++      failure = error;
++    }
++    const closure = rpc
++      ? await rpc.close(Boolean(failure || interrupted))
++      : { pid: null, exitCode: null, signal: null, shutdown: 'not-started' };
++    clearTimeout(timer);
++    failure = interrupted ?? failure ?? rpc?.failure;
++    if (
++      !failure &&
++      (closure.shutdown !== 'orderly' ||
++        closure.exitCode !== 0 ||
++        closure.signal)
++    )
++      failure = new PiFailure(
++        'shutdown',
++        'Pi did not close orderly with exit code zero.',
++        closure,
++      );
++    try {
++      if (selected ?? startup)
++        session = await sessionSnapshot(selected ?? startup, options.cwd);
++    } catch (error) {
++      failure ??= error;
++    }
++    const rejection = failure
++      ? {
++          kind: failure.kind ?? 'failure',
++          message: failure.message,
++          ...failure.details,
++        }
++      : null;
++    const status = !failure
++      ? 'completed'
++      : failure.kind === 'interrupted'
++        ? 'interrupted'
++        : failure.kind === 'timed-out'
++          ? 'timed-out'
++          : ['effort-rejected', 'model-rejected'].includes(failure.kind)
++            ? 'rejected'
++            : 'failed';
++    const receipt = {
++      ...request,
++      status,
++      selected,
++      startup,
++      observedAssistant: turn.state.assistant
++        ? {
++            provider: turn.state.assistant.provider,
++            model: turn.state.assistant.model,
++          }
++        : null,
++      turn: {
++        userSeen: turn.state.userSeen,
++        settled: turn.state.settled,
++        stopReason: turn.state.assistant?.stopReason ?? null,
++      },
++      usage: turn.state.usage,
++      lastAssistantUsage: turn.state.assistant?.usage ?? null,
++      result: failure ? null : result,
++      rejection,
++      session,
++      resumability: resumability(selected, options.requested, session, closure),
++      process: closure,
++      artifacts: {
++        request: path.join(options.runDir, 'request.json'),
++        prompt: delivered ? path.join(options.runDir, 'prompt.txt') : null,
++        events: path.join(options.runDir, 'events.jsonl'),
++        stderr: path.join(options.runDir, 'stderr.txt'),
++        result: path.join(options.runDir, 'result.json'),
++      },
++      completedAt: new Date().toISOString(),
++    };
++    if (!failure && catalog) {
++      await atomic(path.join(options.runDir, 'catalog.json'), catalog);
++      receipt.models = catalog.models;
++    }
++    if (!failure && result !== null)
++      await fs.writeFile(path.join(options.runDir, 'final.txt'), result, {
++        flag: 'wx',
++        mode: 0o600,
++      });
++    await atomic(path.join(options.runDir, 'result.json'), receipt);
++    process.stdout.write(`${JSON.stringify(receipt)}\n`);
++    process.exitCode =
++      status === 'completed' ? 0 : status === 'interrupted' ? 130 : 1;
++  } finally {
++    clearTimeout(timer);
++    process.off('SIGINT', onInt);
++    process.off('SIGTERM', onTerm);
++    if (rpc && !rpc.closing) await rpc.close(true);
++    if (resumed) await fs.unlink(resumed.lease);
++  }
++}
++
++try {
++  const options = optionsFor(process.argv.slice(2));
++  if (options.command === 'help')
++    process.stdout.write(
++      'Usage: run-pi.mjs catalog|run --cwd ABS --run-dir ABS [--executable ABS]\nrun requires --provider EXACT --model EXACT --effort LEVEL --tools CSV|none.\nOptional --instruction ABS, --skill ABS, --role ABS, --prompt-file ABS, --resume ABS_RECEIPT, --timeout-ms N.\nContext flags repeat. Without --prompt-file, read the task from stdin.\n',
++    );
++  else await execute(options);
++} catch (error) {
++  process.stderr.write(
++    `${JSON.stringify({ status: 'failed', rejection: { kind: error.kind ?? 'input', message: error.message } })}\n`,
++  );
++  process.exitCode = 1;
++}

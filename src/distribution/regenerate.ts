@@ -310,7 +310,7 @@ async function reconstructNodes(
         } catch (prefixError) {
           if (!(prefixError instanceof GitPatchConflict)) throw prefixError;
           throw new Error(
-            `Cannot reconstruct candidate intermediate before ${node.name} for ${target} (${node.paths.join(', ')}). Refresh this reviewed candidate patch before regeneration. ${inverseError instanceof Error ? inverseError.message : String(inverseError)}; prefix: ${prefixError instanceof Error ? prefixError.message : String(prefixError)}`,
+            `Cannot reconstruct candidate intermediate before ${node.name} for ${target} (${node.paths.join(', ')}). Refresh this reviewed candidate patch before regeneration, or run rebase-patches to move the pinned series onto the candidate source. ${inverseError instanceof Error ? inverseError.message : String(inverseError)}; prefix: ${prefixError instanceof Error ? prefixError.message : String(prefixError)}`,
           );
         }
       }

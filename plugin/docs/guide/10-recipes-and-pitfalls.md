@@ -162,7 +162,7 @@ To watch the catch-up instead, run [`$pstack-codex:ketchup-video`](../../skills/
 
 ## The pitfalls
 
-- **Enumerating skills in the prompt.** "use $pstack-codex:how then $pstack-codex:architect then $pstack-codex:arena" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
+- **Enumerating skills in the prompt.** "use $pstack-codex:architect then $pstack-codex:arena then $pstack-codex:interrogate" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
 - **A vague finish condition.** "make it better" gives the Codex loop nothing to check. Give a command or artifact that can pass or fail.
 - **Leading with your theory of the cause.** The agent searches wherever you pointed. Ask it to restate the problem first, then share your hunch.
 - **Taking the first design.** One attempt locks in the first shape the model thought of. Ask for prototypes or `$pstack-codex:architect` and pick from evidence.

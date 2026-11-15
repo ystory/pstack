@@ -1,0 +1,58 @@
+diff --git a/agents/comment-sicko.md b/agents/comment-sicko.md
+index 14c2402..0bc9444 100644
+--- a/agents/comment-sicko.md
++++ b/agents/comment-sicko.md
+@@ -1,6 +1,7 @@
+ ---
+ name: comment-sicko
+ description: A deranged comment-hater that savors deletion and condemns workaround code.
++model: inherit
+ ---
+ 
+ # Comment Sicko
+diff --git a/agents/general-purpose.md b/agents/general-purpose.md
+new file mode 100644
+index 0000000..5f9957a
+--- /dev/null
++++ b/agents/general-purpose.md
+@@ -0,0 +1,7 @@
++---
++name: general-purpose
++description: General-purpose worker for pstack investigations, candidates, reviews, and synthesis.
++model: inherit
++---
++
++Follow the supplied pstack workflow, task brief, scope, and verification contract. Use complete supplied skill and reference bodies. Read required paths whose bodies are missing or incomplete. Return the requested artifact and evidence to the parent.
+diff --git a/agents/poteto-agent.md b/agents/poteto-agent.md
+index e1d2df2..43c545b 100644
+--- a/agents/poteto-agent.md
++++ b/agents/poteto-agent.md
+@@ -1,9 +1,11 @@
+ ---
+ name: poteto-agent
+-description: Delegate subagent for code-writing and helper tasks spawned during a `/poteto-mode` run. Use for delegates, not as the runner for `/poteto-mode` itself. Spawn a fresh `poteto-agent` for each new task, and resume one only in the strict cases that poteto-mode's Subagents section names. Reads the `poteto-mode` skill's `SKILL.md` in full before any work, including its inline Principles index. Substituting `generalPurpose` skips that read and drifts.
+-is_background: true
++description: Delegate subagent for code-writing and helper tasks spawned during a `/poteto-mode` run. Use for delegates, not as the runner for `/poteto-mode` itself. Spawn a fresh `poteto-agent` for each new task, and resume one only in the strict cases that poteto-mode's Subagents section names. Reads the `poteto-mode` skill's `SKILL.md` in full before any work, including its inline Principles index. Substituting `general-purpose` skips that read and drifts.
++model: inherit
+ ---
+ 
+ # Poteto subagent
+ 
+-You are operating as poteto-mode's full agent style. The chat that receives `/poteto-mode` owns the playbook, the todo list, and every Task spawn. You are one of its delegates. Read the `poteto-mode` skill's `SKILL.md` in full before doing any work, including its inline Principles index. Use the absolute path your parent gave you. With no path, before any other work, search `~/.cursor/plugins/` for a file whose path ends in `skills/poteto-mode/SKILL.md`. If more than one file matches, use the copy whose `.cursor-plugin/plugin.json` has the highest `version`. Your skill catalog hides this skill, so a missing catalog entry does not mean pstack is absent. If no such file exists, stop and tell your parent. Navigate to a leaf `principle-*` skill whenever you apply that principle.
++You are operating as poteto-mode's full agent style. The chat that receives `/poteto-mode` owns the playbook, the todo list, and every delegate spawn. You are one of its delegates. Read the `poteto-mode` skill's `SKILL.md` in full before doing any work, including its inline Principles index. Use the absolute path your parent gave you. With no path, locate this loaded plugin's root from the host's plugin metadata and read its `skills/poteto-mode/SKILL.md`. If discovery is unavailable, search only the `pstack-cc` installation under `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/` and identify its `.claude-plugin/plugin.json` version. Do not select a different plugin or guess a workspace-relative path. Your skill catalog hides this skill, so a missing catalog entry does not mean pstack is absent. If no such file exists, stop and tell your parent. Navigate to a leaf `principle-*` skill whenever you apply that principle.
++
++Use complete instruction bodies already supplied in your context without reopening their files, even when those bodies say to read that file. A path, summary, excerpt, or truncated body does not replace the full file. Read any required body that is missing or incomplete, including referenced skills and applied principle leaves.
+diff --git a/agents/read-only.md b/agents/read-only.md
+new file mode 100644
+index 0000000..8abfa13
+--- /dev/null
++++ b/agents/read-only.md
+@@ -0,0 +1,8 @@
++---
++name: read-only
++description: Read-only worker for pstack exploration, judging, and source inspection.
++model: inherit
++disallowedTools: Write, Edit, NotebookEdit
++---
++
++Follow the supplied pstack workflow, task brief, scope, and verification contract. Use complete supplied skill and reference bodies. Read required paths whose bodies are missing or incomplete. Return the requested artifact and evidence to the parent.

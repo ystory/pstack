@@ -35,13 +35,13 @@ node dist/cli.js generate-patch --target claude-code --name NNNN-next-adaptation
 node dist/cli.js verify-patches --target all
 ```
 
-Replace `NNNN` with the next unused four-digit number in the selected target's series. Codex uses `patches/series`; Claude uses `patches/claude/series`. Omitting `--target` retains the Codex command behavior. `--paths` accepts comma-separated files or directories relative to the selected target tree; omitting it includes all unrecorded changes. Existing patches are not overwritten. Replay applies the ordered series to a temporary copy of the combined upstream baseline and must reproduce every plugin byte, file type, and permission.
+Replace `NNNN` with the next unused four-digit number in the selected target's series. The new patch may change a path that an earlier patch owns; [a compaction](#compact-the-patch-series) later folds it into that path's themed patch. Codex uses `patches/series`; Claude uses `patches/claude/series`. Omitting `--target` retains the Codex command behavior. `--paths` accepts comma-separated files or directories relative to the selected target tree; omitting it includes all unrecorded changes. Existing patches are not overwritten. Replay applies the ordered series to a temporary copy of the combined upstream baseline and must reproduce every plugin byte, file type, and permission.
 
 Before publishing changes to `plugin-claude/`, increment the version in `plugin-claude/.claude-plugin/plugin.json`. Claude's native updater can retain cached plugin bytes when only the Git revision changes. Record the version bump in a new Claude patch. The Codex manifest and maintainer package have independent versions.
 
 ## Record a shared adaptation
 
-How, its explainer template, and No comments have common workflow bodies. Their source changes live once under `patches/shared/`; both target series reference the same `shared/NNNN-name.patch` at the intended point. Each target's `skills/poteto-mode/references/execution.md` supplies native calls, registration, paths, and worker transports. Personal preferences remain independent.
+How and No comments have common workflow bodies. Their source changes live once under `patches/shared/`; both target series reference the same `shared/NNNN-name.patch` at the intended point. Each target's `skills/poteto-mode/references/execution.md` supplies native calls, registration, paths, and worker transports. Personal preferences remain independent.
 
 Edit a common file in one target, then record that edit once:
 
@@ -53,6 +53,45 @@ node dist/cli.js verify-patches --target all
 `--from`, `--name`, and `--paths` are required. `--from claude-code` reads the Claude output instead. This selects the edited input, not a preferred host or model. The command verifies one patch against both replayed inputs, materializes the other output, and appends both series references. Unrelated working changes remain. A conflicting unrecorded edit in the selected other files is reported before the patch is recorded.
 
 Commit the shared patch, both series references, and both materialized outputs. Keep native changes in target patches. Initial transfer uses target-specific deletion patches followed by one shared addition, so different old host bodies do not have to match. Those full-file deletion inputs also expose upstream changes during candidate replay. Do not replace the locked original or add a third whole skill tree.
+
+## Compact the patch series
+
+Recorded adaptations append to a series, so over time many patches change the same file. An upstream update then has to move every one of them onto the new source. A compaction rewrites both series so that each changed path belongs to exactly one patch in each target. An upstream change to a file can then conflict with one patch only.
+
+Run a compaction as its own change, separate from any adaptation or upstream update. It changes no byte under `plugin/`, `plugin-claude/`, or `upstream/`. It discards the per-patch history of the series, so name the commit that holds the previous series in the change description.
+
+1. Build the CLI and record the two tree digests that `node dist/cli.js verify-patches --target all` prints.
+
+2. Write the compacted series to a new directory in ignored storage:
+
+   ```sh
+   node dist/cli.js compact-patches --output "$PWD/.local/compacted-patches"
+   ```
+
+   The command first replays the current series and stops if it does not reproduce a target tree. It then diffs each target tree against its pristine baseline and gives every changed path to the first matching theme in `pstackThemes` in [compact.ts](../src/distribution/compact.ts). A path that a shared patch changes today goes to a shared theme instead. Its pristine and final bytes and mode must be the same in both targets. A theme keeps its number in both series, and a theme with no path in a target is left out of that series. Each series lists its target themes first and the shared patches last. The command replays the new series and writes output only when each target reaches its previous tree digest.
+
+   | Theme                                | Paths                                                                                 |
+   | ------------------------------------ | ------------------------------------------------------------------------------------- |
+   | `identity-and-distribution`          | manifests, `README.md`, `PRIVACY.md`, `TERMS.md`, licenses, assets                    |
+   | `agents-and-invocation`              | `agents/` and each skill's `agents/` metadata                                         |
+   | `setup-and-models`                   | the rest of `skills/setup-pstack/`                                                    |
+   | `poteto-mode-references-and-scripts` | `skills/poteto-mode/references/` and `skills/poteto-mode/scripts/`                    |
+   | `poteto-mode-playbooks`              | the rest of `skills/poteto-mode/`                                                     |
+   | `workflow-skills`                    | every other skill                                                                     |
+   | `guides`                             | `docs/`                                                                               |
+   | `vendored-codex-runtime`             | `vendor/`, which only the Claude target has                                           |
+   | `shared/workflow-bodies`             | the common How and No comments bodies                                                 |
+   | `shared/worker-execution`            | common files under `skills/poteto-mode/references/` and `skills/poteto-mode/scripts/` |
+
+   A changed path that no theme matches stops the command. Add or widen a theme in the same change. A shared path that differs between targets also stops it. Restore the common body with a recorded adaptation before compacting.
+
+3. Read `compaction-report.json`, which lists every patch with its paths. Replace `patches/` with the output's `patches/` directory. Run `node dist/cli.js verify-patches --target all` and require the digests from step 1. Confirm that `git status` shows no change under `plugin/`, `plugin-claude/`, or `upstream/`.
+
+4. Run `corepack pnpm verify`. No plugin version changes, because no plugin byte changes.
+
+Patch numbers restart at `0001` in a compaction. A branch that added a patch to the previous series must record its adaptation again on the compacted series.
+
+Between compactions, `generate-patch` and `generate-shared-patch` append as before. A new patch may change a path that a themed patch already owns. The one-path-one-patch property holds again after the next compaction.
 
 ## Build and select an artifact
 
@@ -128,13 +167,27 @@ Keep candidates, artifacts, and verification receipts in ignored `.local/` stora
 
    Review the full skill inventory and descriptions for both targets. Check the Claude delegation-site inventory against every role and platform mapping. Check every new skill's frontmatter and Codex invocation metadata, links, namespaces, and mapped paths. Confirm that model routing, executors, agents, distribution-policy exclusions, and attribution still match the documented adaptations.
 
-5. Resolve adaptation conflicts inside the candidate. Preserve the original failure reports and receipts. Refresh patches only in this reviewed candidate, keeping each target's order, logical ownership, and unaffected bytes. Regeneration handles both complete target series and retains the independent runtime pin. If you use the regeneration helper, choose a new output directory:
+5. Resolve adaptation conflicts inside the candidate. Preserve the original failure reports and receipts. Refresh patches only in this reviewed candidate, keeping each target's order, logical ownership, and unaffected bytes. Both helpers below handle both complete target series, retain the independent runtime pin, write only to a new output directory, and leave current pins and series unchanged.
+
+   When upstream changed lines that existing patches also touch, rebase the pinned series onto the candidate source:
+
+   ```sh
+   node dist/cli.js rebase-patches --candidate "$PWD/.local/candidates/update" --output "$PWD/.local/rebased-patches"
+   ```
+
+   The command reads the original series and old source from the repository, or from `--project`, and the new source and both reviewed target trees from the candidate. The candidate's own `patches/` are not read. Each existing patch keeps only its own historical change, moved onto the new source. A line only upstream changed takes upstream's version. A line both changed keeps the patch's text. A line upstream deleted stays deleted, and a hunk whose file upstream deleted or rewrote is dropped. Where upstream replaced lines with a different number of lines, a line counts as edited only if a replacement line shares enough of its words. Otherwise it counts as deleted, and the patch's edit of it is dropped. A file a patch deleted or rewrote is adaptation-owned from that patch on and keeps its historical bytes, so its deletion or rewrite patch shows the new upstream text as removed lines. A patch whose result is unchanged keeps its exact bytes, and a patch with no remaining change leaves the series. A shared patch must come out identical for both targets.
+
+   Everything else in the reviewed trees lands in new patches appended to each series: one `shared/NNNN-NAME.patch` for paths that shared patches own, then one `NNNN-NAME.patch` per target. `NAME` defaults to `upstream-VERSION-refresh` and `--name` replaces it. Shared paths must match in both candidate trees. The command never moves an update's change into an existing patch.
+
+   Read `rebase-report.json`, every regenerated patch, and the refresh patches before copying the generated `patches/` into the candidate. The report lists each patch as kept, regenerated, or dropped, with conflict and upstream-rewrite counts. Conflicts are resolved line by line without judging meaning. The command exits with an error status when a regenerated patch adds a line that neither its original nor the new source contains, and the report lists those lines as `unexplainedAdditions`. A rewritten file's own lines are not counted.
+
+   When the candidate's patches still reverse cleanly, the regeneration helper can instead group the candidate's changes into its existing patches:
 
    ```sh
    node dist/cli.js regenerate-patches --candidate "$PWD/.local/candidates/update" --output "$PWD/.local/regenerated-patches"
    ```
 
-   Read `regeneration-report.json` and every changed patch before copying the generated series into the candidate's `patches/`. For local-only candidates, the helper groups changes by existing patch paths. Shared candidates preserve per-patch intermediate file states and regenerate each shared node once for both targets. Edited shared bodies stay in shared patches. An original patch that still produces its intended node output retains its exact bytes. If a suffix cannot be reversed, an actually replayable original prefix can establish its prior state. A reconstruction error names the node and paths when neither establishes the state. Git or filesystem errors can abort earlier with their raw diagnostic. Upstream path-type conflicts can require editing the failed candidate patches as well as the output trees before rerunning. Unowned changes can become an explicit target remainder. Shared paths do not justify moving a later adaptation into an earlier patch.
+   Read `regeneration-report.json` and every changed patch before copying the generated series into the candidate's `patches/`. For local-only candidates, the helper groups changes by existing patch paths. Shared candidates preserve per-patch intermediate file states and regenerate each shared node once for both targets. Edited shared bodies stay in shared patches. An original patch that still produces its intended node output retains its exact bytes. If a suffix cannot be reversed, an actually replayable original prefix can establish its prior state. A reconstruction error names the node and paths when neither establishes the state; use `rebase-patches` in that case. Git or filesystem errors can abort earlier with their raw diagnostic. Upstream path-type conflicts can require editing the failed candidate patches as well as the output trees before rerunning. Unowned changes can become an explicit target remainder. Shared paths do not justify moving a later adaptation into an earlier patch.
 
 6. Verify the candidate's source policy and integrity, then verify patch replay and a fresh artifact:
 

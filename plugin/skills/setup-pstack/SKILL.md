@@ -23,7 +23,7 @@ For selected Claude Code workers, run the sibling `poteto-mode/scripts/run-claud
 
 For selected Pi workers, use the Pi prerequisite section and catalog procedure below.
 
-For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs detect`. Use the prerequisite guide for the official agy CLI, then collect its source-labeled catalog below. Reuse inherited authentication without reading credentials or changing personal defaults. Detection proves required syntax and version only.
+For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs detect`. Use the prerequisite guide for the official agy CLI. Let the user choose subscription login, Gemini API key, or ADC, and prepare that method with the guide. Reuse a method the user keeps. Never read credentials, ask the user to paste a key into the conversation, or switch methods silently. Rerun detection and confirm its `auth.method` before collecting the source-labeled catalog below. The catalog reflects the active method. Detection proves required syntax and version and reports the inherited method. It does not prove authentication or model access.
 
 The [execution binding](../poteto-mode/references/execution.md) describes runtime capability checks. A global CLI effort list proves syntax only. It supplies no default model or account entitlement.
 

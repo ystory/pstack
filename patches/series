@@ -63,3 +63,4 @@ shared/0014-agy-prompt-free-stdin.patch
 0049-agy-worker-setup.patch
 0050-worker-skill-fallback.patch
 0051-worker-worktree-lifecycle.patch
+0052-scope-worker-worktree-lifecycle.patch

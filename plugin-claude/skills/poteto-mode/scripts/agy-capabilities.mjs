@@ -1,3 +1,7 @@
+import { readFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
 export const AGY_MINIMUM_VERSION = '1.5.8';
 export const agyEfforts = ['low', 'medium', 'high', 'xhigh', 'max'];
 
@@ -71,6 +75,35 @@ export function agyCapability(value) {
     ...(typeof value.runtimeVersion === 'string'
       ? { runtimeVersion: value.runtimeVersion }
       : {}),
+  };
+}
+
+const authMethods = [
+  ['gemini-api-key', ({ modelProvider }) => modelProvider === 'gemini'],
+  ['adc', () => process.env.AGY_ADC_AUTH === 'true'],
+  ['inherited-default', () => true],
+];
+
+export async function inheritedAgyAuth() {
+  let modelProvider = null;
+  try {
+    const settings = JSON.parse(
+      await readFile(
+        path.join(os.homedir(), '.gemini/antigravity-cli/settings.json'),
+        'utf8',
+      ),
+    );
+    if (typeof settings?.modelProvider === 'string')
+      modelProvider = settings.modelProvider;
+  } catch {}
+  const [method] = authMethods.find(([, applies]) =>
+    applies({ modelProvider }),
+  );
+  return {
+    method,
+    modelProvider,
+    geminiApiKeyPresent: Boolean(process.env.GEMINI_API_KEY),
+    verified: false,
   };
 }
 

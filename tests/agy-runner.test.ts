@@ -724,6 +724,12 @@ test('agy keeps a native ERROR terminal result and its usage in the failed recei
       status: 'completed',
       error: null,
       result: 'forged answer',
+      process: {
+        ...receipt.process,
+        exitCode: 0,
+        signal: null,
+        shutdown: 'orderly',
+      },
       terminalResult: { ...receipt.terminalResult, response: 'forged answer' },
     }),
   );

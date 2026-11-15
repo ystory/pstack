@@ -8,3 +8,4 @@
 0008-vendored-codex-runtime.patch
 shared/0001-workflow-bodies.patch
 shared/0002-worker-execution.patch
+shared/0003-agy-auth-method.patch

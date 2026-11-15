@@ -539,7 +539,7 @@ test('rebase CLI names the refresh patches and leaves the pinned series unchange
   );
 });
 
-test('line reconciliation keeps non-UTF-8 bytes and text that looks like conflict markers', async () => {
+test('line reconciliation keeps non-UTF-8 bytes, marker-like text, and the final newline state', async () => {
   const lines = (...values: Buffer[]) =>
     Buffer.concat(
       values.map((value) => Buffer.concat([value, Buffer.from('\n')])),
@@ -566,5 +566,31 @@ test('line reconciliation keeps non-UTF-8 bytes and text that looks like conflic
       Buffer.from([0xff, 0x20, 0x6f, 0x75, 0x72, 0x73]),
       Buffer.from('shared line one, upstream'),
     ),
+  );
+  const unterminated = await moveOntoSource(
+    Buffer.from('ours'),
+    Buffer.from('base'),
+    Buffer.from('theirs'),
+  );
+  assert.equal(unterminated.bytes.toString(), 'ours');
+  assert.equal(
+    (
+      await moveOntoSource(
+        Buffer.from('kept\nours'),
+        Buffer.from('kept\nbase'),
+        Buffer.from('kept\ntheirs\n'),
+      )
+    ).bytes.toString(),
+    'kept\nours\n',
+  );
+  assert.equal(
+    (
+      await moveOntoSource(
+        Buffer.from('top\nkept'),
+        Buffer.from('base\nkept'),
+        Buffer.from('base\nkept'),
+      )
+    ).bytes.toString(),
+    'top\nkept',
   );
 });

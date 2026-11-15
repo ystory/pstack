@@ -134,8 +134,37 @@ export function rewrites(before: Uint8Array, after: Uint8Array): boolean {
   );
 }
 
-// Moves an adapted file from the old source onto the new source with a three-way merge.
+const terminated = (bytes: Uint8Array) =>
+  !bytes.length || bytes[bytes.length - 1] === 0x0a;
+
+// Moves an adapted file from the old source onto the new source with a three-way merge. Conflict
+// markers force a newline after an unterminated last line, so the final newline is reconciled apart
+// from the lines: the adapted file's choice stays where it differs from the old source, and
+// upstream's applies otherwise.
 export async function moveOntoSource(
+  adapted: Uint8Array,
+  old: Uint8Array,
+  next: Uint8Array,
+): Promise<{ bytes: Buffer; conflicts: number }> {
+  const ends =
+    terminated(adapted) === terminated(old)
+      ? terminated(next)
+      : terminated(adapted);
+  const [closedAdapted, closedOld, closedNext] = [adapted, old, next].map(
+    (bytes) =>
+      terminated(bytes) ? bytes : Buffer.concat([bytes, Buffer.from('\n')]),
+  );
+  const moved = await moveClosed(closedAdapted!, closedOld!, closedNext!);
+  return {
+    conflicts: moved.conflicts,
+    bytes:
+      ends || !moved.bytes.length
+        ? moved.bytes
+        : moved.bytes.subarray(0, moved.bytes.length - 1),
+  };
+}
+
+async function moveClosed(
   adapted: Uint8Array,
   old: Uint8Array,
   next: Uint8Array,

@@ -539,6 +539,34 @@ test('rebase CLI names the refresh patches and leaves the pinned series unchange
   );
 });
 
+test('an upstream replacement counts as an edit only when it still resembles the line', async () => {
+  const move = async (adapted: string, old: string, next: string) =>
+    (
+      await moveOntoSource(
+        Buffer.from(adapted),
+        Buffer.from(old),
+        Buffer.from(next),
+      )
+    ).bytes.toString();
+  assert.equal(
+    await move(
+      'Run the codex agent.\n',
+      'Run the cursor agent.\n',
+      'Run the cursor agent first.\nThen report.\n',
+    ),
+    'Run the codex agent.\nThen report.\n',
+  );
+  // Unrelated replacement text is an upstream deletion plus new lines, so the edit has no referent.
+  assert.equal(
+    await move(
+      'Run the codex agent.\n',
+      'Run the cursor agent.\n',
+      'Trace code directly.\nThen report.\n',
+    ),
+    'Trace code directly.\nThen report.\n',
+  );
+});
+
 test('line reconciliation keeps non-UTF-8 bytes, marker-like text, and the final newline state', async () => {
   const lines = (...values: Buffer[]) =>
     Buffer.concat(

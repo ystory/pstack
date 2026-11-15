@@ -1,0 +1,26 @@
+diff --git a/plugin.json b/plugin.json
+index 6c89e86..6d85e41 100644
+--- a/plugin.json
++++ b/plugin.json
+@@ -1,7 +1,7 @@
+ {
+   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+   "name": "pstack-codex",
+-  "version": "0.1.0-dev.15",
++  "version": "0.1.0-dev.16",
+   "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
+   "author": {
+     "name": "Lauren Tan"
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 4513db9..cb9c069 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -43,7 +43,7 @@ Launch independent seats consecutively without waiting between them. A concurren
+ 
+ ## Claude Code delegation
+ 
+-For an entry with `executor: "claude-code"`, resolve `scripts/run-claude.mjs` from the installed `poteto-mode` directory. Write the consolidated task brief to an absolute local file, then launch the runner through the host's command tool. The process remains governed by that tool's OS permissions and environment. Use the host's standard execution and approval mechanism for access to the existing Claude authentication and runtime state. On a Codex host exposing `exec_command` with `sandbox_permissions`, request `sandbox_permissions: "require_escalated"` with a task-specific `justification` when that access requires it, and set `workdir` to the assigned checkout.
++For an entry with `executor: "claude-code"`, resolve `scripts/run-claude.mjs` from the installed `poteto-mode` directory. Write the consolidated task brief to an absolute local file, then launch the runner through the host's command tool. The process inherits that command's OS permissions and environment. Prepare the launch for the worker's authorized task, including existing Claude authentication, runtime state, browser processes, local servers, and network access when needed. On a Codex host exposing `exec_command` with `sandbox_permissions`, request `sandbox_permissions: "require_escalated"` with a task-specific `justification` when those operations require it, and set `workdir` to the assigned checkout. Launch approval does not preapprove Claude's own tools. Supply the scoped tool rules below. If access fails, identify whether the launcher or Claude denied it before changing the assignment. Keep the actual error and approval result. Do not use another executor to bypass an explicit denial.
+ 
+ For a task that edits `index.mjs` and verifies it with `node --test index.test.mjs`, include the corresponding file and command rules:
+ 

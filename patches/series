@@ -56,3 +56,4 @@ shared/0010-pi-selection-failures.patch
 0046-pi-only-catalog.patch
 shared/0011-native-pi-session-storage.patch
 0047-native-state-release-version.patch
+0048-worker-launch-access.patch

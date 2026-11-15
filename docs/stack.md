@@ -41,7 +41,7 @@ Before publishing changes to `plugin-claude/`, increment the version in `plugin-
 
 ## Record a shared adaptation
 
-How, its explainer template, and No comments have common workflow bodies. Their source changes live once under `patches/shared/`; both target series reference the same `shared/NNNN-name.patch` at the intended point. Each target's `skills/poteto-mode/references/execution.md` supplies native calls, registration, paths, and worker transports. Personal preferences remain independent.
+How and No comments have common workflow bodies. Their source changes live once under `patches/shared/`; both target series reference the same `shared/NNNN-name.patch` at the intended point. Each target's `skills/poteto-mode/references/execution.md` supplies native calls, registration, paths, and worker transports. Personal preferences remain independent.
 
 Edit a common file in one target, then record that edit once:
 

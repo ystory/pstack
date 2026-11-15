@@ -1,0 +1,640 @@
+diff --git a/README.md b/README.md
+index afd9426..2053e4f 100644
+--- a/README.md
++++ b/README.md
+@@ -17,7 +17,7 @@ For Claude desktop, use the [plugin browser instructions](docs/guide/01-setup.md
+ /pstack-cc:setup-pstack
+ ```
+ 
+-Setup first asks for native Claude only, or Claude with Codex workers. It checks installation and login only for selected CLIs, guides missing installation and human authentication, then presents supported exact models, all 17 roles, and reasoning budget for review and saving. It does not choose the parent chat model. A native Claude entry uses an exact-model agent definition. A Codex entry runs through the bundled, pinned official Codex runtime and your existing Codex login.
++Setup first asks for native Claude only, or Claude with Codex workers. It checks installation and login only for selected CLIs, guides missing installation and human authentication, then presents supported exact models, all 13 roles, and reasoning budget for review and saving. It does not choose the parent chat model. A native Claude entry uses an exact-model agent definition. A Codex entry runs through the bundled, pinned official Codex runtime and your existing Codex login.
+ 
+ Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`. They are independent of Codex-host preferences. Fresh proposal slots are unresolved. Accepted saved roles remain authoritative. Missing roles use the actual native parent at their original cardinality. Panels preserve their ordered entries and duplicates. Parent aliases select the actual Claude parent. Required model diversity still applies.
+ 
+diff --git a/docs/guide/01-setup.md b/docs/guide/01-setup.md
+index 5230f99..37824d2 100644
+--- a/docs/guide/01-setup.md
++++ b/docs/guide/01-setup.md
+@@ -49,9 +49,9 @@ Both routes install the committed `plugin-claude/` directory. You do not need a
+ 
+ Setup starts with native Claude only, or Claude with Codex workers. The parent chat stays in Claude. Unselected Codex is neither probed nor required. For a selected missing runtime, the setup host performs the needed preparation. It hands off interactive login when necessary and rechecks readiness before model selection.
+ 
+-Then choose supported exact models, role assignments, and `unlimited`, `large`, `medium`, or `small` reasoning budget. Fresh proposals expose all 17 roles with unresolved model slots. Saved entries prefill reruns. Review accepted choices before saving. You may leave a role unconfigured after seeing its native-parent fallback. No fixed model is required.
++Then choose supported exact models, role assignments, and `unlimited`, `large`, `medium`, or `small` reasoning budget. Fresh proposals expose all 13 roles with unresolved model slots. Saved entries prefill reruns. Review accepted choices before saving. You may leave a role unconfigured after seeing its native-parent fallback. No fixed model is required.
+ 
+-Scalar roles retain one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` retain ordered lists, with one worker per entry including duplicates. `arena cross-judge pool` is also a list, but Arena selects one judge from another family in preference order. `swarm workers` stays scalar unless a race specifies models per arm.
++Scalar roles retain one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` retain ordered lists, with one worker per entry including duplicates. `arena cross-judge pool` is also a list, but Arena selects one judge from another vendor in preference order. Fable and the other Claude models are one vendor. `swarm workers` stays scalar unless a race specifies models per arm.
+ 
+ `auto` and `inherit-parent` select the actual native Claude parent. They do not select Codex. Setup does not change the parent chat model. A single-model configuration cannot satisfy a required different-model or different-family verifier. Arena has its own disclosed optional judge skip. The other required diversity gates remain requirements.
+ 
+@@ -62,10 +62,10 @@ The helper saves `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json` and man
+ Start a new session after registration so Claude discovers exact-model agent variants. Try:
+ 
+ ```text
+-/pstack-cc:how explain how src/cli.ts handles --help. Use the simple path with one explainer. Do not edit files.
++/pstack-cc:how explain how src/cli.ts handles --help. Do not edit files.
+ ```
+ 
+-Replace `src/cli.ts` with a real module in your project. The simple How path uses one explainer and no explorers. To try one Codex worker, first select Codex for `how explainer` in setup. A healthy run identifies the selected executor and model, completes the worker, and returns an explanation based on the project's files. Codex workers run as background tasks whose results Claude collects.
++Replace `src/cli.ts` with a real module in your project. How starts one read-only worker on the native Claude parent. A healthy run completes the worker and returns an explanation based on the project's files. Roles you select for Codex run as background tasks whose results Claude collects.
+ 
+ For implementation, start each new task with `/pstack-cc:poteto-mode` and name the goal and its done check. Follow-ups continue the selected playbook. Read [Claude Code execution](../../skills/poteto-mode/references/execution.md) for actual tool and model bindings. Claude Code has no Cursor Custom Mode keyboard shortcut.
+ 
+diff --git a/docs/guide/02-poteto-mode.md b/docs/guide/02-poteto-mode.md
+index 1165864..feacd41 100644
+--- a/docs/guide/02-poteto-mode.md
++++ b/docs/guide/02-poteto-mode.md
+@@ -72,7 +72,7 @@ When you're unsure whether a prompt is aimed right, run [`/pstack-cc:sharpen`](.
+ /pstack-cc:sharpen write a migration guide for the v2 config format.
+ ```
+ 
+-The agent says what a top professional would do that you didn't ask for, the rawest material they would start from, the methods and tools they would use, and what other than you or the agent would show the result is right. Then it rewrites your prompt to ask for exactly that, deeper but not bigger, and leaves your choices open. It doesn't do the task. Read the rewrite, then send it, for example with `/pstack-cc:poteto-mode`.
++The agent says what a top professional would do that you didn't ask for, the rawest material they would start from, the methods and tools they would use, and what other than you or the agent would show the result is right. Then it rewrites your prompt to ask for exactly that, deeper but not bigger. The rewrite asks the agent to prototype any choice an experiment can settle and to recommend an option from what it observed, and it leaves product and preference choices to you. It doesn't do the task. Read the rewrite, then send it, for example with `/pstack-cc:poteto-mode`.
+ 
+ ## Follow up short
+ 
+@@ -132,7 +132,7 @@ When you step away, say what done means and go:
+ 
+ Work you'll review later routes through [`/pstack-cc:figure-it-out`](../../skills/figure-it-out/SKILL.md), which designs the run's phases and keeps a [`/pstack-cc:show-me-your-work`](../../skills/show-me-your-work/SKILL.md) decision log. [Run work while you sleep](./07-overnight.md) covers the full overnight contract.
+ 
+-**Pitfall:** don't enumerate skills in your prompt ("use /pstack-cc:how, then /pstack-cc:architect, then /pstack-cc:arena..."). The playbook already sequences them, and a hand-written sequence usually reorders or drops steps the playbook would have kept. Name a skill only when you want to override a specific choice.
++**Pitfall:** don't enumerate skills in your prompt ("use /pstack-cc:architect, then /pstack-cc:arena, then /pstack-cc:interrogate..."). The playbook already sequences them, and a hand-written sequence usually reorders or drops steps the playbook would have kept. Name a skill only when you want to override a specific choice.
+ 
+ Read [`poteto-mode`](../../skills/poteto-mode/SKILL.md) itself for the full routing rules.
+ 
+diff --git a/docs/guide/03-understand.md b/docs/guide/03-understand.md
+index ff98ba0..800edb5 100644
+--- a/docs/guide/03-understand.md
++++ b/docs/guide/03-understand.md
+@@ -14,7 +14,7 @@ When the cause is unclear, ask for findings, not a fix:
+ /pstack-cc:poteto-mode investigate why background jobs time out every few hours. give me what we know, what data you used, and your best hypotheses. don't change any code yet.
+ ```
+ 
+-"don't change any code yet" routes this to the [Investigation playbook](../../skills/poteto-mode/playbooks/investigation.md). It runs `/pstack-cc:how`, adds `/pstack-cc:why` for questions about motivation, and returns a cited explanation. For a choice between options, it returns a recommendation with a trade-offs table. Asking "what data you used" makes the agent separate its evidence from its guesses. When the findings point at a fix, start the fix as a new task.
++"don't change any code yet" routes this to the [Investigation playbook](../../skills/poteto-mode/playbooks/investigation.md). It traces the code, adds `/pstack-cc:why` for questions about motivation, and returns a cited explanation. For a choice between options, it returns a recommendation with a trade-offs table. Asking "what data you used" makes the agent separate its evidence from its guesses. When the findings point at a fix, start the fix as a new task.
+ 
+ ## Trace behavior with `/pstack-cc:how`
+ 
+@@ -22,7 +22,7 @@ When the cause is unclear, ask for findings, not a fix:
+ /pstack-cc:how do we dedupe notifications? is there an n+1 when we look up subscribers?
+ ```
+ 
+-Ask the question you actually have. [`/pstack-cc:how`](../../skills/how/SKILL.md) reads the code and answers at the level of a senior engineer onboarding you onto the subsystem, with the runtime flow, the key types, and the non-obvious parts. For a big subsystem it fans out two to four read-only explorers first. For a narrow question it just reads and explains.
++Ask the question you actually have. [`/pstack-cc:how`](../../skills/how/SKILL.md) reads the code and answers at the level of a senior engineer onboarding you onto the subsystem, with the runtime flow, the key types, and the non-obvious parts. It starts one read-only subagent that explores the code and writes the explanation.
+ 
+ ## Dig up history with `/pstack-cc:why`
+ 
+@@ -30,7 +30,7 @@ Ask the question you actually have. [`/pstack-cc:how`](../../skills/how/SKILL.md
+ /pstack-cc:why was the retry limit set to five? does the reason still hold?
+ ```
+ 
+-[`/pstack-cc:why`](../../skills/why/SKILL.md) starts from source control, then queries whatever evidence categories your MCPs expose, such as the issue tracker, long-form docs, team chat, observability, error tracking, and analytics, all in parallel. The report cites everything, separates direct evidence from inference, and says "appears to" when the record is thin. A null result gets reported too, because "nobody wrote down why" is itself an answer.
++[`/pstack-cc:why`](../../skills/why/SKILL.md) answers from the record, not the code. It reads the commits and PR discussions that introduced the code and each later change, and looks at other sources when that trail is thin. The answer cites what the authors wrote, marks the agent's own inferences as inferences, and says what the record does not answer, because "nobody wrote down why" is itself an answer.
+ 
+ The two compose naturally. `do why first then how` is a good prompt when you suspect the history explains the mess.
+ 
+diff --git a/docs/guide/04-design.md b/docs/guide/04-design.md
+index d76d582..17e8512 100644
+--- a/docs/guide/04-design.md
++++ b/docs/guide/04-design.md
+@@ -12,7 +12,7 @@ The two most common design mistakes are taking the agent's first design and poli
+ /pstack-cc:architect design the import pipeline before writing any code. i care most about how callers use it.
+ ```
+ 
+-[`/pstack-cc:architect`](../../skills/architect/SKILL.md) grounds itself first, running `/pstack-cc:how` over the code the design touches and `/pstack-cc:why` when it moves ownership or layers. Then it runs `/pstack-cc:arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
++[`/pstack-cc:architect`](../../skills/architect/SKILL.md) grounds itself first, tracing the code the design touches and running `/pstack-cc:why` when it moves ownership or layers. Then it runs `/pstack-cc:arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
+ 
+ By default it proceeds straight from the synthesized design into implementation. If you want to see the design first, say so:
+ 
+@@ -28,7 +28,7 @@ The design isn't sacred once code starts. If implementation shows the same worka
+ /pstack-cc:arena take my prompt to the arena verbatim. i want to compare their proposals with yours.
+ ```
+ 
+-[`/pstack-cc:arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A read-only judge from a different model family scores every candidate against a rubric. When no model from another family can run, the coordinator skips the judge and picks the base itself. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
++[`/pstack-cc:arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A read-only judge from a different model vendor scores every candidate against a rubric. When no model from another vendor can run, the coordinator skips the judge and picks the base itself. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
+ 
+ ```mermaid
+ flowchart LR
+diff --git a/docs/guide/10-recipes-and-pitfalls.md b/docs/guide/10-recipes-and-pitfalls.md
+index 809118a..83e31b0 100644
+--- a/docs/guide/10-recipes-and-pitfalls.md
++++ b/docs/guide/10-recipes-and-pitfalls.md
+@@ -162,7 +162,7 @@ To watch the catch-up instead, run [`/pstack-cc:ketchup-video`](../../skills/ket
+ 
+ ## The pitfalls
+ 
+-- **Enumerating skills in the prompt.** "use /pstack-cc:how then /pstack-cc:architect then /pstack-cc:arena" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
++- **Enumerating skills in the prompt.** "use /pstack-cc:architect then /pstack-cc:arena then /pstack-cc:interrogate" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
+ - **A vague finish condition.** "make it better" gives `/loop` nothing to check. Give a command or artifact that can pass or fail.
+ - **Leading with your theory of the cause.** The agent searches wherever you pointed. Ask it to restate the problem first, then share your hunch.
+ - **Taking the first design.** One attempt locks in the first shape the model thought of. Ask for prototypes or `/pstack-cc:architect` and pick from evidence.
+diff --git a/docs/harness/claude-code.md b/docs/harness/claude-code.md
+index 05039ae..a23d451 100644
+--- a/docs/harness/claude-code.md
++++ b/docs/harness/claude-code.md
+@@ -4,6 +4,6 @@ This target uses native Claude Code skills and agents, with setup-selected Claud
+ 
+ Before setup, missing roles inherit the actual native parent with disclosure and original cardinality. Setup proposals start unresolved, and saved exact entries take precedence. Run `/pstack-cc:setup-pstack` to select exact models and executors, then start a new session. User commands use `/pstack-cc:<skill>`. Internally, read installed skill files by their actual path. The [setup guide](../guide/01-setup.md) covers independent preferences and CLI authentication. The [delegation inventory](../../skills/poteto-mode/references/delegation-sites.json) records the affected source sites.
+ 
+-Readonly callers use the native `read-only` kind with the selected model, a no-edits brief, and a before/after `git status --short` check. The kind disallows `Write`, `Edit`, and `NotebookEdit`. Bash remains available, so this is a file-tool restriction rather than OS write isolation. Why and Reflect retain their full-access kind and MCP access.
++Readonly callers use the native `read-only` kind with the selected model, a no-edits brief, and a before/after `git status --short` check. The kind disallows `Write`, `Edit`, and `NotebookEdit`. Bash remains available, so this is a file-tool restriction rather than OS write isolation. Recall's investigators and Reflect retain their full-access kind and MCP access.
+ 
+ Claude Agent workers and foreground Codex commands in native background Bash share the workflow contract. A local worktree is not a cloud VM. Native child completion is not a CI subscription. See [Claude Code wakeups](../../skills/poteto-mode/references/claude-wakeups.md) for schedules and channels and [Claude history](../../skills/recall/references/claude-history.md) for project-scoped transcripts.
+diff --git a/skills/arena/SKILL.md b/skills/arena/SKILL.md
+index 20b340e..eec4378 100644
+--- a/skills/arena/SKILL.md
++++ b/skills/arena/SKILL.md
+@@ -14,7 +14,7 @@ Every candidate gets the same prompt, so the prompt is the contract.
+ 
+ 1. State the artifact each candidate is producing.
+ 2. Derive the rubric, 3-6 concrete gradeable criteria for what success looks like on *this* task. It is the picker's tool in Phase D. Candidates only see the task.
+-3. Pick the runners. Read [Claude Code execution](../poteto-mode/references/execution.md) and resolve the ordered `arena runners` list with worker kind `general-purpose`. Run one seat per entry, including duplicates and aliases. A parent alias binds to the actual native Claude parent. Families go by model prefix, such as `claude-*`, `gpt-*`, and `grok-*`, with `cursor-grok-*` and `composer-*` in Grok's family. If the selected executor rejects a model, try the closest valid model of the same family from its error, or drop the seat and say so. Never resubmit a rejected model. If dropouts leave fewer than two runners, add runners until there are two, or one when the configured list has one entry. Use a remaining runner's model for additions, or bind to the actual native parent when none remain, and say so. Spawn more runners when the arena covers multiple design directions. Use the same model N times when generation capacity matters more than judgment diversity. Apply poteto-mode's task effort and speed guidance.
++3. Pick the runners. Read [Claude Code execution](../poteto-mode/references/execution.md) and resolve the ordered `arena runners` list with worker kind `general-purpose`. Run one seat per entry, including duplicates and aliases. A parent alias binds to the actual native Claude parent. Families go by model prefix, and the longest matching prefix wins, such as `claude-fable-*`, `claude-*`, `gemini-*`, and `gpt-*`. Drop a leading `cursor-` before you compare. Any other model's family is its text before the first hyphen when its lineage is known. If the selected executor rejects a model, try the closest valid model of the same family from its error, or drop the seat and say so. Never resubmit a rejected model. If dropouts leave fewer than two runners, add runners until there are two, or one when the configured list has one entry. Use a remaining runner's model for additions, or bind to the actual native parent when none remain, and say so. Spawn more runners when the arena covers multiple design directions. Use the same model N times when generation capacity matters more than judgment diversity. Apply poteto-mode's task effort and speed guidance.
+ 4. Give each candidate its own output location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`), per the **separate-before-serializing-shared-state** principle skill.
+ 
+ ## Phase B: Fan out
+@@ -25,7 +25,7 @@ If a candidate produces no output, proceed with N-1 and note the dropout.
+ 
+ ## Phase C: Cross-judge
+ 
+-After all Phase B candidates complete, resolve `arena cross-judge pool` with worker kind `read-only`. Select one read-only judge from a family other than the actual parent's, in pool order. Parent aliases never judge. Compare the judge with the parent, not with every candidate. If the executor rejects an entry, try a supported setting of the same model, or move to the next eligible entry. Never resubmit a rejected model. If no selected eligible entry runs, skip the judge, pick the base alone in Phase D, and say so. If the parent's model is unknown, try real model entries in order and disclose that the family check did not run. The judge sees the rubric and candidates by sanitized path label. It scores each criterion and recommends a base with rationale. Run it in parallel with your Phase D reading, after candidates stop writing.
++After all Phase B candidates complete, resolve `arena cross-judge pool` with worker kind `read-only`. Select one read-only judge from a vendor other than the actual parent's, in pool order. A vendor is a family as Phase A step 3 defines families, except that `claude-fable-*` and `claude-*` are one vendor. Parent aliases never judge. Compare the judge with the parent, not with every candidate. If the executor rejects an entry, try a supported setting of the same model, or move to the next eligible entry. Never resubmit a rejected model. If no selected eligible entry runs, skip the judge, pick the base alone in Phase D, and say so. If the parent's model is unknown, try real model entries in order and disclose that the vendor check did not run. The judge sees the rubric and candidates by sanitized path label. It scores each criterion and recommends a base with rationale. Run it in parallel with your Phase D reading, after candidates stop writing.
+ 
+ ## Phase D: Pick a base
+ 
+diff --git a/skills/poteto-mode/SKILL.md b/skills/poteto-mode/SKILL.md
+index 498f09c..72d4538 100644
+--- a/skills/poteto-mode/SKILL.md
++++ b/skills/poteto-mode/SKILL.md
+@@ -92,11 +92,11 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
+ 
+ ## Subagents
+ 
+-**Use the `poteto-agent` instructions for any subagent you spawn inside a playbook step** (code-writing delegates and ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) select `general-purpose` for their own seats and model roles. Respect that selection. Resolve the worker kind and model role through Claude Code execution. Pass this file's absolute path to every poteto-agent.
++**Use the `poteto-agent` instructions for any subagent you spawn inside a playbook step** (code-writing delegates and ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`interrogate`, `reflect`, `swarm`) select `general-purpose` for their own seats and model roles. Respect that selection. Resolve the worker kind and model role through Claude Code execution. Pass this file's absolute path to every poteto-agent.
+ 
+-**Choices for every delegate call.** Execute asynchronously through the selected executor, including steering and continuation. Use file pointers rather than inlined context. Resolve an explicit model per role through `/setup-pstack`. Setup presents unresolved choices for missing roles. No bundled exact model is an execution default. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) use `hardest tasks`, whether the task needs judgment on vague intent or follows a precise specification. Saved per-role entries override the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A missing role uses the actual native parent selection with disclosure and preserves its original cardinality. `inherit-parent` and `auto` select the actual native Claude parent. Each code playbook resolves its role (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`). Prose and judgment resolve `judgment and prose`.
++**Choices for every delegate call.** Execute asynchronously through the selected executor, including steering and continuation. Use file pointers rather than inlined context. Resolve an explicit model per role through `/setup-pstack`. Setup presents unresolved choices for missing roles. No bundled exact model is an execution default. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) use `hardest tasks`, whether the task needs judgment on vague intent or follows a precise specification. Trivial mechanical edits use `swarm workers`. Saved per-role entries override the routed skills (`arena`, `swarm`, `architect`, `interrogate`, `reflect`). A missing role uses the actual native parent selection with disclosure and preserves its original cardinality. `inherit-parent` and `auto` select the actual native Claude parent. Each code playbook resolves its role (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`). Prose and judgment resolve `judgment and prose`.
+ 
+-**Match the model to the job.** Parent aliases keep the actual parent's model and effort. For an exact model, preserve an explicit task effort or start from the role's saved reasoning budget. Raise it one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more for routine work. Use fast mode only when CI or trunk is red or a person is blocked on the result now. Otherwise use standard speed through the host's available controls. Verification stays on the `swarm workers` model and available host speed, except where the caller requires another model or family. Select that counterpart through the execution binding. Keep the selected exact model ID unchanged and pass supported effort and speed separately. Do not append effort or `-fast` suffixes. Use the highest supported effort at or below the requested level. If an adjusted setting is rejected, return to the role's supported starting setting and say so. If that fails, follow the caller's fallback through the execution binding. Record rejected model IDs per executor and never resubmit them, including in fallbacks. When the caller has no fallback, try the closest valid model of the role's family from the error's list. If none remains, or the caller exhausts its fallback without another outcome, bind to the actual native parent and disclose it. An unavailable executor or unresolved parent stays a capability gap. Preserve every required different-model or different-family gate and Arena's disclosed judge skip.
++**Match the model to the job.** Parent aliases keep the actual parent's model and effort. For an exact model, preserve an explicit task effort or start from the role's saved reasoning budget. Raise it one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more for routine work. Use fast mode only when CI or trunk is red or a person is blocked on the result now. Otherwise use standard speed through the host's available controls. Verification stays on the `swarm workers` model and available host speed, except where the caller requires another model or family. Select that counterpart through the execution binding. Keep the selected exact model ID unchanged and pass supported effort and speed separately. Do not append effort or `-fast` suffixes. Use the highest supported effort at or below the requested level. If an adjusted setting is rejected, return to the role's supported starting setting and say so. If that fails, follow the caller's fallback through the execution binding. Record rejected model IDs per executor and never resubmit them, including in fallbacks. When the caller has no fallback, try the closest valid model of the role's family from the error's list. Fable (`claude-fable-*`) is its own family, apart from the other Claude models. If none remains, or the caller exhausts its fallback without another outcome, bind to the actual native parent and disclose it. An unavailable executor or unresolved parent stays a capability gap. Preserve every required different-model or different-family gate and Arena's disclosed judge skip.
+ 
+ You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. A second opinion is the same prompt against a different model. Agreement is high-signal.
+ 
+diff --git a/skills/poteto-mode/playbooks/bug-fix.md b/skills/poteto-mode/playbooks/bug-fix.md
+index 8f31c32..eb4be08 100644
+--- a/skills/poteto-mode/playbooks/bug-fix.md
++++ b/skills/poteto-mode/playbooks/bug-fix.md
+@@ -7,7 +7,7 @@ Read [Claude Code execution](../references/execution.md). Resolve `bug-fix` with
+ Be scientific. Every shipped line traces to runtime evidence. Belt-and-suspenders that "might help" is a hypothesis, not a fix. It does not ship. When evidence refutes a hypothesis, revert what it motivated. The smallest change the evidence justifies ships, nothing more.
+ 
+ 1. Reproduce it yourself on the matching surface via the control skill (Non-negotiables), even when a debug or instrumentation protocol says to ask the user to reproduce. Ask the user only with a stated, specific reason the control surface cannot reach the target, and only after driving it as far as it goes. If it won't reproduce directly, synthesize the trigger, tighten conditions, or instrument until it fires.
+-2. Binary-search the cause. Form the candidate hypotheses, then rule them out until one survives. Seed them with `how` over the affected subsystem and the **why** skill for regression history. Each pass, take the split that cuts the most remaining problem space, get runtime evidence, eliminate. When program state is unclear, add instrumentation or logging and read it as the code runs. Don't guess. Drive a long or stubborn hunt with [Claude Code wakeups](../references/claude-wakeups.md). Confirm the surviving *mechanism* with runtime evidence before the step-3 architect/interrogate fan-out.
++2. Binary-search the cause. Form the candidate hypotheses, then rule them out until one survives. Seed them with a trace of the affected subsystem and the **why** skill for regression history. Each pass, take the split that cuts the most remaining problem space, get runtime evidence, eliminate. When program state is unclear, add instrumentation or logging and read it as the code runs. Don't guess. Drive a long or stubborn hunt with [Claude Code wakeups](../references/claude-wakeups.md). Confirm the surviving *mechanism* with runtime evidence before the step-3 architect/interrogate fan-out.
+ 3. Plan the fix. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured bug-fix model from setup with a specific scope.
+ 4. Verify on the same surface. The original repro now passes. "Inconclusive" or wrong-surface is not a pass. Flag it. Unit tests show branch behavior, not bug absence.
+ 5. Stage the commits so the failing repro lands before the fix in git history. See the **tdd** skill for the failing-test-first cadence when the bug has a cheap local test path. Skip it when the test would be expensive, integration-heavy, or unclear.
+diff --git a/skills/poteto-mode/playbooks/multi-phase-plan.md b/skills/poteto-mode/playbooks/multi-phase-plan.md
+index a9b0d8f..8ba3f22 100644
+--- a/skills/poteto-mode/playbooks/multi-phase-plan.md
++++ b/skills/poteto-mode/playbooks/multi-phase-plan.md
+@@ -151,7 +151,7 @@ Each live lane runs in its own local Git worktree at the PR head. Local worktree
+ 
+ ## Appendix D. Links and reading list
+ 
+-<Docs to read before editing. Which PRs get the installed **how** skill and the installed **interrogate** skill. The trail per the installed **show-me-your-work** skill.>
++<Docs to read before editing. Which PRs get the installed **interrogate** skill. The trail per the installed **show-me-your-work** skill.>
+ ````
+ 
+ **Reply:** the plan path, the PR ids with their dependencies and the review-gated set, what the prototypes proved and what stays unproven, and the check script's output.
+diff --git a/skills/poteto-mode/references/delegation-sites.json b/skills/poteto-mode/references/delegation-sites.json
+index c9f8121..f46e84a 100644
+--- a/skills/poteto-mode/references/delegation-sites.json
++++ b/skills/poteto-mode/references/delegation-sites.json
+@@ -9,10 +9,6 @@
+     "hillclimb": "scalar",
+     "judgment and prose": "scalar",
+     "hardest tasks": "scalar",
+-    "how explorer": "scalar",
+-    "how explainer": "scalar",
+-    "why investigators": "scalar",
+-    "why synthesizer": "scalar",
+     "reflect tooling": "scalar",
+     "reflect judgment, divergent, synthesizer": "scalar",
+     "arena runners": "list",
+@@ -62,26 +58,9 @@
+     },
+     {
+       "path": "skills/how/SKILL.md",
+-      "classification": "configured",
+-      "roles": [
+-        "how explorer",
+-        "how explainer"
+-      ],
+-      "workerKind": "read-only",
+-      "binding": "skills/poteto-mode/references/execution.md"
+-    },
+-    {
+-      "path": "skills/how/references/explainer-prompt.md",
+-      "classification": "context",
+-      "roles": [],
+-      "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/execution.md"
+-    },
+-    {
+-      "path": "skills/how/references/explorer-prompt.md",
+-      "classification": "context",
++      "classification": "inherits-caller",
+       "roles": [],
+-      "workerKind": "general-purpose",
++      "workerKind": "read-only",
+       "binding": "skills/poteto-mode/references/execution.md"
+     },
+     {
+@@ -140,10 +119,6 @@
+         "hillclimb",
+         "judgment and prose",
+         "hardest tasks",
+-        "how explorer",
+-        "how explainer",
+-        "why investigators",
+-        "why synthesizer",
+         "reflect tooling",
+         "reflect judgment, divergent, synthesizer",
+         "arena runners",
+@@ -393,23 +368,6 @@
+       ],
+       "workerKind": "general-purpose",
+       "binding": "skills/poteto-mode/references/execution.md"
+-    },
+-    {
+-      "path": "skills/why/SKILL.md",
+-      "classification": "configured",
+-      "roles": [
+-        "why investigators",
+-        "why synthesizer"
+-      ],
+-      "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/execution.md"
+-    },
+-    {
+-      "path": "skills/why/references/source-playbook.md",
+-      "classification": "context",
+-      "roles": [],
+-      "workerKind": "general-purpose",
+-      "binding": "skills/poteto-mode/references/execution.md"
+     }
+   ],
+   "sourceAdaptations": [
+@@ -495,7 +453,7 @@
+     },
+     {
+       "path": "skills/how/SKILL.md",
+-      "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
++      "reason": "Map host-specific paths, tooling or lifecycle to shared native execution, history, wakeup or authoring guidance."
+     },
+     {
+       "path": "skills/interrogate/SKILL.md",
+@@ -669,17 +627,9 @@
+       "path": "skills/swarm/SKILL.md",
+       "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
+     },
+-    {
+-      "path": "skills/why/SKILL.md",
+-      "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
+-    },
+     {
+       "path": "skills/statechart/SKILL.md",
+       "reason": "Preserve the accepted absolute installed-path and quoting guidance for the CLI."
+-    },
+-    {
+-      "path": "skills/how/references/explainer-prompt.md",
+-      "reason": "Preserve the no-edits explanation brief with the actual execution host reading and search tools."
+     }
+   ],
+   "omittedMetadata": [
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 925f292..5a8812d 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -10,17 +10,17 @@ Run the sibling setup helper by absolute path:
+ node "<skills>/setup-pstack/scripts/models.mjs" resolve --role "<role>" --kind general-purpose
+ ```
+ 
+-The worker kinds are `general-purpose`, `poteto-agent`, `comment-sicko`, and `read-only`. Use `poteto-agent` inside playbook steps, `comment-sicko` for no-comments, and `general-purpose` for routed investigation, candidate, review, and synthesis seats. Use `read-only` where the caller requires `readonly: true`, including How, Arena judges, and maintain-verification source-wave children. Why and Reflect retain `general-purpose` and their MCP access. Pass the relevant skill, template, rubric, and project instructions in every brief.
++The worker kinds are `general-purpose`, `poteto-agent`, `comment-sicko`, and `read-only`. Use `poteto-agent` inside playbook steps, `comment-sicko` for no-comments, and `general-purpose` for routed investigation, candidate, review, and synthesis seats. Use `read-only` where the caller requires `readonly: true`, including How, Arena judges, and maintain-verification source-wave children. Recall investigators and Reflect use `general-purpose` and keep their MCP access. Pass the relevant skill, template, rubric, and project instructions in every brief.
+ 
+ The helper reads `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`. Explicit entries preserve their executor, exact model, and reasoning effort. Scalar roles stay scalar. `arena runners`, `architect runners`, and `interrogate reviewers` are ordered panels. Run every seat, including duplicate selections and parent aliases. `arena cross-judge pool` is an ordered selection pool, so it launches one eligible judge rather than the whole list. `swarm workers` is scalar unless an explicit race assigns models per arm.
+ 
+-A missing role returns native `inherit-parent` entries with source `unconfigured`, without setup or generated definitions. Scalars yield one entry and panels or pools yield two initial entries. Their `agentType` uses the static inherited plugin definition. Disclose the native-parent resolution. Setup proposals remain unresolved until accepted. Saved exact choices remain authoritative. There is no hidden family default or default-pool retry.
++A missing role returns native `inherit-parent` entries with source `unconfigured`, without setup or generated definitions. Scalars yield one entry and panels or pools yield three initial entries. Their `agentType` uses the static inherited plugin definition. Disclose the native-parent resolution. Setup proposals remain unresolved until accepted. Saved exact choices remain authoritative. There is no hidden family default or default-pool retry.
+ 
+ For a real model, use the caller's explicit task effort when given. Otherwise adjust its saved starting effort through poteto-mode's Subagents guidance. Keep the exact model ID and send effort and speed as separate supported controls. Report unavailable independent speed controls. Do not append effort or `-fast` to model IDs. Keep a rejected-model record per executor and never resubmit a rejected ID. Follow the caller's fallback and dropout rules, with disclosure. An unavailable executor is a capability gap, not a rejected model.
+ 
+ `auto` and `inherit-parent` bind to the actual native Claude parent, regardless of the other workers' executors. Their returned `agentType` selects the plugin's inherited base definition. Omit invocation model and effort overrides. Never translate a parent alias to Codex or to an assumed Claude alias. Inspect host configuration if inheritance is overridden. Report unresolved or substituted effective settings rather than claiming the requested model ran.
+ 
+-Validate required different-model or different-family relationships before the affected step. A repeated seat is still a seat, but it does not establish diversity. Use eligible exact choices already resolved by that workflow in their existing order, or an explicitly supplied task counterpart, for a required non-author verifier or final audit. Do not scan unrelated roles or add a verifier role or ranking. Parent aliases and unknown families cannot establish a different-family relationship. Sonnet and Opus belong to the same Claude family. A configuration that cannot satisfy a required gate remains a configuration gap. Arena alone permits its disclosed different-family judge skip and unknown-parent behavior. Orchestrate's tool-error retry needs a different model, not necessarily another family.
++Validate required different-model or different-family relationships before the affected step. A repeated seat is still a seat, but it does not establish diversity. Use eligible exact choices already resolved by that workflow in their existing order, or an explicitly supplied task counterpart, for a required non-author verifier or final audit. Do not scan unrelated roles or add a verifier role or ranking. Parent aliases and unknown families cannot establish a different-family relationship. Families follow Arena's Phase A. Fable is its own family, and Sonnet and Opus belong to the same Claude family. A configuration that cannot satisfy a required gate remains a configuration gap. Arena alone permits its disclosed different-vendor judge skip and unknown-parent behavior. Its judge compares vendor, and Fable and the other Claude models are one vendor. Orchestrate's tool-error retry needs a different model, not necessarily another family.
+ 
+ ## Native Claude workers
+ 
+diff --git a/skills/recall/SKILL.md b/skills/recall/SKILL.md
+index 1dd24fb..18ef231 100644
+--- a/skills/recall/SKILL.md
++++ b/skills/recall/SKILL.md
+@@ -17,7 +17,7 @@ Read [Claude history](references/claude-history.md) and use its project-scoped h
+ 1. Classify, then route. One specific prior chat to resume is the `session-pickup` playbook, not this. Turning habits into a durable skill is `automate-me`. A human-readable summary of your work is a different task. Recall loads working context across recent chats before you act. If the user already gave you a full state capsule (paths, branch, the change), use it and skip the mining.
+ 2. Lock the scope before searching. Pin the window ("recent" is a real range, default the last 7 days), the topic if named, and the workspace (default the active one. Never read another project's transcripts without being asked). State the scope back. Never quietly turn "all" into "recent N".
+ 3. Fan out across your chat history. Read [Claude Code execution](../poteto-mode/references/execution.md), resolve `swarm workers` with worker kind `general-purpose`, and launch parallel workers through their selected executors, each taking a slice of the corpus. Tell every subagent to order candidates by real modification time (`ls -t`) and never by UUID name, grep the topic first and then read only the matching chats and only their relevant regions, and skip the current chat plus obvious noise (subagent, eval, and test chats). Each returns the same schema, one block per chat: topic, the user's goal, decisions, open threads, struggles and corrections, and artifacts (PRs, tickets, branches), each citing the chat UUID. For one or two chats, skip the fan-out and search directly. The raw transcripts stay in the subagents. The main thread gets only their findings. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+-4. Sweep the shared record whenever the topic names a feature, file, subsystem, area, or bug. This is the default, not a judgment call, and "my work on X" does not exempt it. Spawn one investigator subagent per source, in agent mode because readonly strips MCP access, and ask each "what's the current state, what's been tried and didn't hold, and what are users still reporting". Run them in parallel with the chat-history mining. Null results are findings. Skip an unavailable MCP and say so. Fold what comes back into the brief. Skip this step only for pure activity recall with no named target ("what did I do this week"), where your own history and live state are the entire answer.
++4. Sweep the shared record whenever the topic names a feature, file, subsystem, area, or bug. This is the default, not a judgment call, and "my work on X" does not exempt it. Spawn one investigator subagent per source through Claude Code execution, with worker kind `general-purpose` rather than `read-only` so it keeps MCP access, on the actual native parent selection, and ask each "what's the current state, what's been tried and didn't hold, and what are users still reporting". Run them in parallel with the chat-history mining. Null results are findings. Skip an unavailable MCP and say so. Fold what comes back into the brief. Skip this step only for pure activity recall with no named target ("what did I do this week"), where your own history and live state are the entire answer.
+ 5. Verify against live state. Take the PRs, branches, and tickets that the mining and the sweep surfaced and check them with `git` and `gh`. When the answer hinges on what an agent actually did (the tools it ran, files it read, errors it hit), read the full transcript, not just a trimmed local copy.
+ 6. Write the brief to the contract below. Group by thread. Stay on the named topic.
+ 
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index b333882..2bf5381 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -53,26 +53,26 @@ For Pi-only worker choices, skip native and other external model collection. Nor
+ 
+ ## 4. Load current choices
+ 
+-Run `scripts/models.mjs read`. Retain its `sha256`, `config`, `proposal`, and `needsChoice`.
++Run `scripts/models.mjs read`. Retain its `sha256`, `config`, `proposal`, `needsChoice`, and `droppedRoles`.
+ 
+-`config` contains only saved selections and is empty on a fresh install. `proposal` exposes all 17 roles with unresolved model slots. Scalar roles have one initial slot, and panels or pools have two. No exact model is a proposal default. Missing roles execute on the actual native Claude parent with their original cardinality and `source: "unconfigured"`. Disclose that resolution. Before-setup tasks remain available.
++`config` contains only saved selections and is empty on a fresh install. `proposal` exposes all 13 roles with unresolved model slots. Scalar roles have one initial slot, and panels or pools have three. No exact model is a proposal default. Missing roles execute on the actual native Claude parent with their original cardinality and `source: "unconfigured"`. Disclose that resolution. Before-setup tasks remain available.
+ 
+-On a rerun, retain independently chosen models, executors, aliases, efforts, list order, and duplicates. Unknown role keys fail validation without changing preferences.
++On a rerun, retain independently chosen models, executors, aliases, efforts, list order, and duplicates. A retired role in the saved file, such as `how explorer` or `why investigators`, appears in `droppedRoles` and not in `config`. Show each one to the user. The next save drops it. Other unknown role keys fail validation without changing preferences.
+ 
+ ## 5. Select the budget and role mapping
+ 
+-Use a budget already specified in the conversation. Otherwise show the saved budget, or explain that `large` is the initial effort target, and offer the original four choices.
++Use a budget already specified in the conversation. Otherwise show the saved budget, or explain that `large` keeps each role's starting effort, and offer the original four choices. Each role has a target effort, which is its starting effort moved by the budget. `large` keeps it, `unlimited` raises it one step, `medium` lowers it one step, and `small` lowers it two steps, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. A target at either end of the ladder stays there. `hardest tasks` starts at `max`. `reflect tooling`, `swarm workers`, the three panels, and the cross-judge pool start at `high`. The other roles start at `xhigh`, and each budget label names where those land.
+ 
+-- `unlimited` targets `max` reasoning.
+-- `large` targets `xhigh` reasoning.
+-- `medium` targets `high` reasoning.
+-- `small` targets `medium` reasoning.
++- `unlimited` names `max` reasoning.
++- `large` names `xhigh` reasoning.
++- `medium` names `high` reasoning.
++- `small` names `medium` reasoning.
+ 
+-Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below the target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
++Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below each role's target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
+ 
+ Show every role's current and proposed executor, Pi provider when applicable, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices and parent aliases. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
+ 
+-Scalar roles hold one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` hold nonempty lists. Run one independent delegate per entry, including duplicates and aliases. `arena cross-judge pool` is an ordered candidate pool, from which Arena runs one eligible judge. Parent aliases never judge. Preserve Arena's ordered selected pool and disclosed judge skip, plus every other workflow's original diversity, verifier, retry, and fresh-worker requirements.
++Scalar roles hold one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` hold nonempty lists. Run one independent delegate per entry, including duplicates and aliases. `arena cross-judge pool` is an ordered candidate pool, from which Arena runs one eligible judge from a vendor other than the parent's. Families are the ones Phase A of the arena skill defines, so Fable is its own family. Fable and the other Claude models are one vendor. Parent aliases never judge. Preserve Arena's ordered selected pool and disclosed judge skip, plus every other workflow's original diversity, verifier, retry, and fresh-worker requirements.
+ 
+ Pi choices retain `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "LEVEL" }`. Choose provider and model separately. Pi uses `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Budget previews select only reported levels on that ladder, including `off` for nonreasoning models. Native aliases stay native, and native registration creates no Pi model definitions. Follow [Pi execution](../poteto-mode/references/pi-execution.md) for explicit tools, context, fresh sessions, capability gaps, and required family gates.
+ 
+diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
+index 6453ea7..eb2972d 100644
+--- a/skills/setup-pstack/references/models-contract.md
++++ b/skills/setup-pstack/references/models-contract.md
+@@ -38,10 +38,14 @@ Preferences are in `pstack-cc/models.json` under the Claude home.
+ 
+ This excerpt shows the shapes. Sparse accepted saves are valid. Partial proposals retain saved choices for omitted roles. Missing roles stay unconfigured and resolve to the actual native parent. An omitted executor in an object normalizes to native `claude-code`. Explicit persisted model entries retain their executor and effort. Aliases can be strings or native entries with `model` and no effort.
+ 
+-The scalar keys are `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `judgment and prose`, `hardest tasks`, `how explorer`, `how explainer`, `why investigators`, `why synthesizer`, `reflect tooling`, `reflect judgment, divergent, synthesizer`, and `swarm workers`.
++The scalar keys are `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `judgment and prose`, `hardest tasks`, `reflect tooling`, `reflect judgment, divergent, synthesizer`, and `swarm workers`.
+ 
+ The list keys are `arena runners`, `arena cross-judge pool`, `architect runners`, and `interrogate reviewers`. Lists retain order and duplicates. The cross-judge list is a pool. The other lists describe fan-out counts.
+ 
++The retired keys `how explorer`, `how explainer`, `why investigators`, and `why synthesizer` can remain in a saved file. Read, resolve, and budget leave them out of `config`, list them in `droppedRoles`, and do not validate their values. The next write omits them and lists them in its `droppedRoles`. Every other saved value stays unchanged.
++
++Each role has a starting effort. `hardest tasks` starts at `max`. `reflect tooling`, `swarm workers`, the three panels, and the cross-judge pool start at `high`. The other roles start at `xhigh`. A budget moves every starting effort by steps on the ladder `low`, `medium`, `high`, `xhigh`, `max`. `unlimited` raises it one step, `large` keeps it, `medium` lowers it one step, and `small` lowers it two steps. A target stays at either end of the ladder. That result is the role's target effort.
++
+ ## Catalogs
+ 
+ `models.mjs catalog --input ABS --native-catalog ABS` accepts raw Codex `model/list` data, a normalized combined catalog, or the output of `detect.mjs catalog`. It rejects an uncollected next page. The runtime collects pages before normalization.
+@@ -69,10 +73,12 @@ Normalized entries have `executor`, `model`, and `supportedReasoningEfforts`. Na
+ 
+ ## Commands
+ 
+-- `models.mjs read` returns `file`, `exists`, `sha256`, valid saved `config`, full `proposal`, and `needsChoice`. Missing proposal slots contain only their target `reasoningEffort`, without a model or executor. Scalars start with one slot and panels or pools with two. These unresolved objects cannot be saved as selected entries.
+-- `models.mjs resolve --role ROLE [--kind KIND]` returns an `entries` array, original `cardinality`, source, budget, and empty `needsChoice`. Scalars yield one entry. Missing roles yield one or two native `inherit-parent` entries at their original count, with source `unconfigured` and static inherited definitions. Saved exact entries remain exact.
+-- `models.mjs budget --budget LABEL --catalog ABS` returns a preview `config` and `needsChoice`. It never writes. A role with no supported effort at or below the target requires a choice.
+-- `models.mjs write --input ABS --catalog ABS --expected-hash HASH_OR_ABSENT [--dry-run]` validates all choices and saves atomically. The input is a config, or a result object containing `config`. Unresolved `needsChoice` results are rejected. A dry run creates no destination.
++- `models.mjs read` returns `file`, `exists`, `sha256`, valid saved `config`, full `proposal`, `droppedRoles`, `needsChoice`, and `targetReasoningEffort`. Missing proposal slots contain only their role's target `reasoningEffort`, without a model or executor. Scalars start with one slot and panels or pools with three. These unresolved objects cannot be saved as selected entries.
++- `models.mjs resolve --role ROLE [--kind KIND]` returns an `entries` array, original `cardinality`, source, budget, the role's target `targetReasoningEffort`, `droppedRoles`, and empty `needsChoice`. Scalars yield one entry. Missing roles yield one or three native `inherit-parent` entries at their original count, with source `unconfigured` and static inherited definitions. Saved exact entries remain exact.
++- `models.mjs budget --budget LABEL --catalog ABS` returns a preview `config`, `droppedRoles`, `targetReasoningEffort`, and `needsChoice`. It never writes. An entry with no supported effort at or below its role's target requires a choice, and its `needsChoice` entry carries that `targetReasoningEffort`.
++- `models.mjs write --input ABS --catalog ABS --expected-hash HASH_OR_ABSENT [--dry-run]` validates all choices and saves atomically. The input is a config, or a result object containing `config`. Unresolved `needsChoice` results are rejected. A dry run creates no destination. `droppedRoles` lists the retired keys the write omits.
++
++The top-level `targetReasoningEffort` of `read` and `budget` is the effort the budget label names, which is the target of a role that starts at `xhigh`. Per-role targets appear in proposal slots, `resolve`, and `needsChoice` entries.
+ - `register-agents.mjs [--input ABS] [--dry-run] [--unregister]` manages owned native definitions. With no input, it uses saved preferences. Removal retains preferences.
+ - `detect.mjs detect --executors claude-code` reports native CLI, safe auth evidence, model candidates and guidance. `--executors claude-code,codex` also probes the standalone Codex server. Unselected Codex is never invoked or required. The legacy detector always includes Claude. When Claude workers are unselected, skip it. Use `poteto-mode/scripts/run-codex.mjs detect` or `catalog --cwd ABS` directly for selected Codex workers, and the Pi catalog runner for selected Pi workers.
+ - `detect.mjs catalog --executors claude-code,codex --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` selects the Claude CLI. `--codex-executable ABS` overrides the standalone server for that detect or catalog invocation only. The path is not saved or used by future workers.
+@@ -93,7 +99,7 @@ Registration adds or refreshes the proposed variants and retains every other own
+ 
+ The registrar changes neither Claude settings nor plugin cache files. Unregister checks every owned definition before removing any. A native host must load the resulting definitions before they can be invoked. Registration alone is not live compatibility evidence.
+ 
+-Unknown role keys fail boundary validation without dropping or migrating them. Preferences remain unchanged.
++Unknown role keys other than the retired keys fail boundary validation without dropping or migrating them. Preferences remain unchanged.
+ 
+ ## Pi routes
+ 
+diff --git a/skills/setup-pstack/scripts/models.mjs b/skills/setup-pstack/scripts/models.mjs
+index 914febd..a22c08c 100644
+--- a/skills/setup-pstack/scripts/models.mjs
++++ b/skills/setup-pstack/scripts/models.mjs
+@@ -22,7 +22,11 @@ import {
+   efforts,
+   entriesFor,
+   modelFor,
++  namedEffort,
++  retiredRoles,
+   roles,
++  seats,
++  targetEffort,
+   kinds,
+ } from './roles.mjs';
+ 
+@@ -119,10 +123,15 @@ export function normalizeConfig(input, previous) {
+   if (!selected || typeof selected !== 'object' || Array.isArray(selected))
+     throw new Error('Model configuration roles must be an object.');
+   const normalized = { ...(previous?.roles ?? {}) };
++  const droppedRoles = [];
+   for (const [role, value] of Object.entries(selected)) {
++    if (retiredRoles.has(role)) {
++      droppedRoles.push(role);
++      continue;
++    }
+     if (!Object.hasOwn(roles, role))
+       throw new Error(`Unknown pstack role: ${role}`);
+-    if (roles[role] === 'scalar') {
++    if (roles[role].kind === 'scalar') {
+       if (Array.isArray(value))
+         throw new Error(
+           `Scalar role ${role} requires one entry or parent alias, not a list.`,
+@@ -141,20 +150,22 @@ export function normalizeConfig(input, previous) {
+       budget,
+       roles: normalized,
+     },
++    droppedRoles,
+   };
+ }
+ 
+ function suggestions(config) {
+   return Object.fromEntries(
+-    Object.entries(roles).map(([role, kind]) => [
+-      role,
+-      config.roles[role] ??
+-        (kind === 'scalar'
+-          ? { reasoningEffort: budgets[config.budget] }
+-          : Array.from({ length: 2 }, () => ({
+-              reasoningEffort: budgets[config.budget],
+-            }))),
+-    ]),
++    Object.entries(roles).map(([role, { kind }]) => {
++      const slot = { reasoningEffort: targetEffort(role, config.budget) };
++      return [
++        role,
++        config.roles[role] ??
++          (kind === 'scalar'
++            ? slot
++            : Array.from({ length: seats[kind] }, () => ({ ...slot }))),
++      ];
++    }),
+   );
+ }
+ 
+@@ -355,8 +366,9 @@ async function main(options) {
+       ...info,
+       config: loaded.config,
+       proposal: { ...loaded.config, roles: proposal },
++      droppedRoles: loaded.droppedRoles,
+       needsChoice: choicesFor(proposal),
+-      targetReasoningEffort: budgets[loaded.config.budget],
++      targetReasoningEffort: namedEffort(loaded.config.budget),
+     };
+   if (options.command === 'resolve') {
+     if (options.kind && !kinds.includes(options.kind))
+@@ -381,13 +393,14 @@ async function main(options) {
+     });
+     return {
+       role: options.role,
+-      cardinality: roles[options.role],
++      cardinality: roles[options.role].kind,
+       entries,
+       needsChoice: [],
+       source: saved ? 'saved' : 'unconfigured',
+       file: loaded.file,
+       budget: loaded.config.budget,
+-      targetReasoningEffort: budgets[loaded.config.budget],
++      targetReasoningEffort: targetEffort(options.role, loaded.config.budget),
++      droppedRoles: loaded.droppedRoles,
+     };
+   }
+   const catalog = normalizeCatalog(
+@@ -401,7 +414,6 @@ async function main(options) {
+       budget: options.budget,
+       roles: structuredClone(loaded.config.roles),
+     };
+-    const target = budgets[options.budget];
+     const unmapped = [];
+     const detected = new Map(
+       catalog.models.map((entry) => [
+@@ -412,6 +424,7 @@ async function main(options) {
+     for (const [role, value] of Object.entries(config.roles))
+       for (const [index, entry] of entriesFor(value).entries()) {
+         if (typeof entry === 'string' || aliases.has(entry.model)) continue;
++        const target = targetEffort(role, options.budget);
+         const supported = detected.get(keyFor(entry)) ?? [];
+         const ladder =
+           { pi: piEfforts, antigravity: agyEfforts }[entry.executor] ?? efforts;
+@@ -432,7 +445,8 @@ async function main(options) {
+     return {
+       ...info,
+       config,
+-      targetReasoningEffort: target,
++      targetReasoningEffort: namedEffort(options.budget),
++      droppedRoles: loaded.droppedRoles,
+       needsChoice: [...choicesFor(config.roles, catalog), ...unmapped],
+     };
+   }
+@@ -462,6 +476,9 @@ async function main(options) {
+   const result = {
+     ...info,
+     ...normalized,
++    droppedRoles: [
++      ...new Set([...loaded.droppedRoles, ...normalized.droppedRoles]),
++    ],
+     changed,
+     dryRun: Boolean(options.dryRun),
+     sha256: hash(bytes),
+diff --git a/skills/setup-pstack/scripts/roles.mjs b/skills/setup-pstack/scripts/roles.mjs
+index c5471a5..ab7c73a 100644
+--- a/skills/setup-pstack/scripts/roles.mjs
++++ b/skills/setup-pstack/scripts/roles.mjs
+@@ -1,30 +1,43 @@
+ import { hash } from './state.mjs';
+ 
+ export const roles = {
+-  'feature, refactoring': 'scalar',
+-  'bug-fix': 'scalar',
+-  'perf-issue': 'scalar',
+-  hillclimb: 'scalar',
+-  'judgment and prose': 'scalar',
+-  'hardest tasks': 'scalar',
+-  'how explorer': 'scalar',
+-  'how explainer': 'scalar',
+-  'why investigators': 'scalar',
+-  'why synthesizer': 'scalar',
+-  'reflect tooling': 'scalar',
+-  'reflect judgment, divergent, synthesizer': 'scalar',
+-  'arena runners': 'panel',
+-  'arena cross-judge pool': 'pool',
+-  'swarm workers': 'scalar',
+-  'architect runners': 'panel',
+-  'interrogate reviewers': 'panel',
+-};
+-export const budgets = {
+-  unlimited: 'max',
+-  large: 'xhigh',
+-  medium: 'high',
+-  small: 'medium',
++  'feature, refactoring': { kind: 'scalar', effort: 'xhigh' },
++  'bug-fix': { kind: 'scalar', effort: 'xhigh' },
++  'perf-issue': { kind: 'scalar', effort: 'xhigh' },
++  hillclimb: { kind: 'scalar', effort: 'xhigh' },
++  'judgment and prose': { kind: 'scalar', effort: 'xhigh' },
++  'hardest tasks': { kind: 'scalar', effort: 'max' },
++  'reflect tooling': { kind: 'scalar', effort: 'high' },
++  'reflect judgment, divergent, synthesizer': {
++    kind: 'scalar',
++    effort: 'xhigh',
++  },
++  'arena runners': { kind: 'panel', effort: 'high' },
++  'arena cross-judge pool': { kind: 'pool', effort: 'high' },
++  'swarm workers': { kind: 'scalar', effort: 'high' },
++  'architect runners': { kind: 'panel', effort: 'high' },
++  'interrogate reviewers': { kind: 'panel', effort: 'high' },
+ };
++export const retiredRoles = new Set([
++  'how explorer',
++  'how explainer',
++  'why investigators',
++  'why synthesizer',
++]);
++export const seats = { scalar: 1, panel: 3, pool: 3 };
++const budgetLadder = ['low', 'medium', 'high', 'xhigh', 'max'];
++export const budgets = { unlimited: 1, large: 0, medium: -1, small: -2 };
++const shifted = (effort, budget) =>
++  budgetLadder[
++    Math.min(
++      budgetLadder.length - 1,
++      Math.max(0, budgetLadder.indexOf(effort) + budgets[budget]),
++    )
++  ];
++export const targetEffort = (role, budget) =>
++  shifted(roles[role].effort, budget);
++// A budget label names the effort an `xhigh` role lands on.
++export const namedEffort = (budget) => shifted('xhigh', budget);
+ export const efforts = [
+   'none',
+   'minimal',

@@ -285,7 +285,7 @@ try {
   if (
     models.config.schemaVersion !== 1 ||
     Object.keys(models.config.roles).length !== 0 ||
-    Object.keys(models.proposal.roles).length !== 17 ||
+    Object.keys(models.proposal.roles).length !== 13 ||
     models.needsChoice.length !== 21 ||
     models.exists !== false ||
     models.sha256 !== null
@@ -312,14 +312,14 @@ try {
   );
   if (
     unconfiguredPanel.source !== 'unconfigured' ||
-    unconfiguredPanel.entries.length !== 2 ||
+    unconfiguredPanel.entries.length !== 3 ||
     !unconfiguredPanel.entries.every(
       (entry: { model: string; executor?: string }) =>
         entry.model === 'inherit-parent' &&
         (entry.executor === undefined || entry.executor === 'codex'),
     )
   )
-    throw new Error('Packaged Codex panel lost its two native-parent seats.');
+    throw new Error('Packaged Codex panel lost its three native-parent seats.');
   try {
     await access(isolatedModelsHome);
     throw new Error('Reading packaged choices wrote a model configuration.');
@@ -462,7 +462,7 @@ try {
     selectedInput,
     JSON.stringify({
       roles: {
-        'how explainer': [
+        'judgment and prose': [
           {
             executor: 'claude-code',
             model: packageModel,
@@ -508,7 +508,8 @@ try {
     '--expected-hash',
     budgeted.sha256,
   ]);
-  const selected = modelCall(['resolve', '--role', 'how explainer']).entries[0];
+  const selected = modelCall(['resolve', '--role', 'judgment and prose'])
+    .entries[0];
   if (
     modelCall(['read']).config.budget !== 'small' ||
     selected.model !== packageModel ||
@@ -662,7 +663,7 @@ try {
   const initialClaude = claudeModelCall(['read']);
   if (
     initialClaude.exists ||
-    Object.keys(initialClaude.proposal.roles).length !== 17
+    Object.keys(initialClaude.proposal.roles).length !== 13
   )
     throw new Error(
       'Packaged Claude helper did not expose the original role proposal.',
@@ -676,7 +677,7 @@ try {
   ]);
   if (
     unconfiguredClaudePanel.source !== 'unconfigured' ||
-    unconfiguredClaudePanel.entries.length !== 2 ||
+    unconfiguredClaudePanel.entries.length !== 3 ||
     !unconfiguredClaudePanel.entries.every(
       (entry: { model: string; executor: string; agentType: string }) =>
         entry.model === 'inherit-parent' &&
@@ -684,7 +685,9 @@ try {
         entry.agentType === 'pstack-cc:general-purpose',
     )
   )
-    throw new Error('Packaged Claude panel lost its two native-parent seats.');
+    throw new Error(
+      'Packaged Claude panel lost its three native-parent seats.',
+    );
   const nativeWorkerKinds = [
     'general-purpose',
     'poteto-agent',
@@ -695,7 +698,7 @@ try {
     const fallback = claudeModelCall([
       'resolve',
       '--role',
-      'how explorer',
+      'judgment and prose',
       '--kind',
       kind,
     ]);
@@ -722,7 +725,7 @@ try {
   const nativeFallback = claudeModelCall([
     'resolve',
     '--role',
-    'how explainer',
+    'judgment and prose',
     '--kind',
     'general-purpose',
   ]);

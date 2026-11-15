@@ -55,15 +55,15 @@ Start a local Code session in your project and run:
 /pstack-cc:setup-pstack
 ```
 
-Setup offers Claude Code, Codex, Pi, and Antigravity as worker executors. The host running setup prepares missing selected tools from official sources, makes them available to future workers, and checks readiness. Only interactive authentication or operating-system approvals need your participation. Codex workers use the official standalone server with shared Codex authentication and persistent history. Pstack does not distribute or pin native server versions or manage their updates. Then choose supported exact models, role assignments, and a reasoning budget across the 17 roles. Review the proposal before saving. Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`, independently of Codex-host preferences.
+Setup offers Claude Code, Codex, Pi, and Antigravity as worker executors. The host running setup prepares missing selected tools from official sources, makes them available to future workers, and checks readiness. Only interactive authentication or operating-system approvals need your participation. Codex workers use the official standalone server with shared Codex authentication and persistent history. Pstack does not distribute or pin native server versions or manage their updates. Then choose supported exact models, role assignments, and a reasoning budget across the 13 roles. Review the proposal before saving. Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`, independently of Codex-host preferences.
 
 Start a new session after setup so Claude discovers the registered agents. Try a read-only question about a real module in your project:
 
 ```text
-/pstack-cc:how explain how src/cli.ts handles --help. Use the simple path with one explainer. Do not edit files.
+/pstack-cc:how explain how src/cli.ts handles --help. Do not edit files.
 ```
 
-Replace `src/cli.ts` with your module. A healthy run identifies the selected worker and returns an explanation based on the project's files. CLI discovery or login alone does not establish that a model can execute. The [execution binding](plugin-claude/skills/poteto-mode/references/execution.md) describes the worker controls and host limits.
+Replace `src/cli.ts` with your module. How starts one read-only subagent on the parent model. A healthy run returns an explanation based on the project's files. CLI discovery or login alone does not establish that a model can execute. The [execution binding](plugin-claude/skills/poteto-mode/references/execution.md) describes the worker controls and host limits.
 
 For updates and restores, follow [Update or remove](plugin-claude/docs/guide/01-setup.md#update-or-remove) and rerun setup. Before uninstalling, ask setup to unregister its owned agents while the plugin is still available. Native plugin removal does not clean up those registrations. Model preferences remain.
 
@@ -71,7 +71,7 @@ For updates and restores, follow [Update or remove](plugin-claude/docs/guide/01-
 
 Setup offers Codex, Claude Code, Pi, and Antigravity as worker executors. It checks installation and login only for selected CLIs, guides any needed installation and human authentication, and then helps you choose exact supported models, role assignments, and reasoning budget. No fixed model is required. The parent chat model stays unchanged.
 
-A fresh saved configuration has no chosen roles. Before setup, missing scalar roles use one native-parent entry and panels or pools use two. Generic seats can run through the host's native general-purpose or default path when it supports the selected model and effort. The `poteto-agent` and `comment-sicko` custom roles require setup registration. Setup presents all 17 roles with unresolved choices. Saved exact selections take precedence. Required different-model or different-family checks apply only at the workflow step that needs them. If its eligible selected choices cannot satisfy a required verifier, that step retains its unmet outcome. Arena discloses and skips an unavailable judge. See [compatibility notes](docs/spec.md) for verified scope.
+A fresh saved configuration has no chosen roles. Before setup, missing scalar roles use one native-parent entry and panels or pools use three. Generic seats can run through the host's native general-purpose or default path when it supports the selected model and effort. The `poteto-agent` and `comment-sicko` custom roles require setup registration. Setup presents all 13 roles with unresolved choices. Saved exact selections take precedence. Required different-model or different-family checks apply only at the workflow step that needs them. If its eligible selected choices cannot satisfy a required verifier, that step retains its unmet outcome. Arena discloses and skips an unavailable judge. See [compatibility notes](docs/spec.md) for verified scope.
 
 <details>
 <summary>Codex requirements and optional workflow tools</summary>

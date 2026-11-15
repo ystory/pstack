@@ -195,7 +195,7 @@ for (const host of ['codex', 'claude-code']) {
       'interrogate reviewers',
     );
     assert.equal(absent.source, 'unconfigured');
-    assert.equal(absent.entries.length, 2);
+    assert.equal(absent.entries.length, 3);
     assert.ok(
       absent.entries.every(
         (entry: { model: string }) => entry.model === 'inherit-parent',

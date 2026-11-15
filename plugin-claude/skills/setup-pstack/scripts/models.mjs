@@ -22,7 +22,11 @@ import {
   efforts,
   entriesFor,
   modelFor,
+  namedEffort,
+  retiredRoles,
   roles,
+  seats,
+  targetEffort,
   kinds,
 } from './roles.mjs';
 
@@ -119,10 +123,15 @@ export function normalizeConfig(input, previous) {
   if (!selected || typeof selected !== 'object' || Array.isArray(selected))
     throw new Error('Model configuration roles must be an object.');
   const normalized = { ...(previous?.roles ?? {}) };
+  const droppedRoles = [];
   for (const [role, value] of Object.entries(selected)) {
+    if (retiredRoles.has(role)) {
+      droppedRoles.push(role);
+      continue;
+    }
     if (!Object.hasOwn(roles, role))
       throw new Error(`Unknown pstack role: ${role}`);
-    if (roles[role] === 'scalar') {
+    if (roles[role].kind === 'scalar') {
       if (Array.isArray(value))
         throw new Error(
           `Scalar role ${role} requires one entry or parent alias, not a list.`,
@@ -141,20 +150,22 @@ export function normalizeConfig(input, previous) {
       budget,
       roles: normalized,
     },
+    droppedRoles,
   };
 }
 
 function suggestions(config) {
   return Object.fromEntries(
-    Object.entries(roles).map(([role, kind]) => [
-      role,
-      config.roles[role] ??
-        (kind === 'scalar'
-          ? { reasoningEffort: budgets[config.budget] }
-          : Array.from({ length: 2 }, () => ({
-              reasoningEffort: budgets[config.budget],
-            }))),
-    ]),
+    Object.entries(roles).map(([role, { kind }]) => {
+      const slot = { reasoningEffort: targetEffort(role, config.budget) };
+      return [
+        role,
+        config.roles[role] ??
+          (kind === 'scalar'
+            ? slot
+            : Array.from({ length: seats[kind] }, () => ({ ...slot }))),
+      ];
+    }),
   );
 }
 
@@ -355,8 +366,9 @@ async function main(options) {
       ...info,
       config: loaded.config,
       proposal: { ...loaded.config, roles: proposal },
+      droppedRoles: loaded.droppedRoles,
       needsChoice: choicesFor(proposal),
-      targetReasoningEffort: budgets[loaded.config.budget],
+      targetReasoningEffort: namedEffort(loaded.config.budget),
     };
   if (options.command === 'resolve') {
     if (options.kind && !kinds.includes(options.kind))
@@ -381,13 +393,14 @@ async function main(options) {
     });
     return {
       role: options.role,
-      cardinality: roles[options.role],
+      cardinality: roles[options.role].kind,
       entries,
       needsChoice: [],
       source: saved ? 'saved' : 'unconfigured',
       file: loaded.file,
       budget: loaded.config.budget,
-      targetReasoningEffort: budgets[loaded.config.budget],
+      targetReasoningEffort: targetEffort(options.role, loaded.config.budget),
+      droppedRoles: loaded.droppedRoles,
     };
   }
   const catalog = normalizeCatalog(
@@ -401,7 +414,6 @@ async function main(options) {
       budget: options.budget,
       roles: structuredClone(loaded.config.roles),
     };
-    const target = budgets[options.budget];
     const unmapped = [];
     const detected = new Map(
       catalog.models.map((entry) => [
@@ -412,6 +424,7 @@ async function main(options) {
     for (const [role, value] of Object.entries(config.roles))
       for (const [index, entry] of entriesFor(value).entries()) {
         if (typeof entry === 'string' || aliases.has(entry.model)) continue;
+        const target = targetEffort(role, options.budget);
         const supported = detected.get(keyFor(entry)) ?? [];
         const ladder =
           { pi: piEfforts, antigravity: agyEfforts }[entry.executor] ?? efforts;
@@ -432,7 +445,8 @@ async function main(options) {
     return {
       ...info,
       config,
-      targetReasoningEffort: target,
+      targetReasoningEffort: namedEffort(options.budget),
+      droppedRoles: loaded.droppedRoles,
       needsChoice: [...choicesFor(config.roles, catalog), ...unmapped],
     };
   }
@@ -462,6 +476,9 @@ async function main(options) {
   const result = {
     ...info,
     ...normalized,
+    droppedRoles: [
+      ...new Set([...loaded.droppedRoles, ...normalized.droppedRoles]),
+    ],
     changed,
     dryRun: Boolean(options.dryRun),
     sha256: hash(bytes),

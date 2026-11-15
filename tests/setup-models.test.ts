@@ -46,8 +46,34 @@ interface Result {
     source?: { kind: string; description: string };
   }[];
   targetReasoningEffort: string;
+  droppedRoles: string[];
   runtimes?: { modelExecutionVerified: boolean }[];
 }
+
+const retiredRoles = [
+  'how explorer',
+  'how explainer',
+  'why investigators',
+  'why synthesizer',
+];
+const baseEffort = (role: string) =>
+  role === 'hardest tasks'
+    ? 'max'
+    : [
+          'swarm workers',
+          'reflect tooling',
+          'arena runners',
+          'arena cross-judge pool',
+          'architect runners',
+          'interrogate reviewers',
+        ].includes(role)
+      ? 'high'
+      : 'xhigh';
+const budgetTargets: Record<string, Record<string, string>> = {
+  max: { unlimited: 'max', large: 'max', medium: 'xhigh', small: 'high' },
+  xhigh: { unlimited: 'max', large: 'xhigh', medium: 'high', small: 'medium' },
+  high: { unlimited: 'xhigh', large: 'high', medium: 'medium', small: 'low' },
+};
 
 const claudeRuntime = {
   executor: 'claude-code',
@@ -175,7 +201,7 @@ test('fresh config stays empty while proposal and parent resolution preserve eve
   const original = upstream
     .split('\n')
     .filter((line) => /^[^#\s][^:]*: (?:grok|claude)-/.test(line));
-  assert.equal(original.length, 17);
+  assert.equal(original.length, 13);
   assert.deepEqual(
     Object.keys(result.proposal.roles),
     original.map((line) => line.slice(0, line.indexOf(': '))),
@@ -320,6 +346,153 @@ test('unknown role keys fail without dropping them or changing saved choices', a
   );
   assert.equal(rejected.status, 1);
   assert.deepEqual(await readFile(f.file), before);
+});
+
+test('saved retired role keys still read and resolve, are reported, and only they are dropped on the next write', async (t) => {
+  const f = await fixture(t);
+  const kept = {
+    'bug-fix': [{ model: 'gpt-6-sol', reasoningEffort: 'high' }],
+    'arena runners': [
+      { model: 'auto' },
+      { model: 'gpt-6.1-sol', reasoningEffort: 'low' },
+      { model: 'auto' },
+    ],
+  };
+  await mkdir(path.dirname(f.file), { recursive: true });
+  await writeFile(
+    f.file,
+    JSON.stringify({
+      schemaVersion: 1,
+      budget: 'medium',
+      roles: {
+        'how explorer': [{ model: 'gpt-retired', reasoningEffort: 'high' }],
+        'bug-fix': kept['bug-fix'],
+        'how explainer': [{ model: 'inherit-parent' }],
+        'why investigators': [{ model: 'auto' }, { model: 'auto' }],
+        'arena runners': kept['arena runners'],
+        'why synthesizer': [{ model: 'gpt-retired', reasoningEffort: 'max' }],
+      },
+    }),
+  );
+  const before = await readFile(f.file);
+  const read = f.run('read');
+  assert.deepEqual(read.droppedRoles, retiredRoles);
+  assert.deepEqual(read.config, {
+    schemaVersion: 1,
+    budget: 'medium',
+    roles: kept,
+  });
+  assert.equal(Object.keys(read.proposal.roles).length, 13);
+  assert.ok(retiredRoles.every((role) => !(role in read.proposal.roles)));
+  const resolved = f.run('resolve', '--role', 'arena runners');
+  assert.equal(resolved.source, 'saved');
+  assert.deepEqual(resolved.entries, kept['arena runners']);
+  assert.deepEqual(resolved.droppedRoles, retiredRoles);
+  assert.deepEqual(
+    f.run('budget', '--budget', 'large', '--catalog', f.catalog).droppedRoles,
+    retiredRoles,
+  );
+  for (const role of retiredRoles) {
+    const rejected = f.invoke('resolve', '--role', role);
+    assert.equal(rejected.status, 1);
+    assert.match(rejected.stderr, new RegExp(`Unknown pstack role: ${role}`));
+  }
+  assert.deepEqual(await readFile(f.file), before);
+  const dryRun = await f.save(read.config, read.sha256!, '--dry-run');
+  assert.deepEqual(dryRun.droppedRoles, retiredRoles);
+  assert.deepEqual(await readFile(f.file), before);
+  const written = await f.save(read.config, read.sha256!);
+  assert.equal(written.changed, true);
+  assert.deepEqual(written.droppedRoles, retiredRoles);
+  assert.deepEqual(JSON.parse(await readFile(f.file, 'utf8')), {
+    schemaVersion: 1,
+    budget: 'medium',
+    roles: kept,
+  });
+  const reread = f.run('read');
+  assert.deepEqual(reread.droppedRoles, []);
+  assert.deepEqual(reread.config.roles, kept);
+});
+
+test('a saved unknown role key beside retired keys still fails without changing the file', async (t) => {
+  const f = await fixture(t);
+  await mkdir(path.dirname(f.file), { recursive: true });
+  await writeFile(
+    f.file,
+    JSON.stringify({
+      schemaVersion: 1,
+      roles: {
+        'how explorer': [{ model: 'auto' }],
+        'unknown role': [{ model: 'auto' }],
+      },
+    }),
+  );
+  const before = await readFile(f.file);
+  for (const args of [['read'], ['resolve', '--role', 'bug-fix']]) {
+    const rejected = f.invoke(args[0]!, ...args.slice(1));
+    assert.equal(rejected.status, 1);
+    assert.match(rejected.stderr, /Unknown pstack role: unknown role/);
+  }
+  assert.deepEqual(await readFile(f.file), before);
+});
+
+test('each role budget moves its own target effort and clamps at both ladder ends', async (t) => {
+  const f = await fixture(t);
+  const roleList = Object.keys(f.run('read').proposal.roles);
+  for (const budget of ['unlimited', 'large', 'medium', 'small']) {
+    await f.save({ budget, roles: {} });
+    assert.deepEqual(
+      Object.fromEntries(
+        roleList.map((role) => [
+          role,
+          f.run('resolve', '--role', role).targetReasoningEffort,
+        ]),
+      ),
+      Object.fromEntries(
+        roleList.map((role) => [
+          role,
+          budgetTargets[baseEffort(role)]![budget],
+        ]),
+      ),
+      budget,
+    );
+  }
+  await f.save({
+    budget: 'large',
+    roles: {
+      'hardest tasks': [{ model: 'gpt-6.1-sol', reasoningEffort: 'max' }],
+      'swarm workers': [{ model: 'gpt-6.1-sol', reasoningEffort: 'high' }],
+      'interrogate reviewers': [
+        { model: 'gpt-6.1-sol', reasoningEffort: 'high' },
+        { model: 'gpt-6-sol', reasoningEffort: 'high' },
+      ],
+    },
+  });
+  const top = f.run('budget', '--budget', 'unlimited', '--catalog', f.catalog);
+  assert.equal(top.targetReasoningEffort, 'max');
+  assert.deepEqual(top.config.roles['hardest tasks'], [
+    { model: 'gpt-6.1-sol', reasoningEffort: 'max' },
+  ]);
+  assert.deepEqual(top.config.roles['swarm workers'], [
+    { model: 'gpt-6.1-sol', reasoningEffort: 'xhigh' },
+  ]);
+  assert.deepEqual(top.needsChoice, []);
+  const bottom = f.run('budget', '--budget', 'small', '--catalog', f.catalog);
+  assert.equal(bottom.targetReasoningEffort, 'medium');
+  assert.deepEqual(bottom.config.roles['hardest tasks'], [
+    { model: 'gpt-6.1-sol', reasoningEffort: 'high' },
+  ]);
+  assert.deepEqual(bottom.config.roles['swarm workers'], [
+    { model: 'gpt-6.1-sol', reasoningEffort: 'low' },
+  ]);
+  assert.deepEqual(bottom.needsChoice, [
+    {
+      role: 'interrogate reviewers',
+      index: 1,
+      model: 'gpt-6-sol',
+      targetReasoningEffort: 'low',
+    },
+  ]);
 });
 
 test('identical preference saves leave bytes and timestamp untouched', async (t) => {
@@ -773,13 +946,26 @@ test('nondefault selections round-trip offline and budgets retain ordered duplic
   await f.save(proposal);
   const before = await readFile(f.file);
   for (const [budget, sonnetEffort, providerEffort] of [
-    ['unlimited', 'high', 'max'],
+    ['unlimited', 'high', 'medium'],
     ['large', 'high', 'medium'],
-    ['medium', 'high', 'medium'],
-    ['small', 'medium', 'medium'],
+    ['medium', 'medium', 'medium'],
+    ['small', 'low', 'medium'],
   ]) {
     const mapped = f.run('budget', '--budget', budget!, '--catalog', f.catalog);
-    assert.deepEqual(mapped.needsChoice, []);
+    assert.deepEqual(
+      mapped.needsChoice,
+      budget === 'small'
+        ? [
+            {
+              role: 'architect runners',
+              index: 1,
+              executor: 'claude-code',
+              model: provider.model,
+              targetReasoningEffort: 'low',
+            },
+          ]
+        : [],
+    );
     assert.deepEqual(mapped.config.roles['architect runners'], [
       { ...sonnet, reasoningEffort: sonnetEffort },
       { ...provider, reasoningEffort: providerEffort },
@@ -986,7 +1172,7 @@ else {
   await writeFile(f.catalog, JSON.stringify(normalized));
   await f.save({
     roles: {
-      'how explainer': [
+      'judgment and prose': [
         {
           executor: 'claude-code',
           model: sonnetCapability.model,
@@ -998,7 +1184,7 @@ else {
   const budget = f.run('budget', '--budget', 'small', '--catalog', f.catalog);
   await f.save(budget);
   assert.equal(f.run('read').config.budget, 'small');
-  const entry = f.run('resolve', '--role', 'how explainer').entries[0]!;
+  const entry = f.run('resolve', '--role', 'judgment and prose').entries[0]!;
   assert.deepEqual(entry, {
     executor: 'claude-code',
     model: sonnetCapability.model,
@@ -1045,17 +1231,18 @@ test('native-only sparse setup saves without an external runtime or CLI and reje
   const accepted = await f.save({
     budget: 'medium',
     roles: {
-      'how explainer': [
+      'judgment and prose': [
         { executor: 'codex', model: 'native-fixture', reasoningEffort: 'high' },
       ],
     },
   });
   assert.equal(accepted.config.schemaVersion, 1);
   assert.deepEqual(
-    f.run('resolve', '--role', 'how explainer').entries,
-    accepted.config.roles['how explainer'],
+    f.run('resolve', '--role', 'judgment and prose').entries,
+    accepted.config.roles['judgment and prose'],
   );
   assert.deepEqual(f.run('resolve', '--role', 'arena runners').entries, [
+    { model: 'inherit-parent' },
     { model: 'inherit-parent' },
     { model: 'inherit-parent' },
   ]);

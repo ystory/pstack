@@ -114,19 +114,6 @@ index d559b58..fd02465 100644
  
  ## Phase D: Pick a base
  
-diff --git a/skills/how/SKILL.md b/skills/how/SKILL.md
-index ebbfb2a..6c65c60 100644
---- a/skills/how/SKILL.md
-+++ b/skills/how/SKILL.md
-@@ -8,7 +8,7 @@ disable-model-invocation: true
- 
- Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
- 
--Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Every seat uses worker kind `read-only` and a no-edits brief. Explorers resolve `how explorer`; every explainer resolves `how explainer`. Use the selected executor, exact model, supported task effort, and its returned `agentType` for native Claude seats. A rejected model follows this skill's bundled default, then the closest valid model of the same family from the error. Disclose each fallback. Parent aliases bind the actual native parent. Pass absolute paths to this skill and the selected templates.
-+Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Every seat uses worker kind `read-only` and a no-edits brief. Explorers resolve `how explorer`; every explainer resolves `how explainer`. Use the selected executor, exact model, supported task effort, and its returned `agentType` for native Claude seats. A rejected model follows the execution binding and the closest valid model of the same family from the error. Disclose each fallback. Parent aliases bind the actual native parent. Pass absolute paths to this skill and the selected templates.
- 
- ## 1. Assess complexity
- 
 diff --git a/skills/poteto-help/SKILL.md b/skills/poteto-help/SKILL.md
 index 962e4b2..146c758 100644
 --- a/skills/poteto-help/SKILL.md
@@ -149,10 +136,10 @@ index 962e4b2..146c758 100644
  ## Get set up
  
 diff --git a/skills/poteto-mode/SKILL.md b/skills/poteto-mode/SKILL.md
-index 9213f83..8d1daa3 100644
+index 30673b9..439d670 100644
 --- a/skills/poteto-mode/SKILL.md
 +++ b/skills/poteto-mode/SKILL.md
-@@ -95,7 +95,7 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
+@@ -94,7 +94,7 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
  
  **Use the `poteto-agent` instructions for any subagent you spawn inside a playbook step** (code-writing delegates and ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) select `general-purpose` for their own seats and model roles. Respect that selection. Resolve the worker kind and model role through Claude Code execution. Pass this file's absolute path to every poteto-agent and require its actual full read before work.
  
@@ -187,7 +174,7 @@ index fe73238..a89fdde 100644
  The [Claude subagent reference](https://code.claude.com/docs/en/sub-agents) documents exact model IDs in definitions, invocation effort, completion, and stateful messaging. Host policy can substitute models. Requested settings are not observed settings.
  
 diff --git a/skills/reflect/SKILL.md b/skills/reflect/SKILL.md
-index ffed3fb..9fd15c6 100644
+index aa53ca6..9fd15c6 100644
 --- a/skills/reflect/SKILL.md
 +++ b/skills/reflect/SKILL.md
 @@ -20,13 +20,13 @@ Read [Claude history](../recall/references/claude-history.md). List project-scop
@@ -201,7 +188,7 @@ index ffed3fb..9fd15c6 100644
 +| Lens | Model role | Missing role | Prompt template |
  |---|---|---|---|
 -| Judgment | `reflect judgment, divergent, synthesizer` | `claude-opus-5-5-xhigh` | `references/judgment-reviewer.md` |
--| Tooling | `reflect tooling` | `grok-4.7-xhigh-fast` | `references/tooling-reviewer.md` |
+-| Tooling | `reflect tooling` | `claude-opus-5-5-high-fast` | `references/tooling-reviewer.md` |
 -| Divergent | `reflect judgment, divergent, synthesizer` | `claude-opus-5-5-xhigh` | `references/divergent-reviewer.md` |
 +| Judgment | `reflect judgment, divergent, synthesizer` | native parent | `references/judgment-reviewer.md` |
 +| Tooling | `reflect tooling` | native parent | `references/tooling-reviewer.md` |
@@ -646,16 +633,3 @@ index 715ce24..ec563f0 100644
  4. Give each worker its own writable output when it writes. When workers verify or measure commits, each brief names the exact SHAs. A measurement brief also names the method (sample count, what one sample is, order). The worker records both in its result.
  
  ## Phase B: Fan out
-diff --git a/skills/why/SKILL.md b/skills/why/SKILL.md
-index d0f548c..e181703 100644
---- a/skills/why/SKILL.md
-+++ b/skills/why/SKILL.md
-@@ -8,7 +8,7 @@ disable-model-invocation: true
- 
- Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
- 
--Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Investigators resolve `why investigators`; the synthesizer resolves `why synthesizer`. A rejected model tries the bundled default, then the closest valid model of the same family from the error, with disclosure. Parent aliases bind the actual native parent. Use poteto-mode's reasoning and speed guidance.
-+Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Investigators resolve `why investigators`; the synthesizer resolves `why synthesizer`. A rejected model follows the execution binding, using a valid same-family choice from the error when available, with disclosure. Parent aliases bind the actual native parent. Use poteto-mode's reasoning and speed guidance.
- 
- Every seat uses worker kind `general-purpose` with the selected executor's configured MCP tools. Investigators receive a no-edits brief. Do not substitute a restricted Explore or Plan agent for a configured worker, since that changes its model, instructions, and available tools.
- 

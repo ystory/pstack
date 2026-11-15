@@ -62,3 +62,6 @@ shared/0013-agy-probe-streams-and-receipt-identity.patch
 shared/0014-agy-prompt-free-stdin.patch
 0049-agy-worker-setup.patch
 0050-worker-skill-fallback.patch
+shared/0015-upstream-0-15-42-refresh.patch
+0051-upstream-0-15-42-refresh.patch
+0052-upstream-0-15-42-version.patch

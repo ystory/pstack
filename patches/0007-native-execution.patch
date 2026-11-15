@@ -1,5 +1,5 @@
 diff --git a/skills/architect/SKILL.md b/skills/architect/SKILL.md
-index 876425c..f7e6cc6 100644
+index 945ed9a..b11f3a6 100644
 --- a/skills/architect/SKILL.md
 +++ b/skills/architect/SKILL.md
 @@ -28,7 +28,7 @@ Skip Phase A only when the work is genuinely greenfield with no surrounding syst
@@ -38,41 +38,6 @@ index b3950af..1336ff3 100644
  
  ## Phase D: Pick a base
  
-diff --git a/skills/how/SKILL.md b/skills/how/SKILL.md
-index f1ec7f2..83877f4 100644
---- a/skills/how/SKILL.md
-+++ b/skills/how/SKILL.md
-@@ -8,7 +8,7 @@ disable-model-invocation: true
- 
- Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
- 
--Every spawn is a Task subagent with `subagent_type: generalPurpose` and `readonly: true`. Explorers use the `how explorer` line in the `pstack-models.mdc` rule (default `gpt-6.1-sol`), and every explainer uses the `how explainer` line (default `gpt-6.1-sol`). Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
-+Read [Codex execution](../poteto-mode/references/codex-execution.md) before delegation. Use native v2 delegates with `agent_type: "pstack-general-purpose"` and supply absolute paths to this skill and the selected templates. Explorers resolve the `how explorer` role and every explainer resolves `how explainer` through the sibling setup helper. Both default to `gpt-6.1-sol`. Pass the selected model and task effort through the actual native schema; inherited aliases use the parent-selection binding in Codex execution. If the host rejects a configured model, use the default and say so. If it rejects the default, use the closest valid model of the same family from its error message. Pick reasoning and speed for the job using poteto-mode's Subagents guidance.
- 
- ## 1. Assess complexity
- 
-@@ -21,7 +21,7 @@ When in doubt, take the simple path.
- 
- ## 2. Explore (complex only)
- 
--Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers in a single message, each with `references/explorer-prompt.md` and its angle filled in.
-+Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers without waiting between them, each with `references/explorer-prompt.md` and its angle filled in.
- 
- ## 3. Synthesize (complex only)
- 
-diff --git a/skills/how/references/explainer-prompt.md b/skills/how/references/explainer-prompt.md
-index 3a36fb6..6f6fb8e 100644
---- a/skills/how/references/explainer-prompt.md
-+++ b/skills/how/references/explainer-prompt.md
-@@ -20,7 +20,7 @@ The explorers each investigated a different angle of the same subsystem. Their f
- 
- Write an explanation a senior engineer unfamiliar with this area could read and walk away with a solid mental model, understanding the architecture well enough to start working in it confidently.
- 
--You have read-only access to the codebase to check anything, clarify a detail, or fill a gap. Use Read, Grep, and Glob as needed. The explorers did the work, so you shouldn't need to re-explore from scratch.
-+Inspect the codebase to check anything, clarify a detail, or fill a gap. Use the current runtime's file-reading and search tools, such as shell reads and `rg`, as needed. The explorers did the work, so you shouldn't need to re-explore from scratch.
- 
- ## Output Format
- 
 diff --git a/skills/interrogate/SKILL.md b/skills/interrogate/SKILL.md
 index 169f5b4..65f8972 100644
 --- a/skills/interrogate/SKILL.md
@@ -94,7 +59,7 @@ index 169f5b4..65f8972 100644
  Skip arena Phases C, D, and E. Adversaries find different failures, so the verdict keeps every verified finding, not one adversary's list.
  
 diff --git a/skills/no-comments/SKILL.md b/skills/no-comments/SKILL.md
-index a07ce9d..0445dd0 100644
+index 6122cf7..db5f477 100644
 --- a/skills/no-comments/SKILL.md
 +++ b/skills/no-comments/SKILL.md
 @@ -16,7 +16,7 @@ Use the caller's files or diff. Otherwise use the current diff against the base
@@ -103,11 +68,11 @@ index a07ce9d..0445dd0 100644
  
 -1. Spawn `Task` with `subagent_type: "comment-sicko"`. Pass the scope. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill. Do not restate its rules.
 +1. Read [Codex execution](../poteto-mode/references/codex-execution.md). Spawn the registered native custom role `comment-sicko` through the current runtime's agent selector. Pass the scope, this skill's absolute path, and the absolute `poteto-mode/SKILL.md` path for shared execution guidance. Resolve its task model from `judgment and prose` (default `gpt-6.1-sol`). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill. Do not restate its rules.
- 2. Inspect its report and diff. Reject application-code edits, scope escapes, exception-protected deletions, misstated `MUST KILL` reasons, and flags that treat kept intentional code as guilty. Reshape flags on our-code surprises stay actionable. Do not restore those comments. A keep survives only with proof it is about something we cannot change. Audit missed scoped lint and TypeScript suppressions. Correctness or safety suppressions stay actionable `MUST KILL`s. Restore deletions only with exact exceptions and scoped proof. Before accepting thin `IMPORTANT` or `do not remove` kills or keeps, run `/how` or `/why` on their symbol. If a kill is ambiguous, do not restore. If a keep is refuted or still ambiguous, delete it. Revert and rerun one rejected report with the failure named. Reject a second, report it open, and fail `/no-comments`.
+ 2. Inspect its report and diff. Reject application-code edits, scope escapes, exception-protected deletions, misstated `MUST KILL` reasons, and flags that treat kept intentional code as guilty. Reshape flags on our-code surprises stay actionable. Do not restore those comments. A keep survives only with proof it is about something we cannot change. Audit missed scoped lint and TypeScript suppressions. Correctness or safety suppressions stay actionable `MUST KILL`s. Restore deletions only with exact exceptions and scoped proof. Before accepting thin `IMPORTANT` or `do not remove` kills or keeps, trace their symbol or run `/why` on it. If a kill is ambiguous, do not restore. If a keep is refuted or still ambiguous, delete it. Revert and rerun one rejected report with the failure named. Reject a second, report it open, and fail `/no-comments`.
  3. Fix trivial accepted flags directly by deleting a dead path, dropping a parameter, or using the real API. If any fix needs a shape, run `/architect` once for the accepted set and surrounding code. Stop at the sketch. Architect shapes. Step 4 implements.
  4. Implement the smallest root-cause fix in scope. Remove every named workaround. If the root cause is out of scope, land the smallest in-scope fix and report the rest open. The **principle-fix-root-causes** and **principle-redesign-from-first-principles** skills guide intent only. Neither authorizes widening the fence nor fixing instances outside it. Never bolt on symptom guards.
 diff --git a/skills/poteto-mode/SKILL.md b/skills/poteto-mode/SKILL.md
-index 0bb8fc0..cf0154a 100644
+index 2fad620..5a60d27 100644
 --- a/skills/poteto-mode/SKILL.md
 +++ b/skills/poteto-mode/SKILL.md
 @@ -8,7 +8,7 @@ color: yellow
@@ -119,10 +84,10 @@ index 0bb8fc0..cf0154a 100644
  
  ## Non-negotiables
  
-@@ -18,19 +18,19 @@ Remaining triggers:
+@@ -17,19 +17,19 @@ The Principles section below grounds every trigger. In your reply, name each pri
+ Remaining triggers:
  
  - Your first message on a task → tell the user, in your own words, their goal, the problem they are solving, and, if the task ships a change, the smallest change you expect to meet it. Don't wait for confirmation. If the evidence rules out the change the user asked for, show it and stop. Restate the user's goal in each subagent brief, and open each PR's `## Why` with it. Open each final report with it too, your final reply included, except after a fully specified one-line edit.
- - Nontrivial change, architecture decision, or "are we sure?" → the **how** skill.
 -- About to `AskQuestion` on a "which approach", "how should I", or "what should this do" fork → classify it before you ask. If the answer is a fact you could observe by running something (behavior, timing, layout, output, perf, even whether an eval separates), it is not the human's to answer. Sketch it via the Prototype playbook (`playbooks/prototype.md`) and let the result decide. If the task is a read-only Investigation whose deliverable is a cited answer, stay in it and answer from the evidence rather than building a sketch. Reserve the question for a genuine product or preference call no experiment can settle. Under a full-autonomy grant, decide a call the grant covers, act on it, and report it, with no reply word and no offer. Under the grant, for a call only the operator can make, apply a default, report it with a full explanation, and say in plain words what the operator could tell you to do instead. The operator answers in their own words. Never give a shorthand token to type back. Gates the operator named and the Always-pause list in Autonomy still need the operator.
 +- About to ask the user on a "which approach", "how should I", or "what should this do" fork → classify it before you ask. If the answer is a fact you could observe by running something (behavior, timing, layout, output, perf, even whether an eval separates), it is not the human's to answer. Sketch it via the Prototype playbook (`playbooks/prototype.md`) and let the result decide. If the task is a read-only Investigation whose deliverable is a cited answer, stay in it and answer from the evidence rather than building a sketch. Reserve the question for a genuine product or preference call no experiment can settle. Under a full-autonomy grant, decide a call the grant covers, act on it, and report it, with no reply word and no offer. Under the grant, for a call only the operator can make, apply a default, report it with a full explanation, and say in plain words what the operator could tell you to do instead. The operator answers in their own words. Never give a shorthand token to type back. Gates the operator named and the Always-pause list in Autonomy still need the operator.
  - Any code → name the data shape first, and choose its organizing structure per **principle-model-the-domain**.
@@ -144,11 +109,11 @@ index 0bb8fc0..cf0154a 100644
  - Asked to land or ship a green stack → the **Shipping** playbook (`playbooks/shipping.md`). Green is not safe. Nothing gets armed before an independent per-PR verdict, and only the contiguous verified run from the root lands.
  - Bugbot or the agentic security review commented → skeptical posture. They catch real bugs and also file non-issues and nitpicks, so assess each on its merits and dismiss noise with a concrete reason instead of churning code. Triage fix / dismiss / ask per `references/bugbot-triage.md`.
  - Broken skill mid-task → fix it in its own PR. Don't block. Don't silently work around it.
-@@ -91,11 +91,11 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
+@@ -90,11 +90,11 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
  
  ## Subagents
  
--**Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) set their own `subagent_type` for diverse-model review. Respect what the skill prescribes, don't override to `poteto-agent`.
+-**Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`interrogate`, `reflect`, `swarm`) set their own `subagent_type` for diverse-model review. Respect what the skill prescribes, don't override to `poteto-agent`.
 +**Use the native custom role `poteto-agent` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) select `pstack-general-purpose` for their general-purpose seats, with their own model role for diverse-model review. Respect what the skill prescribes, don't override to `poteto-agent`.
  
 -**Defaults for every `Task` call.** `run_in_background: true` (a steer or resume of a running agent too, because a foreground call holds your turn while other reports wait), agent mode (readonly strips MCP), file pointers not inlined context, explicit model per role (configurable via `/setup-pstack`. Defaults `gpt-6.1-sol` for code, `gpt-6.1-sol` for prose and judgment). Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to your strongest judgment model (`gpt-6.1-sol`), whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Per-role lines in the `/setup-pstack` rule override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model (omit Task `model`). Each code playbook's configured model comes from its line (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`), and the hardest changes read `hardest tasks`. Prose and judgment read `judgment and prose`.
@@ -159,7 +124,7 @@ index 0bb8fc0..cf0154a 100644
  
  You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. A second opinion is the same prompt against a different model. Agreement is high-signal.
  
-@@ -144,7 +144,7 @@ A large or cross-cutting effort (a migration across many call sites, an ambitiou
+@@ -143,7 +143,7 @@ A large or cross-cutting effort (a migration across many call sites, an ambitiou
  - **Autopilot-full.** A queue of independent PRs run to merged with full autonomy. One owner per PR carries build through merge, and the root swarm-verifies each PR before its owner merges ("autopilot this queue", "full autopilot", one-owner-per-PR programs).
  - **Autopilot-stack.** Autopilot-full without the merge. A queue of PRs built and verified with full autonomy, then handed to the operator to land. A PR stacks only on a PR it builds on ("autopilot-stack", "autopilot, don't merge", "stack them, don't ship", "build the stack, I'll land it").
  - **Session pickup.** Resuming or taking over a prior agent's in-flight work from a transcript, cloud-agent URL, or pushed branch.
@@ -343,7 +308,7 @@ index 61d15d7..54ae870 100644
  Two finding shapes are valid:
  - The parent invoked the skill and you found a real gap in its body. Route to the skill's relevant section.
 diff --git a/skills/reflect/references/synthesizer.md b/skills/reflect/references/synthesizer.md
-index 1a090d8..6d1dfef 100644
+index 60f2f9d..3c8cb56 100644
 --- a/skills/reflect/references/synthesizer.md
 +++ b/skills/reflect/references/synthesizer.md
 @@ -14,7 +14,7 @@ Apply each criterion to every finding:
@@ -409,46 +374,3 @@ index e72bf84..62f1587 100644
  
  ## Phase D: Report
  
-diff --git a/skills/why/SKILL.md b/skills/why/SKILL.md
-index 116dc52..62293fb 100644
---- a/skills/why/SKILL.md
-+++ b/skills/why/SKILL.md
-@@ -8,9 +8,9 @@ disable-model-invocation: true
- 
- Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
- 
--Each spawn below names a role line in the `pstack-models.mdc` rule and a default. Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
-+Read [Codex execution](../poteto-mode/references/codex-execution.md) before delegation. Resolve the `why investigators` and `why synthesizer` roles with the sibling setup helper. Both default to `gpt-6.1-sol`; inherited aliases use Codex execution's parent-selection binding. Use native agents with `agent_type: "pstack-general-purpose"` and supply absolute paths to this skill and each selected reference.
- 
--Every spawn is `generalPurpose` with `readonly: false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables the MCP-backed investigators and the synthesizer's citation spot-checks. Investigators still shouldn't write anything.
-+Investigators and the synthesizer use the parent's MCP access and sandbox for investigation and citation spot-checks. Investigators still shouldn't write anything.
- 
- ## Operating Posture
- 
-@@ -32,7 +32,7 @@ Before spawning investigators, build the seed context inline: file paths and lin
- 
- ### Discovery
- 
--Before spawning investigators, list the available MCPs from the Cursor environment. Use the available-tools map when present. Otherwise inspect the `mcps/` directory Cursor exposes for enabled MCP servers.
-+Before spawning investigators, discover the available MCPs and connectors from the current Codex tool catalog. Use tool search or the enabled-tool map, then inspect each server's tool names and descriptions. Avoid guessing tool IDs or reading another client's MCP directory.
- 
- Map each available MCP to one evidence category:
- 
-@@ -46,7 +46,7 @@ Map each available MCP to one evidence category:
- 
- Source control is always available through git and `gh`. For the other six, classify using the MCP name, server instructions, tool names, and resource descriptors. If an MCP could fit more than one category, choose the one matching its primary evidence. Record ambiguous cases in the coverage map.
- 
--Spawn one investigator per category that has a matching MCP, all in a single message so they run concurrently, each owning exactly one tool or MCP. Don't ask one agent to cover multiple MCPs. `model`: the `why investigators` line, default `gpt-6.1-sol`.
-+Spawn one investigator per category that has a matching MCP, all in a single message so they run concurrently, each owning exactly one tool or MCP. Don't ask one agent to cover multiple MCPs. Model role `why investigators`, default `gpt-6.1-sol`.
- 
- Each investigator's prompt is `references/investigator-prompt.md` filled in, plus:
- - the category playbook `references/sources/<source>.md` for the selected MCP, adapted from the examples in `references/source-playbook.md`
-@@ -76,7 +76,7 @@ If your scope assessment suggests a single-commit trivial target where the PR de
- 
- ## Step 4. Synthesize
- 
--Spawn one synthesizer. `model`: the `why synthesizer` line, default `gpt-6.1-sol`. It gets:
-+Spawn one synthesizer. Model role `why synthesizer`, default `gpt-6.1-sol`. It gets:
- 1. The investigator findings, including any null results and any categories skipped with justification
- 2. The code anchor
- 3. The user's original question

@@ -23,30 +23,42 @@ import {
 } from '../../poteto-mode/scripts/pi-route.mjs';
 
 const roles = {
-  'feature, refactoring': 1,
-  'bug-fix': 1,
-  'perf-issue': 1,
-  hillclimb: 1,
-  'judgment and prose': 1,
-  'hardest tasks': 1,
-  'how explorer': 1,
-  'how explainer': 1,
-  'why investigators': 1,
-  'why synthesizer': 1,
-  'reflect tooling': 1,
-  'reflect judgment, divergent, synthesizer': 1,
-  'arena runners': 2,
-  'arena cross-judge pool': 2,
-  'swarm workers': 1,
-  'architect runners': 2,
-  'interrogate reviewers': 2,
+  'feature, refactoring': { kind: 'scalar', effort: 'xhigh' },
+  'bug-fix': { kind: 'scalar', effort: 'xhigh' },
+  'perf-issue': { kind: 'scalar', effort: 'xhigh' },
+  hillclimb: { kind: 'scalar', effort: 'xhigh' },
+  'judgment and prose': { kind: 'scalar', effort: 'xhigh' },
+  'hardest tasks': { kind: 'scalar', effort: 'max' },
+  'reflect tooling': { kind: 'scalar', effort: 'high' },
+  'reflect judgment, divergent, synthesizer': {
+    kind: 'scalar',
+    effort: 'xhigh',
+  },
+  'arena runners': { kind: 'panel', effort: 'high' },
+  'arena cross-judge pool': { kind: 'pool', effort: 'high' },
+  'swarm workers': { kind: 'scalar', effort: 'high' },
+  'architect runners': { kind: 'panel', effort: 'high' },
+  'interrogate reviewers': { kind: 'panel', effort: 'high' },
 };
-const budgets = {
-  unlimited: 'max',
-  large: 'xhigh',
-  medium: 'high',
-  small: 'medium',
-};
+const retiredRoles = new Set([
+  'how explorer',
+  'how explainer',
+  'why investigators',
+  'why synthesizer',
+]);
+const seats = { scalar: 1, panel: 3, pool: 3 };
+const budgetLadder = ['low', 'medium', 'high', 'xhigh', 'max'];
+const budgets = { unlimited: 1, large: 0, medium: -1, small: -2 };
+const shifted = (effort, budget) =>
+  budgetLadder[
+    Math.min(
+      budgetLadder.length - 1,
+      Math.max(0, budgetLadder.indexOf(effort) + budgets[budget]),
+    )
+  ];
+const targetEffort = (role, budget) => shifted(roles[role].effort, budget);
+// A budget label names the effort an `xhigh` role lands on.
+const namedEffort = (budget) => shifted('xhigh', budget);
 const efforts = [
   'none',
   'minimal',
@@ -285,11 +297,11 @@ function proposalFor(config) {
   return {
     ...config,
     roles: Object.fromEntries(
-      Object.entries(roles).map(([role, count]) => [
+      Object.entries(roles).map(([role, { kind }]) => [
         role,
         config.roles[role] ??
-          Array.from({ length: count }, () => ({
-            reasoningEffort: budgets[config.budget],
+          Array.from({ length: seats[kind] }, () => ({
+            reasoningEffort: targetEffort(role, config.budget),
           })),
       ]),
     ),
@@ -328,17 +340,23 @@ function normalizeConfig(input, previous) {
   if (!selected || typeof selected !== 'object' || Array.isArray(selected))
     throw new Error('Model configuration roles must be an object.');
   const normalized = { ...(previous?.roles ?? {}) };
+  const droppedRoles = [];
   for (const [role, entries] of Object.entries(selected)) {
+    if (retiredRoles.has(role)) {
+      droppedRoles.push(role);
+      continue;
+    }
     if (!Object.hasOwn(roles, role))
       throw new Error(`Unknown pstack role: ${role}`);
     if (!Array.isArray(entries) || !entries.length)
       throw new Error(`Role ${role} must contain at least one entry.`);
-    if (roles[role] === 1 && entries.length !== 1)
+    if (roles[role].kind === 'scalar' && entries.length !== 1)
       throw new Error(`Scalar role ${role} must contain exactly one entry.`);
     normalized[role] = entries.map((entry) => validateEntry(entry, role));
   }
   return {
     config: { schemaVersion: 1, budget, roles: normalized },
+    droppedRoles,
   };
 }
 
@@ -368,7 +386,6 @@ function validateCatalog(config, catalog) {
 function applyBudget(config, budget, catalog) {
   if (!Object.hasOwn(budgets, budget))
     throw new Error('Unknown pstack budget.');
-  const target = budgets[budget];
   const detected = new Map(
     catalog.models.map((entry) => [
       modelKey(entry),
@@ -379,6 +396,7 @@ function applyBudget(config, budget, catalog) {
   const mapped = structuredClone(config);
   mapped.budget = budget;
   for (const [role, entries] of Object.entries(mapped.roles)) {
+    const target = targetEffort(role, budget);
     entries.forEach((entry, index) => {
       if (aliases.has(entry.model)) return;
       const supported = detected.get(modelKey(entry)) ?? [];
@@ -400,7 +418,11 @@ function applyBudget(config, budget, catalog) {
       else entry.reasoningEffort = resolved;
     });
   }
-  return { config: mapped, targetReasoningEffort: target, needsChoice };
+  return {
+    config: mapped,
+    targetReasoningEffort: namedEffort(budget),
+    needsChoice,
+  };
 }
 
 async function main(options) {
@@ -447,7 +469,7 @@ async function main(options) {
       ...loaded,
       proposal: proposalFor(loaded.config),
       needsChoice: unresolvedChoices(proposalFor(loaded.config)),
-      targetReasoningEffort: budgets[loaded.config.budget],
+      targetReasoningEffort: namedEffort(loaded.config.budget),
     };
   if (options.command === 'resolve') {
     if (!Object.hasOwn(roles, options.role))
@@ -458,7 +480,7 @@ async function main(options) {
       role: options.role,
       entries:
         loaded.config.roles[options.role] ??
-        Array.from({ length: roles[options.role] }, () => ({
+        Array.from({ length: seats[roles[options.role].kind] }, () => ({
           model: 'inherit-parent',
         })),
       source: Object.hasOwn(saved?.roles ?? {}, options.role)
@@ -466,7 +488,8 @@ async function main(options) {
         : 'unconfigured',
       file,
       budget: loaded.config.budget,
-      targetReasoningEffort: budgets[loaded.config.budget],
+      targetReasoningEffort: targetEffort(options.role, loaded.config.budget),
+      droppedRoles: loaded.droppedRoles,
     };
   }
   const catalog = normalizeCatalog(
@@ -477,6 +500,7 @@ async function main(options) {
     return {
       ...info,
       ...applyBudget(loaded.config, options.budget, catalog),
+      droppedRoles: loaded.droppedRoles,
     };
   const supplied = await inputJson(options.input, '--input');
   if (Array.isArray(supplied.needsChoice) && supplied.needsChoice.length)
@@ -499,6 +523,9 @@ async function main(options) {
   const result = {
     ...info,
     ...proposal,
+    droppedRoles: [
+      ...new Set([...loaded.droppedRoles, ...proposal.droppedRoles]),
+    ],
     changed,
     dryRun: options.dryRun,
     sha256: hash(bytes),

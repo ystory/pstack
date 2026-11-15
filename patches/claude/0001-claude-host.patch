@@ -23,14 +23,14 @@ index 0000000..dd54f22
 +}
 diff --git a/.cursor-plugin/plugin.json b/.cursor-plugin/plugin.json
 deleted file mode 100644
-index 1295f46..0000000
+index f4a2499..0000000
 --- a/.cursor-plugin/plugin.json
 +++ /dev/null
 @@ -1,31 +0,0 @@
 -{
 -	"name": "pstack",
 -	"displayName": "pstack",
--	"version": "0.15.36",
+-	"version": "0.15.42",
 -	"description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
 -	"author": {
 -		"name": "Lauren Tan"
@@ -59,7 +59,7 @@ index 1295f46..0000000
 -	"agents": "./agents/"
 -}
 diff --git a/README.md b/README.md
-index bb613a1..147f891 100644
+index 1bc2a2b..147f891 100644
 --- a/README.md
 +++ b/README.md
 @@ -1,291 +1,38 @@
@@ -109,7 +109,7 @@ index bb613a1..147f891 100644
 -
 -new here? the [pstack guide](./docs/guide/README.md) walks you through a first real task, from setup and prompting through verification and overnight runs. stuck, or unsure which skill fits? ask [`/poteto-help`](./skills/poteto-help/SKILL.md).
 -
--that's it. the other skills are situational, and the mode skill uses them for you as needed. out of the box the mode splits work by model strength: code delegates (feature, refactoring, bug fix, perf, hillclimb) go to grok, while the hardest changes, prose, and judgment go to opus 5.5. the default panel is opus 5.5 / grok. [`/setup-pstack`](./skills/setup-pstack/SKILL.md) changes any of it.
+-that's it. the other skills are situational, and the mode skill uses them for you as needed. out of the box the mode splits work by model strength: code delegates (feature, refactoring, bug fix, perf, hillclimb), prose, and judgment go to opus 5.5, while the hardest changes go to fable 5.2. the default panel is fable 5.2 / opus 5.5 / gemini 4 carbon. [`/setup-pstack`](./skills/setup-pstack/SKILL.md) changes any of it.
 -
 -## usage
 -
@@ -185,7 +185,7 @@ index bb613a1..147f891 100644
 -
 -## skills
 -
--[`/poteto-mode`](./skills/poteto-mode/SKILL.md) runs most of these for you when a step needs them (`how`, `why`, `architect`, `arena`, `swarm`, `interrogate`, `unslop`, `no-comments`, `technical-writing`, `tdd`, and the principles). the table below is for when you want one directly:
+-[`/poteto-mode`](./skills/poteto-mode/SKILL.md) runs most of these for you when a step needs them (`why`, `architect`, `arena`, `swarm`, `interrogate`, `unslop`, `no-comments`, `technical-writing`, `tdd`, and the principles). the table below is for when you want one directly:
 -
 -```
 -/how do we cancel runs? do we have an n+1 when we look up every run to cancel?
@@ -206,9 +206,9 @@ index bb613a1..147f891 100644
 -| [`/poteto-mode`](./skills/poteto-mode/SKILL.md) | default entry point for any non-trivial task. |
 -| [`/poteto-help`](./skills/poteto-help/SKILL.md) | you're new to pstack, or unsure which skill, playbook, or principle fits. finds out what you're trying to do, answers that part, and hands you a prompt to type. runs only when you type `/poteto-help`. |
 -| [`/in-your-own-words`](./skills/in-your-own-words/SKILL.md) | you want the agent to play back your goal and the problem before it starts. runs only when you type `/in-your-own-words`. |
--| [`/sharpen`](./skills/sharpen/SKILL.md) | you want a prompt made deeper, not bigger, before you send it: what a top professional would do that you didn't ask for, the raw material they'd start from, their methods and tools, and an outside check that the result is right. hands back the rewritten prompt and leaves your choices open. doesn't do the task. runs only when you type `/sharpen`. |
+-| [`/sharpen`](./skills/sharpen/SKILL.md) | you want a prompt made deeper, not bigger, before you send it: what a top professional would do that you didn't ask for, the raw material they'd start from, their methods and tools, and an outside check that the result is right. hands back the rewritten prompt, which asks the agent to prototype any choice an experiment can settle and leaves product and preference choices to you. doesn't do the task. runs only when you type `/sharpen`. |
 -| [`/how`](./skills/how/SKILL.md) | you want a walkthrough of how a subsystem works. |
--| [`/why`](./skills/why/SKILL.md) | you want to know why something was built this way. discovers available MCPs at run time and queries each evidence category in parallel (source control, issue tracker, long-form docs, real-time chat, infra observability, error tracking, analytics warehouse). |
+-| [`/why`](./skills/why/SKILL.md) | you want to know why something was built this way. answers from the record, not the code: the commits and pr discussions that introduced it and each later change, and other sources when that trail is thin. cites what the authors wrote, marks its own inferences, and says what the record does not answer. |
 -| [`/recall`](./skills/recall/SKILL.md) | you're starting or resuming work and want your recent context on a topic rebuilt from your own chat history and the shared record, handed back as a tight current-state brief. |
 -| [`/ketchup`](./skills/ketchup/SKILL.md) | you want what changed in this chat since your last message, in plain words and small visuals, with every item waiting on you listed and decidable from the reply alone, even when that makes the reply long. |
 -| [`/ketchup-video`](./skills/ketchup-video/SKILL.md) | you want the `/ketchup` catch-up as a short subtitled video of slides, with the calls waiting on you as text under it. |
@@ -358,7 +358,7 @@ index bb613a1..147f891 100644
 -models are configurable too. type [`/setup-pstack`](./skills/setup-pstack/SKILL.md). it detects the models you have access to and writes a small always-applied rule mapping each role (code, judgment, the review panels) to a model. every skill reads it and falls back to sensible defaults when the rule is absent, so you override only what you want.
 +Read [Set up pstack](docs/guide/01-setup.md) for requirements, updates, removal, and login guidance. The [guide](docs/guide/README.md) covers the workflows. Use `/pstack-cc:poteto-help` to find one.
  
--when a default changes, a rule written before the change still pins the old default. delete those role lines, or delete the file, then run `/setup-pstack` again. a rerun keeps any role whose model differs from the default.
+-when a default changes, a rule written before the change still pins the old default until you run `/setup-pstack` again. that run replaces the old defaults it recognizes and keeps any other role whose model differs from the default. to drop a pin it does not recognize, delete that role's line or the file first.
 +## Execution and verification
  
 -## automations
@@ -376,7 +376,7 @@ index bb613a1..147f891 100644
 -MIT
 +pstack is by Lauren Tan and retains its [MIT license](LICENSE). The bundled cursor-team-kit skills retain their [MIT license](licenses/cursor-team-kit/LICENSE). Adaptation code retains its [MIT license](licenses/pstack-cc/LICENSE). The official Codex worker files retain their bundled upstream notices under `vendor/codex-plugin-cc/`. Original copyright and license notices remain.
 diff --git a/agents/comment-sicko.md b/agents/comment-sicko.md
-index 209e370..f4cf97b 100644
+index 14c2402..0bc9444 100644
 --- a/agents/comment-sicko.md
 +++ b/agents/comment-sicko.md
 @@ -1,6 +1,7 @@
@@ -418,7 +418,7 @@ index e1d2df2..0658e21 100644
 -You are operating as poteto-mode's full agent style. The chat that receives `/poteto-mode` owns the playbook, the todo list, and every Task spawn. You are one of its delegates. Read the `poteto-mode` skill's `SKILL.md` in full before doing any work, including its inline Principles index. Use the absolute path your parent gave you. With no path, before any other work, search `~/.cursor/plugins/` for a file whose path ends in `skills/poteto-mode/SKILL.md`. If more than one file matches, use the copy whose `.cursor-plugin/plugin.json` has the highest `version`. Your skill catalog hides this skill, so a missing catalog entry does not mean pstack is absent. If no such file exists, stop and tell your parent. Navigate to a leaf `principle-*` skill whenever you apply that principle.
 +You are operating as poteto-mode's full agent style. The chat that receives `/poteto-mode` owns the playbook, the todo list, and every delegate spawn. You are one of its delegates. Read the `poteto-mode` skill's `SKILL.md` in full before doing any work, including its inline Principles index. Use the absolute path your parent gave you. With no path, locate this loaded plugin's root from the host's plugin metadata and read its `skills/poteto-mode/SKILL.md`. If discovery is unavailable, search only the `pstack-cc` installation under `${CLAUDE_CONFIG_DIR:-~/.claude}/plugins/` and identify its `.claude-plugin/plugin.json` version. Do not select a different plugin or guess a workspace-relative path. Your skill catalog hides this skill, so a missing catalog entry does not mean pstack is absent. If no such file exists, stop and tell your parent. Navigate to a leaf `principle-*` skill whenever you apply that principle.
 diff --git a/docs/guide/01-setup.md b/docs/guide/01-setup.md
-index 2c2ef34..e321385 100644
+index 37c1ccf..e321385 100644
 --- a/docs/guide/01-setup.md
 +++ b/docs/guide/01-setup.md
 @@ -1,66 +1,47 @@
@@ -456,10 +456,10 @@ index 2c2ef34..e321385 100644
  
 -[`/setup-pstack`](../../skills/setup-pstack/SKILL.md) detects the models you have access to, asks for a reasoning budget, shows you each role (code delegates, judgment, the review panels), and asks what you want. Answer the questions. It writes `~/.cursor/rules/pstack-models.mdc`, a small rule every pstack skill reads.
 -
--The defaults run at `xhigh` reasoning, the same as the `large` budget. `unlimited` lifts each model to its highest tier, up to `max`. Opus goes to `max`. Grok tops out at `xhigh`, so it stays there. `medium` and `small` lower the reasoning and spend fewer tokens.
+-The defaults are the same as the `large` budget. Most roles run at `xhigh` reasoning. The hardest changes run at `max`, and the review panels and swarm workers run at `high`. `unlimited` raises each role one level, up to `max`. Gemini tops out at `high`, so it stays there. `medium` lowers each role one level and `small` lowers it two, and both spend fewer tokens.
 +If Claude Code is missing, follow its [official installation guide](https://code.claude.com/docs/en/setup). Sign in with `claude auth login`, or `/login` in Claude Code. Setup checks `claude auth status` without copying credentials.
  
--You only override what you care about. A role with no line in the rule keeps the skill's default. To restore a default, delete that role's line. A rerun of `/setup-pstack` keeps any role whose model differs from the default. When a default changes, a rule written before the change still pins the old default, so delete those role lines, or delete the file, then run `/setup-pstack` again.
+-You only override what you care about. A role with no line in the rule keeps the skill's default. To restore a default, delete that role's line. A rerun of `/setup-pstack` keeps any role whose model differs from the default. When a default changes, a rule written before the change still pins the old default until you run `/setup-pstack` again. That run replaces the old defaults it recognizes, tells you which, and keeps your other choices. To drop a pin it does not recognize, delete that role's line or the file first.
 +If Node is missing or older, install a supported release from [Node.js](https://nodejs.org/en/download). If Codex is missing, setup guides `npm install -g @openai/codex` or the [official Codex installation options](https://developers.openai.com/codex/cli). Sign in with `codex login`, including `!codex login` from an interactive Claude session when appropriate. Complete the browser or device login yourself, then let setup recheck. CLI detection, login, catalog access, and actual model execution are separate checks. Existing subscription authentication and API-key billing are distinct choices.
  
 -You might be wondering what happens if you use Auto. Set a role to `inherit-parent` or `auto` and pstack omits the subagent `model` field, so the subagent inherits your parent chat model. Both values mean the same thing, and neither is a model slug. For a panel role the value is a list, and one subagent runs per entry, so the list length sets the panel size. Setup also configures `swarm workers`, the default model for every `/swarm` worker unless a race names a model for each arm.
@@ -513,7 +513,7 @@ index 2c2ef34..e321385 100644
 -Next: [Route work through `/poteto-mode`](./02-poteto-mode.md).
 +Next, [Route work through poteto-mode](02-poteto-mode.md).
 diff --git a/docs/guide/02-poteto-mode.md b/docs/guide/02-poteto-mode.md
-index 89c594b..1165864 100644
+index b2906f6..1165864 100644
 --- a/docs/guide/02-poteto-mode.md
 +++ b/docs/guide/02-poteto-mode.md
 @@ -1,8 +1,8 @@
@@ -565,7 +565,7 @@ index 89c594b..1165864 100644
 +/pstack-cc:sharpen write a migration guide for the v2 config format.
  ```
  
--The agent says what a top professional would do that you didn't ask for, the rawest material they would start from, the methods and tools they would use, and what other than you or the agent would show the result is right. Then it rewrites your prompt to ask for exactly that, deeper but not bigger, and leaves your choices open. It doesn't do the task. Read the rewrite, then send it, for example with `/poteto-mode`.
+-The agent says what a top professional would do that you didn't ask for, the rawest material they would start from, the methods and tools they would use, and what other than you or the agent would show the result is right. Then it rewrites your prompt to ask for exactly that, deeper but not bigger. The rewrite asks the agent to prototype any choice an experiment can settle and to recommend an option from what it observed, and it leaves product and preference choices to you. It doesn't do the task. Read the rewrite, then send it, for example with `/poteto-mode`.
 +The agent says what a top professional would do that you didn't ask for, the rawest material they would start from, the methods and tools they would use, and what other than you or the agent would show the result is right. Then it rewrites your prompt to ask for exactly that, deeper but not bigger, and leaves your choices open. It doesn't do the task. Read the rewrite, then send it, for example with `/pstack-cc:poteto-mode`.
  
  ## Follow up short
@@ -631,13 +631,13 @@ index 89c594b..1165864 100644
 -Work you'll review later routes through [`/figure-it-out`](../../skills/figure-it-out/SKILL.md), which designs the run's phases and keeps a [`/show-me-your-work`](../../skills/show-me-your-work/SKILL.md) decision log. [Run work while you sleep](./07-overnight.md) covers the full overnight contract.
 +Work you'll review later routes through [`/pstack-cc:figure-it-out`](../../skills/figure-it-out/SKILL.md), which designs the run's phases and keeps a [`/pstack-cc:show-me-your-work`](../../skills/show-me-your-work/SKILL.md) decision log. [Run work while you sleep](./07-overnight.md) covers the full overnight contract.
  
--**Pitfall:** don't enumerate skills in your prompt ("use /how, then /architect, then /arena..."). The playbook already sequences them, and a hand-written sequence usually reorders or drops steps the playbook would have kept. Name a skill only when you want to override a specific choice.
+-**Pitfall:** don't enumerate skills in your prompt ("use /architect, then /arena, then /interrogate..."). The playbook already sequences them, and a hand-written sequence usually reorders or drops steps the playbook would have kept. Name a skill only when you want to override a specific choice.
 +**Pitfall:** don't enumerate skills in your prompt ("use /pstack-cc:how, then /pstack-cc:architect, then /pstack-cc:arena..."). The playbook already sequences them, and a hand-written sequence usually reorders or drops steps the playbook would have kept. Name a skill only when you want to override a specific choice.
  
  Read [`poteto-mode`](../../skills/poteto-mode/SKILL.md) itself for the full routing rules.
  
 diff --git a/docs/guide/03-understand.md b/docs/guide/03-understand.md
-index e26661f..ff98ba0 100644
+index ee23324..ff98ba0 100644
 --- a/docs/guide/03-understand.md
 +++ b/docs/guide/03-understand.md
 @@ -2,78 +2,78 @@
@@ -659,7 +659,7 @@ index e26661f..ff98ba0 100644
 +/pstack-cc:poteto-mode investigate why background jobs time out every few hours. give me what we know, what data you used, and your best hypotheses. don't change any code yet.
  ```
  
--"don't change any code yet" routes this to the [Investigation playbook](../../skills/poteto-mode/playbooks/investigation.md). It runs `/how`, adds `/why` for questions about motivation, and returns a cited explanation. For a choice between options, it returns a recommendation with a trade-offs table. Asking "what data you used" makes the agent separate its evidence from its guesses. When the findings point at a fix, start the fix as a new task.
+-"don't change any code yet" routes this to the [Investigation playbook](../../skills/poteto-mode/playbooks/investigation.md). It traces the code, adds `/why` for questions about motivation, and returns a cited explanation. For a choice between options, it returns a recommendation with a trade-offs table. Asking "what data you used" makes the agent separate its evidence from its guesses. When the findings point at a fix, start the fix as a new task.
 +"don't change any code yet" routes this to the [Investigation playbook](../../skills/poteto-mode/playbooks/investigation.md). It runs `/pstack-cc:how`, adds `/pstack-cc:why` for questions about motivation, and returns a cited explanation. For a choice between options, it returns a recommendation with a trade-offs table. Asking "what data you used" makes the agent separate its evidence from its guesses. When the findings point at a fix, start the fix as a new task.
  
 -## Trace behavior with `/how`
@@ -670,7 +670,7 @@ index e26661f..ff98ba0 100644
 +/pstack-cc:how do we dedupe notifications? is there an n+1 when we look up subscribers?
  ```
  
--Ask the question you actually have. [`/how`](../../skills/how/SKILL.md) reads the code and answers at the level of a senior engineer onboarding you onto the subsystem, with the runtime flow, the key types, and the non-obvious parts. For a big subsystem it fans out two to four read-only explorers first. For a narrow question it just reads and explains.
+-Ask the question you actually have. [`/how`](../../skills/how/SKILL.md) reads the code and answers at the level of a senior engineer onboarding you onto the subsystem, with the runtime flow, the key types, and the non-obvious parts. It starts one read-only subagent that explores the code and writes the explanation.
 +Ask the question you actually have. [`/pstack-cc:how`](../../skills/how/SKILL.md) reads the code and answers at the level of a senior engineer onboarding you onto the subsystem, with the runtime flow, the key types, and the non-obvious parts. For a big subsystem it fans out two to four read-only explorers first. For a narrow question it just reads and explains.
  
 -## Dig up history with `/why`
@@ -681,7 +681,7 @@ index e26661f..ff98ba0 100644
 +/pstack-cc:why was the retry limit set to five? does the reason still hold?
  ```
  
--[`/why`](../../skills/why/SKILL.md) starts from source control, then queries whatever evidence categories your MCPs expose, such as the issue tracker, long-form docs, team chat, observability, error tracking, and analytics, all in parallel. The report cites everything, separates direct evidence from inference, and says "appears to" when the record is thin. A null result gets reported too, because "nobody wrote down why" is itself an answer.
+-[`/why`](../../skills/why/SKILL.md) answers from the record, not the code. It reads the commits and PR discussions that introduced the code and each later change, and looks at other sources when that trail is thin. The answer cites what the authors wrote, marks the agent's own inferences as inferences, and says what the record does not answer, because "nobody wrote down why" is itself an answer.
 +[`/pstack-cc:why`](../../skills/why/SKILL.md) starts from source control, then queries whatever evidence categories your MCPs expose, such as the issue tracker, long-form docs, team chat, observability, error tracking, and analytics, all in parallel. The report cites everything, separates direct evidence from inference, and says "appears to" when the record is thin. A null result gets reported too, because "nobody wrote down why" is itself an answer.
  
  The two compose naturally. `do why first then how` is a good prompt when you suspect the history explains the mess.
@@ -741,7 +741,7 @@ index e26661f..ff98ba0 100644
  
  Next: [Design the change](./04-design.md).
 diff --git a/docs/guide/04-design.md b/docs/guide/04-design.md
-index 9da6470..d76d582 100644
+index 38a8144..d76d582 100644
 --- a/docs/guide/04-design.md
 +++ b/docs/guide/04-design.md
 @@ -1,34 +1,34 @@
@@ -763,7 +763,7 @@ index 9da6470..d76d582 100644
 +/pstack-cc:architect design the import pipeline before writing any code. i care most about how callers use it.
  ```
  
--[`/architect`](../../skills/architect/SKILL.md) grounds itself first, running `/how` over the code the design touches and `/why` when it moves ownership or layers. Then it runs `/arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
+-[`/architect`](../../skills/architect/SKILL.md) grounds itself first, tracing the code the design touches and running `/why` when it moves ownership or layers. Then it runs `/arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
 +[`/pstack-cc:architect`](../../skills/architect/SKILL.md) grounds itself first, running `/pstack-cc:how` over the code the design touches and `/pstack-cc:why` when it moves ownership or layers. Then it runs `/pstack-cc:arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
  
  By default it proceeds straight from the synthesized design into implementation. If you want to see the design first, say so:
@@ -784,7 +784,7 @@ index 9da6470..d76d582 100644
 +/pstack-cc:arena take my prompt to the arena verbatim. i want to compare their proposals with yours.
  ```
  
--[`/arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A read-only judge from a different model family scores every candidate against a rubric. When no model from another family can run, the coordinator skips the judge and picks the base itself. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
+-[`/arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A read-only judge from a different model vendor scores every candidate against a rubric. When no model from another vendor can run, the coordinator skips the judge and picks the base itself. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
 +[`/pstack-cc:arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A read-only judge from a different model family scores every candidate against a rubric. When no model from another family can run, the coordinator skips the judge and picks the base itself. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
  
  ```mermaid
@@ -1416,7 +1416,7 @@ index 8d1c4b4..665985a 100644
  **Pitfall:** don't edit a skill mid-task because it's misbehaving. Fix it in its own PR and keep the task moving. A skill edit that ships tangled into feature work is invisible to review and impossible to evaluate.
  
 diff --git a/docs/guide/10-recipes-and-pitfalls.md b/docs/guide/10-recipes-and-pitfalls.md
-index 782394f..809118a 100644
+index 3f339a8..809118a 100644
 --- a/docs/guide/10-recipes-and-pitfalls.md
 +++ b/docs/guide/10-recipes-and-pitfalls.md
 @@ -2,12 +2,12 @@
@@ -1587,7 +1587,7 @@ index 782394f..809118a 100644
  
  ## The pitfalls
  
--- **Enumerating skills in the prompt.** "use /how then /architect then /arena" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
+-- **Enumerating skills in the prompt.** "use /architect then /arena then /interrogate" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
 +- **Enumerating skills in the prompt.** "use /pstack-cc:how then /pstack-cc:architect then /pstack-cc:arena" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
  - **A vague finish condition.** "make it better" gives `/loop` nothing to check. Give a command or artifact that can pass or fail.
  - **Leading with your theory of the cause.** The agent searches wherever you pointed. Ask it to restate the problem first, then share your hunch.
@@ -1661,7 +1661,7 @@ index 17422b9..076ed02 100644
  
  Next: [Set up pstack](./01-setup.md).
 diff --git a/docs/harness/claude-code.md b/docs/harness/claude-code.md
-index bf154e6..81345f7 100644
+index 8500e6f..81345f7 100644
 --- a/docs/harness/claude-code.md
 +++ b/docs/harness/claude-code.md
 @@ -1,67 +1,7 @@
@@ -1701,7 +1701,7 @@ index bf154e6..81345f7 100644
 -| Cursor | Claude Code |
 -| --- | --- |
 -| `claude-<family>-<version>-<effort>[-fast]`, such as `claude-opus-5-5-xhigh` | `model: "opus"` and `effort: "xhigh"`. `model` takes only `opus`, `sonnet`, `haiku`, `fable`. Drop `-fast`. |
--| A `grok-*`, `gpt-*`, or other non-Claude slug | Omit `model` so the agent runs on the session model, and say so. |
+-| A `gemini-*` or other non-Claude slug | Omit `model` so the agent runs on the session model, and say so. |
 -| `auto` or `inherit-parent` | Omit `model`. |
 -| The `pstack-models.mdc` rule, `~/.cursor/rules/pstack-models.mdc` | `~/.claude/rules/pstack-models.md`. Claude Code loads it into every new session, so its role lines are already in context. If they are not, read the file. If the file or the role's line is missing, use the skill's default slug. |
 -| A role value `<model> <effort>`, such as `opus high` | `model: "opus"` and `effort: "high"`. |
@@ -1711,7 +1711,7 @@ index bf154e6..81345f7 100644
 -Claude Code loads every `.md` file in `~/.claude/rules/` into each new session, so `setup-pstack` writes its rule there. Follow its steps with these changes:
 -
 -- Detect. The detected models are the `model` values that the `Agent` tool schema lists, each with an effort from its `effort` values. Write a real model as `<model> <effort>`, such as `opus xhigh`. The effort is the last token, so the budget step works as written.
--- Defaults. Map each default slug with the rows above: `claude-opus-5-5-xhigh` is `opus xhigh`, and `grok-4.7-xhigh-fast` is `inherit-parent`.
+-- Defaults. Map each default slug with the rows above: `claude-opus-5-5-xhigh` is `opus xhigh`, `claude-opus-5-5-high-fast` is `opus high`, `claude-fable-5-2-max` is `fable max`, and `gemini-4-carbon-high` is `inherit-parent`.
 -- Write. Write `~/.claude/rules/pstack-models.md` with no frontmatter, then the comment lines, the `# budget` line, and one line per role from step 5. Overwrite the whole file. Never put the role lines in `CLAUDE.md` or `AGENTS.md`.
 -
 -## Paths
@@ -1764,14 +1764,14 @@ index 0000000..e030790
 +SOFTWARE.
 diff --git a/plugin.json b/plugin.json
 deleted file mode 100644
-index 14b42b7..0000000
+index c461ff0..0000000
 --- a/plugin.json
 +++ /dev/null
 @@ -1,21 +0,0 @@
 -{
 -  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
 -  "name": "pstack",
--  "version": "0.15.36",
+-  "version": "0.15.42",
 -  "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
 -  "author": {
 -    "name": "Lauren Tan"
@@ -1790,27 +1790,27 @@ index 14b42b7..0000000
 -  ]
 -}
 diff --git a/skills/architect/SKILL.md b/skills/architect/SKILL.md
-index 88e23ca..3308241 100644
+index 403ce4b..c0aeec6 100644
 --- a/skills/architect/SKILL.md
 +++ b/skills/architect/SKILL.md
 @@ -28,7 +28,7 @@ Skip Phase A only when the work is genuinely greenfield with no surrounding syst
  
  Run the **arena** skill with the design-sketch task and the Phase A grounding artifacts. Pass `references/runner-prompt.md` as each runner's prompt.
  
--Take the runners from the `architect runners` line in the `pstack-models.mdc` rule, in place of the `arena runners` line. If the rule or that line is missing, use `claude-opus-5-5-xhigh` and `grok-4.7-xhigh-fast`. Alias and rejected entries follow the runner rules in the **arena** skill's Phase A.
+-Take the runners from the `architect runners` line in the `pstack-models.mdc` rule, in place of the `arena runners` line. If the rule or that line is missing, use `claude-fable-5-2-high`, `claude-opus-5-5-high-fast`, and `gemini-4-carbon-high`. Alias and rejected entries follow the runner rules in the **arena** skill's Phase A.
 +Resolve the ordered `architect runners` list through [Claude Code execution](../poteto-mode/references/claude-execution.md), in place of `arena runners`. Preserve every seat, including duplicates and parent aliases. Use worker kind `general-purpose` and pass this skill's absolute path plus `references/runner-prompt.md`. Alias, rejected-entry, and dropout handling follow Arena Phase A.
  
  Design it twice. Require at least two structurally distinct candidates before synthesis, even when the first looks sufficient. This is the **exhaust-the-design-space** principle skill made concrete. Whole-shape alternatives, not point fixes inside one shape.
  
 diff --git a/skills/arena/SKILL.md b/skills/arena/SKILL.md
-index 7580c3c..d02416f 100644
+index 381c1f6..d02416f 100644
 --- a/skills/arena/SKILL.md
 +++ b/skills/arena/SKILL.md
 @@ -14,18 +14,18 @@ Every candidate gets the same prompt, so the prompt is the contract.
  
  1. State the artifact each candidate is producing.
  2. Derive the rubric, 3-6 concrete gradeable criteria for what success looks like on *this* task. It is the picker's tool in Phase D. Candidates only see the task.
--3. Pick the runners. Use the `arena runners` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, default to one each on `claude-opus-5-5-xhigh` and `grok-4.7-xhigh-fast`. An `auto` or `inherit-parent` entry in this line means the parent model, so omit `model` for it. If the Task tool rejects a configured entry, run that seat on its family's default and say so. Families go by prefix: `claude-*`, and `grok-*` with `cursor-grok-*` and `composer-*`. A refused `composer-*` entry runs on `grok-4.7-xhigh-fast`. If the family has no default, or the Task tool rejects that default, use the closest valid slug of the same family from its error message, or drop the seat and say so when there is none. If dropped seats leave fewer than two runners, add runners until there are two, or one when the line has one entry. Run each added runner on a remaining runner's model, or omit `model` so it runs on the parent model when none remain, and say so. Spawn more runners when the arena covers multiple design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+-3. Pick the runners. Use the `arena runners` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, default to one each on `claude-fable-5-2-high`, `claude-opus-5-5-high-fast`, and `gemini-4-carbon-high`. An `auto` or `inherit-parent` entry in this line means the parent model, so omit `model` for it. If the Task tool rejects a configured entry, run that seat on its family's default and say so. Families go by prefix, and the longest matching prefix wins: `claude-fable-*`, `claude-*`, and `gemini-*`. Drop a leading `cursor-` before you compare. Any other slug's family is its text before the first hyphen. A family's default is its entry in the default list above. If the family has no default, or the Task tool rejects that default, use the closest valid slug of the same family from its error message, or drop the seat and say so when there is none. If dropped seats leave fewer than two runners, add runners until there are two, or one when the line has one entry. Run each added runner on a remaining runner's model, or omit `model` so it runs on the parent model when none remain, and say so. Spawn more runners when the arena covers multiple design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
 +3. Pick the runners. Read [Claude Code execution](../poteto-mode/references/claude-execution.md) and resolve the ordered `arena runners` list with worker kind `general-purpose`. Run one seat per entry, including duplicates and aliases. A parent alias binds to the actual native Claude parent. If the selected executor rejects a configured model, try its family's bundled default and say so. Families go by model prefix, such as `claude-*`, `gpt-*`, and `grok-*`, with `cursor-grok-*` and `composer-*` in Grok's family. A refused `composer-*` entry uses the bundled Grok default. If the family has no available default, try the closest valid model of the same family from the executor's error, or drop the seat and say so. If dropouts leave fewer than two runners, add runners until there are two, or one when the configured list has one entry. Use a remaining runner's model for additions, or bind to the actual native parent when none remain, and say so. Spawn more runners when the arena covers multiple design directions. Use the same model N times when generation capacity matters more than judgment diversity. Apply poteto-mode's task effort and speed guidance.
  4. Give each candidate its own output location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`), per the **separate-before-serializing-shared-state** principle skill.
  
@@ -1823,7 +1823,7 @@ index 7580c3c..d02416f 100644
  
  ## Phase C: Cross-judge
  
--After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, choose from `claude-opus-5-5-xhigh` and `grok-4.7-xhigh-fast`. Spawn one readonly judge subagent. The judge is never from the parent's family, as Phase A step 3 defines families. Try only the entries from another family, in pool order. An `auto` or `inherit-parent` entry is the parent model, so it never judges. With the default pool, a Claude parent gets `grok-4.7-xhigh-fast`. A parent from any other family gets `claude-opus-5-5-xhigh` first. If the Task tool rejects an entry, use a valid slug of the same model at the closest level or speed from the error message, or move to the next entry when there is none. If no entry from another family runs, try the default pool's entries from another family the same way. If none of those runs, skip the judge, pick the base alone in Phase D, and say so. If you do not know the parent's model, try the pool's real slugs in pool order and say that the family check did not run. The judge sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with your reading in Phase D. Don't spawn it while candidates are still writing.
+-After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, choose from `claude-fable-5-2-high`, `claude-opus-5-5-high-fast`, and `gemini-4-carbon-high`. Spawn one readonly judge subagent. The judge is never from the parent's vendor. A vendor is a family as Phase A step 3 defines families, except that `claude-fable-*` and `claude-*` are one vendor. Try only the entries from another vendor, in pool order. An `auto` or `inherit-parent` entry is the parent model, so it never judges. With the default pool, a Claude parent gets `gemini-4-carbon-high`. A parent from any other vendor gets `claude-fable-5-2-high` first, then `claude-opus-5-5-high-fast`. If the Task tool rejects an entry, use a valid slug of the same model at the closest level or speed from the error message, or move to the next entry when there is none. If no entry from another vendor runs, try the default pool's entries from another vendor the same way. If none of those runs, skip the judge, pick the base alone in Phase D, and say so. If you do not know the parent's model, try the pool's real slugs in pool order and say that the vendor check did not run. The judge sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with your reading in Phase D. Don't spawn it while candidates are still writing.
 +After all Phase B candidates complete, resolve `arena cross-judge pool` with worker kind `general-purpose`. Select one read-only judge from a family other than the actual parent's, in pool order. Parent aliases never judge. Compare the judge with the parent, not with every candidate. If the executor rejects an entry, try a supported setting of the same model, or move to the next eligible entry. Never resubmit a rejected model. If the configured pool fails, try the bundled default pool's other-family entries in order. If none runs, skip the judge, pick the base alone in Phase D, and say so. If the parent's model is unknown, try real model entries in order and disclose that the family check did not run. The judge sees the rubric and candidates by sanitized path label. It scores each criterion and recommends a base with rationale. Run it in parallel with your Phase D reading, after candidates stop writing.
  
  ## Phase D: Pick a base
@@ -1957,19 +1957,6 @@ index 0d04c2e..8141172 100644
  When the task matches no playbook, design one. The deliverable before any code is the workflow itself: a sequence of phases that scales rigor to the task, runs the scientific method, and leaves a decision trail a human can audit after stepping away.
  
  ## Start
-diff --git a/skills/how/SKILL.md b/skills/how/SKILL.md
-index 67edc34..aa0edbb 100644
---- a/skills/how/SKILL.md
-+++ b/skills/how/SKILL.md
-@@ -8,7 +8,7 @@ disable-model-invocation: true
- 
- Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
- 
--Every spawn is a Task subagent with `subagent_type: generalPurpose` and `readonly: true`. Explorers use the `how explorer` line in the `pstack-models.mdc` rule (default `grok-4.7-xhigh-fast`), and every explainer uses the `how explainer` line (default `claude-opus-5-5-xhigh`). Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
-+Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Every seat uses worker kind `general-purpose` and a no-edits brief. Explorers resolve `how explorer`; every explainer resolves `how explainer`. Use the selected executor, exact model, supported task effort, and its returned `agentType` for native Claude seats. A rejected model follows this skill's bundled default, then the closest valid model of the same family from the error. Disclose each fallback. Parent aliases bind the actual native parent. Pass absolute paths to this skill and the selected templates.
- 
- ## 1. Assess complexity
- 
 diff --git a/skills/interrogate/SKILL.md b/skills/interrogate/SKILL.md
 index 169f5b4..d397e0a 100644
 --- a/skills/interrogate/SKILL.md
@@ -2114,7 +2101,7 @@ index 446342c..901d8c4 100644
 +Use the same field names in the UI and in the receiver prompt.
  Keep the field list small.
 diff --git a/skills/no-comments/SKILL.md b/skills/no-comments/SKILL.md
-index a07ce9d..86bdc2d 100644
+index 6122cf7..fa2fe1b 100644
 --- a/skills/no-comments/SKILL.md
 +++ b/skills/no-comments/SKILL.md
 @@ -16,9 +16,4 @@ Use the caller's files or diff. Otherwise use the current diff against the base
@@ -2122,15 +2109,14 @@ index a07ce9d..86bdc2d 100644
  ## Steps
  
 -1. Spawn `Task` with `subagent_type: "comment-sicko"`. Pass the scope. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill. Do not restate its rules.
--2. Inspect its report and diff. Reject application-code edits, scope escapes, exception-protected deletions, misstated `MUST KILL` reasons, and flags that treat kept intentional code as guilty. Reshape flags on our-code surprises stay actionable. Do not restore those comments. A keep survives only with proof it is about something we cannot change. Audit missed scoped lint and TypeScript suppressions. Correctness or safety suppressions stay actionable `MUST KILL`s. Restore deletions only with exact exceptions and scoped proof. Before accepting thin `IMPORTANT` or `do not remove` kills or keeps, run `/how` or `/why` on their symbol. If a kill is ambiguous, do not restore. If a keep is refuted or still ambiguous, delete it. Revert and rerun one rejected report with the failure named. Reject a second, report it open, and fail `/no-comments`.
+-2. Inspect its report and diff. Reject application-code edits, scope escapes, exception-protected deletions, misstated `MUST KILL` reasons, and flags that treat kept intentional code as guilty. Reshape flags on our-code surprises stay actionable. Do not restore those comments. A keep survives only with proof it is about something we cannot change. Audit missed scoped lint and TypeScript suppressions. Correctness or safety suppressions stay actionable `MUST KILL`s. Restore deletions only with exact exceptions and scoped proof. Before accepting thin `IMPORTANT` or `do not remove` kills or keeps, trace their symbol or run `/why` on it. If a kill is ambiguous, do not restore. If a keep is refuted or still ambiguous, delete it. Revert and rerun one rejected report with the failure named. Reject a second, report it open, and fail `/no-comments`.
 -3. Fix trivial accepted flags directly by deleting a dead path, dropping a parameter, or using the real API. If any fix needs a shape, run `/architect` once for the accepted set and surrounding code. Stop at the sketch. Architect shapes. Step 4 implements.
 -4. Implement the smallest root-cause fix in scope. Remove every named workaround. If the root cause is out of scope, land the smallest in-scope fix and report the rest open. The **principle-fix-root-causes** and **principle-redesign-from-first-principles** skills guide intent only. Neither authorizes widening the fence nor fixing instances outside it. Never bolt on symptom guards.
 -5. Constraint comments say `do not remove`, `do not change wording`, or `talk to X before changing`. Leave keeps about things we cannot change. Offer the cheapest in-scope type, runtime, test, or CI lint. Wait for interactive approval. Unattended and eval require caller pre-approval. If approved, encode then delete. Otherwise delete, report the constraint open, and sketch out-of-scope work.
 -6. Report the deletion count, restored comments, reruns, architect sketch, fixes, encoding offers, encodings, unenforced constraints, and other open work.
 +1. Read [Claude Code execution](../poteto-mode/references/claude-execution.md), resolve `judgment and prose` with worker kind `comment-sicko`, and dispatch its original agent instructions through the selected executor. Pass the scope and use poteto-mode's task effort and speed guidance. Do not restate its rules.
-\ No newline at end of file
 diff --git a/skills/poteto-help/SKILL.md b/skills/poteto-help/SKILL.md
-index a0604c9..59b9f8f 100644
+index 8e4c506..59b9f8f 100644
 --- a/skills/poteto-help/SKILL.md
 +++ b/skills/poteto-help/SKILL.md
 @@ -1,6 +1,6 @@
@@ -2197,7 +2183,7 @@ index a0604c9..59b9f8f 100644
 -pstack is built for Cursor, and it also installs in Claude Code with `/plugin marketplace add cursor/plugins`, then `/plugin install pstack@cursor-plugins`. There, each command takes a `pstack:` prefix, such as `/pstack:poteto-mode`. The [Claude Code adapter](../../docs/harness/claude-code.md) maps the Cursor names, and a step that needs a Cursor-only feature, such as Bugbot or Automations, is skipped with a one-line note.
 +This distribution runs in Claude Code as `pstack-cc`. Use `/pstack-cc:setup-pstack`, then `/pstack-cc:<skill>`. Setup selects Claude or Codex workers per role without changing the parent chat's model. The [Claude Code binding](../../docs/harness/claude-code.md) links execution, transcripts, schedules, and concrete host limits.
  
--Other tools can read the skills, because they use the Agent Skills format. But most workflow skills, including `/poteto-mode`, `/how`, `/why`, and `/teach`, spawn Cursor subagents with per-role models, and Custom Modes and `/loop` are Cursor features, so those parts may not work there.
+-Other tools can read the skills, because they use the Agent Skills format. But most workflow skills, including `/poteto-mode`, `/how`, and `/teach`, spawn Cursor subagents, some with per-role models, and Custom Modes and `/loop` are Cursor features, so those parts may not work there.
 +## Start a task with `/pstack-cc:poteto-mode`
  
 -## Start a task with `/poteto-mode`
@@ -2471,7 +2457,7 @@ index cc7a4e6..4bd740c 100644
 +- `/pstack-cc:reflect capture what we learned so the next run doesn't repeat it.` Approve only edits that change a future decision.
 +- `/pstack-cc:bro` restates the last reply in plain words.
 diff --git a/skills/poteto-mode/SKILL.md b/skills/poteto-mode/SKILL.md
-index 2dd5e76..9213f83 100644
+index 98b16f9..30673b9 100644
 --- a/skills/poteto-mode/SKILL.md
 +++ b/skills/poteto-mode/SKILL.md
 @@ -8,6 +8,8 @@ color: yellow
@@ -2483,10 +2469,10 @@ index 2dd5e76..9213f83 100644
  Bundled skills live at `../<name>/SKILL.md` from this file, so put this file's absolute path in every `poteto-agent` prompt.
  
  ## Non-negotiables
-@@ -18,19 +20,19 @@ Remaining triggers:
+@@ -17,19 +19,19 @@ The Principles section below grounds every trigger. In your reply, name each pri
+ Remaining triggers:
  
  - Your first message on a task → tell the user, in your own words, their goal, the problem they are solving, and, if the task ships a change, the smallest change you expect to meet it. Don't wait for confirmation. If the evidence rules out the change the user asked for, show it and stop. Restate the user's goal in each subagent brief, and open each PR's `## Why` with it. Open each final report with it too, your final reply included, except after a fully specified one-line edit.
- - Nontrivial change, architecture decision, or "are we sure?" → the **how** skill.
 -- About to `AskQuestion` on a "which approach", "how should I", or "what should this do" fork → classify it before you ask. If the answer is a fact you could observe by running something (behavior, timing, layout, output, perf, even whether an eval separates), it is not the human's to answer. Sketch it via the Prototype playbook (`playbooks/prototype.md`) and let the result decide. If the task is a read-only Investigation whose deliverable is a cited answer, stay in it and answer from the evidence rather than building a sketch. Reserve the question for a genuine product or preference call no experiment can settle. Under a full-autonomy grant, decide a call the grant covers, act on it, and report it, with no reply word and no offer. Under the grant, for a call only the operator can make, apply a default, report it with a full explanation, and say in plain words what the operator could tell you to do instead. The operator answers in their own words. Never give a shorthand token to type back. Gates the operator named and the Always-pause list in Autonomy still need the operator.
 +- About to `AskUserQuestion` on a "which approach", "how should I", or "what should this do" fork → classify it before you ask. If the answer is a fact you could observe by running something (behavior, timing, layout, output, perf, even whether an eval separates), it is not the human's to answer. Sketch it via the Prototype playbook (`playbooks/prototype.md`) and let the result decide. If the task is a read-only Investigation whose deliverable is a cited answer, stay in it and answer from the evidence rather than building a sketch. Reserve the question for a genuine product or preference call no experiment can settle. Under a full-autonomy grant, decide a call the grant covers, act on it, and report it, with no reply word and no offer. Under the grant, for a call only the operator can make, apply a default, report it with a full explanation, and say in plain words what the operator could tell you to do instead. The operator answers in their own words. Never give a shorthand token to type back. Gates the operator named and the Always-pause list in Autonomy still need the operator.
  - Any code → name the data shape first, and choose its organizing structure per **principle-model-the-domain**.
@@ -2507,22 +2493,22 @@ index 2dd5e76..9213f83 100644
  - Asked to land or ship a green stack → the **Shipping** playbook (`playbooks/shipping.md`). Green is not safe. Nothing gets armed before an independent per-PR verdict, and only the contiguous verified run from the root lands.
  - Bugbot or the agentic security review commented → skeptical posture. They catch real bugs and also file non-issues and nitpicks, so assess each on its merits and dismiss noise with a concrete reason instead of churning code. Triage fix / dismiss / ask per `references/bugbot-triage.md`.
  - Broken skill mid-task → fix it in its own PR. Don't block. Don't silently work around it.
-@@ -91,11 +93,11 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
+@@ -90,11 +92,11 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
  
  ## Subagents
  
--**Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) set their own `subagent_type` for diverse-model review. Respect what the skill prescribes, don't override to `poteto-agent`.
+-**Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`interrogate`, `reflect`, `swarm`) set their own `subagent_type` for diverse-model review. Respect what the skill prescribes, don't override to `poteto-agent`.
 +**Use the `poteto-agent` instructions for any subagent you spawn inside a playbook step** (code-writing delegates and ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) select `general-purpose` for their own seats and model roles. Respect that selection. Resolve the worker kind and model role through Claude Code execution. Pass this file's absolute path to every poteto-agent and require its actual full read before work.
  
--**Defaults for every `Task` call.** `run_in_background: true` (a steer or resume of a running agent too, because a foreground call holds your turn while other reports wait), agent mode (readonly strips MCP), file pointers not inlined context, explicit model per role (configurable via `/setup-pstack`. Defaults `grok-4.7-xhigh-fast` for code, `claude-opus-5-5-xhigh` for prose and judgment). Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to your strongest judgment model (`claude-opus-5-5-xhigh`), whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Per-role lines in the `/setup-pstack` rule override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model (omit Task `model`). Each code playbook's configured model comes from its line (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`), and the hardest changes read `hardest tasks`. Prose and judgment read `judgment and prose`.
+-**Defaults for every `Task` call.** `run_in_background: true` (a steer or resume of a running agent too, because a foreground call holds your turn while other reports wait), agent mode (readonly strips MCP), file pointers not inlined context, explicit model per role (configurable via `/setup-pstack`. Defaults `claude-opus-5-5-xhigh` for code, prose, and judgment). Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to your `hardest tasks` model (default `claude-fable-5-2-max`), whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your `swarm workers` model (default `claude-opus-5-5-high-fast`). Review and design panels default to one runner each on `claude-fable-5-2-high`, `claude-opus-5-5-high-fast`, and `gemini-4-carbon-high`. Per-role lines in the `/setup-pstack` rule override these defaults and the model choices in the routed skills (`arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model (omit Task `model`). Each code playbook's configured model comes from its line (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`), and the hardest changes read `hardest tasks`. Prose and judgment read `judgment and prose`. If the rule has no `# defaults: 2` line, an older setup wrote it. Keep honoring its lines, and tell the user once per session to rerun `/setup-pstack`.
 +**Defaults for every delegate call.** Execute asynchronously through the selected executor, including steering and continuation. Use file pointers rather than inlined context. Resolve an explicit model per role through `/setup-pstack`. The original role defaults remain visible in setup and unavailable selections need a supported choice. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) use `hardest tasks`, whether the task needs judgment on vague intent or follows a precise specification. Trivial mechanical edits use the fast code choice. Saved per-role entries override the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A missing role uses its bundled default. `inherit-parent` and `auto` select the actual native Claude parent. Each code playbook resolves its role (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`). Prose and judgment resolve `judgment and prose`.
  
--**Match the model to the job.** Before each spawn, start from the role's line or default and pick the reasoning level and speed the job needs. The `/setup-pstack` budget sets each role's starting level, xhigh by default. Raise it one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more steps for routine work. Use fast mode only when the job is urgent, meaning CI or trunk is red or a person is blocked on the result right now. Otherwise use standard speed, the same slug without `-fast`. Verification is the exception and stays on the `swarm workers` model and speed (`grok-4.7-xhigh-fast` by default). Change only the effort level and whether the slug is fast, and keep the family the role names, so a diverse panel stays diverse. If the family has no slug at that level and speed, use its nearest slug. A role on `auto` or `inherit-parent` stays on the parent model. If the Task tool rejects the adjusted slug, do not try another adjusted slug. Use the role's line or default and say so. If the Task tool rejects that too, continue with the calling skill's fallback. A slug counts as rejected once a Task error says that the model is not valid, or leaves the slug out of its list of valid slugs. Never pass a rejected slug, and skip any fallback whose slug is already rejected. When the calling skill has no fallback, use the closest valid slug of the role's family from the error's list of valid slugs, or omit `model` so the subagent runs on the parent model when the list has none. When the calling skill's fallback runs out of slugs without saying what to do next, omit `model` too. Say so in both cases.
+-**Match the model to the job.** Before each spawn, start from the role's line or default and pick the reasoning level and speed the job needs. The `/setup-pstack` budget sets each role's starting level, xhigh or high by default, and max for `hardest tasks`. Raise it one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more steps for routine work. Use fast mode only when the job is urgent, meaning CI or trunk is red or a person is blocked on the result right now. Otherwise use standard speed, the same slug without `-fast`. Verification is the exception and stays on the `swarm workers` model and speed (`claude-opus-5-5-high-fast` by default). Change only the effort level and whether the slug is fast, and keep the family the role names, so a diverse panel stays diverse. Fable (`claude-fable-*`) is its own family, apart from the other Claude models. If the family has no slug at that level and speed, use its nearest slug. Gemini has no xhigh, max, or fast slug, so a Gemini subagent runs at high, such as `gemini-4-carbon-high`, whenever the job calls for high or above. Fable 5.2 has no fast slug, so an urgent Fable 5.2 subagent runs at standard speed and keeps its level. A role on `auto` or `inherit-parent` stays on the parent model. If the Task tool rejects the adjusted slug, do not try another adjusted slug. Use the role's line or default and say so. If the Task tool rejects that too, continue with the calling skill's fallback. A slug counts as rejected once a Task error says that the model is not valid, or leaves the slug out of its list of valid slugs. Never pass a rejected slug, and skip any fallback whose slug is already rejected. When the calling skill has no fallback, use the closest valid slug of the role's family from the error's list of valid slugs, or omit `model` so the subagent runs on the parent model when the list has none. When the calling skill's fallback runs out of slugs without saying what to do next, omit `model` too. Say so in both cases.
 +**Match the model to the job.** Start from the role's entry and saved reasoning budget, xhigh by default. Preserve explicit task effort. Raise effort one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more for routine work. Use fast mode only when CI or trunk is red or a person is blocked on the result now. Otherwise use standard speed. Verification stays on `swarm workers` and its configured speed, except when the caller requires another model or family. Keep the selected exact model ID unchanged and pass supported effort and speed separately. Use the highest supported effort at or below the requested level. Parent aliases stay on the actual parent. If an adjusted setting is rejected, return to the role's supported starting setting and say so. If that fails, follow the caller's fallback through Claude Code execution. Record rejected model IDs per executor and never resubmit them, including in fallbacks. When the caller has no fallback, try the closest valid model of the role's family from the error's list. If none remains, or the caller exhausts its fallback without another outcome, bind to the actual native parent and disclose it. An unavailable executor or unresolved parent stays a capability gap. Preserve every required different-model or different-family gate and Arena's disclosed judge skip.
  
  You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. A second opinion is the same prompt against a different model. Agreement is high-signal.
  
-@@ -144,7 +146,7 @@ A large or cross-cutting effort (a migration across many call sites, an ambitiou
+@@ -143,7 +145,7 @@ A large or cross-cutting effort (a migration across many call sites, an ambitiou
  - **Autopilot-full.** A queue of independent PRs run to merged with full autonomy. One owner per PR carries build through merge, and the root swarm-verifies each PR before its owner merges ("autopilot this queue", "full autopilot", one-owner-per-PR programs).
  - **Autopilot-stack.** Autopilot-full without the merge. A queue of PRs built and verified with full autonomy, then handed to the operator to land. A PR stacks only on a PR it builds on ("autopilot-stack", "autopilot, don't merge", "stack them, don't ship", "build the stack, I'll land it").
  - **Session pickup.** Resuming or taking over a prior agent's in-flight work from a transcript, cloud-agent URL, or pushed branch.
@@ -2622,7 +2608,7 @@ index 14d5783..5eaf857 100644
  Babysitting starts when the user asks for it, which is normally once a phase or a whole stack is built, not when a PR opens. Finish the stack, get it green here, then land it through Shipping.
  
 diff --git a/skills/poteto-mode/playbooks/bug-fix.md b/skills/poteto-mode/playbooks/bug-fix.md
-index b5de0bf..ccf89a3 100644
+index 8f76e32..ccf89a3 100644
 --- a/skills/poteto-mode/playbooks/bug-fix.md
 +++ b/skills/poteto-mode/playbooks/bug-fix.md
 @@ -1,12 +1,14 @@
@@ -2635,8 +2621,8 @@ index b5de0bf..ccf89a3 100644
  Be scientific. Every shipped line traces to runtime evidence. Belt-and-suspenders that "might help" is a hypothesis, not a fix. It does not ship. When evidence refutes a hypothesis, revert what it motivated. The smallest change the evidence justifies ships, nothing more.
  
  1. Reproduce it yourself on the matching surface via the control skill (Non-negotiables), even when a debug or instrumentation protocol says to ask the user to reproduce. Ask the user only with a stated, specific reason the control surface cannot reach the target, and only after driving it as far as it goes. If it won't reproduce directly, synthesize the trigger, tighten conditions, or instrument until it fires.
--2. Binary-search the cause. Form the candidate hypotheses, then rule them out until one survives. Seed them with `how` over the affected subsystem and the **why** skill for regression history. Each pass, take the split that cuts the most remaining problem space, get runtime evidence, eliminate. When program state is unclear, add instrumentation or logging and read it as the code runs. Don't guess. Drive a long or stubborn hunt with Cursor's `/loop` command. Confirm the surviving *mechanism* with runtime evidence before the step-3 architect/interrogate fan-out.
--3. Plan the fix. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured bug-fix model (default `grok-4.7-xhigh-fast`) with a specific scope.
+-2. Binary-search the cause. Form the candidate hypotheses, then rule them out until one survives. Seed them with a trace of the affected subsystem and the **why** skill for regression history. Each pass, take the split that cuts the most remaining problem space, get runtime evidence, eliminate. When program state is unclear, add instrumentation or logging and read it as the code runs. Don't guess. Drive a long or stubborn hunt with Cursor's `/loop` command. Confirm the surviving *mechanism* with runtime evidence before the step-3 architect/interrogate fan-out.
+-3. Plan the fix. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured bug-fix model (default `claude-opus-5-5-xhigh`) with a specific scope.
 +2. Binary-search the cause. Form the candidate hypotheses, then rule them out until one survives. Seed them with `how` over the affected subsystem and the **why** skill for regression history. Each pass, take the split that cuts the most remaining problem space, get runtime evidence, eliminate. When program state is unclear, add instrumentation or logging and read it as the code runs. Don't guess. Drive a long or stubborn hunt with [Claude Code wakeups](../references/claude-wakeups.md). Confirm the surviving *mechanism* with runtime evidence before the step-3 architect/interrogate fan-out.
 +3. Plan the fix. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured bug-fix model from setup with a specific scope.
  4. Verify on the same surface. The original repro now passes. "Inconclusive" or wrong-surface is not a pass. Flag it. Unit tests show branch behavior, not bug absence.
@@ -2664,7 +2650,7 @@ index 768a894..9486d1a 100644
  
  **Reply:** variant under test, rubric, per-candidate notes, judge's verdict, your synthesis, and a recommendation for whether to promote the variant.
 diff --git a/skills/poteto-mode/playbooks/feature.md b/skills/poteto-mode/playbooks/feature.md
-index eb1040c..a18ca4f 100644
+index 17e7f00..464d47f 100644
 --- a/skills/poteto-mode/playbooks/feature.md
 +++ b/skills/poteto-mode/playbooks/feature.md
 @@ -1,5 +1,7 @@
@@ -2674,18 +2660,18 @@ index eb1040c..a18ca4f 100644
 +
  **You own the design. Plan, review, verify.** Delegate implementation. Stay in the lead.
  
- 1. `how` over the affected subsystem.
+ 1. Trace the affected subsystem.
 @@ -9,7 +11,7 @@
     - **Independent workstreams.** Disjoint files, services, or layers parallelize. Shared writes serialize.
     - **Shared mutable state.** Default to splitting the target (the **separate-before-serializing-shared-state** principle skill). Serialize only for real invariants.
     - **Smallest safe decomposition.** If one worker is best, name why.
--4. Delegate code-writing to a subagent using your configured feature model (default `grok-4.7-xhigh-fast`) with a specific scope (file paths, named data shape and its organizing structure per **principle-model-the-domain**, a state machine over scattered booleans, a table/registry over branching, a typed model over repeated shape assumptions, chosen before the delegate writes logic, and success criteria). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. When the implementation admits multiple valid shapes (error handling, abstraction layer, test structure), delegate via the **arena** skill instead so the runners surface the alternatives and the cross-judge guards the pick. Mandatory: no skip-with-reason escape, and Laziness Protocol does not override it (the gain is review separation, not lines saved). A subagent forbidden to spawn satisfies this by owning the diff directly with the same review separation. No "standing by" reply that waits on a nested agent. Comments per **Comments**. Surgical edits, re-ground against the source for upstream-derived files. Port shared-primitive improvements to all consumers and verify each. Commit liberally.
+-4. Delegate code-writing to a subagent using your configured feature model (default `claude-opus-5-5-xhigh`) with a specific scope (file paths, named data shape and its organizing structure per **principle-model-the-domain**, a state machine over scattered booleans, a table/registry over branching, a typed model over repeated shape assumptions, chosen before the delegate writes logic, and success criteria). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. When the implementation admits multiple valid shapes (error handling, abstraction layer, test structure), delegate via the **arena** skill instead so the runners surface the alternatives and the cross-judge guards the pick. Mandatory: no skip-with-reason escape, and Laziness Protocol does not override it (the gain is review separation, not lines saved). A subagent forbidden to spawn satisfies this by owning the diff directly with the same review separation. No "standing by" reply that waits on a nested agent. Comments per **Comments**. Surgical edits, re-ground against the source for upstream-derived files. Port shared-primitive improvements to all consumers and verify each. Commit liberally.
 +4. Delegate code-writing to a subagent using your configured feature model from setup with a specific scope (file paths, named data shape and its organizing structure per **principle-model-the-domain**, a state machine over scattered booleans, a table/registry over branching, a typed model over repeated shape assumptions, chosen before the delegate writes logic, and success criteria). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. When the implementation admits multiple valid shapes (error handling, abstraction layer, test structure), delegate via the **arena** skill instead so the runners surface the alternatives and the cross-judge guards the pick. Mandatory: no skip-with-reason escape, and Laziness Protocol does not override it (the gain is review separation, not lines saved). A subagent forbidden to spawn satisfies this by owning the diff directly with the same review separation. No "standing by" reply that waits on a nested agent. Comments per **Comments**. Surgical edits, re-ground against the source for upstream-derived files. Port shared-primitive improvements to all consumers and verify each. Commit liberally.
  5. Verify on the matching surface. "Inconclusive" or wrong-surface is not a pass. Flag it.
  6. Rebase into small, ordered commits. Stack follow-ups.
     Use the **sequence-verifiable-units** principle skill, building, verifying, and committing each small unit before the next.
 diff --git a/skills/poteto-mode/playbooks/hillclimb.md b/skills/poteto-mode/playbooks/hillclimb.md
-index e9cf267..478f283 100644
+index d135cf3..bc15312 100644
 --- a/skills/poteto-mode/playbooks/hillclimb.md
 +++ b/skills/poteto-mode/playbooks/hillclimb.md
 @@ -1,5 +1,7 @@
@@ -2700,13 +2686,13 @@ index e9cf267..478f283 100644
  3. Open the decision log via the **show-me-your-work** skill. A `decision.tsv`, one row per attempt: id, hypothesis, change, before, after, delta, tests, verdict (kept or reverted), note. Read it before each attempt. Keep it out of the tree (gitignored).
  4. Ground each hypothesis in the architecture model from step 1, so it names a specific mechanism ("defer X off the boot path because it blocks first paint"), not "try memoizing something". For a perf metric, order hypotheses by the performance mantras in step 2 of the Perf issue playbook (`playbooks/perf-issue.md`). Borrow only their order, not that step's stop rule.
  5. Loop, one hypothesis per iteration:
--   - Hand the change to a subagent using your configured hillclimb model (default `grok-4.7-xhigh-fast`) with a tight scope. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Supervise and review the diff rather than typing it (the **guard-the-context-window** principle skill). When several independent hypotheses are live, fan them to parallel subagents, each in its own worktree (the **separate-before-serializing-shared-state** principle skill).
+-   - Hand the change to a subagent using your configured hillclimb model (default `claude-opus-5-5-xhigh`) with a tight scope. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Supervise and review the diff rather than typing it (the **guard-the-context-window** principle skill). When several independent hypotheses are live, fan them to parallel subagents, each in its own worktree (the **separate-before-serializing-shared-state** principle skill).
 +   - Hand the change to a subagent using your configured hillclimb model from setup with a tight scope. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Supervise and review the diff rather than typing it (the **guard-the-context-window** principle skill). When several independent hypotheses are live, fan them to parallel subagents, each in its own worktree (the **separate-before-serializing-shared-state** principle skill).
     - Measure before and after with the frozen harness, and run the regression gate.
     - Accept only when the metric moves past noise and the gate stays green. Otherwise revert the change in full. A tweak that "might help" is not kept.
     - One commit per accepted fix, staging only the files you changed (`git add <files>`, never `-A`). Log the row either way, kept or reverted.
 diff --git a/skills/poteto-mode/playbooks/multi-phase-plan.md b/skills/poteto-mode/playbooks/multi-phase-plan.md
-index 7101aa7..197249b 100644
+index 277091a..197249b 100644
 --- a/skills/poteto-mode/playbooks/multi-phase-plan.md
 +++ b/skills/poteto-mode/playbooks/multi-phase-plan.md
 @@ -1,16 +1,18 @@
@@ -2727,7 +2713,7 @@ index 7101aa7..197249b 100644
 +6. Run `node "<absolute-installed-poteto-mode>/scripts/check-plan.mjs" <plan.md>` and fix every line it prints (the **encode-lessons-in-structure** principle skill).
  7. Hand back. Post the plan path and the script's output, then stop. Execution starts on the operator's explicit go, under the execution playbook the plan names.
  
--**Verification.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked (the **prove-it-works** principle skill). That sentence is the verification rule. Every verification block opens with it. The live block is mandatory. Ten lanes at the PR head drive the real surface through its control skill, per the **swarm** skill, on the `swarm workers` model (default `grok-4.7-xhigh-fast`). Each lane is one box with a concrete scenario, the screenshot it saves, and its pass predicate. One lane is the **Regression lane against trunk.** It runs the same load-bearing scenario on trunk and head. If trunk does not have the feature, the lane records that fact and gates the behavior the diff adds plus the end state the user waits for instead of inventing a trunk result. The perf gate is dual-sided. Trunk and head must both produce the named metric. If trunk lacks the feature, also isolate the work the diff adds and set an absolute budget for that work plus the end-to-end state the user waits for. Do not claim a ratio between unlike scenarios. The perf block names the metric, the interleaved probe, the trunk baseline measured first, and the rule with the number that fails. A PR that changes an interaction is review-gated. The operator reviews it in chat with screenshots and a video before merge. A PR that changes no interaction writes `**Review gate.** None. <PR id> is not review-gated.` and no boxes under it.
+-**Verification.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked (the **prove-it-works** principle skill). That sentence is the verification rule. Every verification block opens with it. The live block is mandatory. Ten lanes at the PR head drive the real surface through its control skill, per the **swarm** skill, on the `swarm workers` model (default `claude-opus-5-5-high-fast`). Each lane is one box with a concrete scenario, the screenshot it saves, and its pass predicate. One lane is the **Regression lane against trunk.** It runs the same load-bearing scenario on trunk and head. If trunk does not have the feature, the lane records that fact and gates the behavior the diff adds plus the end state the user waits for instead of inventing a trunk result. The perf gate is dual-sided. Trunk and head must both produce the named metric. If trunk lacks the feature, also isolate the work the diff adds and set an absolute budget for that work plus the end-to-end state the user waits for. Do not claim a ratio between unlike scenarios. The perf block names the metric, the interleaved probe, the trunk baseline measured first, and the rule with the number that fails. A PR that changes an interaction is review-gated. The operator reviews it in chat with screenshots and a video before merge. A PR that changes no interaction writes `**Review gate.** None. <PR id> is not review-gated.` and no boxes under it.
 +**Verification.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked (the **prove-it-works** principle skill). That sentence is the verification rule. Every verification block opens with it. The live block is mandatory. Ten lanes at the PR head drive the real surface through its control skill, per the **swarm** skill, on the `swarm workers` model from setup. Each lane is one box with a concrete scenario, the screenshot it saves, and its pass predicate. One lane is the **Regression lane against trunk.** It runs the same load-bearing scenario on trunk and head. If trunk does not have the feature, the lane records that fact and gates the behavior the diff adds plus the end state the user waits for instead of inventing a trunk result. The perf gate is dual-sided. Trunk and head must both produce the named metric. If trunk lacks the feature, also isolate the work the diff adds and set an absolute budget for that work plus the end-to-end state the user waits for. Do not claim a ratio between unlike scenarios. The perf block names the metric, the interleaved probe, the trunk baseline measured first, and the rule with the number that fails. A PR that changes an interaction is review-gated. The operator reviews it in chat with screenshots and a video before merge. A PR that changes no interaction writes `**Review gate.** None. <PR id> is not review-gated.` and no boxes under it.
  
  **Control skill.** Pick it by surface. Browser, Electron, and web UIs use `control-ui` from `cursor-team-kit`. CLIs and TUIs use `control-cli` from `cursor-team-kit`. Native mobile uses whatever simulator-driving skill the repo has. A PR that touches two surfaces gets lanes on both. A surface with no control skill is a risk in Appendix C, and its live block still names how each lane drives it.
@@ -2810,7 +2796,7 @@ index 7101aa7..197249b 100644
  
  ## Appendix D. Links and reading list
  
--<Docs to read before editing. Which PRs get `pstack/skills/how/SKILL.md` and `pstack/skills/interrogate/SKILL.md`. The trail per `pstack/skills/show-me-your-work/SKILL.md`.>
+-<Docs to read before editing. Which PRs get `pstack/skills/interrogate/SKILL.md`. The trail per `pstack/skills/show-me-your-work/SKILL.md`.>
 +<Docs to read before editing. Which PRs get the installed **how** skill and the installed **interrogate** skill. The trail per the installed **show-me-your-work** skill.>
  ````
  
@@ -2868,7 +2854,7 @@ index 9d1c5f8..a831816 100644
  
  1. Stop at a safe boundary. Finish the current atomic step or back out of it. Start nothing new, and cancel any nested subagents.
 diff --git a/skills/poteto-mode/playbooks/perf-issue.md b/skills/poteto-mode/playbooks/perf-issue.md
-index 46dcc99..d6a7f6f 100644
+index adf5c26..4ffc7fa 100644
 --- a/skills/poteto-mode/playbooks/perf-issue.md
 +++ b/skills/poteto-mode/playbooks/perf-issue.md
 @@ -1,5 +1,7 @@
@@ -2883,13 +2869,13 @@ index 46dcc99..d6a7f6f 100644
     7. Do it cheaper.
  
     When an earlier mantra meets the target, stop.
--3. Plan the fix from the trace. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured perf-issue model (default `grok-4.7-xhigh-fast`). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Review the diff. Capture a post-fix trace.
+-3. Plan the fix from the trace. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured perf-issue model (default `claude-opus-5-5-xhigh`). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Review the diff. Capture a post-fix trace.
 +3. Plan the fix from the trace. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured perf-issue model from setup. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Review the diff. Capture a post-fix trace.
     Apply the **sequence-verifiable-units** principle skill, verifying each attempt before trying the next.
  4. Parse and compare the artifacts (JSON to sqlite, diff). "Inconclusive" or wrong-surface is not a pass. Flag it.
  5. Cite the measurement in the PR.
 diff --git a/skills/poteto-mode/playbooks/refactoring.md b/skills/poteto-mode/playbooks/refactoring.md
-index c04b07e..5d3029e 100644
+index 8a76dc2..4493aa5 100644
 --- a/skills/poteto-mode/playbooks/refactoring.md
 +++ b/skills/poteto-mode/playbooks/refactoring.md
 @@ -1,5 +1,7 @@
@@ -2904,7 +2890,7 @@ index c04b07e..5d3029e 100644
  2. Name the structure the code is missing per **principle-model-the-domain**. Boring code stays when the shape is already clear and local. The reshape must delete branches or invalid states, not add indirection.
  3. Name the target shape. State what the module layout, types, and call graph should be if built today (**principle-foundational-thinking**, **principle-redesign-from-first-principles**). If the target crosses a function boundary, run the **architect** skill for parallel design exploration of the shape before the move.
  4. Subtract before you add. Delete dead code, collapse one-caller wrappers, drop redundant validators, and remove orphan references before introducing the new shape (**principle-subtract-before-you-add**). The smallest change that reaches the target shape ships (**principle-laziness-protocol**). A speculative cleanup that "might help" gets reverted.
--5. Move in small behavior-preserving steps, each keeping the pin green. For API reshapes, migrate every caller and delete the old API in the same wave (**principle-migrate-callers-then-delete-legacy-apis**). No compatibility shims, no parallel old-and-new paths. Spot-check every rename against the actual files. Renames silently miss usages in strings, prose, and back-references. Delegate the mechanical edits to a subagent using your configured refactoring model (default `grok-4.7-xhigh-fast`) with a specific scope (file paths, the names being moved, the behavior to hold). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+-5. Move in small behavior-preserving steps, each keeping the pin green. For API reshapes, migrate every caller and delete the old API in the same wave (**principle-migrate-callers-then-delete-legacy-apis**). No compatibility shims, no parallel old-and-new paths. Spot-check every rename against the actual files. Renames silently miss usages in strings, prose, and back-references. Delegate the mechanical edits to a subagent using your configured refactoring model (default `claude-opus-5-5-xhigh`) with a specific scope (file paths, the names being moved, the behavior to hold). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
 +5. Move in small behavior-preserving steps, each keeping the pin green. For API reshapes, migrate every caller and delete the old API in the same wave (**principle-migrate-callers-then-delete-legacy-apis**). No compatibility shims, no parallel old-and-new paths. Spot-check every rename against the actual files. Renames silently miss usages in strings, prose, and back-references. Delegate the mechanical edits to a subagent using your configured refactoring model from setup with a specific scope (file paths, the names being moved, the behavior to hold). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
  6. Prove behavior is unchanged on the real artifact, not "it compiles" (**principle-prove-it-works**). For larger reshapes, run an equivalence check: a script that diffs old-vs-new outputs, a recorded baseline replayed against the new code, or a smoke run on the matching surface via the relevant control skill.
  7. Confirm the change is worth keeping. The success measure is reduced reader load (**principle-minimize-reader-load**). If the diff does not lower reader load somewhere, revert it.
@@ -4522,12 +4508,12 @@ index 47e0891..6d2e745 100755
  			else bucket=review; fi ;;
  		esac ;;
 diff --git a/skills/recall/SKILL.md b/skills/recall/SKILL.md
-index cd8cc20..26a1a05 100644
+index 9a4b21f..9118e1d 100644
 --- a/skills/recall/SKILL.md
 +++ b/skills/recall/SKILL.md
 @@ -12,11 +12,11 @@ Keep it tight and on-topic. Read only what the in-scope threads need, then stop.
  
- Your context lives in two records. Your own chat history holds what you did and decided. The shared record holds everything that happened around the same code under other names: the symptoms users keep reporting, the fixes that shipped and got reverted, the errors still firing in prod. That second record is what the **why** skill searches, across source control, the issue tracker, chat and issue channels, long-form docs, and error tracking. A feature with a long bug tail keeps most of its story there, so don't reconstruct it from your transcripts alone.
+ Your context lives in two records. Your own chat history holds what you did and decided. The shared record holds everything that happened around the same code under other names: the symptoms users keep reporting, the fixes that shipped and got reverted, the errors still firing in prod. That second record lives in source control, the issue tracker, chat and issue channels, long-form docs, and error tracking. A feature with a long bug tail keeps most of its story there, so don't reconstruct it from your transcripts alone.
  
 -Transcripts live at `~/.cursor/projects/<slug>/agent-transcripts/<uuid>/<uuid>.jsonl`, where `<slug>` is the workspace path with the leading slash dropped and each "/" turned into "-" (so `/Users/you/proj` becomes `Users-you-proj`). Every line is one chat message.
 +Read [Claude history](references/claude-history.md) and use its project-scoped helper for the active repository and registered worktrees. Confirm a session by exact ID and opening user prompt before reading its content. Selected Codex workers retain their own exact-thread evidence under their assigned run directories.
@@ -4536,7 +4522,7 @@ index cd8cc20..26a1a05 100644
  2. Lock the scope before searching. Pin the window ("recent" is a real range, default the last 7 days), the topic if named, and the workspace (default the active one. Never read another project's transcripts without being asked). State the scope back. Never quietly turn "all" into "recent N".
 -3. Fan out across your chat history. Spawn parallel subagents on a fast, cheap model, each taking a slice of the corpus. Tell every subagent to order candidates by real modification time (`ls -t`) and never by UUID name, grep the topic first and then read only the matching chats and only their relevant regions, and skip the current chat plus obvious noise (subagent, eval, and test chats). Each returns the same schema, one block per chat: topic, the user's goal, decisions, open threads, struggles and corrections, and artifacts (PRs, tickets, branches), each citing the chat UUID. For one or two chats, skip the fan-out and search directly. The raw transcripts stay in the subagents. The main thread gets only their findings. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
 +3. Fan out across your chat history. Read [Claude Code execution](../poteto-mode/references/claude-execution.md), resolve `judgment and prose` with worker kind `general-purpose`, and launch parallel workers through their selected executors, each taking a slice of the corpus. Tell every subagent to order candidates by real modification time (`ls -t`) and never by UUID name, grep the topic first and then read only the matching chats and only their relevant regions, and skip the current chat plus obvious noise (subagent, eval, and test chats). Each returns the same schema, one block per chat: topic, the user's goal, decisions, open threads, struggles and corrections, and artifacts (PRs, tickets, branches), each citing the chat UUID. For one or two chats, skip the fan-out and search directly. The raw transcripts stay in the subagents. The main thread gets only their findings. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
- 4. Sweep the shared record whenever the topic names a feature, file, subsystem, area, or bug. This is the default, not a judgment call, and "my work on X" does not exempt it. Hand it to the **why** skill's source investigators, but steer their question from "why was this built this way" to "what's the current state, what's been tried and didn't hold, and what are users still reporting". Reuse its per-source playbooks, run the investigators in parallel with the chat-history mining, and inherit its posture: one investigator per source, null results are findings, skip an unavailable MCP and say so. Fold what comes back into the brief. Skip this step only for pure activity recall with no named target ("what did I do this week"), where your own history and live state are the entire answer.
+ 4. Sweep the shared record whenever the topic names a feature, file, subsystem, area, or bug. This is the default, not a judgment call, and "my work on X" does not exempt it. Spawn one investigator subagent per source, in agent mode because readonly strips MCP access, and ask each "what's the current state, what's been tried and didn't hold, and what are users still reporting". Run them in parallel with the chat-history mining. Null results are findings. Skip an unavailable MCP and say so. Fold what comes back into the brief. Skip this step only for pure activity recall with no named target ("what did I do this week"), where your own history and live state are the entire answer.
  5. Verify against live state. Take the PRs, branches, and tickets that the mining and the sweep surfaced and check them with `git` and `gh`. When the answer hinges on what an agent actually did (the tools it ran, files it read, errors it hit), read the full transcript, not just a trimmed local copy.
  6. Write the brief to the contract below. Group by thread. Stay on the named topic.
 diff --git a/skills/recall/references/claude-history.md b/skills/recall/references/claude-history.md
@@ -4793,7 +4779,7 @@ index 0000000..c4473fd
 +  }
 +}
 diff --git a/skills/reflect/SKILL.md b/skills/reflect/SKILL.md
-index 9bb153b..ffed3fb 100644
+index 2a067f5..aa53ca6 100644
 --- a/skills/reflect/SKILL.md
 +++ b/skills/reflect/SKILL.md
 @@ -6,37 +6,33 @@ disable-model-invocation: true
@@ -4829,7 +4815,7 @@ index 9bb153b..ffed3fb 100644
 +| Lens | Model role | Original default | Prompt template |
  |---|---|---|---|
  | Judgment | `reflect judgment, divergent, synthesizer` | `claude-opus-5-5-xhigh` | `references/judgment-reviewer.md` |
- | Tooling | `reflect tooling` | `grok-4.7-xhigh-fast` | `references/tooling-reviewer.md` |
+ | Tooling | `reflect tooling` | `claude-opus-5-5-high-fast` | `references/tooling-reviewer.md` |
  | Divergent | `reflect judgment, divergent, synthesizer` | `claude-opus-5-5-xhigh` | `references/divergent-reviewer.md` |
  
 -Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `Task` response body.
@@ -4888,7 +4874,7 @@ index 61d15d7..4bfc9de 100644
  Two finding shapes are valid:
  - The parent invoked the skill and you found a real gap in its body. Route to the skill's relevant section.
 diff --git a/skills/reflect/references/synthesizer.md b/skills/reflect/references/synthesizer.md
-index 1a090d8..6d1dfef 100644
+index 60f2f9d..3c8cb56 100644
 --- a/skills/reflect/references/synthesizer.md
 +++ b/skills/reflect/references/synthesizer.md
 @@ -14,7 +14,7 @@ Apply each criterion to every finding:
@@ -4923,10 +4909,10 @@ index a839db4..4b558e0 100644
  Two finding shapes are valid:
  - The parent invoked the skill and you found a real gap in its body. Route to the skill's relevant section.
 diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
-index 91f1127..02a20d1 100644
+index 3de528e..02a20d1 100644
 --- a/skills/setup-pstack/SKILL.md
 +++ b/skills/setup-pstack/SKILL.md
-@@ -1,78 +1,81 @@
+@@ -1,83 +1,81 @@
  ---
  name: setup-pstack
 -description: Configure which models pstack uses per role and at what reasoning budget. Detects your available models and writes an always-applied rule that overrides the skill defaults. Use for /setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
@@ -4950,38 +4936,49 @@ index 91f1127..02a20d1 100644
 -### 2. Load current state
 +Run `scripts/detect.mjs detect`. Report Node and Claude versions, native effort support, and each executor's login state. It checks Claude's CLI and auth status and the bundled Codex runner's capabilities. It does not install, authenticate, read credential files, or change settings.
  
--The default role-to-model mapping is the rule shape shown in step 5 below. If `~/.cursor/rules/pstack-models.mdc` already exists, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from those defaults. A line whose role is not in step 5, such as `how critics`, is from a retired role. Drop it.
+-The default role-to-model mapping is the rule shape shown in step 5 below. If `~/.cursor/rules/pstack-models.mdc` already exists, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from those defaults. A line whose role is not in step 5, such as `how explorer` or `why investigators`, is from a retired role. Drop it.
 +Claude-only choices do not require Codex. For a selected executor that is missing or logged out, read [the prerequisite guide](references/prerequisites.md), guide installation or login, then rerun detection. Distinguish ChatGPT subscription login from OpenAI API-key billing. Keep interactive login in the user's terminal or the host's normal login flow. Never ask the user to paste credentials into the conversation.
  
--### 3. Budget, map, and confirm
+-A rule without the `# defaults: 2` line comes from an older setup. That setup wrote a line for every role, so some of its values are old defaults, not choices. An old slug is one that matches `grok-*`. Before step 3, replace these values:
 +Native exact-model choices use generated agent definitions and per-invocation effort. Claude Code 2.1.292 introduced that effort parameter. If the installed host lacks the parameter, guide an update before configuring explicit native effort. Inspect the active tool schema as well as the version.
  
--**(a) Ask for a budget.** Prefer AskQuestion over free text. Offer these four options with these exact labels, and name the current budget when the rule records one. With no rule, say that `large` matches the skill defaults.
+-- An old slug in `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `reflect tooling`, or `swarm workers` takes the role's step 5 default.
+-- A `claude-opus-*` value in `hardest tasks` takes the role's step 5 default.
+-- In a panel role (`arena runners`, `arena cross-judge pool`, `architect runners`, `interrogate reviewers`), a list of exactly one `claude-opus-*` entry and one old slug, in either order, takes the role's step 5 list. In any other list, each old slug becomes `claude-opus-5-5-high-fast`.
 +## 2. Collect actual model options
+ 
+-Every other value is the user's choice and stays, including an old slug in any other role and every `inherit-parent` or `auto` value. Tell the user which values you replaced.
++For Codex workers, run `scripts/detect.mjs catalog --cwd ABSOLUTE_PROJECT`. The bundled runner collects every `model/list` page and each model's supported efforts. Its receipt separates CLI, authentication, catalog, and execution evidence.
+ 
+-### 3. Budget, map, and confirm
++For native Claude workers, use exact model IDs and supported efforts exposed by the current host or its model catalog. Inspect the current host and configuration rather than copying a fixed list from this skill. Detection lists configured model candidates, including `settings.json` model choices and model-specific environment variables. Those candidates require confirmation. A configured name or allowlist does not prove entitlement or supported efforts.
+ 
+-**(a) Ask for a budget.** Prefer AskQuestion over free text. Offer these four options with these exact labels, and name the current budget when the rule records one. With no rule, say that `large` matches the skill defaults.
++If the host cannot enumerate exact IDs and efforts, ask the user to confirm them and label the resulting catalog source `manual-confirmation`. Keep that fallback visible. Do not substitute moving aliases such as `opus` or `sonnet` for exact selections.
  
 -- `unlimited — max reasoning`
 -- `large — xhigh reasoning`
 -- `medium — high reasoning`
 -- `small — medium reasoning`
-+For Codex workers, run `scripts/detect.mjs catalog --cwd ABSOLUTE_PROJECT`. The bundled runner collects every `model/list` page and each model's supported efforts. Its receipt separates CLI, authentication, catalog, and execution evidence.
- 
--**(b) Apply it.** Build the working table from the skill defaults, and on a re-run keep any role you changed by family, list, or alias (`inherit-parent`, `auto`). `unlimited`, `large`, `medium`, and `small` set the effort token of every real slug, panel entries included, to `max`, `xhigh`, `high`, or `medium`. The effort token is the last token, or the one before a trailing `fast`, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. If the result is not a detected slug, use the same family's detected slug with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` and `auto` do not change. So `unlimited` turns `claude-opus-5-5-xhigh` into `claude-opus-5-5-max`. Grok slugs top out at `xhigh`, so under `unlimited` the fallback puts Grok at `xhigh` and keeps `grok-4.7-xhigh-fast` as it is. `large` keeps both defaults. `small` turns them into `claude-opus-5-5-medium` and `grok-4.7-medium-fast`.
-+For native Claude workers, use exact model IDs and supported efforts exposed by the current host or its model catalog. Inspect the current host and configuration rather than copying a fixed list from this skill. Detection lists configured model candidates, including `settings.json` model choices and model-specific environment variables. Those candidates require confirmation. A configured name or allowlist does not prove entitlement or supported efforts.
- 
--**(c) Show the roles and confirm.** Show every role with its model, marking any real slug not in the detected set as needing a choice. Also list each line step 2 dropped. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` and `auto` (both mean: this role runs on the parent chat model, which is how Auto users stay on Auto) as the options. Prefer AskQuestion over free text. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one subagent runs per entry, alias entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena runs one judge. It tries only values from a family other than the parent's, in list order, so order it by preference. An `inherit-parent` or `auto` value never judges. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.
-+If the host cannot enumerate exact IDs and efforts, ask the user to confirm them and label the resulting catalog source `manual-confirmation`. Keep that fallback visible. Do not substitute moving aliases such as `opus` or `sonnet` for exact selections.
- 
--### 4. Validate
 +Normalize both routes with `scripts/models.mjs catalog --input ABSOLUTE_CODEX_RECEIPT --native-catalog ABSOLUTE_NATIVE_CATALOG`. Omit the Codex input for Claude-only setup. Every explicit selection must match its executor's catalog. A matching ID under another executor does not validate it.
  
--Every real slug written must be in the detected set. `inherit-parent` and `auto` always pass. If a chosen real slug is not available, stop and ask again.
+-**(b) Apply it.** Build the working table from the skill defaults, and on a re-run keep any role you changed by family, list, or alias (`inherit-parent`, `auto`). Families are the ones Phase A of the **arena** skill defines, so Fable is its own family. Each role has a target effort, which is its default's effort moved by the budget. `large` keeps it, `unlimited` raises it one step, `medium` lowers it one step, and `small` lowers it two steps, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. A target at either end of the ladder stays there. Most defaults are at `xhigh`, and each budget label names where those land. Set the effort token of every real slug in the role, panel entries included, to the role's target. The effort token is the last token, or the one before a trailing `fast`. If the result is not a detected slug, use the same family's detected slug with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` and `auto` do not change. So `unlimited` turns `claude-opus-5-5-xhigh` into `claude-opus-5-5-max` and `claude-opus-5-5-high-fast` into `claude-opus-5-5-xhigh-fast`, and it keeps `claude-fable-5-2-max`. Gemini tops out at `high`, so under `unlimited` the fallback keeps `gemini-4-carbon-high` as it is. `small` turns the first two into `claude-opus-5-5-medium` and `claude-opus-5-5-low-fast`. Fable 5.2 and Gemini have no fast slug, so never write one.
 +`auto` and `inherit-parent` always mean the actual native Claude parent. They omit effort and executor overrides on invocation. They cannot select Codex. Use the [Claude execution binding](../poteto-mode/references/claude-execution.md) when dispatching.
  
--### 5. Write the rule
+-**(c) Show the roles and confirm.** Show every role with its model, marking any real slug not in the detected set as needing a choice. Also list each line step 2 dropped. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` and `auto` (both mean: this role runs on the parent chat model, which is how Auto users stay on Auto) as the options. Prefer AskQuestion over free text. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one subagent runs per entry, alias entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena runs one judge. It tries only values from a vendor other than the parent's, in list order, so order it by preference. Fable and the other Claude models are one vendor. An `inherit-parent` or `auto` value never judges. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.
 +## 3. Load current choices
  
--Write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true`, a `# budget` line with the chosen label and its target effort, and one line per role, using the same labels poteto-mode uses. Overwrite the whole file so re-runs stay idempotent. Shape:
+-### 4. Validate
 +Run `scripts/models.mjs read`. Retain its `sha256`, `config`, `proposal`, and `needsChoice`.
+ 
+-Every real slug written must be in the detected set. `inherit-parent` and `auto` always pass. If a chosen real slug is not available, stop and ask again.
++`config` contains valid saved selections. `proposal` fills missing roles with the original upstream suggestions. Upstream code roles suggest Grok, which neither bundled executor supplies as an assumed route. Those suggestions remain visibly unresolved until the user chooses an available executor and model. Setup does not replace them with a permanent Sol default. The original Claude judgment preference and original panel order remain in the proposal.
+ 
+-### 5. Write the rule
++On a rerun, retain independently chosen models, executors, aliases, efforts, list order, and duplicates. Report retired keys from `droppedRoles` before saving.
+ 
+-Write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true`, the `# defaults: 2` line, a `# budget` line with the chosen label and the effort that label names, and one line per role, using the same labels poteto-mode uses. Overwrite the whole file so re-runs stay idempotent. Shape:
++## 4. Select the budget and role mapping
  
 -```
 ----
@@ -4990,24 +4987,21 @@ index 91f1127..02a20d1 100644
 ----
 -# pstack model configuration. One line per role. Delete a line to fall back to the skill default.
 -# `inherit-parent` or `auto` as a value: the role runs on the parent chat model (omit Task `model`). Alias entries in a panel list still count toward its fan-out.
+-# defaults: 2
 -# budget: large (xhigh)
--feature, refactoring: grok-4.7-xhigh-fast
--bug-fix: grok-4.7-xhigh-fast
--perf-issue: grok-4.7-xhigh-fast
--hillclimb: grok-4.7-xhigh-fast
+-feature, refactoring: claude-opus-5-5-xhigh
+-bug-fix: claude-opus-5-5-xhigh
+-perf-issue: claude-opus-5-5-xhigh
+-hillclimb: claude-opus-5-5-xhigh
 -judgment and prose: claude-opus-5-5-xhigh
--hardest tasks: claude-opus-5-5-xhigh
--how explorer: grok-4.7-xhigh-fast
--how explainer: claude-opus-5-5-xhigh
--why investigators: grok-4.7-xhigh-fast
--why synthesizer: claude-opus-5-5-xhigh
--reflect tooling: grok-4.7-xhigh-fast
+-hardest tasks: claude-fable-5-2-max
+-reflect tooling: claude-opus-5-5-high-fast
 -reflect judgment, divergent, synthesizer: claude-opus-5-5-xhigh
--arena runners: claude-opus-5-5-xhigh, grok-4.7-xhigh-fast
--arena cross-judge pool: claude-opus-5-5-xhigh, grok-4.7-xhigh-fast
--swarm workers: grok-4.7-xhigh-fast
--architect runners: claude-opus-5-5-xhigh, grok-4.7-xhigh-fast
--interrogate reviewers: claude-opus-5-5-xhigh, grok-4.7-xhigh-fast
+-arena runners: claude-fable-5-2-high, claude-opus-5-5-high-fast, gemini-4-carbon-high
+-arena cross-judge pool: claude-fable-5-2-high, claude-opus-5-5-high-fast, gemini-4-carbon-high
+-swarm workers: claude-opus-5-5-high-fast
+-architect runners: claude-fable-5-2-high, claude-opus-5-5-high-fast, gemini-4-carbon-high
+-interrogate reviewers: claude-fable-5-2-high, claude-opus-5-5-high-fast, gemini-4-carbon-high
 -```
 -
 -### 6. Confirm
@@ -5021,12 +5015,6 @@ index 91f1127..02a20d1 100644
 -### 8. Offer a formal verification skill (optional)
 -
 -Check whether the project already has a formal verification skill (a project skill that runs a model checker, a proof, or another verifier against the code). If not, offer once: "want a formal verification skill, so agents can prove a key property of your code holds in every case in scope, not only the cases tests reach? I can generate one with /create-formal-verification-skill." On yes, invoke `/create-formal-verification-skill` (resolves wherever pstack is installed: workspace, user, or plugin). On no, move on without pushing.
-+`config` contains valid saved selections. `proposal` fills missing roles with the original upstream suggestions. Upstream code roles suggest Grok, which neither bundled executor supplies as an assumed route. Those suggestions remain visibly unresolved until the user chooses an available executor and model. Setup does not replace them with a permanent Sol default. The original Claude judgment preference and original panel order remain in the proposal.
-+
-+On a rerun, retain independently chosen models, executors, aliases, efforts, list order, and duplicates. Report retired keys from `droppedRoles` before saving.
-+
-+## 4. Select the budget and role mapping
-+
 +Use a budget already specified in the conversation. Otherwise show the saved budget, or explain that `large` matches the upstream effort target, and offer the original four choices.
 +
 +- `unlimited` targets `max` reasoning.
@@ -6479,14 +6467,14 @@ index f5a64a8..9b45635 100644
  
  `scripts/statechart.ts` is TypeScript, so run it with a runtime that can execute TypeScript.
 diff --git a/skills/swarm/SKILL.md b/skills/swarm/SKILL.md
-index 9cd3224..715ce24 100644
+index f30da87..715ce24 100644
 --- a/skills/swarm/SKILL.md
 +++ b/skills/swarm/SKILL.md
 @@ -19,14 +19,14 @@ Open a todolist with one entry per phase before launching anything.
  
  1. State the done predicate and the artifact or report the swarm must return.
  2. Choose the shape. Partition into slices, race N workers on identical briefs, or mix both. For a race or mixed shape, declare `first pass`, `rank all`, or `best-of` before spawning.
--3. Pick the worker model from the `swarm workers` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, use `grok-4.7-xhigh-fast`. For `auto` or `inherit-parent`, omit `model` so the workers run on the parent model. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message. For a model race, name each arm's model up front. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+-3. Pick the worker model from the `swarm workers` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, use `claude-opus-5-5-high-fast`. For `auto` or `inherit-parent`, omit `model` so the workers run on the parent model. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message. For a model race, name each arm's model up front. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
 +3. Read [Claude Code execution](../poteto-mode/references/claude-execution.md) and resolve `swarm workers` with worker kind `general-purpose`. Each worker uses that scalar selection unless a model race or comparison assigns its arm another model. Name each race arm's model up front. Parent aliases bind the actual native parent. A rejected model tries the bundled default, then the closest valid model of its family from the error. Say which fallback ran. Apply poteto-mode's reasoning and speed guidance.
  4. Give each worker its own writable output when it writes. When workers verify or measure commits, each brief names the exact SHAs. A measurement brief also names the method (sample count, what one sample is, order). The worker records both in its result.
  
@@ -6500,49 +6488,6 @@ index 9cd3224..715ce24 100644
  
  Every brief stands alone. Include the goal, scope, exact slice or race arm, how to verify, and what to report. Reports use `PASS`, `ISSUES`, or `BLOCKED` with evidence. A worker that can prove a defect reports `ISSUES` and lists every issue it can prove, not only the first.
  
-diff --git a/skills/why/SKILL.md b/skills/why/SKILL.md
-index b5fe93f..d0f548c 100644
---- a/skills/why/SKILL.md
-+++ b/skills/why/SKILL.md
-@@ -8,9 +8,9 @@ disable-model-invocation: true
- 
- Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
- 
--Each spawn below names a role line in the `pstack-models.mdc` rule and a default. Set `model` to that line's value, or to the default if the rule or the line is missing. Leave `model` unset when the value is `auto` or `inherit-parent`. If the Task tool rejects a slug, use the default and say so. If it rejects the default, use the closest valid slug of the same family from its error message. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
-+Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Investigators resolve `why investigators`; the synthesizer resolves `why synthesizer`. A rejected model tries the bundled default, then the closest valid model of the same family from the error, with disclosure. Parent aliases bind the actual native parent. Use poteto-mode's reasoning and speed guidance.
- 
--Every spawn is `generalPurpose` with `readonly: false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables the MCP-backed investigators and the synthesizer's citation spot-checks. Investigators still shouldn't write anything.
-+Every seat uses worker kind `general-purpose` with the selected executor's configured MCP tools. Investigators receive a no-edits brief. Do not substitute a restricted Explore or Plan agent for a configured worker, since that changes its model, instructions, and available tools.
- 
- ## Operating Posture
- 
-@@ -32,7 +32,7 @@ Before spawning investigators, build the seed context inline: file paths and lin
- 
- ### Discovery
- 
--Before spawning investigators, list the available MCPs from the Cursor environment. Use the available-tools map when present. Otherwise inspect the `mcps/` directory Cursor exposes for enabled MCP servers.
-+Before spawning investigators, list the MCPs exposed by the active Claude Code session. Use the live tool inventory and configured server information. Codex workers use the Codex environment's configured MCPs, so verify that each assigned source is available to that executor. A parent tool inventory alone does not grant an external worker access.
- 
- Map each available MCP to one evidence category:
- 
-@@ -46,7 +46,7 @@ Map each available MCP to one evidence category:
- 
- Source control is always available through git and `gh`. For the other six, classify using the MCP name, server instructions, tool names, and resource descriptors. If an MCP could fit more than one category, choose the one matching its primary evidence. Record ambiguous cases in the coverage map.
- 
--Spawn one investigator per category that has a matching MCP, all in a single message so they run concurrently, each owning exactly one tool or MCP. Don't ask one agent to cover multiple MCPs. `model`: the `why investigators` line, default `grok-4.7-xhigh-fast`.
-+Spawn one investigator per category that has a matching MCP, all in a single message so they run concurrently, each owning exactly one tool or MCP. Don't ask one agent to cover multiple MCPs. Resolve the `why investigators` role through Claude Code execution.
- 
- Each investigator's prompt is `references/investigator-prompt.md` filled in, plus:
- - the category playbook `references/sources/<source>.md` for the selected MCP, adapted from the examples in `references/source-playbook.md`
-@@ -76,7 +76,7 @@ If your scope assessment suggests a single-commit trivial target where the PR de
- 
- ## Step 4. Synthesize
- 
--Spawn one synthesizer. `model`: the `why synthesizer` line, default `claude-opus-5-5-xhigh`. It gets:
-+Spawn one synthesizer. Resolve the `why synthesizer` role through Claude Code execution. It gets:
- 1. The investigator findings, including any null results and any categories skipped with justification
- 2. The code anchor
- 3. The user's original question
 diff --git a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs
 index 72b30a7..8eb194f 100644
 --- a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs

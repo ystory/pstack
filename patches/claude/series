@@ -43,3 +43,6 @@ shared/0011-native-pi-session-storage.patch
 0032-codex-auth-observation.patch
 0033-native-state-release-version.patch
 0034-worker-access-evidence.patch
+shared/0012-official-agy-executor.patch
+shared/0013-agy-probe-streams-and-receipt-identity.patch
+shared/0014-agy-prompt-free-stdin.patch

@@ -391,6 +391,7 @@ export async function diffPluginTrees(
   previous: string,
   next: string,
   selectedPaths?: readonly string[],
+  algorithm?: 'patience' | 'histogram' | 'minimal',
 ): Promise<Buffer> {
   if (selectedPaths) validatePatchPaths(selectedPaths);
   const paths = selectedPaths
@@ -445,6 +446,7 @@ export async function diffPluginTrees(
       '--binary',
       '--no-renames',
       '--no-ext-diff',
+      ...(algorithm ? [`--diff-algorithm=${algorithm}`] : []),
     ]);
   } finally {
     await rm(temporary, { recursive: true, force: true });

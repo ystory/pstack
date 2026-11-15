@@ -128,13 +128,27 @@ Keep candidates, artifacts, and verification receipts in ignored `.local/` stora
 
    Review the full skill inventory and descriptions for both targets. Check the Claude delegation-site inventory against every role and platform mapping. Check every new skill's frontmatter and Codex invocation metadata, links, namespaces, and mapped paths. Confirm that model routing, executors, agents, distribution-policy exclusions, and attribution still match the documented adaptations.
 
-5. Resolve adaptation conflicts inside the candidate. Preserve the original failure reports and receipts. Refresh patches only in this reviewed candidate, keeping each target's order, logical ownership, and unaffected bytes. Regeneration handles both complete target series and retains the independent runtime pin. If you use the regeneration helper, choose a new output directory:
+5. Resolve adaptation conflicts inside the candidate. Preserve the original failure reports and receipts. Refresh patches only in this reviewed candidate, keeping each target's order, logical ownership, and unaffected bytes. Both helpers below handle both complete target series, retain the independent runtime pin, write only to a new output directory, and leave current pins and series unchanged.
+
+   When upstream changed lines that existing patches also touch, rebase the pinned series onto the candidate source:
+
+   ```sh
+   node dist/cli.js rebase-patches --candidate "$PWD/.local/candidates/update" --output "$PWD/.local/rebased-patches"
+   ```
+
+   The command reads the original series and old source from the repository, or from `--project`, and the new source and both reviewed target trees from the candidate. The candidate's own `patches/` are not read. Each existing patch keeps only its own historical change, moved onto the new source. A line only upstream changed takes upstream's version. A line both changed keeps the patch's text. A line upstream deleted stays deleted, and a hunk whose file upstream deleted or rewrote is dropped. A file a patch deleted or rewrote is adaptation-owned from that patch on and keeps its historical bytes, so its deletion or rewrite patch shows the new upstream text as removed lines. A patch whose result is unchanged keeps its exact bytes, and a patch with no remaining change leaves the series. A shared patch must come out identical for both targets.
+
+   Everything else in the reviewed trees lands in new patches appended to each series: one `shared/NNNN-NAME.patch` for paths that shared patches own, then one `NNNN-NAME.patch` per target. `NAME` defaults to `upstream-VERSION-refresh` and `--name` replaces it. Shared paths must match in both candidate trees. The command never moves an update's change into an existing patch.
+
+   Read `rebase-report.json`, every regenerated patch, and the refresh patches before copying the generated `patches/` into the candidate. The report lists each patch as kept, regenerated, or dropped, with conflict and upstream-rewrite counts. Conflicts are resolved line by line without judging meaning. The command exits with an error status when a regenerated patch adds a line that neither its original nor the new source contains, and the report lists those lines as `unexplainedAdditions`. A rewritten file's own lines are not counted.
+
+   When the candidate's patches still reverse cleanly, the regeneration helper can instead group the candidate's changes into its existing patches:
 
    ```sh
    node dist/cli.js regenerate-patches --candidate "$PWD/.local/candidates/update" --output "$PWD/.local/regenerated-patches"
    ```
 
-   Read `regeneration-report.json` and every changed patch before copying the generated series into the candidate's `patches/`. For local-only candidates, the helper groups changes by existing patch paths. Shared candidates preserve per-patch intermediate file states and regenerate each shared node once for both targets. Edited shared bodies stay in shared patches. An original patch that still produces its intended node output retains its exact bytes. If a suffix cannot be reversed, an actually replayable original prefix can establish its prior state. A reconstruction error names the node and paths when neither establishes the state. Git or filesystem errors can abort earlier with their raw diagnostic. Upstream path-type conflicts can require editing the failed candidate patches as well as the output trees before rerunning. Unowned changes can become an explicit target remainder. Shared paths do not justify moving a later adaptation into an earlier patch.
+   Read `regeneration-report.json` and every changed patch before copying the generated series into the candidate's `patches/`. For local-only candidates, the helper groups changes by existing patch paths. Shared candidates preserve per-patch intermediate file states and regenerate each shared node once for both targets. Edited shared bodies stay in shared patches. An original patch that still produces its intended node output retains its exact bytes. If a suffix cannot be reversed, an actually replayable original prefix can establish its prior state. A reconstruction error names the node and paths when neither establishes the state; use `rebase-patches` in that case. Git or filesystem errors can abort earlier with their raw diagnostic. Upstream path-type conflicts can require editing the failed candidate patches as well as the output trees before rerunning. Unowned changes can become an explicit target remainder. Shared paths do not justify moving a later adaptation into an earlier patch.
 
 6. Verify the candidate's source policy and integrity, then verify patch replay and a fresh artifact:
 

@@ -27,6 +27,12 @@ import {
 } from './roles.mjs';
 
 import {
+  agyEntry,
+  agyCapability,
+  agyEfforts,
+} from '../../poteto-mode/scripts/agy-capabilities.mjs';
+
+import {
   piEntry,
   piCapability,
   piEfforts,
@@ -47,6 +53,7 @@ const executorEfforts = {
   'claude-code': new Set(['low', 'medium', 'high', 'xhigh', 'max']),
   codex: new Set(efforts),
   pi: new Set(piEfforts),
+  antigravity: new Set(agyEfforts),
 };
 const keyFor = (entry) => routeKey(entry, 'claude-code');
 
@@ -67,10 +74,11 @@ function entryFor(value, role) {
   )
     throw new Error(`Invalid model entry for ${role}.`);
   const executor = value.executor ?? 'claude-code';
-  if (!['claude-code', 'codex', 'pi'].includes(executor))
+  if (!['claude-code', 'codex', 'pi', 'antigravity'].includes(executor))
     throw new Error(`Unknown executor for ${role}.`);
   routeKey({ ...value, executor });
   if (executor === 'pi') return piEntry(value);
+  if (executor === 'antigravity') return agyEntry(value);
   if (aliases.has(value.model)) {
     if (executor !== 'claude-code' || value.reasoningEffort !== undefined)
       throw new Error(
@@ -158,7 +166,7 @@ function executionDefault(kind) {
   };
 }
 
-export function normalizeCatalog(input, native, piCatalog) {
+export function normalizeCatalog(input, native, piCatalog, agyCatalog) {
   const response = input?.codex?.models
     ? input.codex
     : (input?.result ?? input ?? { models: [] });
@@ -187,10 +195,17 @@ export function normalizeCatalog(input, native, piCatalog) {
       piCatalog.models.some((entry) => entry.executor !== 'pi'))
   )
     throw new Error('--pi-catalog requires a Pi models array.');
+  if (
+    agyCatalog &&
+    (!Array.isArray(agyCatalog.models) ||
+      agyCatalog.models.some((entry) => entry.executor !== 'antigravity'))
+  )
+    throw new Error('--agy-catalog requires an Antigravity models array.');
   const seen = new Set();
   const models = [
     ...data,
     ...(piCatalog?.models ?? []),
+    ...(agyCatalog?.models ?? []),
     ...nativeModels.map((entry) => ({
       ...entry,
       executor: 'claude-code',
@@ -207,7 +222,7 @@ export function normalizeCatalog(input, native, piCatalog) {
         : (effort.reasoningEffort ?? effort.reasoning_effort),
     );
     if (
-      !['claude-code', 'codex', 'pi'].includes(executor) ||
+      !['claude-code', 'codex', 'pi', 'antigravity'].includes(executor) ||
       typeof model !== 'string' ||
       !model ||
       model.trim() !== model ||
@@ -237,6 +252,8 @@ export function normalizeCatalog(input, native, piCatalog) {
     if (seen.has(key))
       throw new Error(`Duplicate catalog model: ${executor} ${model}`);
     seen.add(key);
+    if (executor === 'antigravity')
+      return agyCapability({ ...entry, model, supportedReasoningEfforts });
     if (executor === 'pi')
       return piCapability({ ...entry, model, supportedReasoningEfforts });
     return {
@@ -321,6 +338,9 @@ async function main(options) {
       options.piCatalog
         ? await inputJson(options.piCatalog, '--pi-catalog')
         : undefined,
+      options.agyCatalog
+        ? await inputJson(options.agyCatalog, '--agy-catalog')
+        : undefined,
     );
   const home = claudeHome(options.claudeHome);
   const loaded = await loadConfig(home);
@@ -393,7 +413,8 @@ async function main(options) {
       for (const [index, entry] of entriesFor(value).entries()) {
         if (typeof entry === 'string' || aliases.has(entry.model)) continue;
         const supported = detected.get(keyFor(entry)) ?? [];
-        const ladder = entry.executor === 'pi' ? piEfforts : efforts;
+        const ladder =
+          { pi: piEfforts, antigravity: agyEfforts }[entry.executor] ?? efforts;
         const resolved = ladder
           .slice(0, ladder.indexOf(target) + 1)
           .reverse()
@@ -470,6 +491,7 @@ if (
         '--catalog',
         '--native-catalog',
         '--pi-catalog',
+        '--agy-catalog',
         '--input',
         '--expected-hash',
       ],
@@ -477,7 +499,7 @@ if (
     );
     if (options.help) {
       process.stdout.write(
-        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG] [--pi-catalog ABS]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
+        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG] [--pi-catalog ABS] [--agy-catalog ABS]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
       );
       return;
     }

@@ -10,7 +10,7 @@ Run the sibling setup helper with its absolute path:
 node <skills>/setup-pstack/scripts/models.mjs resolve --role "<role>"
 ```
 
-It reads `$CODEX_HOME/pstack-codex/models.json`, or `~/.codex/pstack-codex/models.json` when `CODEX_HOME` is unset. The response contains `role`, ordered `entries`, `source`, and `file`. Each entry supplies `model`, its saved budget's starting `reasoningEffort`, and an optional `executor`. An absent executor or `"codex"` uses native Codex delegation. `"claude-code"` uses the bundled Claude Code runner with that entry's exact model ID. Pass it explicitly as `--model ENTRY.MODEL`.
+It reads `$CODEX_HOME/pstack-codex/models.json`, or `~/.codex/pstack-codex/models.json` when `CODEX_HOME` is unset. The response contains `role`, ordered `entries`, `source`, and `file`. Each entry supplies `model`, its saved budget's starting `reasoningEffort`, and an optional `executor`. `"antigravity"` uses the official agy runner described below. An absent executor or `"codex"` uses native Codex delegation. `"claude-code"` uses the bundled Claude Code runner with that entry's exact model ID. Pass it explicitly as `--model ENTRY.MODEL`.
 
 A missing role resolves to `inherit-parent` with source `unconfigured`. Scalar roles yield one entry, and the four list roles yield two initial entries. Disclose the native-parent resolution. Saved exact choices remain authoritative. No bundled model or external CLI is required before setup.
 
@@ -78,6 +78,10 @@ The outbound runner automatically includes the shared [receiving-worker executio
 ## Pi workers
 
 For `executor: "pi"`, preserve the returned exact `provider`, `model`, and separate `reasoningEffort`. Read [Pi execution](pi-execution.md) for the owned RPC runner, explicit tool selection, context delivery, structured rejection handling, terminal receipts, and exact resume. Use this host's asynchronous command controls and collect every terminal receipt. Pi entries have no native agent type. Parent aliases stay native. Known model lineage establishes family diversity. Pi, provider names, ambiguous custom IDs, and virtual routes with unknown lineage do not. Preserve the calling workflow's selected-pool, fresh-worker, required capability, and family gates.
+
+## Antigravity workers
+
+For `executor: "antigravity"`, preserve the returned exact `model` and separate `reasoningEffort`. Read [Antigravity execution](agy-execution.md) for the official agy runner, scoped session permissions, complete context, terminal receipts, cumulative usage, and exact continuation. Use this host's asynchronous command controls and collect every terminal receipt. Antigravity entries have no native agent type. Parent aliases stay native. Use known exact-model lineage for diversity. Custom or virtual routes with unknown lineage remain unknown. Preserve the calling workflow's selected-pool, cardinality, fresh-worker, required capability, and family gates.
 
 ## Local worktrees
 

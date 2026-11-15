@@ -11,9 +11,9 @@ For removal, run `scripts/register-agents.mjs --unregister` while this bundle is
 
 ## 1. Choose worker executors
 
-Start by asking which worker executors to use, unless the conversation already supplies the choice. Offer the available worker executors independently. Native Codex, Claude Code, and Pi can be selected in any combination. The parent chat stays in Codex. Prefill the executors used by saved choices on a rerun. Do not infer a worker model from the chosen executors.
+Start by asking which worker executors to use, unless the conversation already supplies the choice. Offer the available worker executors independently. Native Codex, Claude Code, Pi, and Antigravity can be selected in any combination. The parent chat stays in Codex. Prefill the executors used by saved choices on a rerun. Do not infer a worker model from the chosen executors.
 
-Only selected executors need installation and login checks. Unselected Claude Code and Pi CLIs are neither invoked nor required. If a previously saved entry uses an executor the user now excludes, show that entry and obtain its replacement before saving. Preserve every other accepted choice.
+Only selected executors need installation and login checks. Unselected worker CLIs are neither invoked nor required. If a previously saved entry uses an executor the user now excludes, show that entry and obtain its replacement before saving. Preserve every other accepted choice.
 
 ## 2. Prepare the selected CLIs
 
@@ -23,21 +23,27 @@ For selected Claude Code workers, run the sibling `poteto-mode/scripts/run-claud
 
 For selected Pi workers, use the Pi prerequisite section and catalog procedure below.
 
+For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs detect`. Use the prerequisite guide for the official agy CLI, then collect its source-labeled catalog below. Reuse inherited authentication without reading credentials or changing personal defaults. Detection proves required syntax and version only.
+
 The [execution binding](../poteto-mode/references/execution.md) describes runtime capability checks. A global CLI effort list proves syntax only. It supplies no default model or account entitlement.
 
 ## 3. Load choices and collect supported models
 
 Run `scripts/models.mjs read` and retain `config`, `proposal`, `needsChoice`, and `sha256`. Fresh `config.roles` is empty. The proposal presents all 17 roles with unresolved model slots. Scalars start with one slot and panels or pools with two. Saved choices prefill the proposal and remain authoritative. Missing roles execute on the actual native parent with their original counts, disclosed as `unconfigured`. Setup is optional before a task.
 
-Enumerate exact model IDs and supported efforts from this session's native tools or Codex `model/list`. Collect every page. For selected Claude workers, collect model-specific host or configuration evidence, or ask for confirmation of the exact model and its efforts. Label that source. A configured candidate alone does not prove access. Honor confirmation already supplied in the conversation.
+For selected native Codex workers, enumerate exact model IDs and supported efforts from this session's native tools or Codex `model/list`. Collect every page. For selected Claude workers, collect model-specific host or configuration evidence, or ask for confirmation of the exact model and its efforts. Label that source. A configured candidate alone does not prove access. Honor confirmation already supplied in the conversation.
 
 For selected Pi workers, run the sibling `poteto-mode/scripts/run-pi.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. It queries exact provider/model routes and their supported efforts without submitting a task prompt. Use its `catalog.json` with `--pi-catalog ABSOLUTE_PI_CATALOG` when normalizing. Configured availability does not prove authentication freshness or successful inference.
 
+For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. Pass its sanitized `catalog.json` through `--agy-catalog ABSOLUTE_AGY_CATALOG` when normalizing. No model prompt is submitted. Fixed-effort labels establish only the reported variant's configured availability. Unclassified candidates need per-model evidence before selection.
+
 Normalize the combined catalog with `scripts/models.mjs catalog --input ABSOLUTE_JSON`. Include `--claude-runtime ABSOLUTE_DETECT_JSON` only when configuring external Claude entries. Every Claude entry needs its own source and efforts expressible by that runtime. Pi entries carry their own per-model RPC source and provider. See [model capability records](references/models-contract.md#model-capability-records). No fixed Sol, Opus, or other model is required.
+
+For Antigravity-only worker choices, skip native, Claude, and Pi probes and model collection. Normalize with `scripts/models.mjs catalog --agy-catalog ABSOLUTE_AGY_CATALOG` alone. For any combination, include only the selected catalogs.
 
 For Pi-only worker choices, skip native and other external model collection. Normalize with `scripts/models.mjs catalog --pi-catalog ABSOLUTE_PI_CATALOG` alone. Omit `--input`, `--native-catalog`, and `--claude-runtime` when unused. Native parent aliases remain available without a native model catalog.
 
-`auto` and `inherit-parent` always mean the actual native Codex parent. They omit a separate effort and cannot select the external executor. Bind them through Codex execution's parent-selection rules.
+`auto` and `inherit-parent` always mean the actual native Codex parent. They omit a separate effort and cannot select an external executor. Bind them through Codex execution's parent-selection rules.
 
 ## 4. Choose roles and reasoning budget
 
@@ -77,6 +83,8 @@ Keep these original role names and initial counts.
 Panels run every ordered entry, including duplicates and aliases. Arena's cross-judge pool selects one eligible judge in order. Parent aliases never establish a different family. Pi provider names and ambiguous virtual model IDs do not establish model lineage. Arena skips its judge with disclosure if no selected eligible entry runs. Required diversity gates elsewhere keep their own unmet outcome. No unused executor is a blanket requirement.
 
 Pi choices retain `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "LEVEL" }`. Choose provider and model separately. Pi uses `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Budget previews select only reported levels on that ladder, including `off` for nonreasoning models. Native aliases stay native, and native registration creates no Pi model definitions. Follow [Pi execution](../poteto-mode/references/pi-execution.md) for explicit tools, context, fresh sessions, capability gaps, and required family gates.
+
+Antigravity choices retain `{ "executor": "antigravity", "model": "EXACT_AGY_ID", "reasoningEffort": "LEVEL" }`. They have no provider or authentication fields and create no native model definitions. Budget previews keep the exact ID and use only that model's reported efforts. A fixed `xhigh` variant has no lower effort unless its per-model evidence says otherwise. If the target cannot be met, resolve `needsChoice` without silently switching IDs. Follow [Antigravity execution](../poteto-mode/references/agy-execution.md) for scoped permissions, complete context, native history, exact continuation, and capability limits.
 
 ## 5. Review, register, and save
 

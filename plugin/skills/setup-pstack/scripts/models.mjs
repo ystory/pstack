@@ -10,6 +10,12 @@ import {
 } from '../../poteto-mode/scripts/claude-capabilities.mjs';
 
 import {
+  agyEntry,
+  agyCapability,
+  agyEfforts,
+} from '../../poteto-mode/scripts/agy-capabilities.mjs';
+
+import {
   piEntry,
   piCapability,
   piEfforts,
@@ -66,6 +72,7 @@ function argumentsFor(argv) {
     '--catalog': 'catalog',
     '--claude-runtime': 'claudeRuntime',
     '--pi-catalog': 'piCatalog',
+    '--agy-catalog': 'agyCatalog',
     '--input': 'input',
     '--expected-hash': 'expectedHash',
   };
@@ -128,7 +135,7 @@ const executorFor = (entry) =>
   entry.executor === undefined ? 'codex' : entry.executor;
 const modelKey = (entry) => routeKey(entry);
 
-function normalizeCatalog(input, suppliedRuntime, piCatalog) {
+function normalizeCatalog(input, suppliedRuntime, piCatalog, agyCatalog) {
   const response = input?.result ?? input;
   let data = Array.isArray(response)
     ? response
@@ -146,6 +153,14 @@ function normalizeCatalog(input, suppliedRuntime, piCatalog) {
     )
       throw new Error('--pi-catalog requires a Pi models array.');
     data = [...data, ...piCatalog.models];
+  }
+  if (agyCatalog) {
+    if (
+      !Array.isArray(agyCatalog.models) ||
+      agyCatalog.models.some((entry) => entry.executor !== 'antigravity')
+    )
+      throw new Error('--agy-catalog requires an Antigravity models array.');
+    data = [...data, ...agyCatalog.models];
   }
   if (!Array.isArray(response?.runtimes ?? []))
     throw new Error('Model catalog runtimes must be an array.');
@@ -167,7 +182,7 @@ function normalizeCatalog(input, suppliedRuntime, piCatalog) {
     if (
       typeof id !== 'string' ||
       !id ||
-      !['codex', 'claude-code', 'pi'].includes(executorFor(model)) ||
+      !['codex', 'claude-code', 'pi', 'antigravity'].includes(executorFor(model)) ||
       seen.has(modelKey({ ...model, model: id })) ||
       !Array.isArray(reasoningEfforts) ||
       !reasoningEfforts.length ||
@@ -201,6 +216,12 @@ function normalizeCatalog(input, suppliedRuntime, piCatalog) {
         );
     }
     seen.add(modelKey({ ...model, model: id }));
+    if (executorFor(model) === 'antigravity')
+      return agyCapability({
+        ...model,
+        model: id,
+        supportedReasoningEfforts: reasoningEfforts,
+      });
     if (executorFor(model) === 'pi')
       return piCapability({
         ...model,
@@ -234,10 +255,11 @@ function validateEntry(entry, role) {
     entry.model !== entry.model.trim()
   )
     throw new Error(`Invalid model entry for ${role}.`);
-  if (!['codex', 'claude-code', 'pi'].includes(executorFor(entry)))
+  if (!['codex', 'claude-code', 'pi', 'antigravity'].includes(executorFor(entry)))
     throw new Error(`Unknown executor for ${role}.`);
   routeKey(entry);
   if (executorFor(entry) === 'pi') return piEntry(entry);
+  if (executorFor(entry) === 'antigravity') return agyEntry(entry);
   const executor =
     entry.executor === undefined ? {} : { executor: entry.executor };
   if (aliases.has(entry.model)) {
@@ -360,7 +382,8 @@ function applyBudget(config, budget, catalog) {
     entries.forEach((entry, index) => {
       if (aliases.has(entry.model)) return;
       const supported = detected.get(modelKey(entry)) ?? [];
-      const ladder = executorFor(entry) === 'pi' ? piEfforts : efforts;
+      const ladder =
+        { pi: piEfforts, antigravity: agyEfforts }[executorFor(entry)] ?? efforts;
       const resolved = ladder
         .slice(0, ladder.indexOf(target) + 1)
         .reverse()
@@ -392,6 +415,9 @@ async function main(options) {
       runtime,
       options.piCatalog
         ? await inputJson(options.piCatalog, '--pi-catalog')
+        : undefined,
+      options.agyCatalog
+        ? await inputJson(options.agyCatalog, '--agy-catalog')
         : undefined,
     );
   const selectedHome =
@@ -507,7 +533,7 @@ try {
   const options = argumentsFor(process.argv.slice(2));
   if (options.help)
     process.stdout.write(
-      'Usage: node models.mjs read|resolve|budget|write|catalog [options]\nread/resolve: [--codex-home ABS] [--role ROLE]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\ncatalog: --input ABS (native model/list or combined model capabilities) [--claude-runtime ABS] [--pi-catalog ABS]\nbudget/write also accept --claude-runtime ABS or a normalized catalog containing its runtime receipt.\n',
+      'Usage: node models.mjs read|resolve|budget|write|catalog [options]\nread/resolve: [--codex-home ABS] [--role ROLE]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\ncatalog: [--input ABS] (native model/list or combined model capabilities) [--claude-runtime ABS] [--pi-catalog ABS] [--agy-catalog ABS]\nbudget/write also accept --claude-runtime ABS or a normalized catalog containing its runtime receipt.\n',
     );
   else
     process.stdout.write(`${JSON.stringify(await main(options), null, 2)}\n`);

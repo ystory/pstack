@@ -46,3 +46,4 @@ shared/0011-native-pi-session-storage.patch
 shared/0012-official-agy-executor.patch
 shared/0013-agy-probe-streams-and-receipt-identity.patch
 shared/0014-agy-prompt-free-stdin.patch
+0035-agy-worker-setup.patch

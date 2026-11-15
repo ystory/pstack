@@ -51,6 +51,9 @@ async function fixture(t: TestContext) {
   );
   const cwd = path.join(root, 'exact worktree');
   await mkdir(cwd);
+  const home = path.join(root, 'home');
+  await mkdir(home);
+  const { AGY_ADC_AUTH, GEMINI_API_KEY, ...inherited } = process.env;
   const runner = path.join(scripts, 'run-agy.mjs');
   let index = 0;
   async function invoke(
@@ -87,7 +90,8 @@ async function fixture(t: TestContext) {
       ],
       {
         env: {
-          ...process.env,
+          ...inherited,
+          HOME: home,
           AGY_FIXTURE: mode,
           AGY_TRACE: trace,
           AGY_CHILD_PID: childPid,
@@ -145,18 +149,22 @@ async function fixture(t: TestContext) {
       childPid,
     };
   }
-  return { root, cwd, plugin, runner, invoke };
+  return { root, cwd, home, plugin, runner, invoke };
 }
 
-test('agy detect reports syntax and inherited auth mode without claiming authentication or inference', async (t) => {
+test('agy detect reports syntax and inherited auth method without claiming authentication or inference', async (t) => {
   const f = await fixture(t);
   const detected = await f.invoke('normal', [], 'detect', {
     AGY_ADC_AUTH: 'true',
   });
   assert.equal(detected.code, 0, detected.stderr);
   assert.equal(detected.receipt.version, '1.5.9');
-  assert.equal(detected.receipt.auth.mode, 'adc');
-  assert.equal(detected.receipt.auth.verified, false);
+  assert.deepEqual(detected.receipt.auth, {
+    method: 'adc',
+    modelProvider: null,
+    geminiApiKeyPresent: false,
+    verified: false,
+  });
   assert.equal(detected.receipt.modelExecutionVerified, false);
   const calls = await readFile(detected.trace, 'utf8');
   assert.equal(calls.includes('[\"auth\"'), false);
@@ -558,6 +566,172 @@ test('agy resumes a closed receipt when its historical PID identifies an unrelat
   assert.equal(resumed.receipt?.status, 'completed');
   assert.equal(resumed.receipt.conversationId, first.receipt.conversationId);
   assert.doesNotThrow(() => process.kill(-unrelated.pid!, 0));
+});
+
+test('agy receipts name the inherited auth method from agy settings and environment without exposing the key or settings body', async (t) => {
+  const f = await fixture(t);
+  const key = 'fixture-gemini-key-value-never-recorded';
+  const unrelated = 'settings-body-never-recorded';
+  const settings = path.join(f.home, '.gemini/antigravity-cli/settings.json');
+  await mkdir(path.dirname(settings), { recursive: true });
+  type Auth = {
+    method: string;
+    modelProvider: string | null;
+    geminiApiKeyPresent: boolean;
+    verified: false;
+  };
+  const cases: [string | null, Record<string, string>, Auth][] = [
+    [
+      JSON.stringify({ modelProvider: 'gemini', unrelated }),
+      { GEMINI_API_KEY: key, AGY_ADC_AUTH: 'true' },
+      {
+        method: 'gemini-api-key',
+        modelProvider: 'gemini',
+        geminiApiKeyPresent: true,
+        verified: false,
+      },
+    ],
+    [
+      JSON.stringify({ modelProvider: 'gemini' }),
+      {},
+      {
+        method: 'gemini-api-key',
+        modelProvider: 'gemini',
+        geminiApiKeyPresent: false,
+        verified: false,
+      },
+    ],
+    [
+      null,
+      { AGY_ADC_AUTH: 'true', GEMINI_API_KEY: key },
+      {
+        method: 'adc',
+        modelProvider: null,
+        geminiApiKeyPresent: true,
+        verified: false,
+      },
+    ],
+    [
+      JSON.stringify({ modelProvider: 'other', unrelated }),
+      { GEMINI_API_KEY: '' },
+      {
+        method: 'inherited-default',
+        modelProvider: 'other',
+        geminiApiKeyPresent: false,
+        verified: false,
+      },
+    ],
+    [
+      '{"modelProvider": "gemini"',
+      { AGY_ADC_AUTH: 'false' },
+      {
+        method: 'inherited-default',
+        modelProvider: null,
+        geminiApiKeyPresent: false,
+        verified: false,
+      },
+    ],
+  ];
+  for (const [contents, env, expected] of cases) {
+    if (contents === null) await rm(settings, { force: true });
+    else await writeFile(settings, contents);
+    const detected = await f.invoke('normal', [], 'detect', env);
+    assert.equal(detected.code, 0, detected.stderr);
+    assert.deepEqual(detected.receipt.auth, expected);
+    const runs = [
+      await f.invoke('normal', [], 'catalog', env),
+      await f.invoke('normal', [], 'run', env),
+    ];
+    for (const run of runs) {
+      assert.equal(run.code, 0, run.stderr);
+      const receipt = JSON.parse(
+        await readFile(path.join(run.runDir, 'result.json'), 'utf8'),
+      );
+      assert.deepEqual(receipt.auth, expected);
+      assert.equal(receipt.authMode, expected.method);
+      assert.equal(
+        JSON.stringify(receipt.args).includes('modelProvider'),
+        false,
+      );
+      for (const text of [
+        detected.stdout,
+        run.stdout,
+        await readFile(path.join(run.runDir, 'result.json'), 'utf8'),
+        await readFile(path.join(run.runDir, 'request.json'), 'utf8'),
+      ])
+        for (const secret of [key, unrelated])
+          assert.equal(text.includes(secret), false);
+    }
+  }
+});
+
+test('agy resume rejects a prior receipt whose auth method differs from the inherited one', async (t) => {
+  const f = await fixture(t);
+  const first = await f.invoke('normal', [], 'run', { AGY_ADC_AUTH: 'true' });
+  assert.equal(first.receipt.authMode, 'adc');
+  const prior = path.join(first.runDir, 'result.json');
+  const settings = path.join(f.home, '.gemini/antigravity-cli/settings.json');
+  await mkdir(path.dirname(settings), { recursive: true });
+  await writeFile(settings, JSON.stringify({ modelProvider: 'gemini' }));
+  const rejected = await f.invoke('normal', ['--resume', prior], 'run', {
+    AGY_ADC_AUTH: 'true',
+  });
+  assert.notEqual(rejected.code, 0);
+  assert.equal(rejected.receipt, null);
+  assert.match(rejected.stderr, /same inherited auth/);
+  await assert.rejects(readFile(rejected.trace), { code: 'ENOENT' });
+  await rm(settings);
+  const resumed = await f.invoke('normal', ['--resume', prior], 'run', {
+    AGY_ADC_AUTH: 'true',
+  });
+  assert.equal(resumed.code, 0, resumed.stderr);
+  assert.equal(resumed.receipt.auth.method, 'adc');
+});
+
+test('agy keeps a native ERROR terminal result and its usage in the failed receipt and never continues it', async (t) => {
+  const f = await fixture(t);
+  const run = await f.invoke('failure');
+  assert.notEqual(run.code, 0);
+  const prior = path.join(run.runDir, 'result.json');
+  const receipt = JSON.parse(await readFile(prior, 'utf8'));
+  assert.equal(receipt.status, 'failed');
+  assert.equal(receipt.result, null);
+  assert.equal(receipt.terminalResult.status, 'ERROR');
+  assert.equal(
+    receipt.terminalResult.error,
+    'Resource exhausted. Please try again later.',
+  );
+  assert.equal(receipt.terminalResult.finished_reason, 'error');
+  assert.equal(receipt.terminalResult.conversation_id, receipt.conversationId);
+  assert.deepEqual(receipt.usage, {
+    scope: 'conversation-cumulative',
+    source: 'native-agy-result',
+    value: {
+      input_tokens: 13417,
+      output_tokens: 1084,
+      thinking_tokens: 725,
+      cache_read_tokens: 0,
+      total_tokens: 14501,
+    },
+  });
+  await assert.rejects(lstat(path.join(run.runDir, 'final.txt')), {
+    code: 'ENOENT',
+  });
+  await writeFile(
+    prior,
+    JSON.stringify({
+      ...receipt,
+      status: 'completed',
+      error: null,
+      result: 'forged answer',
+      terminalResult: { ...receipt.terminalResult, response: 'forged answer' },
+    }),
+  );
+  const resumed = await f.invoke('normal', ['--resume', prior]);
+  assert.notEqual(resumed.code, 0);
+  assert.equal(resumed.receipt, null);
+  assert.match(resumed.stderr, /terminal evidence/);
+  await assert.rejects(readFile(resumed.trace), { code: 'ENOENT' });
 });
 
 test('agy rejects wrong resume route, cwd, auth, closure, receipt alias and naked conversation before worker launch', async (t) => {

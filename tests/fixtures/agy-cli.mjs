@@ -14,7 +14,6 @@ const option = (name) => args[args.indexOf(name) + 1];
 trace({
   args,
   cwd: process.cwd(),
-  authMode: process.env.AGY_ADC_AUTH === 'true' ? 'adc' : 'inherited-default',
   inheritedMarker: process.env.AGY_INHERITED_MARKER,
 });
 if (['--version', '--help', 'models'].includes(args[0])) {
@@ -124,12 +123,36 @@ if (args[0] === '--version') {
     event: 'result',
     result: {
       conversation_id: mode === 'wrong-result-id' ? 'wrong' : conversationId,
-      status: mode === 'failure' ? 'ERROR' : 'SUCCESS',
+      status: 'SUCCESS',
       response: mode === 'empty' ? ' \n ' : 'fresh answer 한글 🥔',
       num_turns: args.includes('--conversation') && mode !== 'stale' ? 2 : 1,
       usage: { input_tokens: 22, output_tokens: 4, total_tokens: 26 },
     },
   };
+  if (mode === 'failure') {
+    emit({
+      event: 'step_update',
+      step_update: {
+        conversation_id: conversationId,
+        step_index: 1,
+        state: 'DONE',
+        step_type: 'error_message',
+      },
+    });
+    Object.assign(result.result, {
+      status: 'ERROR',
+      response: '',
+      error: 'Resource exhausted. Please try again later.',
+      finished_reason: 'error',
+      usage: {
+        input_tokens: 13417,
+        output_tokens: 1084,
+        thinking_tokens: 725,
+        cache_read_tokens: 0,
+        total_tokens: 14501,
+      },
+    });
+  }
   if (mode === 'error-then-success')
     emit({ event: 'error', error: 'original native failure' });
   if (

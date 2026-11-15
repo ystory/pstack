@@ -136,10 +136,7 @@ test('packaged agent metadata and original instructions survive the supplied-bod
       'utf8',
     );
     assert.ok(markdown.startsWith(header[0]));
-    assert.equal(
-      parsed.body,
-      codexBody(name, markdown.slice(header[0].length)),
-    );
+    assert.equal(parsed.body, markdown.slice(header[0].length));
     assert.doesNotMatch(parsed.body, /\.cursor/);
     if (name === 'poteto-agent') {
       assert.ok(

@@ -17,6 +17,7 @@ import { createUpstreamCandidate } from './upstream/candidate.ts';
 import { readDependencyLock } from './upstream/dependencies.ts';
 import path from 'node:path';
 import { regenerateCandidatePatches } from './distribution/regenerate.ts';
+import { rebaseCandidatePatches } from './distribution/rebase.ts';
 import { compactPatchSeries } from './distribution/compact.ts';
 import { parseTarget, projectTargets } from './distribution/targets.ts';
 import {
@@ -69,7 +70,7 @@ try {
   switch (command) {
     case '--help':
       console.log(
-        'pstack maintainer CLI\n\nCommands:\n  verify-upstream  Verify pinned source integrity and manifest version\n  verify-patches [--project ABSOLUTE_DIRECTORY] [--target codex|claude-code|all]\n                  Replay every patch and compare plugin bytes and modes\n  check-upstream   Read public GitHub revisions and report changes\n  build-plugin --output ABSOLUTE_NEW_DIRECTORY [--target codex|claude-code] [--project ABSOLUTE_DIRECTORY] [--marketplace ABSOLUTE_DIRECTORY]\n                  Build and verify; --marketplace then selects the verified child artifact\n  promote-plugin --artifact ABSOLUTE_DIRECTORY --marketplace ABSOLUTE_DIRECTORY\n                  Verify an existing child artifact and select it for the fixed native marketplace\n  verify-plugin --artifact ABSOLUTE_DIRECTORY\n  generate-patch --name NNNN-lowercase-name.patch [--target codex|claude-code] [--paths FILE_OR_DIRECTORY[,..]] [--project ABSOLUTE_DIRECTORY]\n  generate-shared-patch --from codex|claude-code --name NNNN-lowercase-name.patch --paths FILE_OR_DIRECTORY[,..] [--project ABSOLUTE_DIRECTORY]\n  regenerate-patches --candidate ABSOLUTE_DIRECTORY --output ABSOLUTE_NEW_DIRECTORY\n  compact-patches --output ABSOLUTE_NEW_DIRECTORY [--project ABSOLUTE_DIRECTORY]\n                  Write both series as themed patches in which each path belongs to one patch\n  upstream-candidate --source ABSOLUTE_GIT_CHECKOUT --revision FULL_SHA --output ABSOLUTE_NEW_DIRECTORY\n  --help           Show this usage\n\nThese commands do not install or activate plugins, skills, or agents. An omitted target selects Codex; all is accepted only for patch verification. Marketplace selection verifies artifact integrity, not Codex runtime compatibility or release approval. Candidates never replace the pinned source.',
+        'pstack maintainer CLI\n\nCommands:\n  verify-upstream  Verify pinned source integrity and manifest version\n  verify-patches [--project ABSOLUTE_DIRECTORY] [--target codex|claude-code|all]\n                  Replay every patch and compare plugin bytes and modes\n  check-upstream   Read public GitHub revisions and report changes\n  build-plugin --output ABSOLUTE_NEW_DIRECTORY [--target codex|claude-code] [--project ABSOLUTE_DIRECTORY] [--marketplace ABSOLUTE_DIRECTORY]\n                  Build and verify; --marketplace then selects the verified child artifact\n  promote-plugin --artifact ABSOLUTE_DIRECTORY --marketplace ABSOLUTE_DIRECTORY\n                  Verify an existing child artifact and select it for the fixed native marketplace\n  verify-plugin --artifact ABSOLUTE_DIRECTORY\n  generate-patch --name NNNN-lowercase-name.patch [--target codex|claude-code] [--paths FILE_OR_DIRECTORY[,..]] [--project ABSOLUTE_DIRECTORY]\n  generate-shared-patch --from codex|claude-code --name NNNN-lowercase-name.patch --paths FILE_OR_DIRECTORY[,..] [--project ABSOLUTE_DIRECTORY]\n  regenerate-patches --candidate ABSOLUTE_DIRECTORY --output ABSOLUTE_NEW_DIRECTORY\n  rebase-patches --candidate ABSOLUTE_DIRECTORY --output ABSOLUTE_NEW_DIRECTORY [--name lowercase-name] [--project ABSOLUTE_DIRECTORY]\n                  Move the pinned series onto the candidate source; candidate changes land in new refresh patches\n  compact-patches --output ABSOLUTE_NEW_DIRECTORY [--project ABSOLUTE_DIRECTORY]\n                  Write both series as themed patches in which each path belongs to one patch\n  upstream-candidate --source ABSOLUTE_GIT_CHECKOUT --revision FULL_SHA --output ABSOLUTE_NEW_DIRECTORY\n  --help           Show this usage\n\nThese commands do not install or activate plugins, skills, or agents. An omitted target selects Codex; all is accepted only for patch verification. Marketplace selection verifies artifact integrity, not Codex runtime compatibility or release approval. Candidates never replace the pinned source.',
       );
       break;
     case 'verify-patches': {
@@ -164,6 +165,32 @@ try {
       console.log(
         `Regenerated candidate-only patches: ${result.files} files replay exactly (${result.digest}). Review ${options['--output']}/regeneration-report.json before replacing candidate patches. Current pins and series are unchanged.`,
       );
+      break;
+    }
+    case 'rebase-patches': {
+      const options = optionsFor(
+        ['--candidate', '--output'],
+        ['--name', '--project'],
+      );
+      const result = await rebaseCandidatePatches(
+        selectedProject(options),
+        options['--candidate']!,
+        options['--output']!,
+        options['--name'],
+      );
+      for (const target of result.targets)
+        console.log(
+          `Rebased ${target.target} onto pstack ${result.version}: ${target.kept} kept, ${target.regenerated} regenerated, ${target.dropped} dropped, refresh ${[result.sharedRefresh, target.refreshPatch].filter(Boolean).join(' and ') || 'none'}; ${target.files} files replay exactly (${target.digest}).`,
+        );
+      console.log(
+        `Review ${options['--output']}/rebase-report.json and every regenerated and refresh patch before replacing candidate patches. Current pins and series are unchanged.`,
+      );
+      if (result.unexplainedAdditions) {
+        console.error(
+          `${result.unexplainedAdditions} added lines in regenerated patches come from neither the original patch nor the candidate source. The report lists them as unexplainedAdditions.`,
+        );
+        process.exitCode = 1;
+      }
       break;
     }
     case 'compact-patches': {

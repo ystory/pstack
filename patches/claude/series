@@ -48,3 +48,6 @@ shared/0013-agy-probe-streams-and-receipt-identity.patch
 shared/0014-agy-prompt-free-stdin.patch
 0035-agy-worker-setup.patch
 0036-complete-body-guidance.patch
+shared/0015-upstream-0-15-42-refresh.patch
+0037-upstream-0-15-42-refresh.patch
+0038-upstream-0-15-42-version.patch

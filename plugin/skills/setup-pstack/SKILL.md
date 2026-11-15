@@ -29,7 +29,9 @@ The [execution binding](../poteto-mode/references/execution.md) describes runtim
 
 ## 3. Load choices and collect supported models
 
-Run `scripts/models.mjs read` and retain `config`, `proposal`, `needsChoice`, and `sha256`. Fresh `config.roles` is empty. The proposal presents all 17 roles with unresolved model slots. Scalars start with one slot and panels or pools with two. Saved choices prefill the proposal and remain authoritative. Missing roles execute on the actual native parent with their original counts, disclosed as `unconfigured`. Setup is optional before a task.
+Run `scripts/models.mjs read` and retain `config`, `proposal`, `needsChoice`, `droppedRoles`, and `sha256`. Fresh `config.roles` is empty. The proposal presents all 13 roles with unresolved model slots. Scalars start with one slot and panels or pools with three. Saved choices prefill the proposal and remain authoritative. Missing roles execute on the actual native parent with their original counts, disclosed as `unconfigured`. Setup is optional before a task.
+
+A retired role in the saved file, such as `how explorer` or `why investigators`, appears in `droppedRoles` and not in `config`. Show each one to the user. The next save drops it. Any other unknown role still fails validation.
 
 For selected native Codex workers, enumerate exact model IDs and supported efforts from this session's native tools or Codex `model/list`. Collect every page. For selected Claude workers, collect model-specific host or configuration evidence, or ask for confirmation of the exact model and its efforts. Label that source. A configured candidate alone does not prove access. Honor confirmation already supplied in the conversation.
 
@@ -49,38 +51,34 @@ For Pi-only worker choices, skip native and other external model collection. Nor
 
 Present every role and its proposed executor, Pi provider when applicable, model or parent alias, and effort. Offer detected exact choices and parent aliases. A user can apply one selection to several roles. Resolve proposed slots that the user accepts as saved choices. A user may leave roles unconfigured after seeing their native-parent behavior. Do not persist unresolved proposal slots.
 
-Use an already specified budget. Otherwise offer these original four targets.
+Use an already specified budget. Otherwise offer these original four budgets, and name the saved budget on a rerun. Each role has a target effort, which is its starting effort in the table below moved by the budget. `large` keeps it, `unlimited` raises it one step, `medium` lowers it one step, and `small` lowers it two steps, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. A target at either end of the ladder stays there. Most roles start at `xhigh`, and each budget label names where those land.
 
-- `unlimited` targets `max` reasoning.
-- `large` targets `xhigh` reasoning.
-- `medium` targets `high` reasoning.
-- `small` targets `medium` reasoning.
+- `unlimited` names `max` reasoning.
+- `large` names `xhigh` reasoning.
+- `medium` names `high` reasoning.
+- `small` names `medium` reasoning.
 
-`scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_JSON` previews supported efforts for saved choices. It preserves model IDs, executors, ordered duplicates, and aliases. Choose the highest supported effort at or below the target. The preview does not write. Parent aliases keep the parent's actual model and effort. Task-level effort adjustments apply to exact model selections.
+`scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_JSON` previews supported efforts for saved choices. It preserves model IDs, executors, ordered duplicates, and aliases. Choose the highest supported effort at or below the role's target. The preview does not write. Parent aliases keep the parent's actual model and effort. Task-level effort adjustments apply to exact model selections.
 
-Keep these original role names and initial counts.
+Keep these role names, initial counts, and starting efforts.
 
-| Role | Initial entries |
-| --- | --- |
-| feature, refactoring | 1 |
-| bug-fix | 1 |
-| perf-issue | 1 |
-| hillclimb | 1 |
-| judgment and prose | 1 |
-| hardest tasks | 1 |
-| how explorer | 1 |
-| how explainer | 1 |
-| why investigators | 1 |
-| why synthesizer | 1 |
-| reflect tooling | 1 |
-| reflect judgment, divergent, synthesizer | 1 |
-| arena runners | 2 |
-| arena cross-judge pool | 2 |
-| swarm workers | 1 |
-| architect runners | 2 |
-| interrogate reviewers | 2 |
+| Role | Initial entries | Starting effort |
+| --- | --- | --- |
+| feature, refactoring | 1 | xhigh |
+| bug-fix | 1 | xhigh |
+| perf-issue | 1 | xhigh |
+| hillclimb | 1 | xhigh |
+| judgment and prose | 1 | xhigh |
+| hardest tasks | 1 | max |
+| reflect tooling | 1 | high |
+| reflect judgment, divergent, synthesizer | 1 | xhigh |
+| arena runners | 3 | high |
+| arena cross-judge pool | 3 | high |
+| swarm workers | 1 | high |
+| architect runners | 3 | high |
+| interrogate reviewers | 3 | high |
 
-Panels run every ordered entry, including duplicates and aliases. Arena's cross-judge pool selects one eligible judge in order. Parent aliases never establish a different family. Pi provider names and ambiguous virtual model IDs do not establish model lineage. Arena skips its judge with disclosure if no selected eligible entry runs. Required diversity gates elsewhere keep their own unmet outcome. No unused executor is a blanket requirement.
+Panels run every ordered entry, including duplicates and aliases. Arena's cross-judge pool selects one eligible judge from a vendor other than the parent's, in order. Families are the ones Phase A of the arena skill defines, so Fable is its own family. Fable and the other Claude models are one vendor. Parent aliases never establish a different family or vendor. Pi provider names and ambiguous virtual model IDs do not establish model lineage. Arena skips its judge with disclosure if no selected eligible entry runs. Required diversity gates elsewhere keep their own unmet outcome. No unused executor is a blanket requirement.
 
 Pi choices retain `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "LEVEL" }`. Choose provider and model separately. Pi uses `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Budget previews select only reported levels on that ladder, including `off` for nonreasoning models. Native aliases stay native, and native registration creates no Pi model definitions. Follow [Pi execution](../poteto-mode/references/pi-execution.md) for explicit tools, context, fresh sessions, capability gaps, and required family gates.
 

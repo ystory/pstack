@@ -1,5 +1,5 @@
 diff --git a/README.md b/README.md
-index 6654721..2d48fa5 100644
+index 880cd58..2d48fa5 100644
 --- a/README.md
 +++ b/README.md
 @@ -1,4 +1,6 @@
@@ -89,7 +89,7 @@ index 6654721..2d48fa5 100644
  
  ## skills
  
--[`/poteto-mode`](./skills/poteto-mode/SKILL.md) runs most of these for you when a step needs them (`how`, `why`, `architect`, `arena`, `swarm`, `interrogate`, `unslop`, `no-comments`, `technical-writing`, `tdd`, and the principles). the table below is for when you want one directly:
+-[`/poteto-mode`](./skills/poteto-mode/SKILL.md) runs most of these for you when a step needs them (`why`, `architect`, `arena`, `swarm`, `interrogate`, `unslop`, `no-comments`, `technical-writing`, `tdd`, and the principles). the table below is for when you want one directly:
 +[`$pstack-for-codex:poteto-mode`](./skills/poteto-mode/SKILL.md) runs most of these for you when a step needs them (`how`, `why`, `architect`, `arena`, `swarm`, `interrogate`, `unslop`, `no-comments`, `technical-writing`, `tdd`, and the principles). the table below is for when you want one directly:
  
  ```
@@ -110,9 +110,9 @@ index 6654721..2d48fa5 100644
 -| [`/poteto-mode`](./skills/poteto-mode/SKILL.md) | default entry point for any non-trivial task. |
 -| [`/poteto-help`](./skills/poteto-help/SKILL.md) | you're new to pstack, or unsure which skill, playbook, or principle fits. finds out what you're trying to do, answers that part, and hands you a prompt to type. runs only when you type `/poteto-help`. |
 -| [`/in-your-own-words`](./skills/in-your-own-words/SKILL.md) | you want the agent to play back your goal and the problem before it starts. runs only when you type `/in-your-own-words`. |
--| [`/sharpen`](./skills/sharpen/SKILL.md) | you want a prompt made deeper, not bigger, before you send it: what a top professional would do that you didn't ask for, the raw material they'd start from, their methods and tools, and an outside check that the result is right. hands back the rewritten prompt and leaves your choices open. doesn't do the task. runs only when you type `/sharpen`. |
+-| [`/sharpen`](./skills/sharpen/SKILL.md) | you want a prompt made deeper, not bigger, before you send it: what a top professional would do that you didn't ask for, the raw material they'd start from, their methods and tools, and an outside check that the result is right. hands back the rewritten prompt, which asks the agent to prototype any choice an experiment can settle and leaves product and preference choices to you. doesn't do the task. runs only when you type `/sharpen`. |
 -| [`/how`](./skills/how/SKILL.md) | you want a walkthrough of how a subsystem works. |
--| [`/why`](./skills/why/SKILL.md) | you want to know why something was built this way. discovers available MCPs at run time and queries each evidence category in parallel (source control, issue tracker, long-form docs, real-time chat, infra observability, error tracking, analytics warehouse). |
+-| [`/why`](./skills/why/SKILL.md) | you want to know why something was built this way. answers from the record, not the code: the commits and pr discussions that introduced it and each later change, and other sources when that trail is thin. cites what the authors wrote, marks its own inferences, and says what the record does not answer. |
 -| [`/recall`](./skills/recall/SKILL.md) | you're starting or resuming work and want your recent context on a topic rebuilt from your own chat history and the shared record, handed back as a tight current-state brief. |
 -| [`/ketchup`](./skills/ketchup/SKILL.md) | you want what changed in this chat since your last message, in plain words and small visuals, with every item waiting on you listed and decidable from the reply alone, even when that makes the reply long. |
 -| [`/ketchup-video`](./skills/ketchup-video/SKILL.md) | you want the `/ketchup` catch-up as a short subtitled video of slides, with the calls waiting on you as text under it. |
@@ -296,7 +296,7 @@ index 6654721..2d48fa5 100644
 -
 -models are configurable too. type [`/setup-pstack`](./skills/setup-pstack/SKILL.md). it detects the models you have access to and writes a small always-applied rule mapping each role (code, judgment, the review panels) to a model. every skill reads it and falls back to sensible defaults when the rule is absent, so you override only what you want.
 -
--when a default changes, a rule written before the change still pins the old default. delete those role lines, or delete the file, then run `/setup-pstack` again. a rerun keeps any role whose model differs from the default.
+-when a default changes, a rule written before the change still pins the old default until you run `/setup-pstack` again. that run replaces the old defaults it recognizes and keeps any other role whose model differs from the default. to drop a pin it does not recognize, delete that role's line or the file first.
 -
 -## automations
 +type [`$pstack-for-codex:automate-me`](./skills/automate-me/SKILL.md). it mines your recent transcripts, drafts a `<your-name>-mode` skill from how you've actually worked, and routes through pstack underneath. you keep pstack as the base and end up with your own routing skill alongside `poteto-mode`.
@@ -310,7 +310,7 @@ index 6654721..2d48fa5 100644
  ## license
  
 diff --git a/docs/guide/01-setup.md b/docs/guide/01-setup.md
-index d789eed..510aa7a 100644
+index 3167431..510aa7a 100644
 --- a/docs/guide/01-setup.md
 +++ b/docs/guide/01-setup.md
 @@ -4,63 +4,64 @@ In this page you install the plugin, pick which models pstack uses, and run your
@@ -347,7 +347,7 @@ index d789eed..510aa7a 100644
  
  The default model for every role is Sol 6.1 through Codex. The defaults run at `xhigh` reasoning, the same as the `large` budget. `unlimited` targets `max`; each model uses its highest supported level at or below the target. `medium` and `small` lower the reasoning and spend fewer tokens. Model IDs stay unchanged when the reasoning budget changes.
  
--You only override what you care about. A role with no line in the rule keeps the skill's default. To restore a default, delete that role's line. A rerun of `/setup-pstack` keeps any role whose model differs from the default. When a default changes, a rule written before the change still pins the old default, so delete those role lines, or delete the file, then run `/setup-pstack` again.
+-You only override what you care about. A role with no line in the rule keeps the skill's default. To restore a default, delete that role's line. A rerun of `/setup-pstack` keeps any role whose model differs from the default. When a default changes, a rule written before the change still pins the old default until you run `/setup-pstack` again. That run replaces the old defaults it recognizes, tells you which, and keeps your other choices. To drop a pin it does not recognize, delete that role's line or the file first.
 +You only override what you care about. A role absent from `roles` keeps the skill's default. To restore a default, remove that role's entry. A rerun of `$pstack-for-codex:setup-pstack` keeps your existing choices. Saved choices stay separate from plugin updates; when a default changes, a saved old choice stays pinned until you remove or change it.
  
 -You might be wondering what happens if you use Auto. Set a role to `inherit-parent` or `auto` and pstack omits the subagent `model` field, so the subagent inherits your parent chat model. Both values mean the same thing, and neither is a model slug. For a panel role the value is a list, and one subagent runs per entry, so the list length sets the panel size. Setup also configures `swarm workers`, the default model for every `/swarm` worker unless a race names a model for each arm.
@@ -398,7 +398,7 @@ index d789eed..510aa7a 100644
 -Next: [Route work through `/poteto-mode`](./02-poteto-mode.md).
 +Next: [Route work through `$pstack-for-codex:poteto-mode`](./02-poteto-mode.md).
 diff --git a/docs/guide/02-poteto-mode.md b/docs/guide/02-poteto-mode.md
-index 89c594b..07a9050 100644
+index b2906f6..07a9050 100644
 --- a/docs/guide/02-poteto-mode.md
 +++ b/docs/guide/02-poteto-mode.md
 @@ -1,6 +1,6 @@
@@ -447,7 +447,7 @@ index 89c594b..07a9050 100644
 +$pstack-for-codex:sharpen write a migration guide for the v2 config format.
  ```
  
--The agent says what a top professional would do that you didn't ask for, the rawest material they would start from, the methods and tools they would use, and what other than you or the agent would show the result is right. Then it rewrites your prompt to ask for exactly that, deeper but not bigger, and leaves your choices open. It doesn't do the task. Read the rewrite, then send it, for example with `/poteto-mode`.
+-The agent says what a top professional would do that you didn't ask for, the rawest material they would start from, the methods and tools they would use, and what other than you or the agent would show the result is right. Then it rewrites your prompt to ask for exactly that, deeper but not bigger. The rewrite asks the agent to prototype any choice an experiment can settle and to recommend an option from what it observed, and it leaves product and preference choices to you. It doesn't do the task. Read the rewrite, then send it, for example with `/poteto-mode`.
 +The agent says what a top professional would do that you didn't ask for, the rawest material they would start from, the methods and tools they would use, and what other than you or the agent would show the result is right. Then it rewrites your prompt to ask for exactly that, deeper but not bigger, and leaves your choices open. It doesn't do the task. Read the rewrite, then send it, for example with `$pstack-for-codex:poteto-mode`.
  
  ## Follow up short
@@ -514,13 +514,13 @@ index 89c594b..07a9050 100644
 -Work you'll review later routes through [`/figure-it-out`](../../skills/figure-it-out/SKILL.md), which designs the run's phases and keeps a [`/show-me-your-work`](../../skills/show-me-your-work/SKILL.md) decision log. [Run work while you sleep](./07-overnight.md) covers the full overnight contract.
 +Work you'll review later routes through [`$pstack-for-codex:figure-it-out`](../../skills/figure-it-out/SKILL.md), which designs the run's phases and keeps a [`$pstack-for-codex:show-me-your-work`](../../skills/show-me-your-work/SKILL.md) decision log. [Run work while you sleep](./07-overnight.md) covers the full overnight contract.
  
--**Pitfall:** don't enumerate skills in your prompt ("use /how, then /architect, then /arena..."). The playbook already sequences them, and a hand-written sequence usually reorders or drops steps the playbook would have kept. Name a skill only when you want to override a specific choice.
+-**Pitfall:** don't enumerate skills in your prompt ("use /architect, then /arena, then /interrogate..."). The playbook already sequences them, and a hand-written sequence usually reorders or drops steps the playbook would have kept. Name a skill only when you want to override a specific choice.
 +**Pitfall:** don't enumerate skills in your prompt ("use $pstack-for-codex:how, then $pstack-for-codex:architect, then $pstack-for-codex:arena..."). The playbook already sequences them, and a hand-written sequence usually reorders or drops steps the playbook would have kept. Name a skill only when you want to override a specific choice.
  
  Read [`poteto-mode`](../../skills/poteto-mode/SKILL.md) itself for the full routing rules.
  
 diff --git a/docs/guide/03-understand.md b/docs/guide/03-understand.md
-index e26661f..6c550ee 100644
+index ee23324..6c550ee 100644
 --- a/docs/guide/03-understand.md
 +++ b/docs/guide/03-understand.md
 @@ -2,7 +2,7 @@
@@ -540,7 +540,7 @@ index e26661f..6c550ee 100644
 +$pstack-for-codex:poteto-mode investigate why background jobs time out every few hours. give me what we know, what data you used, and your best hypotheses. don't change any code yet.
  ```
  
--"don't change any code yet" routes this to the [Investigation playbook](../../skills/poteto-mode/playbooks/investigation.md). It runs `/how`, adds `/why` for questions about motivation, and returns a cited explanation. For a choice between options, it returns a recommendation with a trade-offs table. Asking "what data you used" makes the agent separate its evidence from its guesses. When the findings point at a fix, start the fix as a new task.
+-"don't change any code yet" routes this to the [Investigation playbook](../../skills/poteto-mode/playbooks/investigation.md). It traces the code, adds `/why` for questions about motivation, and returns a cited explanation. For a choice between options, it returns a recommendation with a trade-offs table. Asking "what data you used" makes the agent separate its evidence from its guesses. When the findings point at a fix, start the fix as a new task.
 +"don't change any code yet" routes this to the [Investigation playbook](../../skills/poteto-mode/playbooks/investigation.md). It runs `$pstack-for-codex:how`, adds `$pstack-for-codex:why` for questions about motivation, and returns a cited explanation. For a choice between options, it returns a recommendation with a trade-offs table. Asking "what data you used" makes the agent separate its evidence from its guesses. When the findings point at a fix, start the fix as a new task.
  
 -## Trace behavior with `/how`
@@ -551,7 +551,7 @@ index e26661f..6c550ee 100644
 +$pstack-for-codex:how do we dedupe notifications? is there an n+1 when we look up subscribers?
  ```
  
--Ask the question you actually have. [`/how`](../../skills/how/SKILL.md) reads the code and answers at the level of a senior engineer onboarding you onto the subsystem, with the runtime flow, the key types, and the non-obvious parts. For a big subsystem it fans out two to four read-only explorers first. For a narrow question it just reads and explains.
+-Ask the question you actually have. [`/how`](../../skills/how/SKILL.md) reads the code and answers at the level of a senior engineer onboarding you onto the subsystem, with the runtime flow, the key types, and the non-obvious parts. It starts one read-only subagent that explores the code and writes the explanation.
 +Ask the question you actually have. [`$pstack-for-codex:how`](../../skills/how/SKILL.md) reads the code and answers at the level of a senior engineer onboarding you onto the subsystem, with the runtime flow, the key types, and the non-obvious parts. For a big subsystem it fans out two to four source explorers first. For a narrow question it just reads and explains.
  
 -## Dig up history with `/why`
@@ -562,7 +562,7 @@ index e26661f..6c550ee 100644
 +$pstack-for-codex:why was the retry limit set to five? does the reason still hold?
  ```
  
--[`/why`](../../skills/why/SKILL.md) starts from source control, then queries whatever evidence categories your MCPs expose, such as the issue tracker, long-form docs, team chat, observability, error tracking, and analytics, all in parallel. The report cites everything, separates direct evidence from inference, and says "appears to" when the record is thin. A null result gets reported too, because "nobody wrote down why" is itself an answer.
+-[`/why`](../../skills/why/SKILL.md) answers from the record, not the code. It reads the commits and PR discussions that introduced the code and each later change, and looks at other sources when that trail is thin. The answer cites what the authors wrote, marks the agent's own inferences as inferences, and says what the record does not answer, because "nobody wrote down why" is itself an answer.
 +[`$pstack-for-codex:why`](../../skills/why/SKILL.md) starts from source control, then queries whatever evidence categories your MCPs expose, such as the issue tracker, long-form docs, team chat, observability, error tracking, and analytics, all in parallel. The report cites everything, separates direct evidence from inference, and says "appears to" when the record is thin. A null result gets reported too, because "nobody wrote down why" is itself an answer.
  
  The two compose naturally. `do why first then how` is a good prompt when you suspect the history explains the mess.
@@ -622,7 +622,7 @@ index e26661f..6c550ee 100644
  
  Next: [Design the change](./04-design.md).
 diff --git a/docs/guide/04-design.md b/docs/guide/04-design.md
-index 9da6470..82ab2a0 100644
+index 38a8144..82ab2a0 100644
 --- a/docs/guide/04-design.md
 +++ b/docs/guide/04-design.md
 @@ -1,34 +1,34 @@
@@ -643,7 +643,7 @@ index 9da6470..82ab2a0 100644
 +$pstack-for-codex:architect design the import pipeline before writing any code. i care most about how callers use it.
  ```
  
--[`/architect`](../../skills/architect/SKILL.md) grounds itself first, running `/how` over the code the design touches and `/why` when it moves ownership or layers. Then it runs `/arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
+-[`/architect`](../../skills/architect/SKILL.md) grounds itself first, tracing the code the design touches and running `/why` when it moves ownership or layers. Then it runs `/arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
 +[`$pstack-for-codex:architect`](../../skills/architect/SKILL.md) grounds itself first, running `$pstack-for-codex:how` over the code the design touches and `$pstack-for-codex:why` when it moves ownership or layers. Then it runs `$pstack-for-codex:arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
  
  By default it proceeds straight from the synthesized design into implementation. If you want to see the design first, say so:
@@ -664,7 +664,7 @@ index 9da6470..82ab2a0 100644
 +$pstack-for-codex:arena take my prompt to the arena verbatim. i want to compare their proposals with yours.
  ```
  
--[`/arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A read-only judge from a different model family scores every candidate against a rubric. When no model from another family can run, the coordinator skips the judge and picks the base itself. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
+-[`/arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A read-only judge from a different model vendor scores every candidate against a rubric. When no model from another vendor can run, the coordinator skips the judge and picks the base itself. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
 +[`$pstack-for-codex:arena`](../../skills/arena/SKILL.md) is the general tool underneath. N subagents attempt the same design or code brief in parallel, each writing to its own worktree or directory. A judge from a different model family scores every candidate against a rubric. When no model from another family can run, the coordinator skips the judge and picks the base itself. The coordinator reads each candidate end to end, picks a base, grafts in the best ideas from the losers, and verifies the result.
  
  ```mermaid
@@ -1302,7 +1302,7 @@ index 8d1c4b4..c7523e6 100644
  **Pitfall:** don't edit a skill mid-task because it's misbehaving. Fix it in its own PR and keep the task moving. A skill edit that ships tangled into feature work is invisible to review and impossible to evaluate.
  
 diff --git a/docs/guide/10-recipes-and-pitfalls.md b/docs/guide/10-recipes-and-pitfalls.md
-index 782394f..472fd0a 100644
+index 3f339a8..472fd0a 100644
 --- a/docs/guide/10-recipes-and-pitfalls.md
 +++ b/docs/guide/10-recipes-and-pitfalls.md
 @@ -7,7 +7,7 @@ Prompts worth copying, then the mistakes everyone makes once. Swap in your own p
@@ -1467,7 +1467,7 @@ index 782394f..472fd0a 100644
  
  ## The pitfalls
  
--- **Enumerating skills in the prompt.** "use /how then /architect then /arena" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
+-- **Enumerating skills in the prompt.** "use /architect then /arena then /interrogate" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
 -- **A vague finish condition.** "make it better" gives `/loop` nothing to check. Give a command or artifact that can pass or fail.
 +- **Enumerating skills in the prompt.** "use $pstack-for-codex:how then $pstack-for-codex:architect then $pstack-for-codex:arena" reorders steps the playbook already sequences. State the goal and constraints. Name a skill only to override a default.
 +- **A vague finish condition.** "make it better" gives the Codex loop nothing to check. Give a command or artifact that can pass or fail.

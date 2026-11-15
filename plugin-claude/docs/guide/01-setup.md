@@ -49,9 +49,9 @@ Both routes install the committed `plugin-claude/` directory. You do not need a 
 
 Setup starts with native Claude only, or Claude with Codex workers. The parent chat stays in Claude. Unselected Codex is neither probed nor required. For a selected missing runtime, the setup host performs the needed preparation. It hands off interactive login when necessary and rechecks readiness before model selection.
 
-Then choose supported exact models, role assignments, and `unlimited`, `large`, `medium`, or `small` reasoning budget. Fresh proposals expose all 17 roles with unresolved model slots. Saved entries prefill reruns. Review accepted choices before saving. You may leave a role unconfigured after seeing its native-parent fallback. No fixed model is required.
+Then choose supported exact models, role assignments, and `unlimited`, `large`, `medium`, or `small` reasoning budget. Fresh proposals expose all 13 roles with unresolved model slots. Saved entries prefill reruns. Review accepted choices before saving. You may leave a role unconfigured after seeing its native-parent fallback. No fixed model is required.
 
-Scalar roles retain one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` retain ordered lists, with one worker per entry including duplicates. `arena cross-judge pool` is also a list, but Arena selects one judge from another family in preference order. `swarm workers` stays scalar unless a race specifies models per arm.
+Scalar roles retain one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` retain ordered lists, with one worker per entry including duplicates. `arena cross-judge pool` is also a list, but Arena selects one judge from another vendor in preference order. Fable and the other Claude models are one vendor. `swarm workers` stays scalar unless a race specifies models per arm.
 
 `auto` and `inherit-parent` select the actual native Claude parent. They do not select Codex. Setup does not change the parent chat model. A single-model configuration cannot satisfy a required different-model or different-family verifier. Arena has its own disclosed optional judge skip. The other required diversity gates remain requirements.
 
@@ -62,10 +62,10 @@ The helper saves `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json` and man
 Start a new session after registration so Claude discovers exact-model agent variants. Try:
 
 ```text
-/pstack-cc:how explain how src/cli.ts handles --help. Use the simple path with one explainer. Do not edit files.
+/pstack-cc:how explain how src/cli.ts handles --help. Do not edit files.
 ```
 
-Replace `src/cli.ts` with a real module in your project. The simple How path uses one explainer and no explorers. To try one Codex worker, first select Codex for `how explainer` in setup. A healthy run identifies the selected executor and model, completes the worker, and returns an explanation based on the project's files. Codex workers run as background tasks whose results Claude collects.
+Replace `src/cli.ts` with a real module in your project. How starts one read-only worker on the native Claude parent. A healthy run completes the worker and returns an explanation based on the project's files. Roles you select for Codex run as background tasks whose results Claude collects.
 
 For implementation, start each new task with `/pstack-cc:poteto-mode` and name the goal and its done check. Follow-ups continue the selected playbook. Read [Claude Code execution](../../skills/poteto-mode/references/execution.md) for actual tool and model bindings. Claude Code has no Cursor Custom Mode keyboard shortcut.
 

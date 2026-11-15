@@ -105,7 +105,7 @@ test('Claude plugin loads a unique skill catalog, native agents, and retained li
   assert.ok(!tree.some((entry) => entry.path.startsWith('automations/benny')));
 });
 
-test('actual readonly callers retain native file-tool restrictions and Why and Reflect retain full access', async () => {
+test('actual readonly callers retain native file-tool restrictions and recall and Reflect retain full access', async () => {
   const readonly = await text('agents/read-only.md');
   assert.equal(frontmatter(readonly).model, 'inherit');
   assert.equal(
@@ -126,24 +126,36 @@ test('actual readonly callers retain native file-tool restrictions and Why and R
     assert.ok(site);
     assert.ok([site.workerKind].flat().includes('read-only'));
   }
-  for (const caller of ['skills/why/SKILL.md', 'skills/reflect/SKILL.md']) {
+  for (const caller of ['skills/recall/SKILL.md', 'skills/reflect/SKILL.md']) {
     assert.ok((await text(caller)).includes('`general-purpose`'), caller);
     assert.ok(!(await text(caller)).includes('kind `read-only`'), caller);
   }
+  const how = inventory.sites.find(
+    (entry) => entry.path === 'skills/how/SKILL.md',
+  );
+  assert.deepEqual(how?.roles, []);
+  assert.equal(how?.workerKind, 'read-only');
+  assert.ok(
+    !inventory.sites.some((entry) => entry.path.startsWith('skills/why/')),
+  );
+  assert.ok(!(await text('skills/why/SKILL.md')).includes('general-purpose'));
   const binding = await text('skills/poteto-mode/references/execution.md');
   assert.match(binding, /git status/);
   assert.match(binding, /Bash/);
 });
 
-test('Claude target applies the repository distribution policy and retains general Slack research', async () => {
+test('Claude target applies the repository distribution policy and ships one-file How and Why', async () => {
   const policy = await readDistributionPolicy(root);
   assert.ok(policy);
   await verifyDistributionPolicy(plugin, policy);
-  const research = 'skills/why/references/sources/slack.md';
-  assert.equal(
-    await text(research),
-    await readFile(path.join(root, 'upstream/pstack', research), 'utf8'),
-  );
+  const tree = await inspectTree(plugin);
+  for (const skill of ['how', 'why'])
+    assert.deepEqual(
+      tree
+        .filter((entry) => entry.path.startsWith(`skills/${skill}/`))
+        .map((entry) => entry.path),
+      [`skills/${skill}/SKILL.md`],
+    );
 });
 
 test('delegation inventory retains the upstream role shapes and covers every source delegation site', async () => {
@@ -158,7 +170,7 @@ test('delegation inventory retains the upstream role shapes and covers every sou
     .split('\n')
     .filter((line) => /^[^#\s].+: /.test(line))
     .map((line) => line.split(': ')[0]!);
-  assert.equal(upstreamRoles.length, 17);
+  assert.equal(upstreamRoles.length, 13);
   assert.deepEqual(
     Object.keys(inventory.roleShapes).sort(),
     upstreamRoles.sort(),

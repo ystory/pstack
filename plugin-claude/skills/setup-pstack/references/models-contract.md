@@ -38,9 +38,13 @@ Preferences are in `pstack-cc/models.json` under the Claude home.
 
 This excerpt shows the shapes. Sparse accepted saves are valid. Partial proposals retain saved choices for omitted roles. Missing roles stay unconfigured and resolve to the actual native parent. An omitted executor in an object normalizes to native `claude-code`. Explicit persisted model entries retain their executor and effort. Aliases can be strings or native entries with `model` and no effort.
 
-The scalar keys are `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `judgment and prose`, `hardest tasks`, `how explorer`, `how explainer`, `why investigators`, `why synthesizer`, `reflect tooling`, `reflect judgment, divergent, synthesizer`, and `swarm workers`.
+The scalar keys are `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `judgment and prose`, `hardest tasks`, `reflect tooling`, `reflect judgment, divergent, synthesizer`, and `swarm workers`.
 
 The list keys are `arena runners`, `arena cross-judge pool`, `architect runners`, and `interrogate reviewers`. Lists retain order and duplicates. The cross-judge list is a pool. The other lists describe fan-out counts.
+
+The retired keys `how explorer`, `how explainer`, `why investigators`, and `why synthesizer` can remain in a saved file. Read, resolve, and budget leave them out of `config`, list them in `droppedRoles`, and do not validate their values. The next write omits them and lists them in its `droppedRoles`. Every other saved value stays unchanged.
+
+Each role has a starting effort. `hardest tasks` starts at `max`. `reflect tooling`, `swarm workers`, the three panels, and the cross-judge pool start at `high`. The other roles start at `xhigh`. A budget moves every starting effort by steps on the ladder `low`, `medium`, `high`, `xhigh`, `max`. `unlimited` raises it one step, `large` keeps it, `medium` lowers it one step, and `small` lowers it two steps. A target stays at either end of the ladder. That result is the role's target effort.
 
 ## Catalogs
 
@@ -69,10 +73,12 @@ Normalized entries have `executor`, `model`, and `supportedReasoningEfforts`. Na
 
 ## Commands
 
-- `models.mjs read` returns `file`, `exists`, `sha256`, valid saved `config`, full `proposal`, and `needsChoice`. Missing proposal slots contain only their target `reasoningEffort`, without a model or executor. Scalars start with one slot and panels or pools with two. These unresolved objects cannot be saved as selected entries.
-- `models.mjs resolve --role ROLE [--kind KIND]` returns an `entries` array, original `cardinality`, source, budget, and empty `needsChoice`. Scalars yield one entry. Missing roles yield one or two native `inherit-parent` entries at their original count, with source `unconfigured` and static inherited definitions. Saved exact entries remain exact.
-- `models.mjs budget --budget LABEL --catalog ABS` returns a preview `config` and `needsChoice`. It never writes. A role with no supported effort at or below the target requires a choice.
-- `models.mjs write --input ABS --catalog ABS --expected-hash HASH_OR_ABSENT [--dry-run]` validates all choices and saves atomically. The input is a config, or a result object containing `config`. Unresolved `needsChoice` results are rejected. A dry run creates no destination.
+- `models.mjs read` returns `file`, `exists`, `sha256`, valid saved `config`, full `proposal`, `droppedRoles`, `needsChoice`, and `targetReasoningEffort`. Missing proposal slots contain only their role's target `reasoningEffort`, without a model or executor. Scalars start with one slot and panels or pools with three. These unresolved objects cannot be saved as selected entries.
+- `models.mjs resolve --role ROLE [--kind KIND]` returns an `entries` array, original `cardinality`, source, budget, the role's target `targetReasoningEffort`, `droppedRoles`, and empty `needsChoice`. Scalars yield one entry. Missing roles yield one or three native `inherit-parent` entries at their original count, with source `unconfigured` and static inherited definitions. Saved exact entries remain exact.
+- `models.mjs budget --budget LABEL --catalog ABS` returns a preview `config`, `droppedRoles`, `targetReasoningEffort`, and `needsChoice`. It never writes. An entry with no supported effort at or below its role's target requires a choice, and its `needsChoice` entry carries that `targetReasoningEffort`.
+- `models.mjs write --input ABS --catalog ABS --expected-hash HASH_OR_ABSENT [--dry-run]` validates all choices and saves atomically. The input is a config, or a result object containing `config`. Unresolved `needsChoice` results are rejected. A dry run creates no destination. `droppedRoles` lists the retired keys the write omits.
+
+The top-level `targetReasoningEffort` of `read` and `budget` is the effort the budget label names, which is the target of a role that starts at `xhigh`. Per-role targets appear in proposal slots, `resolve`, and `needsChoice` entries.
 - `register-agents.mjs [--input ABS] [--dry-run] [--unregister]` manages owned native definitions. With no input, it uses saved preferences. Removal retains preferences.
 - `detect.mjs detect --executors claude-code` reports native CLI, safe auth evidence, model candidates and guidance. `--executors claude-code,codex` also probes the standalone Codex server. Unselected Codex is never invoked or required. The legacy detector always includes Claude. When Claude workers are unselected, skip it. Use `poteto-mode/scripts/run-codex.mjs detect` or `catalog --cwd ABS` directly for selected Codex workers, and the Pi catalog runner for selected Pi workers.
 - `detect.mjs catalog --executors claude-code,codex --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` selects the Claude CLI. `--codex-executable ABS` overrides the standalone server for that detect or catalog invocation only. The path is not saved or used by future workers.
@@ -93,7 +99,7 @@ Registration adds or refreshes the proposed variants and retains every other own
 
 The registrar changes neither Claude settings nor plugin cache files. Unregister checks every owned definition before removing any. A native host must load the resulting definitions before they can be invoked. Registration alone is not live compatibility evidence.
 
-Unknown role keys fail boundary validation without dropping or migrating them. Preferences remain unchanged.
+Unknown role keys other than the retired keys fail boundary validation without dropping or migrating them. Preferences remain unchanged.
 
 ## Pi routes
 

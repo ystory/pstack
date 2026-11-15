@@ -36,7 +36,7 @@ index a20e68b..05039ae 100644
  Before setup, missing roles inherit the actual native parent with disclosure and original cardinality. Setup proposals start unresolved, and saved exact entries take precedence. Run `/pstack-cc:setup-pstack` to select exact models and executors, then start a new session. User commands use `/pstack-cc:<skill>`. Internally, read installed skill files by their actual path. The [setup guide](../guide/01-setup.md) covers independent preferences and CLI authentication. The [delegation inventory](../../skills/poteto-mode/references/delegation-sites.json) records the affected source sites.
  
 diff --git a/skills/architect/SKILL.md b/skills/architect/SKILL.md
-index 3308241..a5bb25b 100644
+index c0aeec6..5191f86 100644
 --- a/skills/architect/SKILL.md
 +++ b/skills/architect/SKILL.md
 @@ -28,7 +28,7 @@ Skip Phase A only when the work is genuinely greenfield with no surrounding syst
@@ -95,10 +95,10 @@ index 8141172..ba33da9 100644
  
 diff --git a/skills/how/SKILL.md b/skills/how/SKILL.md
 deleted file mode 100644
-index 6c65c60..0000000
+index dbddbec..0000000
 --- a/skills/how/SKILL.md
 +++ /dev/null
-@@ -1,36 +0,0 @@
+@@ -1,21 +0,0 @@
 ----
 -name: how
 -description: "Use for \"how does X work\", code walkthroughs before changing something, and placement / ownership / layering questions (\"where should this live\", \"which package owns this\", \"is this the right layer\"). Explains subsystem architecture, runtime flow, onboarding mental models. Use why for motivation."
@@ -107,95 +107,19 @@ index 6c65c60..0000000
 -
 -# How
 -
--Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
--
--Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Every seat uses worker kind `read-only` and a no-edits brief. Explorers resolve `how explorer`; every explainer resolves `how explainer`. Use the selected executor, exact model, supported task effort, and its returned `agentType` for native Claude seats. A rejected model follows the execution binding and the closest valid model of the same family from the error. Disclose each fallback. Parent aliases bind the actual native parent. Pass absolute paths to this skill and the selected templates.
--
--## 1. Assess complexity
+-Explore the codebase to answer "how does X work?" questions.
 -
 -If the scope is ambiguous, state your interpretation and explore. The user can redirect.
 -
--- **Simple** (a single module, a small utility, a narrow question such as "how does function X work"): no explorers. Spawn one explainer that explores and explains in one pass, built from `references/explainer-prompt.md` without the explorer-findings section. Go to step 4.
--- **Complex** (a subsystem spanning multiple files or services, a cross-cutting feature, a full architectural overview): go to step 2.
+-## 1. Explain
 -
--When in doubt, take the simple path.
+-Spawn one Task subagent with `subagent_type: generalPurpose` and `readonly: true` that explores and explains in one pass. Give it the user's question and this brief:
 -
--## 2. Explore (complex only)
+-> You are writing an architectural explanation for a senior engineer. Explore the codebase and write an explanation that a senior engineer unfamiliar with this area could read and walk away with a solid mental model. They should understand the architecture well enough to start working in it confidently. You have read-only access to the codebase.
 -
--Decompose the question into 2 to 4 angles, each a distinct slice of the subsystem. Spawn all explorers in a single message, each with `references/explorer-prompt.md` and its angle filled in.
+-## 2. Present
 -
--## 3. Synthesize (complex only)
--
--Once all explorers have returned, spawn one explainer with `references/explainer-prompt.md` and every explorer's findings filled in.
--
--## 4. Present
--
--Present the explainer's output. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.
--
--## Output format
--
--The explanation uses the sections defined in `references/explainer-prompt.md`, dropping any that do not apply: Overview, Key Concepts, How It Works, Where Things Live, Gotchas.
-diff --git a/skills/how/references/explainer-prompt.md b/skills/how/references/explainer-prompt.md
-deleted file mode 100644
-index 3a36fb6..0000000
---- a/skills/how/references/explainer-prompt.md
-+++ /dev/null
-@@ -1,55 +0,0 @@
--# Explainer Prompt Template
--
--Build the explainer subagent's prompt from this template. Fill in the placeholders.
--
-----
--
--You are writing an architectural explanation for a senior engineer. Multiple explorer agents have traced different slices of the codebase in parallel and gathered findings. Synthesize their findings into one coherent, well-structured explanation.
--
--## Original Question
--
--> {QUESTION}
--
--## Explorer Findings
--
--{EXPLORER_FINDINGS_ALL}
--
--## Instructions
--
--The explorers each investigated a different angle of the same subsystem. Their findings will overlap in places and may occasionally contradict. Reconcile them. Merge overlapping descriptions, resolve contradictions by checking the code yourself, and combine the separate slices into a unified picture.
--
--Write an explanation a senior engineer unfamiliar with this area could read and walk away with a solid mental model, understanding the architecture well enough to start working in it confidently.
--
--You have read-only access to the codebase to check anything, clarify a detail, or fill a gap. Use Read, Grep, and Glob as needed. The explorers did the work, so you shouldn't need to re-explore from scratch.
--
--## Output Format
--
--Use this structure, adapted to what makes sense for the question. Not every section is needed for every question.
--
--### Overview
--1-2 paragraphs. What is this thing, what does it do, why does it exist. Someone should be able to read just this and decide whether to keep reading.
--
--### Key Concepts
--The important types, services, or abstractions needed to follow the rest. Brief definitions, not exhaustive.
--
--### How It Works
--The core of the explanation, and the longest section. Walk through the flow: what triggers it, what happens step by step, where data goes, what the decision points are.
--
--Use prose, not pseudocode. Reference specific files and functions so the reader knows where to look, but don't dump large code blocks unless a snippet is essential to a point.
--
--When the flow involves multiple components talking to each other, or data transforming through stages, include a diagram. Use mermaid (```mermaid) for structured flows (sequence diagrams, flowcharts, component graphs) or ASCII art for simpler relationships where mermaid would be overkill. Use your judgment. A diagram should clarify, not decorate. If prose covers the flow, skip the diagram.
--
--### Where Things Live
--A brief file/directory map. Just the ones someone would need to start working here.
--
--### Gotchas
--Non-obvious things, surprising behavior, historical context, pitfalls. Skip this section if there's nothing worth calling out.
--
--## Communication Style
--
--- Use concrete language, not abstractions-about-abstractions
--- Say "the `UserService` calls `AuthClient.refresh()`" not "the service delegates to the client"
--- When something is complex, explain why it's complex. Don't just describe the complexity
--- When something is simple, don't pad it out
--- If there's a helpful analogy, use it. If there isn't, don't force one
--- If the explorers flagged open questions or gaps, acknowledge them rather than hiding them
+-Present the subagent's output. Light edits for clarity or context from the conversation are fine. Do not substantially rewrite it.
 diff --git a/skills/interrogate/SKILL.md b/skills/interrogate/SKILL.md
 index d397e0a..ddc7174 100644
 --- a/skills/interrogate/SKILL.md
@@ -237,7 +161,7 @@ index 530ab58..5dbb376 100644
  
 diff --git a/skills/no-comments/SKILL.md b/skills/no-comments/SKILL.md
 deleted file mode 100644
-index 6b0c74c..0000000
+index 462b5c4..0000000
 --- a/skills/no-comments/SKILL.md
 +++ /dev/null
 @@ -1,24 +0,0 @@
@@ -260,7 +184,7 @@ index 6b0c74c..0000000
 -## Steps
 -
 -1. Read [Claude Code execution](../poteto-mode/references/claude-execution.md), resolve `judgment and prose` with worker kind `comment-sicko`, and dispatch its original agent instructions through the selected executor. Pass the scope and use poteto-mode's task effort and speed guidance. Do not restate its rules.
--2. Inspect its report and diff. Reject application-code edits, scope escapes, exception-protected deletions, misstated `MUST KILL` reasons, and flags that treat kept intentional code as guilty. Reshape flags on our-code surprises stay actionable. Do not restore those comments. A keep survives only with proof it is about something we cannot change. Audit missed scoped lint and TypeScript suppressions. Correctness or safety suppressions stay actionable `MUST KILL`s. Restore deletions only with exact exceptions and scoped proof. Before accepting thin `IMPORTANT` or `do not remove` kills or keeps, run `/how` or `/why` on their symbol. If a kill is ambiguous, do not restore. If a keep is refuted or still ambiguous, delete it. Revert and rerun one rejected report with the failure named. Reject a second, report it open, and fail `/no-comments`.
+-2. Inspect its report and diff. Reject application-code edits, scope escapes, exception-protected deletions, misstated `MUST KILL` reasons, and flags that treat kept intentional code as guilty. Reshape flags on our-code surprises stay actionable. Do not restore those comments. A keep survives only with proof it is about something we cannot change. Audit missed scoped lint and TypeScript suppressions. Correctness or safety suppressions stay actionable `MUST KILL`s. Restore deletions only with exact exceptions and scoped proof. Before accepting thin `IMPORTANT` or `do not remove` kills or keeps, trace their symbol or run `/why` on it. If a kill is ambiguous, do not restore. If a keep is refuted or still ambiguous, delete it. Revert and rerun one rejected report with the failure named. Reject a second, report it open, and fail `/no-comments`.
 -3. Fix trivial accepted flags directly by deleting a dead path, dropping a parameter, or using the real API. If any fix needs a shape, run `/architect` once for the accepted set and surrounding code. Stop at the sketch. Architect shapes. Step 4 implements.
 -4. Implement the smallest root-cause fix in scope. Remove every named workaround. If the root cause is out of scope, land the smallest in-scope fix and report the rest open. The **principle-fix-root-causes** and **principle-redesign-from-first-principles** skills guide intent only. Neither authorizes widening the fence nor fixing instances outside it. Never bolt on symptom guards.
 -5. Constraint comments say `do not remove`, `do not change wording`, or `talk to X before changing`. Leave keeps about things we cannot change. Offer the cheapest in-scope type, runtime, test, or CI lint. Wait for interactive approval. Unattended and eval require caller pre-approval. If approved, encode then delete. Otherwise delete, report the constraint open, and sketch out-of-scope work.
@@ -279,7 +203,7 @@ index e335b8c..b501abd 100644
  ## Pick a skill
  
 diff --git a/skills/poteto-mode/SKILL.md b/skills/poteto-mode/SKILL.md
-index 8d1daa3..3df08ef 100644
+index 439d670..f117989 100644
 --- a/skills/poteto-mode/SKILL.md
 +++ b/skills/poteto-mode/SKILL.md
 @@ -8,7 +8,7 @@ color: yellow
@@ -291,7 +215,7 @@ index 8d1daa3..3df08ef 100644
  
  Bundled skills live at `../<name>/SKILL.md` from this file, so put this file's absolute path in every `poteto-agent` prompt.
  
-@@ -97,7 +97,7 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
+@@ -96,7 +96,7 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
  
  **Defaults for every delegate call.** Execute asynchronously through the selected executor, including steering and continuation. Use file pointers rather than inlined context. Resolve an explicit model per role through `/setup-pstack`. Setup presents unresolved choices for missing roles. No bundled exact model is an execution default. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) use `hardest tasks`, whether the task needs judgment on vague intent or follows a precise specification. Trivial mechanical edits use the fast code choice. Saved per-role entries override the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A missing role uses the actual native parent selection with disclosure and preserves its original cardinality. `inherit-parent` and `auto` select the actual native Claude parent. Each code playbook resolves its role (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`). Prose and judgment resolve `judgment and prose`.
  
@@ -361,7 +285,7 @@ index 9486d1a..7a4e1e5 100644
  **You own the experiment design. Plan, blind, run, synthesize.**
  
 diff --git a/skills/poteto-mode/playbooks/feature.md b/skills/poteto-mode/playbooks/feature.md
-index a18ca4f..f16eecf 100644
+index 464d47f..551ee2c 100644
 --- a/skills/poteto-mode/playbooks/feature.md
 +++ b/skills/poteto-mode/playbooks/feature.md
 @@ -1,6 +1,6 @@
@@ -373,7 +297,7 @@ index a18ca4f..f16eecf 100644
  **You own the design. Plan, review, verify.** Delegate implementation. Stay in the lead.
  
 diff --git a/skills/poteto-mode/playbooks/hillclimb.md b/skills/poteto-mode/playbooks/hillclimb.md
-index 478f283..9c8d917 100644
+index bc15312..550195a 100644
 --- a/skills/poteto-mode/playbooks/hillclimb.md
 +++ b/skills/poteto-mode/playbooks/hillclimb.md
 @@ -1,6 +1,6 @@
@@ -444,7 +368,7 @@ index a831816..934c361 100644
  **You own a clean stop. Leave a checkpoint a cold-start agent can resume from.** This is explicit only. On "keep going", "going to bed, keep going", or "don't stop", do not pause.
  
 diff --git a/skills/poteto-mode/playbooks/perf-issue.md b/skills/poteto-mode/playbooks/perf-issue.md
-index d6a7f6f..3e927c4 100644
+index 4ffc7fa..72e156e 100644
 --- a/skills/poteto-mode/playbooks/perf-issue.md
 +++ b/skills/poteto-mode/playbooks/perf-issue.md
 @@ -1,6 +1,6 @@
@@ -456,7 +380,7 @@ index d6a7f6f..3e927c4 100644
  **You own the measurement story. Plan, review, verify the numbers.** Tie every fix to a measurement, don't read source instead of measuring.
  
 diff --git a/skills/poteto-mode/playbooks/refactoring.md b/skills/poteto-mode/playbooks/refactoring.md
-index 5d3029e..d405435 100644
+index 4493aa5..1cc45b7 100644
 --- a/skills/poteto-mode/playbooks/refactoring.md
 +++ b/skills/poteto-mode/playbooks/refactoring.md
 @@ -1,6 +1,6 @@
@@ -1155,7 +1079,7 @@ index 0000000..bf895ef
 +
 +Claude Code reads `CLAUDE.md` and supports `AGENTS.md` under its [project instruction rules](https://code.claude.com/docs/en/memory#agentsmd). Do not rewrite unrelated instruction files or global settings to force a match. Read applicable project rules explicitly for external Codex tasks. Bugbot comments remain ordinary forge review threads. Use the calling workflow's `gh` or Origin commands. Cursor-specific configuration is not an instruction to install Cursor.
 diff --git a/skills/recall/SKILL.md b/skills/recall/SKILL.md
-index e73d6fd..5f309fd 100644
+index aa266b4..1dd24fb 100644
 --- a/skills/recall/SKILL.md
 +++ b/skills/recall/SKILL.md
 @@ -16,7 +16,7 @@ Read [Claude history](references/claude-history.md) and use its project-scoped h
@@ -1164,7 +1088,7 @@ index e73d6fd..5f309fd 100644
  2. Lock the scope before searching. Pin the window ("recent" is a real range, default the last 7 days), the topic if named, and the workspace (default the active one. Never read another project's transcripts without being asked). State the scope back. Never quietly turn "all" into "recent N".
 -3. Fan out across your chat history. Read [Claude Code execution](../poteto-mode/references/claude-execution.md), resolve `swarm workers` with worker kind `general-purpose`, and launch parallel workers through their selected executors, each taking a slice of the corpus. Tell every subagent to order candidates by real modification time (`ls -t`) and never by UUID name, grep the topic first and then read only the matching chats and only their relevant regions, and skip the current chat plus obvious noise (subagent, eval, and test chats). Each returns the same schema, one block per chat: topic, the user's goal, decisions, open threads, struggles and corrections, and artifacts (PRs, tickets, branches), each citing the chat UUID. For one or two chats, skip the fan-out and search directly. The raw transcripts stay in the subagents. The main thread gets only their findings. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
 +3. Fan out across your chat history. Read [Claude Code execution](../poteto-mode/references/execution.md), resolve `swarm workers` with worker kind `general-purpose`, and launch parallel workers through their selected executors, each taking a slice of the corpus. Tell every subagent to order candidates by real modification time (`ls -t`) and never by UUID name, grep the topic first and then read only the matching chats and only their relevant regions, and skip the current chat plus obvious noise (subagent, eval, and test chats). Each returns the same schema, one block per chat: topic, the user's goal, decisions, open threads, struggles and corrections, and artifacts (PRs, tickets, branches), each citing the chat UUID. For one or two chats, skip the fan-out and search directly. The raw transcripts stay in the subagents. The main thread gets only their findings. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
- 4. Sweep the shared record whenever the topic names a feature, file, subsystem, area, or bug. This is the default, not a judgment call, and "my work on X" does not exempt it. Hand it to the **why** skill's source investigators, but steer their question from "why was this built this way" to "what's the current state, what's been tried and didn't hold, and what are users still reporting". Reuse its per-source playbooks, run the investigators in parallel with the chat-history mining, and inherit its posture: one investigator per source, null results are findings, skip an unavailable MCP and say so. Fold what comes back into the brief. Skip this step only for pure activity recall with no named target ("what did I do this week"), where your own history and live state are the entire answer.
+ 4. Sweep the shared record whenever the topic names a feature, file, subsystem, area, or bug. This is the default, not a judgment call, and "my work on X" does not exempt it. Spawn one investigator subagent per source, in agent mode because readonly strips MCP access, and ask each "what's the current state, what's been tried and didn't hold, and what are users still reporting". Run them in parallel with the chat-history mining. Null results are findings. Skip an unavailable MCP and say so. Fold what comes back into the brief. Skip this step only for pure activity recall with no named target ("what did I do this week"), where your own history and live state are the entire answer.
  5. Verify against live state. Take the PRs, branches, and tickets that the mining and the sweep surfaced and check them with `git` and `gh`. When the answer hinges on what an agent actually did (the tools it ran, files it read, errors it hit), read the full transcript, not just a trimmed local copy.
  6. Write the brief to the contract below. Group by thread. Stay on the named topic.
 diff --git a/skills/reflect/SKILL.md b/skills/reflect/SKILL.md
@@ -1236,17 +1160,4 @@ index ec563f0..8171c6a 100644
 +Spawn all N workers asynchronously through their selected executors, each with worker kind `general-purpose` and its own worktree and output location. Use [Claude Code execution](../poteto-mode/references/execution.md) for native Agent calls and foreground Codex commands in background Bash. Workers run locally. A worktree isolates files, not a cloud machine. Assign distinct ports, caches, devices, and data directories when needed.
  
  When a worker must start from a non-default pushed branch, resolve that branch to a commit and create its worktree at that commit before dispatch.
- 
-diff --git a/skills/why/SKILL.md b/skills/why/SKILL.md
-index e181703..5f72f37 100644
---- a/skills/why/SKILL.md
-+++ b/skills/why/SKILL.md
-@@ -8,7 +8,7 @@ disable-model-invocation: true
- 
- Investigate the motivation and intent behind code. The companion `how` skill answers what the code does and how it works. `why` answers what forces led to its shape.
- 
--Read [Claude Code execution](../poteto-mode/references/claude-execution.md) before delegation. Investigators resolve `why investigators`; the synthesizer resolves `why synthesizer`. A rejected model follows the execution binding, using a valid same-family choice from the error when available, with disclosure. Parent aliases bind the actual native parent. Use poteto-mode's reasoning and speed guidance.
-+Read [Claude Code execution](../poteto-mode/references/execution.md) before delegation. Investigators resolve `why investigators`; the synthesizer resolves `why synthesizer`. A rejected model follows the execution binding, using a valid same-family choice from the error when available, with disclosure. Parent aliases bind the actual native parent. Use poteto-mode's reasoning and speed guidance.
- 
- Every seat uses worker kind `general-purpose` with the selected executor's configured MCP tools. Investigators receive a no-edits brief. Do not substitute a restricted Explore or Plan agent for a configured worker, since that changes its model, instructions, and available tools.
  

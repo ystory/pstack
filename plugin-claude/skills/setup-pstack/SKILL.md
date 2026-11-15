@@ -53,26 +53,26 @@ For Pi-only worker choices, skip native and other external model collection. Nor
 
 ## 4. Load current choices
 
-Run `scripts/models.mjs read`. Retain its `sha256`, `config`, `proposal`, and `needsChoice`.
+Run `scripts/models.mjs read`. Retain its `sha256`, `config`, `proposal`, `needsChoice`, and `droppedRoles`.
 
-`config` contains only saved selections and is empty on a fresh install. `proposal` exposes all 17 roles with unresolved model slots. Scalar roles have one initial slot, and panels or pools have two. No exact model is a proposal default. Missing roles execute on the actual native Claude parent with their original cardinality and `source: "unconfigured"`. Disclose that resolution. Before-setup tasks remain available.
+`config` contains only saved selections and is empty on a fresh install. `proposal` exposes all 13 roles with unresolved model slots. Scalar roles have one initial slot, and panels or pools have three. No exact model is a proposal default. Missing roles execute on the actual native Claude parent with their original cardinality and `source: "unconfigured"`. Disclose that resolution. Before-setup tasks remain available.
 
-On a rerun, retain independently chosen models, executors, aliases, efforts, list order, and duplicates. Unknown role keys fail validation without changing preferences.
+On a rerun, retain independently chosen models, executors, aliases, efforts, list order, and duplicates. A retired role in the saved file, such as `how explorer` or `why investigators`, appears in `droppedRoles` and not in `config`. Show each one to the user. The next save drops it. Other unknown role keys fail validation without changing preferences.
 
 ## 5. Select the budget and role mapping
 
-Use a budget already specified in the conversation. Otherwise show the saved budget, or explain that `large` is the initial effort target, and offer the original four choices.
+Use a budget already specified in the conversation. Otherwise show the saved budget, or explain that `large` keeps each role's starting effort, and offer the original four choices. Each role has a target effort, which is its starting effort moved by the budget. `large` keeps it, `unlimited` raises it one step, `medium` lowers it one step, and `small` lowers it two steps, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. A target at either end of the ladder stays there. `hardest tasks` starts at `max`. `reflect tooling`, `swarm workers`, the three panels, and the cross-judge pool start at `high`. The other roles start at `xhigh`, and each budget label names where those land.
 
-- `unlimited` targets `max` reasoning.
-- `large` targets `xhigh` reasoning.
-- `medium` targets `high` reasoning.
-- `small` targets `medium` reasoning.
+- `unlimited` names `max` reasoning.
+- `large` names `xhigh` reasoning.
+- `medium` names `high` reasoning.
+- `small` names `medium` reasoning.
 
-Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below the target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
+Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below each role's target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
 
 Show every role's current and proposed executor, Pi provider when applicable, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices and parent aliases. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
 
-Scalar roles hold one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` hold nonempty lists. Run one independent delegate per entry, including duplicates and aliases. `arena cross-judge pool` is an ordered candidate pool, from which Arena runs one eligible judge. Parent aliases never judge. Preserve Arena's ordered selected pool and disclosed judge skip, plus every other workflow's original diversity, verifier, retry, and fresh-worker requirements.
+Scalar roles hold one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` hold nonempty lists. Run one independent delegate per entry, including duplicates and aliases. `arena cross-judge pool` is an ordered candidate pool, from which Arena runs one eligible judge from a vendor other than the parent's. Families are the ones Phase A of the arena skill defines, so Fable is its own family. Fable and the other Claude models are one vendor. Parent aliases never judge. Preserve Arena's ordered selected pool and disclosed judge skip, plus every other workflow's original diversity, verifier, retry, and fresh-worker requirements.
 
 Pi choices retain `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "LEVEL" }`. Choose provider and model separately. Pi uses `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Budget previews select only reported levels on that ladder, including `off` for nonreasoning models. Native aliases stay native, and native registration creates no Pi model definitions. Follow [Pi execution](../poteto-mode/references/pi-execution.md) for explicit tools, context, fresh sessions, capability gaps, and required family gates.
 

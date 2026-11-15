@@ -57,3 +57,7 @@ shared/0010-pi-selection-failures.patch
 shared/0011-native-pi-session-storage.patch
 0047-native-state-release-version.patch
 0048-worker-launch-access.patch
+shared/0012-official-agy-executor.patch
+shared/0013-agy-probe-streams-and-receipt-identity.patch
+shared/0014-agy-prompt-free-stdin.patch
+0049-agy-worker-setup.patch

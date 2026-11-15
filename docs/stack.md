@@ -157,3 +157,22 @@ Keep candidates, artifacts, and verification receipts in ignored `.local/` stora
 `codex-runtime.lock.json` records the official repository revision, version, selected source-to-target mappings, and snapshot digest. Its source snapshot preserves repo-relative paths under `upstream/codex-runtime/`. The Claude baseline maps those files into `vendor/codex-plugin-cc/` before replaying its adaptations. Preserve upstream licenses and notices.
 
 `check-upstream` reports the runtime repository's current revision separately from the pstack source. `verify-upstream` checks every pinned snapshot. The pstack candidate workflow carries the current runtime pin unchanged; it does not silently update the runtime. To refresh it, export reviewed files from the selected official revision, update the lock and mapped target together, inspect the source and adaptation diff, then verify both series and artifacts. No runtime-sync command is provided. Record source evidence, fixture lifecycle checks, and bounded live execution separately.
+
+## Check the official agy runner
+
+Run the reusable direct check only with an already-authorized exact model, effort, and inherited official CLI authentication. It submits one fresh task and one exact continuation. It performs no installation, login, settings change, or native host onboarding.
+
+```sh
+node scripts/check-agy-live.ts \
+	--evidence-dir /absolute/new-local-evidence \
+	--fresh-runner /absolute/codex-artifact/plugin/skills/poteto-mode/scripts/run-agy.mjs \
+	--resume-runner /absolute/claude-artifact/plugin/skills/poteto-mode/scripts/run-agy.mjs \
+	--model APPROVED_EXACT_AGY_ID --effort APPROVED_SUPPORTED_EFFORT \
+	--inherited-auth adc
+```
+
+Both runner paths and the new evidence directory are required absolute paths. Use the final source copies or built artifact copies. No model or effort is a default. `--inherited-auth adc` acknowledges authorized use of the existing `AGY_ADC_AUTH=true` environment. For another already-authorized inherited official route, pass `--inherited-auth inherited-default` with that environment unchanged. The script checks the mode and never switches it. An optional `--executable ABS` selects the installed official CLI for this invocation. `--timeout-ms N` bounds each task and defaults to 120000.
+
+The check creates an unpredictable marker behind a pointer file in a neutral temporary workspace. The fresh runner must read both files through native tool events and return the exact marker. The other runner copy continues the exact receipt and recalls the marker. The check requires matching requested and CLI-observed model, unknown effective effort, completed status, orderly zero-exit process closure, and conversation-cumulative usage labels. It verifies both personal pstack preference hashes before and after execution and returns retained evidence paths.
+
+Read the evidence before reporting success. This proves the named direct official CLI path only. Native host asynchronous dispatch, first setup, active plugin installation, Desktop behavior, other models, and release approval remain separate. Cancellation is covered by subprocess fixtures rather than an additional paid task.

@@ -13,3 +13,5 @@ Transfer How and No comments with target-specific full deletions followed by a s
 Regenerate shared candidates by their intermediate file states and shared nodes. A common postimage must remain a common patch and reproduce both target results. An unresolvable intermediate state remains a concrete candidate conflict. Byte and mode replay establishes reproducibility, while upstream semantic review and runtime checks remain separate.
 
 We accept two complete installation trees and repeated shared references in exchange for native Git installs and preserved history. A third full common skill tree or a template language would duplicate the original source and add another maintenance format. Splitting each procedure into host wrappers and common fragments would add reading steps. Keeping two independently authored host patches would retain the drift that prompted this change.
+
+Update 2026-11-16: [#26](https://github.com/ystory/pstack/pull/26) compacted both series into themed patches in which each path belongs to one patch. The statements above about historical patch bytes and preserved history describe the series before that change.

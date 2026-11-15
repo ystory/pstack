@@ -1,0 +1,1693 @@
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 3de528e..2bf5381 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -1,83 +1,105 @@
+ ---
+ name: setup-pstack
+-description: Configure which models pstack uses per role and at what reasoning budget. Detects your available models and writes an always-applied rule that overrides the skill defaults. Use for /setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
++description: Configure pstack's per-role Claude, Codex, Pi, or Antigravity workers in Claude Code. Prepare selected official runtimes and login, save independent model choices, and register exact-model native agents. Use for /setup-pstack, "configure pstack models", or "pstack budget".
+ ---
+ 
+ # Setup pstack
+ 
+-Write `~/.cursor/rules/pstack-models.mdc`, an always-applied rule that sets pstack's model per role.
++Configure workers for this Claude Code host. Save choices in `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`. These preferences survive plugin updates and removal. The Codex distribution keeps its independent settings.
+ 
+-## Steps
++Resolve helpers relative to this installed skill and invoke their absolute paths with Node.js. Read [the helper contract](references/models-contract.md) for JSON shapes and fixture arguments.
+ 
+-### 1. Detect available models
++## 1. Choose worker executors
+ 
+-Enumerate the model slugs you can pass to a `Task` subagent in this session. That is the dependable source. If Cursor also exposes a models API or CLI that lists the user's entitled models, prefer it for completeness. If you cannot detect any, ask the user to paste the slugs they have access to. Never write a real slug you have not confirmed is available. The aliases `inherit-parent` and `auto` are always valid even though they are not detected slugs.
++Start with worker executor selection unless already supplied in the conversation. Offer the available worker executors independently. Native Claude, Codex, Pi, and Antigravity can be selected in any combination. The parent chat stays in Claude Code. Prefill executors used by saved entries on a rerun. A harness choice does not choose a model. If a saved entry uses an executor the user excludes, show it and obtain its replacement before saving. Preserve other choices.
+ 
+-### 2. Load current state
++## 2. Prepare selected runtimes
+ 
+-The default role-to-model mapping is the rule shape shown in step 5 below. If `~/.cursor/rules/pstack-models.mdc` already exists, read it and treat its `# budget` line and its role values as the current choices. Otherwise start from those defaults. A line whose role is not in step 5, such as `how explorer` or `why investigators`, is from a retired role. Drop it.
++Check `node --version` first. The helpers require Node.js 24.12 or newer. If Node is missing, use the [prerequisite guide](references/prerequisites.md).
+ 
+-A rule without the `# defaults: 2` line comes from an older setup. That setup wrote a line for every role, so some of its values are old defaults, not choices. An old slug is one that matches `grok-*`. Before step 3, replace these values:
++When native Claude workers are selected, run `scripts/detect.mjs detect --executors claude-code`. Include `codex` in that list only when Codex workers are also selected. When Codex is selected without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs detect` directly. For Pi-only or Antigravity-only workers, skip both detectors and use the selected executor's catalog procedure below. Report runtime versions, native effort support, and login state. Unselected worker CLIs are neither probed nor required. The detection helper is read-only; it does not perform installation or login.
+ 
+-- An old slug in `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `reflect tooling`, or `swarm workers` takes the role's step 5 default.
+-- A `claude-opus-*` value in `hardest tasks` takes the role's step 5 default.
+-- In a panel role (`arena runners`, `arena cross-judge pool`, `architect runners`, `interrogate reviewers`), a list of exactly one `claude-opus-*` entry and one old slug, in either order, takes the role's step 5 list. In any other list, each old slug becomes `claude-opus-5-5-high-fast`.
++Within the authorized setup, prepare missing selected tools yourself using their official installation guidance and the host's normal tools. For Codex workers, install the official standalone server when needed and make `codex-app-server` available on the PATH inherited by this host and future workers. Choose suitable installation details for this machine. Recheck detection without an executable override before completing setup. Do not leave installation or PATH preparation as a user checklist. Hand off only steps that require human interaction, such as login or an operating-system approval.
+ 
+-Every other value is the user's choice and stays, including an old slug in any other role and every `inherit-parent` or `auto` value. Tell the user which values you replaced.
++When the Claude detector runs, report `configuration.claudeHome` as the setup configuration target and `claude.cli.environment` as the inherited CLI environment used for authentication. `--claude-home` changes the configuration target only. Existing CLI authentication stays in the inherited environment, including an existing `CLAUDE_CONFIG_DIR`. An intentionally selected environment profile keeps its own login state.
+ 
+-### 3. Budget, map, and confirm
++Claude-only choices do not require Codex. Use [the prerequisite guide](references/prerequisites.md) for selected tools that need preparation, then rerun detection. Reuse existing installations and authentication. Distinguish ChatGPT subscription login from OpenAI API-key billing. Keep interactive login in the user's terminal or the host's normal login flow. Never ask the user to paste credentials into the conversation.
+ 
+-**(a) Ask for a budget.** Prefer AskQuestion over free text. Offer these four options with these exact labels, and name the current budget when the rule records one. With no rule, say that `large` matches the skill defaults.
++For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs detect`. Use the prerequisite guide for the official agy CLI, then collect its source-labeled catalog below. Reuse inherited authentication without reading credentials or changing personal defaults. Detection proves required syntax and version only.
+ 
+-- `unlimited — max reasoning`
+-- `large — xhigh reasoning`
+-- `medium — high reasoning`
+-- `small — medium reasoning`
++Native exact-model choices use generated agent definitions and per-invocation effort. Claude Code 2.1.292 introduced that effort parameter. If the installed host lacks the parameter, guide an update before configuring explicit native effort. Inspect the active tool schema as well as the version.
+ 
+-**(b) Apply it.** Build the working table from the skill defaults, and on a re-run keep any role you changed by family, list, or alias (`inherit-parent`, `auto`). Families are the ones Phase A of the **arena** skill defines, so Fable is its own family. Each role has a target effort, which is its default's effort moved by the budget. `large` keeps it, `unlimited` raises it one step, `medium` lowers it one step, and `small` lowers it two steps, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. A target at either end of the ladder stays there. Most defaults are at `xhigh`, and each budget label names where those land. Set the effort token of every real slug in the role, panel entries included, to the role's target. The effort token is the last token, or the one before a trailing `fast`. If the result is not a detected slug, use the same family's detected slug with the highest effort at or below the target, else mark the role as needing a choice. `inherit-parent` and `auto` do not change. So `unlimited` turns `claude-opus-5-5-xhigh` into `claude-opus-5-5-max` and `claude-opus-5-5-high-fast` into `claude-opus-5-5-xhigh-fast`, and it keeps `claude-fable-5-2-max`. Gemini tops out at `high`, so under `unlimited` the fallback keeps `gemini-4-carbon-high` as it is. `small` turns the first two into `claude-opus-5-5-medium` and `claude-opus-5-5-low-fast`. Fable 5.2 and Gemini have no fast slug, so never write one.
++## 3. Collect actual model options
+ 
+-**(c) Show the roles and confirm.** Show every role with its model, marking any real slug not in the detected set as needing a choice. Also list each line step 2 dropped. Ask whether to accept as-is or change specific roles, offering the detected models plus `inherit-parent` and `auto` (both mean: this role runs on the parent chat model, which is how Auto users stay on Auto) as the options. Prefer AskQuestion over free text. For panel roles (arena runners, architect runners, interrogate reviewers) the value is a list, and one subagent runs per entry, alias entries included, so the list length sets the count. `arena cross-judge pool` is also a list, but Arena runs one judge. It tries only values from a vendor other than the parent's, in list order, so order it by preference. Fable and the other Claude models are one vendor. An `inherit-parent` or `auto` value never judges. `swarm workers` is the default model for every worker unless a race or comparison assigns another model per arm.
++For Codex workers with selected native Claude workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT` through inherited PATH. For Codex workers without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs catalog --cwd ABSOLUTE_PROJECT` directly. These routes use the same official standalone runtime. For diagnostics, `--codex-executable ABS` overrides only that catalog invocation. The bundled runner uses the selected server for safe account status and every `model/list` page. Its receipt separates runtime capability, authentication, catalog, and execution evidence.
+ 
+-### 4. Validate
++For selected Pi workers, use the prerequisite guide and run the sibling `poteto-mode/scripts/run-pi.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. This queries exact provider/model routes and per-model thinking levels without submitting a prompt. Pass its `catalog.json` through `--pi-catalog ABSOLUTE_PI_CATALOG` when normalizing. Configured availability does not prove fresh authentication or successful inference.
+ 
+-Every real slug written must be in the detected set. `inherit-parent` and `auto` always pass. If a chosen real slug is not available, stop and ask again.
++For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. Pass its sanitized `catalog.json` through `--agy-catalog ABSOLUTE_AGY_CATALOG` when normalizing. No model prompt is submitted. Fixed-effort labels establish only the reported variant's configured availability. Unclassified candidates need per-model evidence before selection.
+ 
+-### 5. Write the rule
++For native Claude workers, use exact model IDs and supported efforts exposed by the current host or its model catalog. Inspect the current host and configuration rather than copying a fixed list from this skill. Detection lists configured model candidates, including `settings.json` model choices and model-specific environment variables. Those candidates require confirmation. A configured name or allowlist does not prove entitlement or supported efforts.
+ 
+-Write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true`, the `# defaults: 2` line, a `# budget` line with the chosen label and the effort that label names, and one line per role, using the same labels poteto-mode uses. Overwrite the whole file so re-runs stay idempotent. Shape:
++The detector does not enumerate native models; its `modelCatalog.discovered: false` describes the helper, not the host. Claude Code states the exact model IDs available to the session in your environment context, and the native Agent tool schema lists the accepted `effort` levels. Use those as a `host` catalog source and name both origins in its description. The host does not state per-model effort support; say so in that description.
+ 
+-```
+----
+-description: pstack per-role model choices (overrides skill defaults)
+-alwaysApply: true
+----
+-# pstack model configuration. One line per role. Delete a line to fall back to the skill default.
+-# `inherit-parent` or `auto` as a value: the role runs on the parent chat model (omit Task `model`). Alias entries in a panel list still count toward its fan-out.
+-# defaults: 2
+-# budget: large (xhigh)
+-feature, refactoring: claude-opus-5-5-xhigh
+-bug-fix: claude-opus-5-5-xhigh
+-perf-issue: claude-opus-5-5-xhigh
+-hillclimb: claude-opus-5-5-xhigh
+-judgment and prose: claude-opus-5-5-xhigh
+-hardest tasks: claude-fable-5-2-max
+-reflect tooling: claude-opus-5-5-high-fast
+-reflect judgment, divergent, synthesizer: claude-opus-5-5-xhigh
+-arena runners: claude-fable-5-2-high, claude-opus-5-5-high-fast, gemini-4-carbon-high
+-arena cross-judge pool: claude-fable-5-2-high, claude-opus-5-5-high-fast, gemini-4-carbon-high
+-swarm workers: claude-opus-5-5-high-fast
+-architect runners: claude-fable-5-2-high, claude-opus-5-5-high-fast, gemini-4-carbon-high
+-interrogate reviewers: claude-fable-5-2-high, claude-opus-5-5-high-fast, gemini-4-carbon-high
+-```
+-
+-### 6. Confirm
+-
+-Tell the user the rule was written and that it applies to new sessions. Re-running this skill updates it.
+-
+-### 7. Offer a verification skill (optional)
+-
+-Check whether the project has a way to drive the real app for proof (a `verify-*` skill, or an existing harness). If not, offer once: "want a project-local verification skill, so agents can drive the app the way a user does and prove changes work? I can generate one with /create-verification-skill." On yes, invoke `/create-verification-skill` (resolves wherever pstack is installed: workspace, user, or plugin). On no, move on without pushing.
+-
+-### 8. Offer a formal verification skill (optional)
+-
+-Check whether the project already has a formal verification skill (a project skill that runs a model checker, a proof, or another verifier against the code). If not, offer once: "want a formal verification skill, so agents can prove a key property of your code holds in every case in scope, not only the cases tests reach? I can generate one with /create-formal-verification-skill." On yes, invoke `/create-formal-verification-skill` (resolves wherever pstack is installed: workspace, user, or plugin). On no, move on without pushing.
++If neither the session context nor the tool schema provides exact IDs and efforts, ask the user to confirm them and label the resulting catalog source `manual-confirmation`. Keep that fallback visible. Do not substitute moving aliases such as `opus` or `sonnet` for exact selections.
++
++Normalize the selected routes with `scripts/models.mjs catalog --input ABSOLUTE_CODEX_RECEIPT --native-catalog ABSOLUTE_NATIVE_CATALOG`. Omit the Codex input for Claude-only setup. Every explicit selection must match its executor's catalog. A matching ID under another executor does not validate it.
++
++For Antigravity-only worker choices, skip native, Claude, and Pi probes and model collection. Normalize with `scripts/models.mjs catalog --agy-catalog ABSOLUTE_AGY_CATALOG` alone. For any combination, include only the selected catalogs.
++
++For Pi-only worker choices, skip native and other external model collection. Normalize with `scripts/models.mjs catalog --pi-catalog ABSOLUTE_PI_CATALOG` alone. Omit `--input`, `--native-catalog`, and `--claude-runtime` when unused. Native parent aliases remain available without a native model catalog.
++
++`auto` and `inherit-parent` always mean the actual native Claude parent. They omit effort and executor overrides on invocation. They cannot select an external executor. Use the [Claude execution binding](../poteto-mode/references/execution.md) when dispatching.
++
++## 4. Load current choices
++
++Run `scripts/models.mjs read`. Retain its `sha256`, `config`, `proposal`, `needsChoice`, and `droppedRoles`.
++
++`config` contains only saved selections and is empty on a fresh install. `proposal` exposes all 13 roles with unresolved model slots. Scalar roles have one initial slot, and panels or pools have three. No exact model is a proposal default. Missing roles execute on the actual native Claude parent with their original cardinality and `source: "unconfigured"`. Disclose that resolution. Before-setup tasks remain available.
++
++On a rerun, retain independently chosen models, executors, aliases, efforts, list order, and duplicates. A retired role in the saved file, such as `how explorer` or `why investigators`, appears in `droppedRoles` and not in `config`. Show each one to the user. The next save drops it. Other unknown role keys fail validation without changing preferences.
++
++## 5. Select the budget and role mapping
++
++Use a budget already specified in the conversation. Otherwise show the saved budget, or explain that `large` keeps each role's starting effort, and offer the original four choices. Each role has a target effort, which is its starting effort moved by the budget. `large` keeps it, `unlimited` raises it one step, `medium` lowers it one step, and `small` lowers it two steps, on the ladder `max` > `xhigh` > `high` > `medium` > `low`. A target at either end of the ladder stays there. `hardest tasks` starts at `max`. `reflect tooling`, `swarm workers`, the three panels, and the cross-judge pool start at `high`. The other roles start at `xhigh`, and each budget label names where those land.
++
++- `unlimited` names `max` reasoning.
++- `large` names `xhigh` reasoning.
++- `medium` names `high` reasoning.
++- `small` names `medium` reasoning.
++
++Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below each role's target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
++
++Show every role's current and proposed executor, Pi provider when applicable, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices and parent aliases. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
++
++Scalar roles hold one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` hold nonempty lists. Run one independent delegate per entry, including duplicates and aliases. `arena cross-judge pool` is an ordered candidate pool, from which Arena runs one eligible judge from a vendor other than the parent's. Families are the ones Phase A of the arena skill defines, so Fable is its own family. Fable and the other Claude models are one vendor. Parent aliases never judge. Preserve Arena's ordered selected pool and disclosed judge skip, plus every other workflow's original diversity, verifier, retry, and fresh-worker requirements.
++
++Pi choices retain `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "LEVEL" }`. Choose provider and model separately. Pi uses `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Budget previews select only reported levels on that ladder, including `off` for nonreasoning models. Native aliases stay native, and native registration creates no Pi model definitions. Follow [Pi execution](../poteto-mode/references/pi-execution.md) for explicit tools, context, fresh sessions, capability gaps, and required family gates.
++
++Antigravity choices retain `{ "executor": "antigravity", "model": "EXACT_AGY_ID", "reasoningEffort": "LEVEL" }`. They have no provider or authentication fields and create no native model definitions. Budget previews keep the exact ID and use only that model's reported efforts. A fixed `xhigh` variant has no lower effort unless its per-model evidence says otherwise. If the target cannot be met, resolve `needsChoice` without silently switching IDs. Follow [Antigravity execution](../poteto-mode/references/agy-execution.md) for scoped permissions, complete context, native history, exact continuation, and capability limits.
++
++## 6. Review, register, and save
++
++Show accepted roles, remaining unconfigured roles, budget, and evidence sources. Write the accepted sparse config to an absolute temporary JSON file. Validate it with `scripts/models.mjs write --input ABSOLUTE_JSON --catalog ABSOLUTE_CATALOG --expected-hash HASH --dry-run`. Use the read hash, or `absent` if no file exists. Missing roles keep their disclosed native-parent fallback.
++
++Run `scripts/register-agents.mjs --input ABSOLUTE_JSON`. It derives four native agent kinds from this plugin's original bodies for each distinct exact Claude model. It writes owned definitions under the Claude home, without editing the installed plugin cache, unrelated agents, `settings.json`, or Codex configuration. `general-purpose`, `poteto-agent`, and `comment-sicko` retain their supplied bodies. `read-only` retains the general-purpose body and disallows `Write`, `Edit`, and `NotebookEdit` for actual readonly callers. Bash remains available. Task-specific effort uses the native invocation parameter.
++
++Registration retains earlier owned variants so interruption or a rejected preference save leaves the saved selection usable. The receipt lists these unused files in `retained`. Registration never prunes them, including on later reruns, because another setup may still save a staged choice. Explicit unregister removes all owned variants.
++
++Registration is idempotent. Updates and older plugin bundles refresh the proposed variants from their bundled bodies and retain other owned variants unchanged. A modified or unowned destination produces a conflict before registration changes. An interrupted registration retains a journal and completes that same transaction on the next run. Preserve the diagnostic files if recovery reports a user edit.
++
++After registration succeeds, run the same `models.mjs write` command without `--dry-run`. A changed hash requires reloading the current choices before saving. The helper saves atomically and leaves identical bytes untouched.
++
++## 7. Finish setup
++
++Report the preferences path, selected executors, registered exact-model definitions, and detected CLI versions. State which choices came from a catalog or manual confirmation. A saved preference or definition does not verify execution. Explain that a new Claude Code session refreshes the registered agent list when needed. When the user requests execution verification, use the selected executor binding and effort. Native Claude workers use the emitted `agentType` and the installed namespace for a small task with the selected worker. Keep observed model identity separate from requested settings. Distinguish fixture checks, native CLI execution, and Desktop UI evidence. A helper-only check does not establish first-time onboarding.
++
++When the user requests removal, run `scripts/register-agents.mjs --unregister` before uninstalling the plugin. It removes only unchanged owned definitions and their registration record. It retains model preferences and unrelated files.
++
++## 8. Offer a verification skill
++
++If the project has no way to drive its real application, offer the original optional project verification skill once. On acceptance, resolve `create-verification-skill/SKILL.md` and follow it. On decline, continue.
++
++## 9. Offer a formal verification skill
++
++If the project has no formal verification skill, offer the original optional formal verification skill once. On acceptance, resolve `create-formal-verification-skill/SKILL.md` and follow it. On decline, continue.
+diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
+new file mode 100644
+index 0000000..eb2972d
+--- /dev/null
++++ b/skills/setup-pstack/references/models-contract.md
+@@ -0,0 +1,124 @@
++# Claude setup helper contract
++
++The helpers are standalone Node.js scripts. They need no package installation or build. Resolve their paths from the installed setup skill. Paths supplied as arguments are absolute. `--claude-home ABS` selects the configuration home for settings inspection, preferences, and agent registration. Otherwise the configuration home is `CLAUDE_CONFIG_DIR`, or `~/.claude` when unset.
++
++## Saved choices
++
++Preferences are in `pstack-cc/models.json` under the Claude home.
++
++```json
++{
++  "schemaVersion": 1,
++  "host": "claude-code",
++  "budget": "large",
++  "roles": {
++    "bug-fix": {
++      "executor": "codex",
++      "model": "EXACT_CODEX_ID",
++      "reasoningEffort": "xhigh"
++    },
++    "judgment and prose": {
++      "executor": "claude-code",
++      "model": "EXACT_CLAUDE_ID",
++      "reasoningEffort": "high"
++    },
++    "hillclimb": "inherit-parent",
++    "arena runners": [
++      "auto",
++      {
++        "executor": "codex",
++        "model": "EXACT_CODEX_ID",
++        "reasoningEffort": "high"
++      },
++      "auto"
++    ]
++  }
++}
++```
++
++This excerpt shows the shapes. Sparse accepted saves are valid. Partial proposals retain saved choices for omitted roles. Missing roles stay unconfigured and resolve to the actual native parent. An omitted executor in an object normalizes to native `claude-code`. Explicit persisted model entries retain their executor and effort. Aliases can be strings or native entries with `model` and no effort.
++
++The scalar keys are `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `judgment and prose`, `hardest tasks`, `reflect tooling`, `reflect judgment, divergent, synthesizer`, and `swarm workers`.
++
++The list keys are `arena runners`, `arena cross-judge pool`, `architect runners`, and `interrogate reviewers`. Lists retain order and duplicates. The cross-judge list is a pool. The other lists describe fan-out counts.
++
++The retired keys `how explorer`, `how explainer`, `why investigators`, and `why synthesizer` can remain in a saved file. Read, resolve, and budget leave them out of `config`, list them in `droppedRoles`, and do not validate their values. The next write omits them and lists them in its `droppedRoles`. Every other saved value stays unchanged.
++
++Each role has a starting effort. `hardest tasks` starts at `max`. `reflect tooling`, `swarm workers`, the three panels, and the cross-judge pool start at `high`. The other roles start at `xhigh`. A budget moves every starting effort by steps on the ladder `low`, `medium`, `high`, `xhigh`, `max`. `unlimited` raises it one step, `large` keeps it, `medium` lowers it one step, and `small` lowers it two steps. A target stays at either end of the ladder. That result is the role's target effort.
++
++## Catalogs
++
++`models.mjs catalog --input ABS --native-catalog ABS` accepts raw Codex `model/list` data, a normalized combined catalog, or the output of `detect.mjs catalog`. It rejects an uncollected next page. The runtime collects pages before normalization.
++
++A native catalog has this shape. The values below are placeholders, not model recommendations.
++
++```json
++{
++  "source": {
++    "kind": "manual-confirmation",
++    "description": "The user confirmed this exact model and these supported efforts."
++  },
++  "models": [
++    {
++      "model": "EXACT_CLAUDE_ID",
++      "supportedReasoningEfforts": ["low", "medium", "high"]
++    }
++  ]
++}
++```
++
++Source kinds are `host`, `configuration`, and `manual-confirmation`. Each source needs a description. A configuration source records confirmed exact model and capability metadata. An unverified configured candidate is not a catalog entry. Native moving aliases are rejected. Supported efforts stay separate from model IDs.
++
++Normalized entries have `executor`, `model`, and `supportedReasoningEfforts`. Native entries also carry their source. Executor identity participates in validation, so identical strings from two executors remain separate choices.
++
++## Commands
++
++- `models.mjs read` returns `file`, `exists`, `sha256`, valid saved `config`, full `proposal`, `droppedRoles`, `needsChoice`, and `targetReasoningEffort`. Missing proposal slots contain only their role's target `reasoningEffort`, without a model or executor. Scalars start with one slot and panels or pools with three. These unresolved objects cannot be saved as selected entries.
++- `models.mjs resolve --role ROLE [--kind KIND]` returns an `entries` array, original `cardinality`, source, budget, the role's target `targetReasoningEffort`, `droppedRoles`, and empty `needsChoice`. Scalars yield one entry. Missing roles yield one or three native `inherit-parent` entries at their original count, with source `unconfigured` and static inherited definitions. Saved exact entries remain exact.
++- `models.mjs budget --budget LABEL --catalog ABS` returns a preview `config`, `droppedRoles`, `targetReasoningEffort`, and `needsChoice`. It never writes. An entry with no supported effort at or below its role's target requires a choice, and its `needsChoice` entry carries that `targetReasoningEffort`.
++- `models.mjs write --input ABS --catalog ABS --expected-hash HASH_OR_ABSENT [--dry-run]` validates all choices and saves atomically. The input is a config, or a result object containing `config`. Unresolved `needsChoice` results are rejected. A dry run creates no destination. `droppedRoles` lists the retired keys the write omits.
++
++The top-level `targetReasoningEffort` of `read` and `budget` is the effort the budget label names, which is the target of a role that starts at `xhigh`. Per-role targets appear in proposal slots, `resolve`, and `needsChoice` entries.
++- `register-agents.mjs [--input ABS] [--dry-run] [--unregister]` manages owned native definitions. With no input, it uses saved preferences. Removal retains preferences.
++- `detect.mjs detect --executors claude-code` reports native CLI, safe auth evidence, model candidates and guidance. `--executors claude-code,codex` also probes the standalone Codex server. Unselected Codex is never invoked or required. The legacy detector always includes Claude. When Claude workers are unselected, skip it. Use `poteto-mode/scripts/run-codex.mjs detect` or `catalog --cwd ABS` directly for selected Codex workers, and the Pi catalog runner for selected Pi workers.
++- `detect.mjs catalog --executors claude-code,codex --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` selects the Claude CLI. `--codex-executable ABS` overrides the standalone server for that detect or catalog invocation only. The path is not saved or used by future workers.
++
++Detection retains `schemaVersion: 1` and the legacy `codex.cli` container. Its `kind` is `standalone-app-server`; `executable`, `args`, and `version` identify the selected launch. Setup owns preparing the official server on the host's inherited PATH. The default executable is `codex-app-server`, and PATH discovery skips non-files and non-executables. The argument array is `['--session-source', 'app-server']` for probes and actual connections. Version and source-help probes are bounded. `available` requires successful probes and help that advertises `--session-source`. This checks required capabilities, not a native-version allowlist or a general compatibility guarantee. Missing or unsupported servers produce official installation guidance for the setup host, with no fallback to `codex app-server`.
++
++The same server handles safe `account/read` and all `model/list` pages. Auth and persistent history use the inherited `CODEX_HOME`, without credential-file reads or a separate profile. Run requests record the executable and arguments. Results add the probe version, and spawn diagnostics identify the executable and arguments actually launched. Successful detection or catalog access leaves `execution.verified` false.
++
++Detection reports the configuration target in `configuration.claudeHome`. Claude version, help, and authentication checks use the unchanged inherited CLI environment. `claude.cli.environment.source` is `inherited`. Its `claudeConfigDir` contains the inherited `CLAUDE_CONFIG_DIR` value, or `null` when the CLI uses its default lookup. `--claude-home` does not relocate credentials or select another authentication profile. A profile selected through the inherited environment keeps its own login state. Detection copies no credentials and writes no setup files.
++
++`KIND` is `general-purpose`, `poteto-agent`, `comment-sicko`, or `read-only`. An explicit Claude selection resolves to `pstack-cc-KIND-HASH`, where `HASH` is the first 16 hexadecimal characters of the exact model ID's SHA-256. Definitions are in `agents/pstack-cc/` under the Claude home. Parent aliases and unconfigured roles resolve to `pstack-cc:KIND`. The readonly kind disallows `Write`, `Edit`, and `NotebookEdit` and retains the general-purpose body. Codex, Pi, and Antigravity entries do not receive a native agent type.
++
++## Registration ownership
++
++`pstack-cc/agent-registration.json` records owned paths, hashes, permissions, original kind, exact model, and plugin version. A pending `.agent-registration.pending.json` records the before and after state for an interrupted transaction. Recovery accepts only those states and refuses independent edits. A live registration lock prevents concurrent registrars. A later invocation removes a dead process's lock and completes pending work.
++
++Registration adds or refreshes the proposed variants and retains every other owned variant unchanged. Its `agents` receipt lists the proposal's variants, and `retained` lists earlier owned files. An interrupted setup or a stale preference hash cannot remove definitions needed by saved choices or another staged proposal. Unused variants accumulate until explicit unregister.
++
++The registrar changes neither Claude settings nor plugin cache files. Unregister checks every owned definition before removing any. A native host must load the resulting definitions before they can be invoked. Registration alone is not live compatibility evidence.
++
++Unknown role keys other than the retired keys fail boundary validation without dropping or migrating them. Preferences remain unchanged.
++
++## Pi routes
++
++A Pi choice is `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "off" }`. The provider is required for Pi and rejected for other executors. Model IDs keep their exact bytes, including slashes. `auto` and `inherit-parent` remain native-only. Saved role shapes, sparse choices, order, and duplicate seats stay unchanged. Read and resolve preserve Pi choices offline and create no native `agentType`.
++
++Run `poteto-mode/scripts/run-pi.mjs catalog --cwd ABS --run-dir ABS_NEW_DIRECTORY` from its actual installed path. Pass its sanitized `catalog.json` to `models.mjs catalog --pi-catalog ABS` alongside any native catalog inputs. Pi-only normalization may omit `--input`. Merge the normalized result into the existing budget and hash-guarded write flow. No task prompt is submitted for catalog collection.
++
++Each Pi capability has `executor`, `provider`, `model`, `supportedReasoningEfforts`, a labeled `source`, and optional `runtimeVersion`. Normalization retains these fields and discards other full-model fields. Repeated normalization is idempotent. Provider collisions are independent routes. Configured model availability and local thinking-level readback do not prove remote inference or fresh authentication.
++
++Pi's effort ladder is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. `off` differs from native `none`. Budget mapping selects the highest reported level at or below its target on this ladder. An off-only route maps to `off` under every budget. Unsupported efforts or missing exact routes prevent a save without changing preferences.
++
++Follow [Pi execution](../../poteto-mode/references/pi-execution.md) for process receipts, exact resume, structured rejections, explicit tool capabilities, and required model-family gates. Pi entries never become native agent definitions.
++
++## Antigravity routes
++
++An Antigravity choice is `{ "executor": "antigravity", "model": "EXACT_AGY_ID", "reasoningEffort": "LEVEL" }`. It has no provider or authentication fields. Parent aliases remain native-only. Existing scalar and list shapes, sparse saves, order, duplicates, and native fallback remain. Read and resolve work offline without agy or a current catalog. Antigravity entries create no native model definitions or `agentType`.
++
++`models.mjs catalog --agy-catalog ABS` merges the runner's sanitized `catalog.json` with selected native, Claude, or Pi inputs. Antigravity-only normalization omits other inputs. The separate flag rejects rows from another executor. Each normalized capability retains `executor`, exact `model`, `supportedReasoningEfforts`, a labeled per-model `source`, and optional `runtimeVersion`. Re-normalization preserves these fields. Sources remain in catalogs rather than saved preferences.
++
++The effort domain is separate from native and Pi efforts. Supported efforts come from each exact model's evidence, not a global CLI matrix. A host label such as `(XHigh)` supplies that one variant effort and identifies that limitation in its source. It proves configured availability only. Other candidates need a host, configuration, or manual-confirmation source for their exact ID and supported efforts.
++
++Budget mapping keeps the exact model and chooses the highest supported effort at or below the target. A fixed `xhigh` variant returns `needsChoice` for a lower target rather than changing its ID. Invalid routes, unsupported efforts, missing provenance, native aliases on Antigravity, and non-Pi provider fields prevent saving. Follow [Antigravity execution](../../poteto-mode/references/agy-execution.md) for inherited authentication, scoped permissions, cumulative usage, native history, and one-use exact continuation.
+diff --git a/skills/setup-pstack/references/prerequisites.md b/skills/setup-pstack/references/prerequisites.md
+new file mode 100644
+index 0000000..16da51c
+--- /dev/null
++++ b/skills/setup-pstack/references/prerequisites.md
+@@ -0,0 +1,59 @@
++# Prepare worker runtimes and login
++
++The host running setup prepares the selected executors. Reuse working installations; otherwise use official installation guidance and the host's normal tools to install what the authorized setup needs. Prepare the environment used by future workers, then rerun detection. Leave only genuinely interactive steps, such as login or operating-system approval, to the user. Detection and catalog helpers remain read-only.
++
++## Node.js
++
++Check `node --version`. Install Node.js 24.12 or newer from the [official Node.js downloads](https://nodejs.org/en/download), then rerun the version check. Node is needed for the bundled setup and Codex runtime helpers. It is independent of Claude's native installer.
++
++## Claude Code
++
++Check `claude --version` only when native Claude workers are selected. Skip its login and capability probes whenever native Claude workers are unselected. Use the direct Codex runner for Codex detection when Claude is unselected. On macOS, Linux, or WSL, the [official installation guide](https://code.claude.com/docs/en/setup) uses this command.
++
++```sh
++curl -fsSL https://claude.ai/install.sh | bash
++```
++
++For Windows, use that guide's PowerShell or CMD instructions. After installation, rerun detection. Native pstack effort selection needs a host that exposes the Agent effort parameter, documented from Claude Code 2.1.292.
++
++Use `claude auth status` to inspect login state. If logged out, run `claude auth login` in a terminal, or use the host's `/login` flow. The [Claude authentication guide](https://code.claude.com/docs/en/authentication) describes subscription, Console, and provider authentication. Reuse the selected account and organization configuration. Do not copy tokens into setup files.
++
++Detection checks the existing CLI login through the inherited environment, including any existing `CLAUDE_CONFIG_DIR`. The helper flag `--claude-home` selects where setup inspects and saves configuration. It does not change the CLI authentication environment. The detection receipt reports both locations. To use a different CLI profile, launch setup with that profile's environment and use its normal login flow if needed.
++
++## Codex workers
++
++Codex is optional when every worker uses native Claude. Prepare the official standalone `codex-app-server` from [Codex releases](https://github.com/openai/codex/releases). Reuse a working installation or obtain the complete package for this machine. Preserve its companion files. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary.
++
++As part of setup, make the server available on the PATH inherited by Claude Code and future workers. Choose an appropriate normal installation location; pstack does not prescribe its own layout. Verify detection without an override before completing Codex setup. Absolute-path options are per-invocation diagnostics overrides, not saved installation settings.
++
++Pstack calls `codex-app-server --session-source app-server` and checks the capabilities that this invocation needs. The umbrella `codex app-server` does not provide this source selection. The setup host performs ordinary dependency installation; pstack does not bundle or pin native server releases, host downloads, manage upgrades, or maintain a version compatibility matrix.
++
++The [Codex CLI](https://developers.openai.com/codex/cli) remains the human login tool. Installing it through npm does not install the standalone worker package. Run `codex login` in a terminal. In Claude Code, the user can run `!codex login` to open the CLI flow. In a headless environment or when a localhost callback cannot complete, use the documented device flow.
++
++```sh
++codex login --device-auth
++```
++
++Device login may need to be enabled by the account or workspace. See the [official Codex authentication guide](https://learn.chatgpt.com/docs/auth).
++
++The CLI and standalone server must inherit the same `CODEX_HOME`, or both use its default `~/.codex`. Workers share that configuration, account, and persistent rollout/state storage. Do not create a separate profile or copy credentials to hide workers.
++
++ChatGPT login uses the account's Codex plan. API-key login uses OpenAI API billing. Let the user choose the intended method, and follow the official auth guide for API-key setup outside the conversation. Never print a key, credential cache, or full authentication response. The bundled runner reports safe status and method fields.
++
++Rerun detection and collect the catalog after login. Runtime capability, login state, model catalog, and successful worker execution are separate evidence.
++
++## Pi workers
++
++Pi is optional. Prepare it only when selected. The runner requires Pi 1.5.2 or newer and checks the inspected RPC controls at runtime. Use the [Pi installation guide](https://pi.dev/) for the official `@earendil-works/pi-coding-agent` package, then check `pi --version` on the PATH inherited by future workers. An absolute `--executable` overrides one invocation for diagnostics and is never saved.
++
++Reuse existing Pi authentication and provider configuration. Do not read or copy credential files, change personal defaults, or create a separate authentication home. Guide an interactive `/login` only when required and authorized for the user's selected provider. Existing cloud credentials can supply provider authentication through their normal environment. A model appearing in the catalog does not prove that its credentials can complete inference.
++
++Run the sibling `poteto-mode/scripts/run-pi.mjs catalog --cwd ABS --run-dir ABS_NEW_LOCAL_DIRECTORY`. It disables discovered extensions, MCP, context files, skills, templates, and startup refresh. It uses inherited configuration and authentication, selects each exact provider/model, reads supported thinking levels, and writes only sanitized catalog evidence. No model prompt is sent. Session storage is isolated without replacing the user's Pi agent directory. If required RPC controls or selected routes fail, report the capability gap. Runtime detection, catalog availability, task execution, and release approval remain separate evidence.
++
++## Antigravity workers
++
++Prepare Antigravity only when selected. Use the official [Antigravity installation guide](https://antigravity.google/docs/getting-started/) and its `https://antigravity.google/cli/install.sh` installer. The bundled runner requires the official agy CLI 1.5.8 or newer. Run the sibling `poteto-mode/scripts/run-agy.mjs detect` through the PATH inherited by future workers. An absolute `--executable` overrides one invocation for diagnostics and is never saved. No unofficial extension is required.
++
++Reuse the official CLI's inherited authentication and environment. `AGY_ADC_AUTH=true` selects inherited ADC mode. Other official login or API-key environments remain inherited defaults. Do not inspect or copy credential files, switch authentication routes, or save personal model defaults. Use the official interactive login flow only when needed and authorized. A version probe does not prove authentication or model access.
++
++Run `poteto-mode/scripts/run-agy.mjs catalog --cwd ABS --run-dir ABS_NEW_LOCAL_DIRECTORY`. This collects sanitized exact model IDs, labels, per-model capability sources, and the runtime version without a task prompt. A fixed-effort label supplies only its reported variant effort. Unclassified models remain candidates until per-model evidence supplies supported efforts. Catalog availability does not establish successful inference. Antigravity-only setup skips every other executor's probes and catalog inputs.
+diff --git a/skills/setup-pstack/scripts/detect.mjs b/skills/setup-pstack/scripts/detect.mjs
+new file mode 100644
+index 0000000..5186a4a
+--- /dev/null
++++ b/skills/setup-pstack/scripts/detect.mjs
+@@ -0,0 +1,252 @@
++#!/usr/bin/env node
++
++import { spawnSync } from 'node:child_process';
++import { constants } from 'node:fs';
++import * as fs from 'node:fs/promises';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++import { argumentsFor, claudeHome, inspect, run } from './state.mjs';
++
++const runner = fileURLToPath(
++  new URL('../../poteto-mode/scripts/run-codex.mjs', import.meta.url),
++);
++const invoke = (executable, args, env) =>
++  spawnSync(executable, args, {
++    encoding: 'utf8',
++    timeout: 20_000,
++    maxBuffer: 4 * 1024 * 1024,
++    env,
++  });
++const succeeded = (result) => !result.error && result.status === 0;
++async function executableFor(selected, name) {
++  if (selected && !path.isAbsolute(selected))
++    throw new Error(`${name} executable requires an absolute path.`);
++  const candidates = selected
++    ? [selected]
++    : (process.env.PATH ?? '')
++        .split(path.delimiter)
++        .map((directory) =>
++          path.resolve(
++            directory,
++            process.platform === 'win32' ? `${name}.exe` : name,
++          ),
++        );
++  for (const candidate of candidates) {
++    try {
++      await fs.access(candidate, constants.X_OK);
++      return candidate;
++    } catch {}
++  }
++  return null;
++}
++function jsonOutput(result) {
++  if (!succeeded(result)) return undefined;
++  try {
++    return JSON.parse(result.stdout);
++  } catch {
++    return undefined;
++  }
++}
++function versionAtLeast(version, minimum) {
++  const actual = version
++    ?.match(/\d+\.\d+\.\d+/)?.[0]
++    ?.split('.')
++    .map(Number);
++  if (!actual) return false;
++  const required = minimum.split('.').map(Number);
++  for (let i = 0; i < 3; i += 1)
++    if (actual[i] !== required[i]) return actual[i] > required[i];
++  return true;
++}
++async function nativeCandidates(home) {
++  const candidates = [];
++  const settingsFile = path.join(home, 'settings.json');
++  if (await inspect(settingsFile)) {
++    let settings;
++    try {
++      settings = JSON.parse(await fs.readFile(settingsFile, 'utf8'));
++    } catch {
++      throw new Error('Claude settings.json is not valid JSON.');
++    }
++    for (const model of [
++      settings.model,
++      ...(Array.isArray(settings.availableModels)
++        ? settings.availableModels
++        : []),
++    ])
++      if (typeof model === 'string')
++        candidates.push({
++          model,
++          source: settingsFile,
++          confirmationRequired: true,
++        });
++  }
++  for (const name of [
++    'ANTHROPIC_MODEL',
++    'ANTHROPIC_DEFAULT_OPUS_MODEL',
++    'ANTHROPIC_DEFAULT_SONNET_MODEL',
++    'ANTHROPIC_DEFAULT_HAIKU_MODEL',
++    'CLAUDE_CODE_SUBAGENT_MODEL',
++  ])
++    if (process.env[name])
++      candidates.push({
++        model: process.env[name],
++        source: name,
++        confirmationRequired: true,
++      });
++  return candidates;
++}
++
++await run(async () => {
++  const options = argumentsFor(
++    process.argv.slice(2),
++    ['detect', 'catalog'],
++    [
++      '--claude-home',
++      '--claude-executable',
++      '--codex-executable',
++      '--cwd',
++      '--executors',
++    ],
++  );
++  if (options.help) {
++    process.stdout.write(
++      'Usage: node detect.mjs detect|catalog [--claude-home ABS] [--claude-executable ABS] [--codex-executable ABS] [--cwd ABS] [--executors claude-code|claude-code,codex]\n',
++    );
++    return;
++  }
++  if (options.cwd && !path.isAbsolute(options.cwd))
++    throw new Error('--cwd requires an absolute path.');
++  const executors = (options.executors ?? 'claude-code').split(',');
++  if (
++    !executors.includes('claude-code') ||
++    new Set(executors).size !== executors.length ||
++    executors.some((executor) => !['claude-code', 'codex'].includes(executor))
++  )
++    throw new Error('--executors selects claude-code or claude-code,codex.');
++  const includeCodex = executors.includes('codex');
++  const home = claudeHome(options.claudeHome);
++  await inspect(home, true);
++  const executable = await executableFor(options.claudeExecutable, 'claude');
++  const versionResult =
++    executable && invoke(executable, ['--version'], process.env);
++  const helpResult = executable && invoke(executable, ['--help'], process.env);
++  const version =
++    versionResult && succeeded(versionResult)
++      ? (versionResult.stdout.match(/\d+\.\d+\.\d+(?:[-+][\w.-]+)?/)?.[0] ??
++        null)
++      : null;
++  const authResult =
++    executable && invoke(executable, ['auth', 'status'], process.env);
++  let auth;
++  if (authResult && !authResult.error && [0, 1].includes(authResult.status)) {
++    try {
++      auth = JSON.parse(authResult.stdout);
++    } catch {}
++  }
++  const method = auth?.authMethod ?? auth?.method;
++  const native = {
++    cli: {
++      available: Boolean(executable),
++      executable,
++      version,
++      agentDefinitions: Boolean(
++        helpResult &&
++        succeeded(helpResult) &&
++        helpResult.stdout.includes('--agents'),
++      ),
++      perCallEffort: versionAtLeast(version, '2.1.292'),
++      environment: {
++        source: 'inherited',
++        claudeConfigDir: process.env.CLAUDE_CONFIG_DIR ?? null,
++      },
++    },
++    auth: {
++      verified: Boolean(auth && typeof auth.loggedIn === 'boolean'),
++      loggedIn: typeof auth?.loggedIn === 'boolean' ? auth.loggedIn : null,
++      method:
++        typeof method === 'string' && /^[\w-]+$/.test(method) ? method : null,
++    },
++    modelCandidates: await nativeCandidates(home),
++    modelCatalog: {
++      discovered: false,
++      confirmationRequired: true,
++      guidance:
++        'This helper does not enumerate native models. Read exact model IDs from the session environment context and effort levels from the native Agent tool schema. Confirm manually only when neither provides them. Configuration entries are candidates, not entitlement evidence.',
++    },
++    execution: { verified: false },
++  };
++  const args = [
++    runner,
++    options.command,
++    ...(options.codexExecutable
++      ? ['--executable', options.codexExecutable]
++      : []),
++    ...(options.command === 'catalog' && options.cwd
++      ? ['--cwd', options.cwd]
++      : []),
++  ];
++  const codexResult =
++    includeCodex && invoke(process.execPath, args, process.env);
++  const codex = !includeCodex
++    ? undefined
++    : (jsonOutput(codexResult) ?? {
++        cli: { available: false },
++        auth: { verified: false, loggedIn: null, method: null },
++        error:
++          'Codex runtime detection was unavailable. Run the bundled run-codex.mjs detect for diagnostics.',
++      });
++  const guidance = [];
++  if (!native.cli.available)
++    guidance.push({
++      executor: 'claude-code',
++      action: 'install',
++      command: 'curl -fsSL https://claude.ai/install.sh | bash',
++      url: 'https://code.claude.com/docs/en/setup',
++    });
++  else if (native.auth.loggedIn === false)
++    guidance.push({
++      executor: 'claude-code',
++      action: 'login',
++      command: 'claude auth login',
++      interactiveCommand: '/login',
++      url: 'https://code.claude.com/docs/en/authentication',
++    });
++  if (includeCodex && !codex.cli?.available)
++    guidance.push({
++      executor: 'codex',
++      action: 'install',
++      runtime: 'codex-app-server',
++      url: 'https://github.com/openai/codex/releases',
++      detail:
++        'During setup, install the complete matching-platform official codex-app-server package when needed and prepare PATH for this host and future workers. Recheck without overrides. --codex-executable ABS is only a per-call diagnostic override.',
++      requiredFor: 'Codex workers only',
++    });
++  else if (includeCodex && codex.auth?.loggedIn === false)
++    guidance.push({
++      executor: 'codex',
++      action: 'login',
++      command: 'codex login',
++      headlessCommand: 'codex login --device-auth',
++      url: 'https://learn.chatgpt.com/docs/auth',
++      requiredFor: 'Codex workers only',
++    });
++  return {
++    schemaVersion: 1,
++    configuration: { claudeHome: home },
++    executors,
++    node: {
++      executable: process.execPath,
++      version: process.version,
++      available: true,
++    },
++    claude: native,
++    ...(includeCodex ? { codex } : {}),
++    guidance,
++    authentication: {
++      chatgpt: 'Codex ChatGPT subscription login uses the account plan.',
++      apiKey:
++        'Codex API-key login uses OpenAI API billing. Never paste a key into setup output.',
++    },
++  };
++});
+diff --git a/skills/setup-pstack/scripts/models.mjs b/skills/setup-pstack/scripts/models.mjs
+new file mode 100644
+index 0000000..a22c08c
+--- /dev/null
++++ b/skills/setup-pstack/scripts/models.mjs
+@@ -0,0 +1,524 @@
++#!/usr/bin/env node
++
++import * as fs from 'node:fs/promises';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++import {
++  argumentsFor,
++  atomicWrite,
++  claudeHome,
++  hash,
++  inputJson,
++  inspect,
++  jsonBytes,
++  run,
++  snapshot,
++  unchanged,
++} from './state.mjs';
++import {
++  agentType,
++  aliases,
++  budgets,
++  efforts,
++  entriesFor,
++  modelFor,
++  namedEffort,
++  retiredRoles,
++  roles,
++  seats,
++  targetEffort,
++  kinds,
++} from './roles.mjs';
++
++import {
++  agyEntry,
++  agyCapability,
++  agyEfforts,
++} from '../../poteto-mode/scripts/agy-capabilities.mjs';
++
++import {
++  piEntry,
++  piCapability,
++  piEfforts,
++  routeKey,
++} from '../../poteto-mode/scripts/pi-route.mjs';
++
++const nativeAliases = new Set([
++  'default',
++  'best',
++  'opus',
++  'sonnet',
++  'haiku',
++  'fable',
++  'opusplan',
++  'inherit',
++]);
++const executorEfforts = {
++  'claude-code': new Set(['low', 'medium', 'high', 'xhigh', 'max']),
++  codex: new Set(efforts),
++  pi: new Set(piEfforts),
++  antigravity: new Set(agyEfforts),
++};
++const keyFor = (entry) => routeKey(entry, 'claude-code');
++
++function isNativeAlias(model) {
++  const base = model.split('[')[0];
++  return nativeAliases.has(base) || aliases.has(base);
++}
++
++function entryFor(value, role) {
++  if (typeof value === 'string' && aliases.has(value)) return value;
++  if (
++    !value ||
++    typeof value !== 'object' ||
++    Array.isArray(value) ||
++    typeof value.model !== 'string' ||
++    !value.model ||
++    value.model.trim() !== value.model
++  )
++    throw new Error(`Invalid model entry for ${role}.`);
++  const executor = value.executor ?? 'claude-code';
++  if (!['claude-code', 'codex', 'pi', 'antigravity'].includes(executor))
++    throw new Error(`Unknown executor for ${role}.`);
++  routeKey({ ...value, executor });
++  if (executor === 'pi') return piEntry(value);
++  if (executor === 'antigravity') return agyEntry(value);
++  if (aliases.has(value.model)) {
++    if (executor !== 'claude-code' || value.reasoningEffort !== undefined)
++      throw new Error(
++        `Parent alias for ${role} must select native Claude and omit reasoningEffort.`,
++      );
++    return { executor, model: value.model };
++  }
++  if (executor === 'claude-code' && isNativeAlias(value.model))
++    throw new Error(
++      `Role ${role} requires an exact Claude model ID, not ${value.model}.`,
++    );
++  if (typeof value.reasoningEffort !== 'string' || !value.reasoningEffort)
++    throw new Error(`Role ${role} must declare a separate reasoningEffort.`);
++  if (!executorEfforts[executor].has(value.reasoningEffort))
++    throw new Error(
++      `Unsupported reasoning effort for ${executor}: ${value.reasoningEffort}`,
++    );
++  return {
++    executor,
++    model: value.model,
++    reasoningEffort: value.reasoningEffort,
++  };
++}
++
++export function normalizeConfig(input, previous) {
++  if (
++    !input ||
++    typeof input !== 'object' ||
++    Array.isArray(input) ||
++    (input.schemaVersion !== undefined && input.schemaVersion !== 1) ||
++    (input.host !== undefined && input.host !== 'claude-code')
++  )
++    throw new Error('Expected Claude model configuration schemaVersion 1.');
++  const budget = input.budget ?? previous?.budget ?? 'large';
++  if (!Object.hasOwn(budgets, budget))
++    throw new Error('Unknown pstack budget.');
++  const selected = input.roles ?? {};
++  if (!selected || typeof selected !== 'object' || Array.isArray(selected))
++    throw new Error('Model configuration roles must be an object.');
++  const normalized = { ...(previous?.roles ?? {}) };
++  const droppedRoles = [];
++  for (const [role, value] of Object.entries(selected)) {
++    if (retiredRoles.has(role)) {
++      droppedRoles.push(role);
++      continue;
++    }
++    if (!Object.hasOwn(roles, role))
++      throw new Error(`Unknown pstack role: ${role}`);
++    if (roles[role].kind === 'scalar') {
++      if (Array.isArray(value))
++        throw new Error(
++          `Scalar role ${role} requires one entry or parent alias, not a list.`,
++        );
++      normalized[role] = entryFor(value, role);
++    } else {
++      if (!Array.isArray(value) || !value.length)
++        throw new Error(`List role ${role} requires a nonempty ordered list.`);
++      normalized[role] = value.map((entry) => entryFor(entry, role));
++    }
++  }
++  return {
++    config: {
++      schemaVersion: 1,
++      host: 'claude-code',
++      budget,
++      roles: normalized,
++    },
++    droppedRoles,
++  };
++}
++
++function suggestions(config) {
++  return Object.fromEntries(
++    Object.entries(roles).map(([role, { kind }]) => {
++      const slot = { reasoningEffort: targetEffort(role, config.budget) };
++      return [
++        role,
++        config.roles[role] ??
++          (kind === 'scalar'
++            ? slot
++            : Array.from({ length: seats[kind] }, () => ({ ...slot }))),
++      ];
++    }),
++  );
++}
++
++function executionDefault(kind) {
++  return {
++    executor: 'claude-code',
++    model: 'inherit-parent',
++    ...(kind ? { agentType: agentType(kind, 'inherit-parent') } : {}),
++  };
++}
++
++export function normalizeCatalog(input, native, piCatalog, agyCatalog) {
++  const response = input?.codex?.models
++    ? input.codex
++    : (input?.result ?? input ?? { models: [] });
++  if (response.nextCursor || response.next_cursor)
++    throw new Error(
++      'Model catalog has another page; collect all model/list pages before configuring.',
++    );
++  const data = Array.isArray(response)
++    ? response
++    : (response.models ?? response.data);
++  if (!Array.isArray(data))
++    throw new Error(
++      'Model catalog must contain a models or model/list data array.',
++    );
++  const nativeResponse = native?.result ?? native;
++  const nativeModels = nativeResponse
++    ? (nativeResponse.models ?? nativeResponse.data)
++    : [];
++  if (!Array.isArray(nativeModels))
++    throw new Error('Native catalog must contain a models array.');
++  if (nativeResponse?.nextCursor || nativeResponse?.next_cursor)
++    throw new Error('Native catalog is incomplete.');
++  if (
++    piCatalog &&
++    (!Array.isArray(piCatalog.models) ||
++      piCatalog.models.some((entry) => entry.executor !== 'pi'))
++  )
++    throw new Error('--pi-catalog requires a Pi models array.');
++  if (
++    agyCatalog &&
++    (!Array.isArray(agyCatalog.models) ||
++      agyCatalog.models.some((entry) => entry.executor !== 'antigravity'))
++  )
++    throw new Error('--agy-catalog requires an Antigravity models array.');
++  const seen = new Set();
++  const models = [
++    ...data,
++    ...(piCatalog?.models ?? []),
++    ...(agyCatalog?.models ?? []),
++    ...nativeModels.map((entry) => ({
++      ...entry,
++      executor: 'claude-code',
++      source: entry.source ?? nativeResponse.source,
++    })),
++  ].map((entry) => {
++    const executor = entry.executor ?? 'codex';
++    const model = entry.model ?? entry.id;
++    const supported =
++      entry.supportedReasoningEfforts ?? entry.supported_reasoning_efforts;
++    const supportedReasoningEfforts = supported?.map((effort) =>
++      typeof effort === 'string'
++        ? effort
++        : (effort.reasoningEffort ?? effort.reasoning_effort),
++    );
++    if (
++      !['claude-code', 'codex', 'pi', 'antigravity'].includes(executor) ||
++      typeof model !== 'string' ||
++      !model ||
++      model.trim() !== model ||
++      aliases.has(model) ||
++      !Array.isArray(supportedReasoningEfforts) ||
++      !supportedReasoningEfforts.length ||
++      supportedReasoningEfforts.some(
++        (effort) => !executorEfforts[executor].has(effort),
++      )
++    )
++      throw new Error(
++        'Catalog entries require an executor, exact model ID, and supported reasoning efforts.',
++      );
++    if (
++      executor === 'claude-code' &&
++      (isNativeAlias(model) ||
++        !['host', 'configuration', 'manual-confirmation'].includes(
++          entry.source?.kind,
++        ) ||
++        typeof entry.source?.description !== 'string' ||
++        !entry.source.description.trim())
++    )
++      throw new Error(
++        'Native Claude models require an exact ID and a labeled host, configuration, or manual-confirmation source.',
++      );
++    const key = keyFor({ ...entry, executor, model });
++    if (seen.has(key))
++      throw new Error(`Duplicate catalog model: ${executor} ${model}`);
++    seen.add(key);
++    if (executor === 'antigravity')
++      return agyCapability({ ...entry, model, supportedReasoningEfforts });
++    if (executor === 'pi')
++      return piCapability({ ...entry, model, supportedReasoningEfforts });
++    return {
++      executor,
++      model,
++      supportedReasoningEfforts: [...new Set(supportedReasoningEfforts)],
++      ...(entry.source
++        ? {
++            source: {
++              kind: entry.source.kind,
++              description: entry.source.description,
++            },
++          }
++        : {}),
++    };
++  });
++  return { models };
++}
++
++function choicesFor(proposal, catalog) {
++  const needsChoice = [];
++  const detected =
++    catalog &&
++    new Map(
++      catalog.models.map((entry) => [
++        keyFor(entry),
++        entry.supportedReasoningEfforts,
++      ]),
++    );
++  for (const [role, value] of Object.entries(proposal)) {
++    entriesFor(value).forEach((entry, index) => {
++      if (!modelFor(entry))
++        needsChoice.push({
++          role,
++          ...(Array.isArray(value) ? { index } : {}),
++          reason:
++            'Choose an executor and exact model, or a native parent alias.',
++        });
++      else if (!aliases.has(modelFor(entry)) && detected) {
++        const supported = detected.get(keyFor(entry));
++        if (!supported?.includes(entry.reasoningEffort))
++          needsChoice.push({
++            role,
++            ...(Array.isArray(value) ? { index } : {}),
++            ...entry,
++            reason: supported
++              ? 'Unsupported reasoning effort.'
++              : 'Model is absent from its executor catalog.',
++          });
++      }
++    });
++  }
++  return needsChoice;
++}
++
++export async function loadConfig(home) {
++  const directory = path.join(home, 'pstack-cc');
++  const file = path.join(directory, 'models.json');
++  await inspect(home, true);
++  await inspect(directory, true);
++  const existing = await snapshot(file);
++  let saved;
++  if (existing) {
++    try {
++      saved = JSON.parse(existing.bytes.toString('utf8'));
++    } catch {
++      throw new Error('Model configuration is not valid JSON.');
++    }
++  }
++  return { file, directory, existing, ...normalizeConfig(saved ?? {}), saved };
++}
++
++async function main(options) {
++  if (options.command === 'catalog')
++    return normalizeCatalog(
++      options.input
++        ? await inputJson(options.input, '--input')
++        : { models: [] },
++      options.nativeCatalog
++        ? await inputJson(options.nativeCatalog, '--native-catalog')
++        : undefined,
++      options.piCatalog
++        ? await inputJson(options.piCatalog, '--pi-catalog')
++        : undefined,
++      options.agyCatalog
++        ? await inputJson(options.agyCatalog, '--agy-catalog')
++        : undefined,
++    );
++  const home = claudeHome(options.claudeHome);
++  const loaded = await loadConfig(home);
++  const info = {
++    file: loaded.file,
++    exists: Boolean(loaded.existing),
++    sha256: loaded.existing?.sha256 ?? null,
++  };
++  const proposal = suggestions(loaded.config);
++  if (options.command === 'read')
++    return {
++      ...info,
++      config: loaded.config,
++      proposal: { ...loaded.config, roles: proposal },
++      droppedRoles: loaded.droppedRoles,
++      needsChoice: choicesFor(proposal),
++      targetReasoningEffort: namedEffort(loaded.config.budget),
++    };
++  if (options.command === 'resolve') {
++    if (options.kind && !kinds.includes(options.kind))
++      throw new Error(`Unknown worker kind: ${options.kind}`);
++    if (!Object.hasOwn(roles, options.role))
++      throw new Error(
++        `Unknown pstack role: ${options.role ?? '(missing --role)'}`,
++      );
++    const saved = Object.hasOwn(loaded.config.roles, options.role);
++    const entries = entriesFor(proposal[options.role]).map((entry) => {
++      if (!saved) return executionDefault(options.kind);
++      const normalized =
++        typeof entry === 'string'
++          ? { executor: 'claude-code', model: entry }
++          : entry;
++      return {
++        ...normalized,
++        ...(options.kind && normalized.executor === 'claude-code'
++          ? { agentType: agentType(options.kind, normalized.model) }
++          : {}),
++      };
++    });
++    return {
++      role: options.role,
++      cardinality: roles[options.role].kind,
++      entries,
++      needsChoice: [],
++      source: saved ? 'saved' : 'unconfigured',
++      file: loaded.file,
++      budget: loaded.config.budget,
++      targetReasoningEffort: targetEffort(options.role, loaded.config.budget),
++      droppedRoles: loaded.droppedRoles,
++    };
++  }
++  const catalog = normalizeCatalog(
++    await inputJson(options.catalog, '--catalog'),
++  );
++  if (options.command === 'budget') {
++    if (!Object.hasOwn(budgets, options.budget))
++      throw new Error('Unknown pstack budget.');
++    const config = {
++      ...loaded.config,
++      budget: options.budget,
++      roles: structuredClone(loaded.config.roles),
++    };
++    const unmapped = [];
++    const detected = new Map(
++      catalog.models.map((entry) => [
++        keyFor(entry),
++        entry.supportedReasoningEfforts,
++      ]),
++    );
++    for (const [role, value] of Object.entries(config.roles))
++      for (const [index, entry] of entriesFor(value).entries()) {
++        if (typeof entry === 'string' || aliases.has(entry.model)) continue;
++        const target = targetEffort(role, options.budget);
++        const supported = detected.get(keyFor(entry)) ?? [];
++        const ladder =
++          { pi: piEfforts, antigravity: agyEfforts }[entry.executor] ?? efforts;
++        const resolved = ladder
++          .slice(0, ladder.indexOf(target) + 1)
++          .reverse()
++          .find((effort) => supported.includes(effort));
++        if (resolved) entry.reasoningEffort = resolved;
++        else
++          unmapped.push({
++            role,
++            ...(Array.isArray(value) ? { index } : {}),
++            ...entry,
++            targetReasoningEffort: target,
++            reason: 'No supported reasoning effort is at or below this budget.',
++          });
++      }
++    return {
++      ...info,
++      config,
++      targetReasoningEffort: namedEffort(options.budget),
++      droppedRoles: loaded.droppedRoles,
++      needsChoice: [...choicesFor(config.roles, catalog), ...unmapped],
++    };
++  }
++  const supplied = await inputJson(options.input, '--input');
++  if (supplied.needsChoice?.length)
++    throw new Error(
++      'Resolve every needsChoice entry before saving model preferences.',
++    );
++  const normalized = normalizeConfig(
++    supplied.config ?? supplied,
++    loaded.config,
++  );
++  const needsChoice = choicesFor(normalized.config.roles, catalog);
++  if (needsChoice.length)
++    throw new Error(
++      `Resolve unavailable models or efforts before saving: ${JSON.stringify(needsChoice)}`,
++    );
++  const expected = options.expectedHash;
++  if (!expected || (expected !== 'absent' && !/^[a-f0-9]{64}$/.test(expected)))
++    throw new Error('write requires --expected-hash from read, or absent.');
++  if (expected !== (loaded.existing?.sha256 ?? 'absent'))
++    throw new Error(
++      'Model configuration changed since it was read; reload before saving.',
++    );
++  const bytes = jsonBytes(normalized.config);
++  const changed = !loaded.existing || !bytes.equals(loaded.existing.bytes);
++  const result = {
++    ...info,
++    ...normalized,
++    droppedRoles: [
++      ...new Set([...loaded.droppedRoles, ...normalized.droppedRoles]),
++    ],
++    changed,
++    dryRun: Boolean(options.dryRun),
++    sha256: hash(bytes),
++  };
++  if (options.dryRun || !changed) return result;
++  await fs.mkdir(loaded.directory, { recursive: true });
++  await inspect(home, true);
++  await inspect(loaded.directory, true);
++  await unchanged(loaded.file, loaded.existing);
++  await atomicWrite(loaded.file, bytes, loaded.existing?.mode ?? 0o600);
++  return { ...result, exists: true };
++}
++
++if (
++  process.argv[1] &&
++  (await fs.realpath(process.argv[1])) === fileURLToPath(import.meta.url)
++)
++  await run(async () => {
++    const options = argumentsFor(
++      process.argv.slice(2),
++      ['read', 'resolve', 'budget', 'write', 'catalog'],
++      [
++        '--claude-home',
++        '--role',
++        '--kind',
++        '--budget',
++        '--catalog',
++        '--native-catalog',
++        '--pi-catalog',
++        '--agy-catalog',
++        '--input',
++        '--expected-hash',
++      ],
++      ['--dry-run'],
++    );
++    if (options.help) {
++      process.stdout.write(
++        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG] [--pi-catalog ABS] [--agy-catalog ABS]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
++      );
++      return;
++    }
++    return main(options);
++  });
+diff --git a/skills/setup-pstack/scripts/register-agents.mjs b/skills/setup-pstack/scripts/register-agents.mjs
+new file mode 100644
+index 0000000..2e0b4fa
+--- /dev/null
++++ b/skills/setup-pstack/scripts/register-agents.mjs
+@@ -0,0 +1,354 @@
++#!/usr/bin/env node
++
++import * as fs from 'node:fs/promises';
++import path from 'node:path';
++import { fileURLToPath } from 'node:url';
++import {
++  argumentsFor,
++  atomicWrite,
++  claudeHome,
++  hash,
++  inputJson,
++  inspect,
++  jsonBytes,
++  run,
++  snapshot,
++} from './state.mjs';
++import { agentType, aliases, entriesFor, kinds } from './roles.mjs';
++import { loadConfig, normalizeConfig } from './models.mjs';
++
++const pluginRoot = fileURLToPath(new URL('../../../', import.meta.url));
++const registryName = 'pstack-cc/agent-registration.json';
++const agentPrefix = 'agents/pstack-cc/';
++const validAgentPath = (relative) =>
++  /^agents\/pstack-cc\/pstack-cc-(general-purpose|poteto-agent|comment-sicko|read-only)-[a-f0-9]{16}\.md$/.test(
++    relative,
++  );
++const encoded = (state) =>
++  state
++    ? {
++        bytes: state.bytes.toString('base64'),
++        sha256: state.sha256 ?? hash(state.bytes),
++        mode: state.mode,
++      }
++    : null;
++const matches = (state, expected) =>
++  (state?.sha256 ?? null) === (expected?.sha256 ?? null) &&
++  (state?.mode ?? null) === (expected?.mode ?? null);
++
++function recordFor(value) {
++  if (
++    !value ||
++    value.schemaVersion !== 1 ||
++    value.pluginName !== 'pstack-cc' ||
++    typeof value.pluginVersion !== 'string' ||
++    !value.agents ||
++    typeof value.agents !== 'object' ||
++    Array.isArray(value.agents)
++  )
++    throw new Error('Agent ownership record is invalid.');
++  for (const [relative, entry] of Object.entries(value.agents))
++    if (
++      !validAgentPath(relative) ||
++      !/^[a-f0-9]{64}$/.test(entry.sha256) ||
++      !Number.isInteger(entry.mode) ||
++      entry.mode < 0 ||
++      entry.mode > 0o777
++    )
++      throw new Error('Agent ownership entry is invalid.');
++  return value;
++}
++
++function variant(bytes, kind, model) {
++  const text = new TextDecoder('utf8', { fatal: true }).decode(bytes);
++  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
++  if (!match || !/^description:/m.test(match[1]))
++    throw new Error(`Bundled ${kind} needs frontmatter with a description.`);
++  const metadata = match[1]
++    .split(/\r?\n/)
++    .filter((line) => !/^(name|model|effort):/.test(line));
++  return Buffer.from(
++    `---\nname: ${JSON.stringify(agentType(kind, model))}\n${metadata.join('\n')}\nmodel: ${JSON.stringify(model)}\n---\n${text.slice(match[0].length)}`,
++  );
++}
++
++async function checkParents(home) {
++  for (const relative of ['', 'agents', 'agents/pstack-cc', 'pstack-cc'])
++    await inspect(path.join(home, relative), true);
++}
++
++function journalFor(value) {
++  if (
++    value?.schemaVersion !== 1 ||
++    !Array.isArray(value.plans) ||
++    !value.plans.length
++  )
++    throw new Error('Agent recovery journal is invalid.');
++  const seen = new Set();
++  for (const plan of value.plans) {
++    if (
++      (plan.relative !== registryName && !validAgentPath(plan.relative)) ||
++      seen.has(plan.relative)
++    )
++      throw new Error('Agent recovery path is invalid.');
++    seen.add(plan.relative);
++    for (const state of [plan.previous, plan.next])
++      if (
++        state !== null &&
++        (!state ||
++          typeof state.bytes !== 'string' ||
++          !/^[a-f0-9]{64}$/.test(state.sha256) ||
++          hash(Buffer.from(state.bytes, 'base64')) !== state.sha256 ||
++          !Number.isInteger(state.mode) ||
++          state.mode < 0 ||
++          state.mode > 0o777)
++      )
++        throw new Error('Agent recovery contents are invalid.');
++  }
++  return value;
++}
++
++async function finish(home, journal, journalFile) {
++  await checkParents(home);
++  for (const plan of journal.plans) {
++    const state = await snapshot(path.join(home, plan.relative));
++    if (!matches(state, plan.previous) && !matches(state, plan.next))
++      throw new Error(
++        `Agent changed during interrupted registration: ${path.join(home, plan.relative)}`,
++      );
++  }
++  for (const plan of journal.plans) {
++    const file = path.join(home, plan.relative);
++    const current = await snapshot(file);
++    if (matches(current, plan.next)) continue;
++    if (!matches(current, plan.previous))
++      throw new Error(`Agent changed during registration: ${file}`);
++    if (plan.next) {
++      await fs.mkdir(path.dirname(file), { recursive: true });
++      await checkParents(home);
++      await atomicWrite(
++        file,
++        Buffer.from(plan.next.bytes, 'base64'),
++        plan.next.mode,
++      );
++    } else await fs.unlink(file);
++  }
++  await fs.unlink(journalFile);
++}
++
++async function withLock(directory, operation) {
++  await fs.mkdir(directory, { recursive: true });
++  await inspect(directory, true);
++  const file = path.join(directory, '.agent-registration.lock');
++  for (;;) {
++    try {
++      await fs.writeFile(file, jsonBytes({ pid: process.pid }), {
++        flag: 'wx',
++        mode: 0o600,
++      });
++      break;
++    } catch (error) {
++      if (error.code !== 'EEXIST') throw error;
++      const state = await snapshot(file);
++      let lock;
++      try {
++        lock = JSON.parse(state.bytes);
++      } catch {
++        throw new Error('Agent registration lock is invalid.');
++      }
++      if (!Number.isInteger(lock.pid) || lock.pid <= 0)
++        throw new Error(
++          'Agent registration lock has no valid process identity.',
++        );
++      try {
++        process.kill(lock.pid, 0);
++        throw new Error('Another agent registration is running.');
++      } catch (error) {
++        if (error.code !== 'ESRCH') throw error;
++      }
++      await fs.unlink(file);
++    }
++  }
++  try {
++    return await operation();
++  } finally {
++    await fs.unlink(file).catch(() => {});
++  }
++}
++
++async function register(options, home) {
++  const directory = path.join(home, 'pstack-cc');
++  const registryFile = path.join(home, registryName);
++  const journalFile = path.join(directory, '.agent-registration.pending.json');
++  await checkParents(home);
++  const pending = await snapshot(journalFile);
++  let recovered = false;
++  if (pending) {
++    const journal = journalFor(JSON.parse(pending.bytes));
++    if (options.dryRun)
++      return {
++        dryRun: true,
++        recoveryPending: true,
++        files: journal.plans.map((plan) => path.join(home, plan.relative)),
++      };
++    await finish(home, journal, journalFile);
++    recovered = true;
++  }
++  const manifest = await inputJson(
++    path.join(pluginRoot, '.claude-plugin/plugin.json'),
++    'Claude plugin manifest',
++  );
++  if (
++    manifest.name !== 'pstack-cc' ||
++    typeof manifest.version !== 'string' ||
++    !manifest.version
++  )
++    throw new Error('Expected pstack-cc plugin manifest and version.');
++  const previousRegistry = await snapshot(registryFile);
++  const registry = previousRegistry
++    ? recordFor(JSON.parse(previousRegistry.bytes))
++    : undefined;
++  const desired = new Map();
++  if (!options.unregister) {
++    const supplied = options.input
++      ? await inputJson(options.input, '--input')
++      : (await loadConfig(home)).config;
++    const { config } = normalizeConfig(supplied.config ?? supplied);
++    const models = [
++      ...new Set(
++        Object.values(config.roles)
++          .flatMap(entriesFor)
++          .filter(
++            (entry) =>
++              typeof entry === 'object' &&
++              entry.executor === 'claude-code' &&
++              !aliases.has(entry.model),
++          )
++          .map((entry) => entry.model),
++      ),
++    ];
++    for (const kind of kinds) {
++      const source = await snapshot(
++        path.join(pluginRoot, 'agents', `${kind}.md`),
++      );
++      if (!source) throw new Error(`Bundled agent body is missing: ${kind}`);
++      for (const model of models) {
++        const name = agentType(kind, model);
++        const relative = `${agentPrefix}${name}.md`;
++        const bytes = variant(source.bytes, kind, model);
++        desired.set(relative, {
++          bytes,
++          sha256: hash(bytes),
++          mode: 0o600,
++          agentType: name,
++          model,
++          kind,
++        });
++      }
++    }
++  }
++  const plans = [];
++  for (const relative of new Set([
++    ...Object.keys(registry?.agents ?? {}),
++    ...desired.keys(),
++  ])) {
++    const previous = await snapshot(path.join(home, relative));
++    const owned = registry?.agents[relative];
++    if (owned ? !matches(previous, owned) : Boolean(previous))
++      throw new Error(
++        `Agent is unowned or was modified: ${path.join(home, relative)}`,
++      );
++    const next =
++      desired.get(relative) ?? (options.unregister ? null : previous);
++    if (!matches(previous, next))
++      plans.push({
++        relative,
++        previous: encoded(previous),
++        next: encoded(next),
++      });
++  }
++  const nextRegistry = options.unregister
++    ? null
++    : {
++        schemaVersion: 1,
++        pluginName: manifest.name,
++        pluginVersion: manifest.version,
++        agents: {
++          ...registry?.agents,
++          ...Object.fromEntries(
++            [...desired].map(([relative, entry]) => [
++              relative,
++              {
++                sha256: entry.sha256,
++                mode: entry.mode,
++                kind: entry.kind,
++                model: entry.model,
++                agentType: entry.agentType,
++              },
++            ]),
++          ),
++        },
++      };
++  const nextRegistryState = nextRegistry
++    ? { bytes: jsonBytes(nextRegistry), mode: previousRegistry?.mode ?? 0o600 }
++    : null;
++  if (
++    !matches(
++      previousRegistry,
++      nextRegistryState
++        ? { ...nextRegistryState, sha256: hash(nextRegistryState.bytes) }
++        : null,
++    )
++  )
++    plans.push({
++      relative: registryName,
++      previous: encoded(previousRegistry),
++      next: encoded(nextRegistryState),
++    });
++  const result = {
++    registered: !options.unregister,
++    changed: Boolean(plans.length),
++    dryRun: Boolean(options.dryRun),
++    recovered,
++    registry: registryFile,
++    agents: [...desired].map(([relative, entry]) => ({
++      file: path.join(home, relative),
++      agentType: entry.agentType,
++      model: entry.model,
++      kind: entry.kind,
++    })),
++    retained: options.unregister
++      ? []
++      : Object.keys(registry?.agents ?? {})
++          .filter((relative) => !desired.has(relative))
++          .map((relative) => path.join(home, relative)),
++    removed: plans
++      .filter((plan) => !plan.next)
++      .map((plan) => path.join(home, plan.relative)),
++    modelPreferencesRetained: true,
++  };
++  if (options.dryRun || !plans.length) return result;
++  const journal = { schemaVersion: 1, plans };
++  await atomicWrite(journalFile, jsonBytes(journal));
++  await finish(home, journal, journalFile);
++  return result;
++}
++
++await run(async () => {
++  const options = argumentsFor(
++    process.argv.slice(2),
++    null,
++    ['--claude-home', '--input'],
++    ['--dry-run', '--unregister'],
++  );
++  if (options.help) {
++    process.stdout.write(
++      'Usage: node register-agents.mjs [--claude-home ABS] [--input ABS_CONFIG] [--dry-run] [--unregister]\n',
++    );
++    return;
++  }
++  const home = claudeHome(options.claudeHome);
++  if (options.dryRun) return register(options, home);
++  await checkParents(home);
++  return withLock(path.join(home, 'pstack-cc'), () => register(options, home));
++});
+diff --git a/skills/setup-pstack/scripts/roles.mjs b/skills/setup-pstack/scripts/roles.mjs
+new file mode 100644
+index 0000000..ab7c73a
+--- /dev/null
++++ b/skills/setup-pstack/scripts/roles.mjs
+@@ -0,0 +1,66 @@
++import { hash } from './state.mjs';
++
++export const roles = {
++  'feature, refactoring': { kind: 'scalar', effort: 'xhigh' },
++  'bug-fix': { kind: 'scalar', effort: 'xhigh' },
++  'perf-issue': { kind: 'scalar', effort: 'xhigh' },
++  hillclimb: { kind: 'scalar', effort: 'xhigh' },
++  'judgment and prose': { kind: 'scalar', effort: 'xhigh' },
++  'hardest tasks': { kind: 'scalar', effort: 'max' },
++  'reflect tooling': { kind: 'scalar', effort: 'high' },
++  'reflect judgment, divergent, synthesizer': {
++    kind: 'scalar',
++    effort: 'xhigh',
++  },
++  'arena runners': { kind: 'panel', effort: 'high' },
++  'arena cross-judge pool': { kind: 'pool', effort: 'high' },
++  'swarm workers': { kind: 'scalar', effort: 'high' },
++  'architect runners': { kind: 'panel', effort: 'high' },
++  'interrogate reviewers': { kind: 'panel', effort: 'high' },
++};
++export const retiredRoles = new Set([
++  'how explorer',
++  'how explainer',
++  'why investigators',
++  'why synthesizer',
++]);
++export const seats = { scalar: 1, panel: 3, pool: 3 };
++const budgetLadder = ['low', 'medium', 'high', 'xhigh', 'max'];
++export const budgets = { unlimited: 1, large: 0, medium: -1, small: -2 };
++const shifted = (effort, budget) =>
++  budgetLadder[
++    Math.min(
++      budgetLadder.length - 1,
++      Math.max(0, budgetLadder.indexOf(effort) + budgets[budget]),
++    )
++  ];
++export const targetEffort = (role, budget) =>
++  shifted(roles[role].effort, budget);
++// A budget label names the effort an `xhigh` role lands on.
++export const namedEffort = (budget) => shifted('xhigh', budget);
++export const efforts = [
++  'none',
++  'minimal',
++  'low',
++  'medium',
++  'high',
++  'xhigh',
++  'max',
++  'ultra',
++];
++export const aliases = new Set(['auto', 'inherit-parent']);
++export const kinds = [
++  'general-purpose',
++  'poteto-agent',
++  'comment-sicko',
++  'read-only',
++];
++export const entriesFor = (value) => (Array.isArray(value) ? value : [value]);
++export const modelFor = (entry) =>
++  typeof entry === 'string' ? entry : entry.model;
++export const agentType = (kind, model) => {
++  if (!kinds.includes(kind)) throw new Error(`Unknown worker kind: ${kind}`);
++  return aliases.has(model)
++    ? `pstack-cc:${kind}`
++    : `pstack-cc-${kind}-${hash(model).slice(0, 16)}`;
++};
+diff --git a/skills/setup-pstack/scripts/state.mjs b/skills/setup-pstack/scripts/state.mjs
+new file mode 100644
+index 0000000..04dc5c8
+--- /dev/null
++++ b/skills/setup-pstack/scripts/state.mjs
+@@ -0,0 +1,103 @@
++import { createHash, randomUUID } from 'node:crypto';
++import * as fs from 'node:fs/promises';
++import os from 'node:os';
++import path from 'node:path';
++
++export const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
++export const jsonBytes = (value) =>
++  Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
++export const claudeHome = (selected) => {
++  const home =
++    selected ??
++    process.env.CLAUDE_CONFIG_DIR ??
++    path.join(os.homedir(), '.claude');
++  if (!path.isAbsolute(home))
++    throw new Error('Claude home must be an absolute path.');
++  return path.resolve(home);
++};
++export async function inspect(file, directory = false) {
++  let stat;
++  try {
++    stat = await fs.lstat(file);
++  } catch (error) {
++    if (error.code === 'ENOENT') return undefined;
++    throw error;
++  }
++  if (stat.isSymbolicLink()) throw new Error(`Refusing symbolic link: ${file}`);
++  if (directory ? !stat.isDirectory() : !stat.isFile())
++    throw new Error(`Expected ${directory ? 'directory' : 'file'}: ${file}`);
++  return stat;
++}
++export async function snapshot(file) {
++  const stat = await inspect(file);
++  if (!stat) return undefined;
++  const bytes = await fs.readFile(file);
++  return { bytes, sha256: hash(bytes), mode: stat.mode & 0o777 };
++}
++export async function inputJson(file, label) {
++  if (!file || !path.isAbsolute(file))
++    throw new Error(`${label} requires an absolute file path.`);
++  const state = await snapshot(file);
++  if (!state) throw new Error(`${label} file is missing: ${file}`);
++  try {
++    return JSON.parse(state.bytes.toString('utf8'));
++  } catch {
++    throw new Error(`${label} is not valid JSON.`);
++  }
++}
++export async function unchanged(file, previous) {
++  const current = await snapshot(file);
++  if (
++    (current?.sha256 ?? null) !== (previous?.sha256 ?? null) ||
++    current?.mode !== previous?.mode
++  )
++    throw new Error(`File changed during save: ${file}`);
++}
++export async function atomicWrite(file, bytes, mode = 0o600) {
++  const temporary = path.join(
++    path.dirname(file),
++    `.${path.basename(file)}.${randomUUID()}.tmp`,
++  );
++  try {
++    await fs.writeFile(temporary, bytes, { flag: 'wx', mode });
++    await fs.chmod(temporary, mode);
++    await fs.rename(temporary, file);
++  } finally {
++    await fs.unlink(temporary).catch(() => {});
++  }
++}
++export function argumentsFor(
++  argv,
++  commands,
++  valueFlags,
++  booleanFlags = ['--dry-run'],
++) {
++  if (argv[0] === '--help') return { help: true };
++  const options = { command: argv[0] };
++  if (commands && !commands.includes(options.command))
++    throw new Error(`Choose ${commands.join(', ')}.`);
++  for (let index = commands ? 1 : 0; index < argv.length; index += 1) {
++    const flag = argv[index];
++    const key = flag
++      .replace(/^--/, '')
++      .replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
++    if (flag === '--help' || booleanFlags.includes(flag)) options[key] = true;
++    else if (valueFlags.includes(flag)) {
++      const value = argv[++index];
++      if (!value || value.startsWith('--') || options[key] !== undefined)
++        throw new Error(`${flag} requires one value.`);
++      options[key] = value;
++    } else throw new Error(`Unknown argument: ${flag}`);
++  }
++  return options;
++}
++export async function run(main) {
++  try {
++    const result = await main();
++    if (result !== undefined)
++      process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
++  } catch (error) {
++    process.stderr.write(`${error.message}\n`);
++    process.exitCode = 1;
++  }
++}

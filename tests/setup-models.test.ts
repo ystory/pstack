@@ -528,6 +528,34 @@ test('saved Pi entries retire their roles to the native parent and the next writ
   assert.deepEqual(await readFile(f.file), after);
 });
 
+test('a saved entry with an unknown executor fails read and resolve without changing the file', async (t) => {
+  for (const [role, entries] of [
+    ['bug-fix', [{ executor: 'unknown-executor', model: 'gpt-6.1-sol' }]],
+    [
+      'arena runners',
+      [
+        { model: 'gpt-6.1-sol', reasoningEffort: 'high' },
+        { executor: 'unknown-executor', model: 'gpt-6.1-sol' },
+        { model: 'auto' },
+      ],
+    ],
+  ] as const) {
+    const f = await fixture(t);
+    await mkdir(path.dirname(f.file), { recursive: true });
+    await writeFile(
+      f.file,
+      JSON.stringify({ schemaVersion: 1, roles: { [role]: entries } }),
+    );
+    const before = await readFile(f.file);
+    for (const args of [['read'], ['resolve', '--role', role]]) {
+      const rejected = f.invoke(args[0]!, ...args.slice(1));
+      assert.equal(rejected.status, 1);
+      assert.match(rejected.stderr, new RegExp(`Unknown executor for ${role}`));
+    }
+    assert.deepEqual(await readFile(f.file), before);
+  }
+});
+
 test('a saved unknown role key beside retired keys still fails without changing the file', async (t) => {
   const f = await fixture(t);
   await mkdir(path.dirname(f.file), { recursive: true });

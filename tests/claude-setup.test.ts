@@ -1718,6 +1718,39 @@ test('saved Pi entries retire their Claude roles to the native parent and the ne
   assert.deepEqual(await readFile(file), after);
 });
 
+test('a saved Claude entry with an unknown executor fails read and resolve without changing the file', async (t) => {
+  for (const [role, value] of [
+    ['bug-fix', { executor: 'unknown-executor', model: 'claude-fixture' }],
+    [
+      'arena runners',
+      [
+        'auto',
+        { executor: 'unknown-executor', model: 'claude-fixture' },
+        'auto',
+      ],
+    ],
+  ] as const) {
+    const f = await fixture(t);
+    const file = path.join(f.home, 'pstack-cc/models.json');
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(
+      file,
+      JSON.stringify({
+        schemaVersion: 1,
+        host: 'claude-code',
+        roles: { [role]: value },
+      }),
+    );
+    const before = await readFile(file);
+    for (const args of [['read'], ['resolve', '--role', role]]) {
+      const rejected = f.invoke('models.mjs', args);
+      assert.equal(rejected.status, 1);
+      assert.match(rejected.stderr, new RegExp(`Unknown executor for ${role}`));
+    }
+    assert.deepEqual(await readFile(file), before);
+  }
+});
+
 test('a saved unknown Claude role key beside retired keys still fails without changing the file', async (t) => {
   const f = await fixture(t);
   const file = path.join(f.home, 'pstack-cc/models.json');

@@ -22,6 +22,7 @@ const workerContext = fileURLToPath(
 const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const descendantExitGraceMs = 3000;
 const contains = (root, target) =>
   target === root || target.startsWith(`${root}${path.sep}`);
 const uuid = (value) =>
@@ -344,6 +345,8 @@ async function ownedProcess(executable, args, options) {
         options.timeoutMs,
       );
     await completion;
+    const graceDeadline = Date.now() + descendantExitGraceMs;
+    while (alive() && Date.now() < graceDeadline) await pause(20);
     if (alive()) {
       fail('Owned CLI left descendant processes alive.');
       const deadline = Date.now() + 1300;

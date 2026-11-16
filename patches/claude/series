@@ -11,3 +11,4 @@ shared/0002-worker-execution.patch
 shared/0003-agy-auth-method.patch
 0009-agy-auth-setup.patch
 0010-agy-auth-version.patch
+shared/0004-agy-mcp-drain.patch

@@ -47,6 +47,7 @@ interface Result {
   }[];
   targetReasoningEffort: string;
   droppedRoles: string[];
+  retiredExecutorRoles: { role: string; executor: string }[];
   runtimes?: { modelExecutionVerified: boolean }[];
 }
 
@@ -412,6 +413,119 @@ test('saved retired role keys still read and resolve, are reported, and only the
   const reread = f.run('read');
   assert.deepEqual(reread.droppedRoles, []);
   assert.deepEqual(reread.config.roles, kept);
+});
+
+test('saved Pi entries retire their roles to the native parent and the next write omits them', async (t) => {
+  const f = await fixture(t);
+  const kept = {
+    hillclimb: [{ model: 'gpt-6-sol', reasoningEffort: 'high' }],
+    'interrogate reviewers': [
+      { model: 'auto' },
+      { model: 'gpt-6.1-sol', reasoningEffort: 'low' },
+      { model: 'auto' },
+    ],
+  };
+  await mkdir(path.dirname(f.file), { recursive: true });
+  await writeFile(
+    f.file,
+    JSON.stringify({
+      schemaVersion: 1,
+      budget: 'medium',
+      roles: {
+        'bug-fix': [
+          {
+            executor: 'pi',
+            provider: 'google',
+            model: 'gemini-4-carbon',
+            reasoningEffort: 'high',
+          },
+        ],
+        hillclimb: kept.hillclimb,
+        'arena runners': [
+          { model: 'gpt-6.1-sol', reasoningEffort: 'high' },
+          { executor: 'pi', provider: 'google', model: 'gemini-4-carbon' },
+          { model: 'auto' },
+        ],
+        'interrogate reviewers': kept['interrogate reviewers'],
+      },
+    }),
+  );
+  const before = await readFile(f.file);
+  const retired = [
+    { role: 'bug-fix', executor: 'pi' },
+    { role: 'arena runners', executor: 'pi' },
+  ];
+  const read = f.run('read');
+  assert.deepEqual(read.retiredExecutorRoles, retired);
+  assert.deepEqual(read.droppedRoles, []);
+  assert.deepEqual(read.config.roles, kept);
+  assert.equal(read.proposal.roles['arena runners']?.length, 3);
+  assert.ok(read.proposal.roles['arena runners']!.every((slot) => !slot.model));
+  for (const [role, count] of [
+    ['bug-fix', 1],
+    ['arena runners', 3],
+  ] as const) {
+    const resolved = f.run('resolve', '--role', role);
+    assert.equal(resolved.source, 'unconfigured');
+    assert.deepEqual(
+      resolved.entries,
+      Array.from({ length: count }, () => ({ model: 'inherit-parent' })),
+    );
+    assert.deepEqual(resolved.retiredExecutorRoles, retired);
+  }
+  for (const [role, entries] of Object.entries(kept)) {
+    const resolved = f.run('resolve', '--role', role);
+    assert.equal(resolved.source, 'saved');
+    assert.deepEqual(resolved.entries, entries);
+  }
+  const budget = f.run('budget', '--budget', 'large', '--catalog', f.catalog);
+  assert.deepEqual(budget.retiredExecutorRoles, retired);
+  assert.deepEqual(Object.keys(budget.config.roles), Object.keys(kept));
+  assert.deepEqual(await readFile(f.file), before);
+  const written = await f.save(read.config, read.sha256!);
+  assert.equal(written.changed, true);
+  assert.deepEqual(written.retiredExecutorRoles, retired);
+  assert.deepEqual(JSON.parse(await readFile(f.file, 'utf8')), {
+    schemaVersion: 1,
+    budget: 'medium',
+    roles: kept,
+  });
+  const reread = f.run('read');
+  assert.deepEqual(reread.retiredExecutorRoles, []);
+  assert.deepEqual(reread.config.roles, kept);
+  const after = await readFile(f.file);
+  for (const [executor, message] of [
+    ['pi', /Pi executor was removed.*bug-fix/],
+    ['pi-next', /Unknown executor for bug-fix/],
+  ] as const) {
+    await writeFile(
+      f.input,
+      JSON.stringify({
+        roles: {
+          'bug-fix': [
+            {
+              executor,
+              provider: 'google',
+              model: 'gemini-4-carbon',
+              reasoningEffort: 'high',
+            },
+          ],
+        },
+      }),
+    );
+    const rejected = f.invoke(
+      'write',
+      '--input',
+      f.input,
+      '--catalog',
+      f.catalog,
+      '--expected-hash',
+      reread.sha256!,
+    );
+    assert.equal(rejected.status, 1);
+    assert.match(rejected.stderr, message);
+  }
+  assert.deepEqual(await readFile(f.file), after);
 });
 
 test('a saved unknown role key beside retired keys still fails without changing the file', async (t) => {

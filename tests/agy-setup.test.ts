@@ -82,21 +82,12 @@ for (const host of ['codex', 'claude-code']) {
             model: 'claude-fixture-20300101',
             reasoningEffort: 'high',
           };
-    const piEntry = {
-      executor: 'pi',
-      provider: 'fixture',
-      model: agyEntry.model,
-      supportedReasoningEfforts: ['off'],
-      source,
-    };
     const nativeCatalog = path.join(root, 'native.json');
     const nativeCapability = {
       ...nativeEntry,
       supportedReasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
       ...(host === 'claude-code' ? { source } : {}),
     };
-    const piCatalog = path.join(root, 'pi.json');
-    await writeFile(piCatalog, JSON.stringify({ models: [piEntry] }));
     await writeFile(
       nativeCatalog,
       JSON.stringify({ models: [nativeCapability] }),
@@ -105,12 +96,10 @@ for (const host of ['codex', 'claude-code']) {
       'catalog',
       host === 'codex' ? '--input' : '--native-catalog',
       nativeCatalog,
-      '--pi-catalog',
-      piCatalog,
       '--agy-catalog',
       agyCatalog,
     );
-    assert.equal(mixed.models.length, 4);
+    assert.equal(mixed.models.length, 3);
     await writeFile(combinedFile, JSON.stringify(mixed));
     assert.deepEqual(call('catalog', '--input', combinedFile), mixed);
     const roles = {
@@ -281,20 +270,12 @@ for (const host of ['codex', 'claude-code']) {
     else assert.equal(registered.stdout.includes(agyEntry.model), false);
     assert.deepEqual(await readFile(file), saved);
     await Promise.all(
-      [agyCatalog, combinedFile, nativeCatalog, piCatalog].map((file) =>
-        rm(file),
-      ),
+      [agyCatalog, combinedFile, nativeCatalog].map((file) => rm(file)),
     );
     const spyDirectory = path.join(root, 'spy-bin');
     await mkdir(spyDirectory);
     const spyLog = path.join(root, 'cli-invoked');
-    for (const executable of [
-      'agy',
-      'codex',
-      'codex-app-server',
-      'claude',
-      'pi',
-    ])
+    for (const executable of ['agy', 'codex', 'codex-app-server', 'claude'])
       await writeFile(
         path.join(spyDirectory, executable),
         `#!${process.execPath}\nimport { appendFileSync } from 'node:fs';\nappendFileSync(process.env.PSTACK_SPY_LOG, '${executable}\\n');\nprocess.exit(81);\n`,
@@ -350,7 +331,7 @@ for (const host of ['codex', 'claude-code']) {
     const call = (...args: string[]) =>
       spawnSync(process.execPath, [helper, ...args], { encoding: 'utf8' });
     for (const entry of [
-      { ...capabilities.models[0], executor: 'pi' },
+      { ...capabilities.models[0], executor: 'codex' },
       { ...capabilities.models[0], source: undefined },
       {
         ...capabilities.models[0],

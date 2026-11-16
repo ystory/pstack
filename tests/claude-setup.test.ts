@@ -99,6 +99,7 @@ type Models = {
   budget: string;
   targetReasoningEffort: string;
   droppedRoles: string[];
+  retiredExecutorRoles: { role: string; executor: string }[];
   models: {
     executor: string;
     model: string;
@@ -134,10 +135,6 @@ async function fixture(t: TestContext) {
   await mkdir(path.join(plugin, 'skills/poteto-mode/scripts'), {
     recursive: true,
   });
-  await cp(
-    path.join(project, 'plugin-claude/skills/poteto-mode/scripts/pi-route.mjs'),
-    path.join(plugin, 'skills/poteto-mode/scripts/pi-route.mjs'),
-  );
   await cp(
     path.join(
       project,
@@ -1586,6 +1583,139 @@ test('saved retired Claude role keys still read and resolve, are reported, and o
   const reread = f.models('read');
   assert.deepEqual(reread.droppedRoles, []);
   assert.deepEqual(reread.config.roles, kept);
+});
+
+test('saved Pi entries retire their Claude roles to the native parent and the next write omits them', async (t) => {
+  const f = await fixture(t);
+  const file = path.join(f.home, 'pstack-cc/models.json');
+  const kept = {
+    hillclimb: {
+      executor: 'claude-code',
+      model: f.model,
+      reasoningEffort: 'high',
+    },
+    'interrogate reviewers': [
+      'auto',
+      { executor: 'codex', model: 'gpt-fixture', reasoningEffort: 'medium' },
+      'auto',
+    ],
+  };
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(
+    file,
+    JSON.stringify({
+      schemaVersion: 1,
+      host: 'claude-code',
+      budget: 'medium',
+      roles: {
+        'bug-fix': {
+          executor: 'pi',
+          provider: 'google',
+          model: 'gemini-4-carbon',
+          reasoningEffort: 'high',
+        },
+        hillclimb: kept.hillclimb,
+        'arena runners': [
+          { executor: 'claude-code', model: f.model, reasoningEffort: 'high' },
+          { executor: 'pi', provider: 'google', model: 'gemini-4-carbon' },
+          'auto',
+        ],
+        'interrogate reviewers': kept['interrogate reviewers'],
+      },
+    }),
+  );
+  const before = await readFile(file);
+  const retired = [
+    { role: 'bug-fix', executor: 'pi' },
+    { role: 'arena runners', executor: 'pi' },
+  ];
+  const read = f.models('read');
+  assert.deepEqual(read.retiredExecutorRoles, retired);
+  assert.deepEqual(read.droppedRoles, []);
+  assert.deepEqual(read.config.roles, kept);
+  assert.deepEqual(Object.keys(read.proposal.roles), roleNames);
+  for (const [role, count] of [
+    ['bug-fix', 1],
+    ['arena runners', 3],
+  ] as const) {
+    const resolved = f.models(
+      'resolve',
+      '--role',
+      role,
+      '--kind',
+      'general-purpose',
+    );
+    assert.equal(resolved.source, 'unconfigured');
+    assert.deepEqual(
+      resolved.entries,
+      Array.from({ length: count }, () => ({
+        executor: 'claude-code',
+        model: 'inherit-parent',
+        agentType: 'pstack-cc:general-purpose',
+      })),
+    );
+    assert.deepEqual(resolved.retiredExecutorRoles, retired);
+  }
+  const hillclimb = f.models('resolve', '--role', 'hillclimb');
+  assert.equal(hillclimb.source, 'saved');
+  assert.deepEqual(hillclimb.entries, [kept.hillclimb]);
+  assert.equal(
+    f.models('resolve', '--role', 'interrogate reviewers').source,
+    'saved',
+  );
+  const budget = f.models(
+    'budget',
+    '--budget',
+    'large',
+    '--catalog',
+    f.catalog,
+  );
+  assert.deepEqual(budget.retiredExecutorRoles, retired);
+  assert.deepEqual(Object.keys(budget.config.roles), Object.keys(kept));
+  assert.deepEqual(await readFile(file), before);
+  const written = await f.save(read.config);
+  assert.equal(written.changed, true);
+  assert.deepEqual(written.retiredExecutorRoles, retired);
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), {
+    schemaVersion: 1,
+    host: 'claude-code',
+    budget: 'medium',
+    roles: kept,
+  });
+  const reread = f.models('read');
+  assert.deepEqual(reread.retiredExecutorRoles, []);
+  assert.deepEqual(reread.config.roles, kept);
+  const after = await readFile(file);
+  for (const [executor, message] of [
+    ['pi', /Pi executor was removed.*bug-fix/],
+    ['pi-next', /Unknown executor for bug-fix/],
+  ] as const) {
+    await writeFile(
+      f.input,
+      JSON.stringify({
+        roles: {
+          'bug-fix': {
+            executor,
+            provider: 'google',
+            model: 'gemini-4-carbon',
+            reasoningEffort: 'high',
+          },
+        },
+      }),
+    );
+    const rejected = f.invoke('models.mjs', [
+      'write',
+      '--input',
+      f.input,
+      '--catalog',
+      f.catalog,
+      '--expected-hash',
+      reread.sha256!,
+    ]);
+    assert.equal(rejected.status, 1);
+    assert.match(rejected.stderr, message);
+  }
+  assert.deepEqual(await readFile(file), after);
 });
 
 test('a saved unknown Claude role key beside retired keys still fails without changing the file', async (t) => {

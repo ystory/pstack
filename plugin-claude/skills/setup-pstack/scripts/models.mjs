@@ -23,6 +23,7 @@ import {
   entriesFor,
   modelFor,
   namedEffort,
+  retiredExecutors,
   retiredRoles,
   roles,
   seats,
@@ -35,13 +36,6 @@ import {
   agyCapability,
   agyEfforts,
 } from '../../poteto-mode/scripts/agy-capabilities.mjs';
-
-import {
-  piEntry,
-  piCapability,
-  piEfforts,
-  routeKey,
-} from '../../poteto-mode/scripts/pi-route.mjs';
 
 const nativeAliases = new Set([
   'default',
@@ -56,10 +50,9 @@ const nativeAliases = new Set([
 const executorEfforts = {
   'claude-code': new Set(['low', 'medium', 'high', 'xhigh', 'max']),
   codex: new Set(efforts),
-  pi: new Set(piEfforts),
   antigravity: new Set(agyEfforts),
 };
-const keyFor = (entry) => routeKey(entry, 'claude-code');
+const keyFor = (entry) => `${entry.executor}\0${entry.model}`;
 
 function isNativeAlias(model) {
   const base = model.split('[')[0];
@@ -78,10 +71,8 @@ function entryFor(value, role) {
   )
     throw new Error(`Invalid model entry for ${role}.`);
   const executor = value.executor ?? 'claude-code';
-  if (!['claude-code', 'codex', 'pi', 'antigravity'].includes(executor))
+  if (!['claude-code', 'codex', 'antigravity'].includes(executor))
     throw new Error(`Unknown executor for ${role}.`);
-  routeKey({ ...value, executor });
-  if (executor === 'pi') return piEntry(value);
   if (executor === 'antigravity') return agyEntry(value);
   if (aliases.has(value.model)) {
     if (executor !== 'claude-code' || value.reasoningEffort !== undefined)
@@ -124,6 +115,7 @@ export function normalizeConfig(input, previous) {
     throw new Error('Model configuration roles must be an object.');
   const normalized = { ...(previous?.roles ?? {}) };
   const droppedRoles = [];
+  const retiredExecutorRoles = [];
   for (const [role, value] of Object.entries(selected)) {
     if (retiredRoles.has(role)) {
       droppedRoles.push(role);
@@ -131,6 +123,13 @@ export function normalizeConfig(input, previous) {
     }
     if (!Object.hasOwn(roles, role))
       throw new Error(`Unknown pstack role: ${role}`);
+    const retired = entriesFor(value).find((entry) =>
+      retiredExecutors.has(entry?.executor),
+    );
+    if (retired) {
+      retiredExecutorRoles.push({ role, executor: retired.executor });
+      continue;
+    }
     if (roles[role].kind === 'scalar') {
       if (Array.isArray(value))
         throw new Error(
@@ -151,6 +150,7 @@ export function normalizeConfig(input, previous) {
       roles: normalized,
     },
     droppedRoles,
+    retiredExecutorRoles,
   };
 }
 
@@ -177,7 +177,7 @@ function executionDefault(kind) {
   };
 }
 
-export function normalizeCatalog(input, native, piCatalog, agyCatalog) {
+export function normalizeCatalog(input, native, agyCatalog) {
   const response = input?.codex?.models
     ? input.codex
     : (input?.result ?? input ?? { models: [] });
@@ -201,12 +201,6 @@ export function normalizeCatalog(input, native, piCatalog, agyCatalog) {
   if (nativeResponse?.nextCursor || nativeResponse?.next_cursor)
     throw new Error('Native catalog is incomplete.');
   if (
-    piCatalog &&
-    (!Array.isArray(piCatalog.models) ||
-      piCatalog.models.some((entry) => entry.executor !== 'pi'))
-  )
-    throw new Error('--pi-catalog requires a Pi models array.');
-  if (
     agyCatalog &&
     (!Array.isArray(agyCatalog.models) ||
       agyCatalog.models.some((entry) => entry.executor !== 'antigravity'))
@@ -215,7 +209,6 @@ export function normalizeCatalog(input, native, piCatalog, agyCatalog) {
   const seen = new Set();
   const models = [
     ...data,
-    ...(piCatalog?.models ?? []),
     ...(agyCatalog?.models ?? []),
     ...nativeModels.map((entry) => ({
       ...entry,
@@ -233,7 +226,7 @@ export function normalizeCatalog(input, native, piCatalog, agyCatalog) {
         : (effort.reasoningEffort ?? effort.reasoning_effort),
     );
     if (
-      !['claude-code', 'codex', 'pi', 'antigravity'].includes(executor) ||
+      !['claude-code', 'codex', 'antigravity'].includes(executor) ||
       typeof model !== 'string' ||
       !model ||
       model.trim() !== model ||
@@ -265,8 +258,6 @@ export function normalizeCatalog(input, native, piCatalog, agyCatalog) {
     seen.add(key);
     if (executor === 'antigravity')
       return agyCapability({ ...entry, model, supportedReasoningEfforts });
-    if (executor === 'pi')
-      return piCapability({ ...entry, model, supportedReasoningEfforts });
     return {
       executor,
       model,
@@ -346,9 +337,6 @@ async function main(options) {
       options.nativeCatalog
         ? await inputJson(options.nativeCatalog, '--native-catalog')
         : undefined,
-      options.piCatalog
-        ? await inputJson(options.piCatalog, '--pi-catalog')
-        : undefined,
       options.agyCatalog
         ? await inputJson(options.agyCatalog, '--agy-catalog')
         : undefined,
@@ -367,6 +355,7 @@ async function main(options) {
       config: loaded.config,
       proposal: { ...loaded.config, roles: proposal },
       droppedRoles: loaded.droppedRoles,
+      retiredExecutorRoles: loaded.retiredExecutorRoles,
       needsChoice: choicesFor(proposal),
       targetReasoningEffort: namedEffort(loaded.config.budget),
     };
@@ -401,6 +390,7 @@ async function main(options) {
       budget: loaded.config.budget,
       targetReasoningEffort: targetEffort(options.role, loaded.config.budget),
       droppedRoles: loaded.droppedRoles,
+      retiredExecutorRoles: loaded.retiredExecutorRoles,
     };
   }
   const catalog = normalizeCatalog(
@@ -426,8 +416,7 @@ async function main(options) {
         if (typeof entry === 'string' || aliases.has(entry.model)) continue;
         const target = targetEffort(role, options.budget);
         const supported = detected.get(keyFor(entry)) ?? [];
-        const ladder =
-          { pi: piEfforts, antigravity: agyEfforts }[entry.executor] ?? efforts;
+        const ladder = entry.executor === 'antigravity' ? agyEfforts : efforts;
         const resolved = ladder
           .slice(0, ladder.indexOf(target) + 1)
           .reverse()
@@ -447,6 +436,7 @@ async function main(options) {
       config,
       targetReasoningEffort: namedEffort(options.budget),
       droppedRoles: loaded.droppedRoles,
+      retiredExecutorRoles: loaded.retiredExecutorRoles,
       needsChoice: [...choicesFor(config.roles, catalog), ...unmapped],
     };
   }
@@ -459,6 +449,11 @@ async function main(options) {
     supplied.config ?? supplied,
     loaded.config,
   );
+  const [submitted] = normalized.retiredExecutorRoles;
+  if (submitted)
+    throw new Error(
+      `The ${retiredExecutors.get(submitted.executor)} executor was removed from pstack. Choose another executor for ${submitted.role}.`,
+    );
   const needsChoice = choicesFor(normalized.config.roles, catalog);
   if (needsChoice.length)
     throw new Error(
@@ -479,6 +474,7 @@ async function main(options) {
     droppedRoles: [
       ...new Set([...loaded.droppedRoles, ...normalized.droppedRoles]),
     ],
+    retiredExecutorRoles: loaded.retiredExecutorRoles,
     changed,
     dryRun: Boolean(options.dryRun),
     sha256: hash(bytes),
@@ -507,7 +503,6 @@ if (
         '--budget',
         '--catalog',
         '--native-catalog',
-        '--pi-catalog',
         '--agy-catalog',
         '--input',
         '--expected-hash',
@@ -516,7 +511,7 @@ if (
     );
     if (options.help) {
       process.stdout.write(
-        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG] [--pi-catalog ABS] [--agy-catalog ABS]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
+        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG] [--agy-catalog ABS]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
       );
       return;
     }

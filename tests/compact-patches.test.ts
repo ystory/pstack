@@ -20,7 +20,7 @@ const targets = ['codex', 'claude-code'] as const;
 const outputFor = (project: string, target: TargetId) =>
   path.join(project, target === 'codex' ? 'plugin' : 'plugin-claude');
 const how = 'skills/how/SKILL.md';
-const runner = 'skills/poteto-mode/scripts/run-pi.mjs';
+const runner = 'skills/poteto-mode/scripts/run-agy.mjs';
 
 async function fixture(t: TestContext) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'pstack-compact-test-'));

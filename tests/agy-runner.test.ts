@@ -753,7 +753,7 @@ test('agy rejects wrong resume route, cwd, auth, closure, receipt alias and nake
     const first = await f.invoke();
     const prior = path.join(first.runDir, 'result.json');
     const receipt = first.receipt;
-    if (defect === 'route') receipt.requested.executor = 'pi';
+    if (defect === 'route') receipt.requested.executor = 'codex';
     if (defect === 'cwd') receipt.cwd = '/wrong';
     if (defect === 'auth') receipt.authMode = 'different';
     if (defect === 'closure') receipt.process.groupClosed = false;

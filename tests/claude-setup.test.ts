@@ -136,10 +136,6 @@ async function fixture(t: TestContext) {
     recursive: true,
   });
   await cp(
-    path.join(project, 'plugin-claude/skills/poteto-mode/scripts/pi-route.mjs'),
-    path.join(plugin, 'skills/poteto-mode/scripts/pi-route.mjs'),
-  );
-  await cp(
     path.join(
       project,
       'plugin-claude/skills/poteto-mode/scripts/agy-capabilities.mjs',

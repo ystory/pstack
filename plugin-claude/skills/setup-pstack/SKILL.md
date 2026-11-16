@@ -1,6 +1,6 @@
 ---
 name: setup-pstack
-description: Configure pstack's per-role Claude, Codex, Pi, or Antigravity workers in Claude Code. Prepare selected official runtimes and login, save independent model choices, and register exact-model native agents. Use for /setup-pstack, "configure pstack models", or "pstack budget".
+description: Configure pstack's per-role Claude, Codex, or Antigravity workers in Claude Code. Prepare selected official runtimes and login, save independent model choices, and register exact-model native agents. Use for /setup-pstack, "configure pstack models", or "pstack budget".
 ---
 
 # Setup pstack
@@ -11,13 +11,13 @@ Resolve helpers relative to this installed skill and invoke their absolute paths
 
 ## 1. Choose worker executors
 
-Start with worker executor selection unless already supplied in the conversation. Offer the available worker executors independently. Native Claude, Codex, Pi, and Antigravity can be selected in any combination. The parent chat stays in Claude Code. Prefill executors used by saved entries on a rerun. A harness choice does not choose a model. If a saved entry uses an executor the user excludes, show it and obtain its replacement before saving. Preserve other choices.
+Start with worker executor selection unless already supplied in the conversation. Offer the available worker executors independently. Native Claude, Codex, and Antigravity can be selected in any combination. The parent chat stays in Claude Code. Prefill executors used by saved entries on a rerun. A harness choice does not choose a model. If a saved entry uses an executor the user excludes, show it and obtain its replacement before saving. Preserve other choices.
 
 ## 2. Prepare selected runtimes
 
 Check `node --version` first. The helpers require Node.js 24.12 or newer. If Node is missing, use the [prerequisite guide](references/prerequisites.md).
 
-When native Claude workers are selected, run `scripts/detect.mjs detect --executors claude-code`. Include `codex` in that list only when Codex workers are also selected. When Codex is selected without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs detect` directly. For Pi-only or Antigravity-only workers, skip both detectors and use the selected executor's catalog procedure below. Report runtime versions, native effort support, and login state. Unselected worker CLIs are neither probed nor required. The detection helper is read-only; it does not perform installation or login.
+When native Claude workers are selected, run `scripts/detect.mjs detect --executors claude-code`. Include `codex` in that list only when Codex workers are also selected. When Codex is selected without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs detect` directly. For Antigravity-only workers, skip both detectors and use the Antigravity catalog procedure below. Report runtime versions, native effort support, and login state. Unselected worker CLIs are neither probed nor required. The detection helper is read-only; it does not perform installation or login.
 
 Within the authorized setup, prepare missing selected tools yourself using their official installation guidance and the host's normal tools. For Codex workers, install the official standalone server when needed and make `codex-app-server` available on the PATH inherited by this host and future workers. Choose suitable installation details for this machine. Recheck detection without an executable override before completing setup. Do not leave installation or PATH preparation as a user checklist. Hand off only steps that require human interaction, such as login or an operating-system approval.
 
@@ -33,8 +33,6 @@ Native exact-model choices use generated agent definitions and per-invocation ef
 
 For Codex workers with selected native Claude workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT` through inherited PATH. For Codex workers without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs catalog --cwd ABSOLUTE_PROJECT` directly. These routes use the same official standalone runtime. For diagnostics, `--codex-executable ABS` overrides only that catalog invocation. The bundled runner uses the selected server for safe account status and every `model/list` page. Its receipt separates runtime capability, authentication, catalog, and execution evidence.
 
-For selected Pi workers, use the prerequisite guide and run the sibling `poteto-mode/scripts/run-pi.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. This queries exact provider/model routes and per-model thinking levels without submitting a prompt. Pass its `catalog.json` through `--pi-catalog ABSOLUTE_PI_CATALOG` when normalizing. Configured availability does not prove fresh authentication or successful inference.
-
 For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. Pass its sanitized `catalog.json` through `--agy-catalog ABSOLUTE_AGY_CATALOG` when normalizing. No model prompt is submitted. Fixed-effort labels establish only the reported variant's configured availability. Unclassified candidates need per-model evidence before selection.
 
 For native Claude workers, use exact model IDs and supported efforts exposed by the current host or its model catalog. Inspect the current host and configuration rather than copying a fixed list from this skill. Detection lists configured model candidates, including `settings.json` model choices and model-specific environment variables. Those candidates require confirmation. A configured name or allowlist does not prove entitlement or supported efforts.
@@ -45,9 +43,7 @@ If neither the session context nor the tool schema provides exact IDs and effort
 
 Normalize the selected routes with `scripts/models.mjs catalog --input ABSOLUTE_CODEX_RECEIPT --native-catalog ABSOLUTE_NATIVE_CATALOG`. Omit the Codex input for Claude-only setup. Every explicit selection must match its executor's catalog. A matching ID under another executor does not validate it.
 
-For Antigravity-only worker choices, skip native, Claude, and Pi probes and model collection. Normalize with `scripts/models.mjs catalog --agy-catalog ABSOLUTE_AGY_CATALOG` alone. For any combination, include only the selected catalogs.
-
-For Pi-only worker choices, skip native and other external model collection. Normalize with `scripts/models.mjs catalog --pi-catalog ABSOLUTE_PI_CATALOG` alone. Omit `--input`, `--native-catalog`, and `--claude-runtime` when unused. Native parent aliases remain available without a native model catalog.
+For Antigravity-only worker choices, skip native and Claude probes and model collection. Normalize with `scripts/models.mjs catalog --agy-catalog ABSOLUTE_AGY_CATALOG` alone. For any combination, include only the selected catalogs.
 
 `auto` and `inherit-parent` always mean the actual native Claude parent. They omit effort and executor overrides on invocation. They cannot select an external executor. Use the [Claude execution binding](../poteto-mode/references/execution.md) when dispatching.
 
@@ -70,11 +66,9 @@ Use a budget already specified in the conversation. Otherwise show the saved bud
 
 Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below each role's target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
 
-Show every role's current and proposed executor, Pi provider when applicable, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices and parent aliases. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
+Show every role's current and proposed executor, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices and parent aliases. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
 
 Scalar roles hold one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` hold nonempty lists. Run one independent delegate per entry, including duplicates and aliases. `arena cross-judge pool` is an ordered candidate pool, from which Arena runs one eligible judge from a vendor other than the parent's. Families are the ones Phase A of the arena skill defines, so Fable is its own family. Fable and the other Claude models are one vendor. Parent aliases never judge. Preserve Arena's ordered selected pool and disclosed judge skip, plus every other workflow's original diversity, verifier, retry, and fresh-worker requirements.
-
-Pi choices retain `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "LEVEL" }`. Choose provider and model separately. Pi uses `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Budget previews select only reported levels on that ladder, including `off` for nonreasoning models. Native aliases stay native, and native registration creates no Pi model definitions. Follow [Pi execution](../poteto-mode/references/pi-execution.md) for explicit tools, context, fresh sessions, capability gaps, and required family gates.
 
 Antigravity choices retain `{ "executor": "antigravity", "model": "EXACT_AGY_ID", "reasoningEffort": "LEVEL" }`. They have no provider or authentication fields and create no native model definitions. Budget previews keep the exact ID and use only that model's reported efforts. A fixed `xhigh` variant has no lower effort unless its per-model evidence says otherwise. If the target cannot be met, resolve `needsChoice` without silently switching IDs. Follow [Antigravity execution](../poteto-mode/references/agy-execution.md) for scoped permissions, complete context, native history, exact continuation, and capability limits.
 

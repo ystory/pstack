@@ -44,7 +44,7 @@ Ordered lists preserve duplicate seats. Each role has a starting effort. `hardes
 
 The top-level `targetReasoningEffort` of `read` and `budget` is the effort the budget label names, which is the target of a role that starts at `xhigh`. Per-role targets appear in proposal slots, `resolve`, and `needsChoice` entries.
 
-Budget and write accept the normalized combined catalog, or native `--catalog ABS` plus `--claude-runtime ABS`. Catalog validation keys native models by executor and ID, and Pi models by executor, provider, and exact ID. External entries require model-specific capability records and a compatible CLI that can express their efforts. A native model entry with the same ID does not validate them. The helper does not install or authenticate Claude or change its configuration.
+Budget and write accept the normalized combined catalog, or native `--catalog ABS` plus `--claude-runtime ABS`. Catalog validation keys each model by executor and ID. External entries require model-specific capability records and a compatible CLI that can express their efforts. A native model entry with the same ID does not validate them. The helper does not install or authenticate Claude or change its configuration.
 
 ## Model capability records
 
@@ -80,24 +80,12 @@ Budget affects default reasoning. Keep the original different-model and differen
 
 Unknown role keys other than the retired keys fail boundary validation without dropping or migrating them. Preferences remain unchanged.
 
-## Pi routes
-
-A Pi choice is `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "off" }`. The provider is required for Pi and rejected for other executors. Model IDs keep their exact bytes, including slashes. `auto` and `inherit-parent` remain native-only. Saved role shapes, sparse choices, order, and duplicate seats stay unchanged. Read and resolve preserve Pi choices offline and create no native `agentType`.
-
-Run `poteto-mode/scripts/run-pi.mjs catalog --cwd ABS --run-dir ABS_NEW_DIRECTORY` from its actual installed path. Pass its sanitized `catalog.json` to `models.mjs catalog --pi-catalog ABS` alongside any native catalog inputs. Pi-only normalization may omit `--input`. Merge the normalized result into the existing budget and hash-guarded write flow. No task prompt is submitted for catalog collection.
-
-Each Pi capability has `executor`, `provider`, `model`, `supportedReasoningEfforts`, a labeled `source`, and optional `runtimeVersion`. Normalization retains these fields and discards other full-model fields. Repeated normalization is idempotent. Provider collisions are independent routes. Configured model availability and local thinking-level readback do not prove remote inference or fresh authentication.
-
-Pi's effort ladder is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. `off` differs from native `none`. Budget mapping selects the highest reported level at or below its target on this ladder. An off-only route maps to `off` under every budget. Unsupported efforts or missing exact routes prevent a save without changing preferences.
-
-Follow [Pi execution](../../poteto-mode/references/pi-execution.md) for process receipts, exact resume, structured rejections, explicit tool capabilities, and required model-family gates. Pi entries never become native agent definitions.
-
 ## Antigravity routes
 
 An Antigravity choice is `{ "executor": "antigravity", "model": "EXACT_AGY_ID", "reasoningEffort": "LEVEL" }`. It has no provider or authentication fields. Parent aliases remain native-only. Existing scalar and list shapes, sparse saves, order, duplicates, and native fallback remain. Read and resolve work offline without agy or a current catalog. Antigravity entries create no native model definitions or `agentType`.
 
-`models.mjs catalog --agy-catalog ABS` merges the runner's sanitized `catalog.json` with selected native, Claude, or Pi inputs. Antigravity-only normalization omits other inputs. The separate flag rejects rows from another executor. Each normalized capability retains `executor`, exact `model`, `supportedReasoningEfforts`, a labeled per-model `source`, and optional `runtimeVersion`. Re-normalization preserves these fields. Sources remain in catalogs rather than saved preferences.
+`models.mjs catalog --agy-catalog ABS` merges the runner's sanitized `catalog.json` with selected native or Claude inputs. Antigravity-only normalization omits other inputs. The separate flag rejects rows from another executor. Each normalized capability retains `executor`, exact `model`, `supportedReasoningEfforts`, a labeled per-model `source`, and optional `runtimeVersion`. Re-normalization preserves these fields. Sources remain in catalogs rather than saved preferences.
 
-The effort domain is separate from native and Pi efforts. Supported efforts come from each exact model's evidence, not a global CLI matrix. A host label such as `(XHigh)` supplies that one variant effort and identifies that limitation in its source. It proves configured availability only. Other candidates need a host, configuration, or manual-confirmation source for their exact ID and supported efforts.
+The effort domain is separate from native efforts. Supported efforts come from each exact model's evidence, not a global CLI matrix. A host label such as `(XHigh)` supplies that one variant effort and identifies that limitation in its source. It proves configured availability only. Other candidates need a host, configuration, or manual-confirmation source for their exact ID and supported efforts.
 
-Budget mapping keeps the exact model and chooses the highest supported effort at or below the target. A fixed `xhigh` variant returns `needsChoice` for a lower target rather than changing its ID. Invalid routes, unsupported efforts, missing provenance, native aliases on Antigravity, and non-Pi provider fields prevent saving. Follow [Antigravity execution](../../poteto-mode/references/agy-execution.md) for inherited authentication, scoped permissions, cumulative usage, native history, and one-use exact continuation.
+Budget mapping keeps the exact model and chooses the highest supported effort at or below the target. A fixed `xhigh` variant returns `needsChoice` for a lower target rather than changing its ID. Invalid routes, unsupported efforts, missing provenance, native aliases on Antigravity, and provider fields prevent saving. Follow [Antigravity execution](../../poteto-mode/references/agy-execution.md) for inherited authentication, scoped permissions, cumulative usage, native history, and one-use exact continuation.

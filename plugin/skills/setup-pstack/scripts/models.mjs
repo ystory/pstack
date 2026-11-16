@@ -15,13 +15,6 @@ import {
   agyEfforts,
 } from '../../poteto-mode/scripts/agy-capabilities.mjs';
 
-import {
-  piEntry,
-  piCapability,
-  piEfforts,
-  routeKey,
-} from '../../poteto-mode/scripts/pi-route.mjs';
-
 const roles = {
   'feature, refactoring': { kind: 'scalar', effort: 'xhigh' },
   'bug-fix': { kind: 'scalar', effort: 'xhigh' },
@@ -84,7 +77,6 @@ function argumentsFor(argv) {
     '--budget': 'budget',
     '--catalog': 'catalog',
     '--claude-runtime': 'claudeRuntime',
-    '--pi-catalog': 'piCatalog',
     '--agy-catalog': 'agyCatalog',
     '--input': 'input',
     '--expected-hash': 'expectedHash',
@@ -146,9 +138,9 @@ async function inputJson(file, label) {
 
 const executorFor = (entry) =>
   entry.executor === undefined ? 'codex' : entry.executor;
-const modelKey = (entry) => routeKey(entry);
+const modelKey = (entry) => `${executorFor(entry)}\0${entry.model}`;
 
-function normalizeCatalog(input, suppliedRuntime, piCatalog, agyCatalog) {
+function normalizeCatalog(input, suppliedRuntime, agyCatalog) {
   const response = input?.result ?? input;
   let data = Array.isArray(response)
     ? response
@@ -159,14 +151,6 @@ function normalizeCatalog(input, suppliedRuntime, piCatalog, agyCatalog) {
     throw new Error(
       'Model catalog has another page; collect all model/list pages before configuring.',
     );
-  if (piCatalog) {
-    if (
-      !Array.isArray(piCatalog.models) ||
-      piCatalog.models.some((entry) => entry.executor !== 'pi')
-    )
-      throw new Error('--pi-catalog requires a Pi models array.');
-    data = [...data, ...piCatalog.models];
-  }
   if (agyCatalog) {
     if (
       !Array.isArray(agyCatalog.models) ||
@@ -195,7 +179,7 @@ function normalizeCatalog(input, suppliedRuntime, piCatalog, agyCatalog) {
     if (
       typeof id !== 'string' ||
       !id ||
-      !['codex', 'claude-code', 'pi', 'antigravity'].includes(executorFor(model)) ||
+      !['codex', 'claude-code', 'antigravity'].includes(executorFor(model)) ||
       seen.has(modelKey({ ...model, model: id })) ||
       !Array.isArray(reasoningEfforts) ||
       !reasoningEfforts.length ||
@@ -235,12 +219,6 @@ function normalizeCatalog(input, suppliedRuntime, piCatalog, agyCatalog) {
         model: id,
         supportedReasoningEfforts: reasoningEfforts,
       });
-    if (executorFor(model) === 'pi')
-      return piCapability({
-        ...model,
-        model: id,
-        supportedReasoningEfforts: reasoningEfforts,
-      });
     return {
       ...(model.executor !== undefined ? { executor: model.executor } : {}),
       model: id,
@@ -268,10 +246,8 @@ function validateEntry(entry, role) {
     entry.model !== entry.model.trim()
   )
     throw new Error(`Invalid model entry for ${role}.`);
-  if (!['codex', 'claude-code', 'pi', 'antigravity'].includes(executorFor(entry)))
+  if (!['codex', 'claude-code', 'antigravity'].includes(executorFor(entry)))
     throw new Error(`Unknown executor for ${role}.`);
-  routeKey(entry);
-  if (executorFor(entry) === 'pi') return piEntry(entry);
   if (executorFor(entry) === 'antigravity') return agyEntry(entry);
   const executor =
     entry.executor === undefined ? {} : { executor: entry.executor };
@@ -411,7 +387,7 @@ function applyBudget(config, budget, catalog) {
       if (aliases.has(entry.model)) return;
       const supported = detected.get(modelKey(entry)) ?? [];
       const ladder =
-        { pi: piEfforts, antigravity: agyEfforts }[executorFor(entry)] ?? efforts;
+        executorFor(entry) === 'antigravity' ? agyEfforts : efforts;
       const resolved = ladder
         .slice(0, ladder.indexOf(target) + 1)
         .reverse()
@@ -421,7 +397,6 @@ function applyBudget(config, budget, catalog) {
           role,
           index,
           ...(entry.executor !== undefined ? { executor: entry.executor } : {}),
-          ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
           model: entry.model,
           targetReasoningEffort: target,
         });
@@ -445,9 +420,6 @@ async function main(options) {
         ? await inputJson(options.input, '--input')
         : { models: [] },
       runtime,
-      options.piCatalog
-        ? await inputJson(options.piCatalog, '--pi-catalog')
-        : undefined,
       options.agyCatalog
         ? await inputJson(options.agyCatalog, '--agy-catalog')
         : undefined,
@@ -578,7 +550,7 @@ try {
   const options = argumentsFor(process.argv.slice(2));
   if (options.help)
     process.stdout.write(
-      'Usage: node models.mjs read|resolve|budget|write|catalog [options]\nread/resolve: [--codex-home ABS] [--role ROLE]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\ncatalog: [--input ABS] (native model/list or combined model capabilities) [--claude-runtime ABS] [--pi-catalog ABS] [--agy-catalog ABS]\nbudget/write also accept --claude-runtime ABS or a normalized catalog containing its runtime receipt.\n',
+      'Usage: node models.mjs read|resolve|budget|write|catalog [options]\nread/resolve: [--codex-home ABS] [--role ROLE]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\ncatalog: [--input ABS] (native model/list or combined model capabilities) [--claude-runtime ABS] [--agy-catalog ABS]\nbudget/write also accept --claude-runtime ABS or a normalized catalog containing its runtime receipt.\n',
     );
   else
     process.stdout.write(`${JSON.stringify(await main(options), null, 2)}\n`);

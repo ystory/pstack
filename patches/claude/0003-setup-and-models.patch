@@ -1,12 +1,12 @@
 diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
-index 3de528e..2bf5381 100644
+index 3de528e..f791be5 100644
 --- a/skills/setup-pstack/SKILL.md
 +++ b/skills/setup-pstack/SKILL.md
-@@ -1,83 +1,105 @@
+@@ -1,83 +1,99 @@
  ---
  name: setup-pstack
 -description: Configure which models pstack uses per role and at what reasoning budget. Detects your available models and writes an always-applied rule that overrides the skill defaults. Use for /setup-pstack, "configure pstack models", "pstack budget", or changing pstack's model choices.
-+description: Configure pstack's per-role Claude, Codex, Pi, or Antigravity workers in Claude Code. Prepare selected official runtimes and login, save independent model choices, and register exact-model native agents. Use for /setup-pstack, "configure pstack models", or "pstack budget".
++description: Configure pstack's per-role Claude, Codex, or Antigravity workers in Claude Code. Prepare selected official runtimes and login, save independent model choices, and register exact-model native agents. Use for /setup-pstack, "configure pstack models", or "pstack budget".
  ---
  
  # Setup pstack
@@ -21,7 +21,7 @@ index 3de528e..2bf5381 100644
 +## 1. Choose worker executors
  
 -Enumerate the model slugs you can pass to a `Task` subagent in this session. That is the dependable source. If Cursor also exposes a models API or CLI that lists the user's entitled models, prefer it for completeness. If you cannot detect any, ask the user to paste the slugs they have access to. Never write a real slug you have not confirmed is available. The aliases `inherit-parent` and `auto` are always valid even though they are not detected slugs.
-+Start with worker executor selection unless already supplied in the conversation. Offer the available worker executors independently. Native Claude, Codex, Pi, and Antigravity can be selected in any combination. The parent chat stays in Claude Code. Prefill executors used by saved entries on a rerun. A harness choice does not choose a model. If a saved entry uses an executor the user excludes, show it and obtain its replacement before saving. Preserve other choices.
++Start with worker executor selection unless already supplied in the conversation. Offer the available worker executors independently. Native Claude, Codex, and Antigravity can be selected in any combination. The parent chat stays in Claude Code. Prefill executors used by saved entries on a rerun. A harness choice does not choose a model. If a saved entry uses an executor the user excludes, show it and obtain its replacement before saving. Preserve other choices.
  
 -### 2. Load current state
 +## 2. Prepare selected runtimes
@@ -30,7 +30,7 @@ index 3de528e..2bf5381 100644
 +Check `node --version` first. The helpers require Node.js 24.12 or newer. If Node is missing, use the [prerequisite guide](references/prerequisites.md).
  
 -A rule without the `# defaults: 2` line comes from an older setup. That setup wrote a line for every role, so some of its values are old defaults, not choices. An old slug is one that matches `grok-*`. Before step 3, replace these values:
-+When native Claude workers are selected, run `scripts/detect.mjs detect --executors claude-code`. Include `codex` in that list only when Codex workers are also selected. When Codex is selected without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs detect` directly. For Pi-only or Antigravity-only workers, skip both detectors and use the selected executor's catalog procedure below. Report runtime versions, native effort support, and login state. Unselected worker CLIs are neither probed nor required. The detection helper is read-only; it does not perform installation or login.
++When native Claude workers are selected, run `scripts/detect.mjs detect --executors claude-code`. Include `codex` in that list only when Codex workers are also selected. When Codex is selected without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs detect` directly. For Antigravity-only workers, skip both detectors and use the Antigravity catalog procedure below. Report runtime versions, native effort support, and login state. Unselected worker CLIs are neither probed nor required. The detection helper is read-only; it does not perform installation or login.
  
 -- An old slug in `feature, refactoring`, `bug-fix`, `perf-issue`, `hillclimb`, `reflect tooling`, or `swarm workers` takes the role's step 5 default.
 -- A `claude-opus-*` value in `hardest tasks` takes the role's step 5 default.
@@ -44,7 +44,7 @@ index 3de528e..2bf5381 100644
 +Claude-only choices do not require Codex. Use [the prerequisite guide](references/prerequisites.md) for selected tools that need preparation, then rerun detection. Reuse existing installations and authentication. Distinguish ChatGPT subscription login from OpenAI API-key billing. Keep interactive login in the user's terminal or the host's normal login flow. Never ask the user to paste credentials into the conversation.
  
 -**(a) Ask for a budget.** Prefer AskQuestion over free text. Offer these four options with these exact labels, and name the current budget when the rule records one. With no rule, say that `large` matches the skill defaults.
-+For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs detect`. Use the prerequisite guide for the official agy CLI, then collect its source-labeled catalog below. Reuse inherited authentication without reading credentials or changing personal defaults. Detection proves required syntax and version only.
++For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs detect`. Use the prerequisite guide for the official agy CLI. Let the user choose subscription login, Gemini API key, or ADC, and prepare that method with the guide. Reuse a method the user keeps. Never read credentials, ask the user to paste a key into the conversation, or switch methods silently. Rerun detection and confirm its `auth.method` before collecting the source-labeled catalog below. The catalog reflects the active method. Detection proves required syntax and version and reports the inherited method. It does not prove authentication or model access.
  
 -- `unlimited — max reasoning`
 -- `large — xhigh reasoning`
@@ -59,16 +59,16 @@ index 3de528e..2bf5381 100644
 +For Codex workers with selected native Claude workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT` through inherited PATH. For Codex workers without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs catalog --cwd ABSOLUTE_PROJECT` directly. These routes use the same official standalone runtime. For diagnostics, `--codex-executable ABS` overrides only that catalog invocation. The bundled runner uses the selected server for safe account status and every `model/list` page. Its receipt separates runtime capability, authentication, catalog, and execution evidence.
  
 -### 4. Validate
-+For selected Pi workers, use the prerequisite guide and run the sibling `poteto-mode/scripts/run-pi.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. This queries exact provider/model routes and per-model thinking levels without submitting a prompt. Pass its `catalog.json` through `--pi-catalog ABSOLUTE_PI_CATALOG` when normalizing. Configured availability does not prove fresh authentication or successful inference.
- 
--Every real slug written must be in the detected set. `inherit-parent` and `auto` always pass. If a chosen real slug is not available, stop and ask again.
 +For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. Pass its sanitized `catalog.json` through `--agy-catalog ABSOLUTE_AGY_CATALOG` when normalizing. No model prompt is submitted. Fixed-effort labels establish only the reported variant's configured availability. Unclassified candidates need per-model evidence before selection.
  
--### 5. Write the rule
+-Every real slug written must be in the detected set. `inherit-parent` and `auto` always pass. If a chosen real slug is not available, stop and ask again.
 +For native Claude workers, use exact model IDs and supported efforts exposed by the current host or its model catalog. Inspect the current host and configuration rather than copying a fixed list from this skill. Detection lists configured model candidates, including `settings.json` model choices and model-specific environment variables. Those candidates require confirmation. A configured name or allowlist does not prove entitlement or supported efforts.
  
--Write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true`, the `# defaults: 2` line, a `# budget` line with the chosen label and the effort that label names, and one line per role, using the same labels poteto-mode uses. Overwrite the whole file so re-runs stay idempotent. Shape:
+-### 5. Write the rule
 +The detector does not enumerate native models; its `modelCatalog.discovered: false` describes the helper, not the host. Claude Code states the exact model IDs available to the session in your environment context, and the native Agent tool schema lists the accepted `effort` levels. Use those as a `host` catalog source and name both origins in its description. The host does not state per-model effort support; say so in that description.
+ 
+-Write `~/.cursor/rules/pstack-models.mdc` with `alwaysApply: true`, the `# defaults: 2` line, a `# budget` line with the chosen label and the effort that label names, and one line per role, using the same labels poteto-mode uses. Overwrite the whole file so re-runs stay idempotent. Shape:
++If neither the session context nor the tool schema provides exact IDs and efforts, ask the user to confirm them and label the resulting catalog source `manual-confirmation`. Keep that fallback visible. Do not substitute moving aliases such as `opus` or `sonnet` for exact selections.
  
 -```
 ----
@@ -105,13 +105,9 @@ index 3de528e..2bf5381 100644
 -### 8. Offer a formal verification skill (optional)
 -
 -Check whether the project already has a formal verification skill (a project skill that runs a model checker, a proof, or another verifier against the code). If not, offer once: "want a formal verification skill, so agents can prove a key property of your code holds in every case in scope, not only the cases tests reach? I can generate one with /create-formal-verification-skill." On yes, invoke `/create-formal-verification-skill` (resolves wherever pstack is installed: workspace, user, or plugin). On no, move on without pushing.
-+If neither the session context nor the tool schema provides exact IDs and efforts, ask the user to confirm them and label the resulting catalog source `manual-confirmation`. Keep that fallback visible. Do not substitute moving aliases such as `opus` or `sonnet` for exact selections.
-+
 +Normalize the selected routes with `scripts/models.mjs catalog --input ABSOLUTE_CODEX_RECEIPT --native-catalog ABSOLUTE_NATIVE_CATALOG`. Omit the Codex input for Claude-only setup. Every explicit selection must match its executor's catalog. A matching ID under another executor does not validate it.
 +
-+For Antigravity-only worker choices, skip native, Claude, and Pi probes and model collection. Normalize with `scripts/models.mjs catalog --agy-catalog ABSOLUTE_AGY_CATALOG` alone. For any combination, include only the selected catalogs.
-+
-+For Pi-only worker choices, skip native and other external model collection. Normalize with `scripts/models.mjs catalog --pi-catalog ABSOLUTE_PI_CATALOG` alone. Omit `--input`, `--native-catalog`, and `--claude-runtime` when unused. Native parent aliases remain available without a native model catalog.
++For Antigravity-only worker choices, skip native and Claude probes and model collection. Normalize with `scripts/models.mjs catalog --agy-catalog ABSOLUTE_AGY_CATALOG` alone. For any combination, include only the selected catalogs.
 +
 +`auto` and `inherit-parent` always mean the actual native Claude parent. They omit effort and executor overrides on invocation. They cannot select an external executor. Use the [Claude execution binding](../poteto-mode/references/execution.md) when dispatching.
 +
@@ -134,11 +130,9 @@ index 3de528e..2bf5381 100644
 +
 +Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below each role's target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
 +
-+Show every role's current and proposed executor, Pi provider when applicable, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices and parent aliases. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
++Show every role's current and proposed executor, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices and parent aliases. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
 +
 +Scalar roles hold one entry or parent alias. `arena runners`, `architect runners`, and `interrogate reviewers` hold nonempty lists. Run one independent delegate per entry, including duplicates and aliases. `arena cross-judge pool` is an ordered candidate pool, from which Arena runs one eligible judge from a vendor other than the parent's. Families are the ones Phase A of the arena skill defines, so Fable is its own family. Fable and the other Claude models are one vendor. Parent aliases never judge. Preserve Arena's ordered selected pool and disclosed judge skip, plus every other workflow's original diversity, verifier, retry, and fresh-worker requirements.
-+
-+Pi choices retain `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "LEVEL" }`. Choose provider and model separately. Pi uses `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`. Budget previews select only reported levels on that ladder, including `off` for nonreasoning models. Native aliases stay native, and native registration creates no Pi model definitions. Follow [Pi execution](../poteto-mode/references/pi-execution.md) for explicit tools, context, fresh sessions, capability gaps, and required family gates.
 +
 +Antigravity choices retain `{ "executor": "antigravity", "model": "EXACT_AGY_ID", "reasoningEffort": "LEVEL" }`. They have no provider or authentication fields and create no native model definitions. Budget previews keep the exact ID and use only that model's reported efforts. A fixed `xhigh` variant has no lower effort unless its per-model evidence says otherwise. If the target cannot be met, resolve `needsChoice` without silently switching IDs. Follow [Antigravity execution](../poteto-mode/references/agy-execution.md) for scoped permissions, complete context, native history, exact continuation, and capability limits.
 +
@@ -169,10 +163,10 @@ index 3de528e..2bf5381 100644
 +If the project has no formal verification skill, offer the original optional formal verification skill once. On acceptance, resolve `create-formal-verification-skill/SKILL.md` and follow it. On decline, continue.
 diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
 new file mode 100644
-index 0000000..eb2972d
+index 0000000..bf1ea06
 --- /dev/null
 +++ b/skills/setup-pstack/references/models-contract.md
-@@ -0,0 +1,124 @@
+@@ -0,0 +1,112 @@
 +# Claude setup helper contract
 +
 +The helpers are standalone Node.js scripts. They need no package installation or build. Resolve their paths from the installed setup skill. Paths supplied as arguments are absolute. `--claude-home ABS` selects the configuration home for settings inspection, preferences, and agent registration. Otherwise the configuration home is `CLAUDE_CONFIG_DIR`, or `~/.claude` when unset.
@@ -255,7 +249,7 @@ index 0000000..eb2972d
 +
 +The top-level `targetReasoningEffort` of `read` and `budget` is the effort the budget label names, which is the target of a role that starts at `xhigh`. Per-role targets appear in proposal slots, `resolve`, and `needsChoice` entries.
 +- `register-agents.mjs [--input ABS] [--dry-run] [--unregister]` manages owned native definitions. With no input, it uses saved preferences. Removal retains preferences.
-+- `detect.mjs detect --executors claude-code` reports native CLI, safe auth evidence, model candidates and guidance. `--executors claude-code,codex` also probes the standalone Codex server. Unselected Codex is never invoked or required. The legacy detector always includes Claude. When Claude workers are unselected, skip it. Use `poteto-mode/scripts/run-codex.mjs detect` or `catalog --cwd ABS` directly for selected Codex workers, and the Pi catalog runner for selected Pi workers.
++- `detect.mjs detect --executors claude-code` reports native CLI, safe auth evidence, model candidates and guidance. `--executors claude-code,codex` also probes the standalone Codex server. Unselected Codex is never invoked or required. The legacy detector always includes Claude. When Claude workers are unselected, skip it. Use `poteto-mode/scripts/run-codex.mjs detect` or `catalog --cwd ABS` directly for selected Codex workers.
 +- `detect.mjs catalog --executors claude-code,codex --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` selects the Claude CLI. `--codex-executable ABS` overrides the standalone server for that detect or catalog invocation only. The path is not saved or used by future workers.
 +
 +Detection retains `schemaVersion: 1` and the legacy `codex.cli` container. Its `kind` is `standalone-app-server`; `executable`, `args`, and `version` identify the selected launch. Setup owns preparing the official server on the host's inherited PATH. The default executable is `codex-app-server`, and PATH discovery skips non-files and non-executables. The argument array is `['--session-source', 'app-server']` for probes and actual connections. Version and source-help probes are bounded. `available` requires successful probes and help that advertises `--session-source`. This checks required capabilities, not a native-version allowlist or a general compatibility guarantee. Missing or unsupported servers produce official installation guidance for the setup host, with no fallback to `codex app-server`.
@@ -264,7 +258,7 @@ index 0000000..eb2972d
 +
 +Detection reports the configuration target in `configuration.claudeHome`. Claude version, help, and authentication checks use the unchanged inherited CLI environment. `claude.cli.environment.source` is `inherited`. Its `claudeConfigDir` contains the inherited `CLAUDE_CONFIG_DIR` value, or `null` when the CLI uses its default lookup. `--claude-home` does not relocate credentials or select another authentication profile. A profile selected through the inherited environment keeps its own login state. Detection copies no credentials and writes no setup files.
 +
-+`KIND` is `general-purpose`, `poteto-agent`, `comment-sicko`, or `read-only`. An explicit Claude selection resolves to `pstack-cc-KIND-HASH`, where `HASH` is the first 16 hexadecimal characters of the exact model ID's SHA-256. Definitions are in `agents/pstack-cc/` under the Claude home. Parent aliases and unconfigured roles resolve to `pstack-cc:KIND`. The readonly kind disallows `Write`, `Edit`, and `NotebookEdit` and retains the general-purpose body. Codex, Pi, and Antigravity entries do not receive a native agent type.
++`KIND` is `general-purpose`, `poteto-agent`, `comment-sicko`, or `read-only`. An explicit Claude selection resolves to `pstack-cc-KIND-HASH`, where `HASH` is the first 16 hexadecimal characters of the exact model ID's SHA-256. Definitions are in `agents/pstack-cc/` under the Claude home. Parent aliases and unconfigured roles resolve to `pstack-cc:KIND`. The readonly kind disallows `Write`, `Edit`, and `NotebookEdit` and retains the general-purpose body. Codex and Antigravity entries do not receive a native agent type.
 +
 +## Registration ownership
 +
@@ -276,30 +270,18 @@ index 0000000..eb2972d
 +
 +Unknown role keys other than the retired keys fail boundary validation without dropping or migrating them. Preferences remain unchanged.
 +
-+## Pi routes
-+
-+A Pi choice is `{ "executor": "pi", "provider": "EXACT_PROVIDER", "model": "EXACT_MODEL", "reasoningEffort": "off" }`. The provider is required for Pi and rejected for other executors. Model IDs keep their exact bytes, including slashes. `auto` and `inherit-parent` remain native-only. Saved role shapes, sparse choices, order, and duplicate seats stay unchanged. Read and resolve preserve Pi choices offline and create no native `agentType`.
-+
-+Run `poteto-mode/scripts/run-pi.mjs catalog --cwd ABS --run-dir ABS_NEW_DIRECTORY` from its actual installed path. Pass its sanitized `catalog.json` to `models.mjs catalog --pi-catalog ABS` alongside any native catalog inputs. Pi-only normalization may omit `--input`. Merge the normalized result into the existing budget and hash-guarded write flow. No task prompt is submitted for catalog collection.
-+
-+Each Pi capability has `executor`, `provider`, `model`, `supportedReasoningEfforts`, a labeled `source`, and optional `runtimeVersion`. Normalization retains these fields and discards other full-model fields. Repeated normalization is idempotent. Provider collisions are independent routes. Configured model availability and local thinking-level readback do not prove remote inference or fresh authentication.
-+
-+Pi's effort ladder is `off`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. `off` differs from native `none`. Budget mapping selects the highest reported level at or below its target on this ladder. An off-only route maps to `off` under every budget. Unsupported efforts or missing exact routes prevent a save without changing preferences.
-+
-+Follow [Pi execution](../../poteto-mode/references/pi-execution.md) for process receipts, exact resume, structured rejections, explicit tool capabilities, and required model-family gates. Pi entries never become native agent definitions.
-+
 +## Antigravity routes
 +
 +An Antigravity choice is `{ "executor": "antigravity", "model": "EXACT_AGY_ID", "reasoningEffort": "LEVEL" }`. It has no provider or authentication fields. Parent aliases remain native-only. Existing scalar and list shapes, sparse saves, order, duplicates, and native fallback remain. Read and resolve work offline without agy or a current catalog. Antigravity entries create no native model definitions or `agentType`.
 +
-+`models.mjs catalog --agy-catalog ABS` merges the runner's sanitized `catalog.json` with selected native, Claude, or Pi inputs. Antigravity-only normalization omits other inputs. The separate flag rejects rows from another executor. Each normalized capability retains `executor`, exact `model`, `supportedReasoningEfforts`, a labeled per-model `source`, and optional `runtimeVersion`. Re-normalization preserves these fields. Sources remain in catalogs rather than saved preferences.
++`models.mjs catalog --agy-catalog ABS` merges the runner's sanitized `catalog.json` with selected native or Claude inputs. Antigravity-only normalization omits other inputs. The separate flag rejects rows from another executor. Each normalized capability retains `executor`, exact `model`, `supportedReasoningEfforts`, a labeled per-model `source`, and optional `runtimeVersion`. Re-normalization preserves these fields. Sources remain in catalogs rather than saved preferences.
 +
-+The effort domain is separate from native and Pi efforts. Supported efforts come from each exact model's evidence, not a global CLI matrix. A host label such as `(XHigh)` supplies that one variant effort and identifies that limitation in its source. It proves configured availability only. Other candidates need a host, configuration, or manual-confirmation source for their exact ID and supported efforts.
++The effort domain is separate from native efforts. Supported efforts come from each exact model's evidence, not a global CLI matrix. A host label such as `(XHigh)` supplies that one variant effort and identifies that limitation in its source. It proves configured availability only. Other candidates need a host, configuration, or manual-confirmation source for their exact ID and supported efforts.
 +
-+Budget mapping keeps the exact model and chooses the highest supported effort at or below the target. A fixed `xhigh` variant returns `needsChoice` for a lower target rather than changing its ID. Invalid routes, unsupported efforts, missing provenance, native aliases on Antigravity, and non-Pi provider fields prevent saving. Follow [Antigravity execution](../../poteto-mode/references/agy-execution.md) for inherited authentication, scoped permissions, cumulative usage, native history, and one-use exact continuation.
++Budget mapping keeps the exact model and chooses the highest supported effort at or below the target. A fixed `xhigh` variant returns `needsChoice` for a lower target rather than changing its ID. Invalid routes, unsupported efforts, missing provenance, native aliases on Antigravity, and provider fields prevent saving. Follow [Antigravity execution](../../poteto-mode/references/agy-execution.md) for inherited authentication, scoped permissions, cumulative usage, native history, and one-use exact continuation.
 diff --git a/skills/setup-pstack/references/prerequisites.md b/skills/setup-pstack/references/prerequisites.md
 new file mode 100644
-index 0000000..16da51c
+index 0000000..1645fc9
 --- /dev/null
 +++ b/skills/setup-pstack/references/prerequisites.md
 @@ -0,0 +1,59 @@
@@ -347,21 +329,21 @@ index 0000000..16da51c
 +
 +Rerun detection and collect the catalog after login. Runtime capability, login state, model catalog, and successful worker execution are separate evidence.
 +
-+## Pi workers
-+
-+Pi is optional. Prepare it only when selected. The runner requires Pi 1.5.2 or newer and checks the inspected RPC controls at runtime. Use the [Pi installation guide](https://pi.dev/) for the official `@earendil-works/pi-coding-agent` package, then check `pi --version` on the PATH inherited by future workers. An absolute `--executable` overrides one invocation for diagnostics and is never saved.
-+
-+Reuse existing Pi authentication and provider configuration. Do not read or copy credential files, change personal defaults, or create a separate authentication home. Guide an interactive `/login` only when required and authorized for the user's selected provider. Existing cloud credentials can supply provider authentication through their normal environment. A model appearing in the catalog does not prove that its credentials can complete inference.
-+
-+Run the sibling `poteto-mode/scripts/run-pi.mjs catalog --cwd ABS --run-dir ABS_NEW_LOCAL_DIRECTORY`. It disables discovered extensions, MCP, context files, skills, templates, and startup refresh. It uses inherited configuration and authentication, selects each exact provider/model, reads supported thinking levels, and writes only sanitized catalog evidence. No model prompt is sent. Session storage is isolated without replacing the user's Pi agent directory. If required RPC controls or selected routes fail, report the capability gap. Runtime detection, catalog availability, task execution, and release approval remain separate evidence.
-+
 +## Antigravity workers
 +
 +Prepare Antigravity only when selected. Use the official [Antigravity installation guide](https://antigravity.google/docs/getting-started/) and its `https://antigravity.google/cli/install.sh` installer. The bundled runner requires the official agy CLI 1.5.8 or newer. Run the sibling `poteto-mode/scripts/run-agy.mjs detect` through the PATH inherited by future workers. An absolute `--executable` overrides one invocation for diagnostics and is never saved. No unofficial extension is required.
 +
-+Reuse the official CLI's inherited authentication and environment. `AGY_ADC_AUTH=true` selects inherited ADC mode. Other official login or API-key environments remain inherited defaults. Do not inspect or copy credential files, switch authentication routes, or save personal model defaults. Use the official interactive login flow only when needed and authorized. A version probe does not prove authentication or model access.
++Let the user choose the authentication method, follow the official guide for it, and never switch methods silently. Reuse a working method the user keeps. Do not inspect or copy credential files or save personal model defaults. The official CLI supports three methods:
 +
-+Run `poteto-mode/scripts/run-agy.mjs catalog --cwd ABS --run-dir ABS_NEW_LOCAL_DIRECTORY`. This collects sanitized exact model IDs, labels, per-model capability sources, and the runtime version without a task prompt. A fixed-effort label supplies only its reported variant effort. Unclassified models remain candidates until per-model evidence supplies supported efforts. Catalog availability does not establish successful inference. Antigravity-only setup skips every other executor's probes and catalog inputs.
++- Subscription login uses the official interactive agy login in the user's terminal. Detection reports `inherited-default`.
++- The Gemini API key method follows the [official agy installation page](https://antigravity.google/docs/install.md). When the user chooses it, set `"modelProvider": "gemini"` in `~/.gemini/antigravity-cli/settings.json` and keep every other setting. The user makes `GEMINI_API_KEY` available in the environment inherited by this host and future workers, outside the conversation. Never ask for, print, or copy the key. The key alone has no effect. With `modelProvider` set and no key, agy exits at startup with a message naming `GEMINI_API_KEY`. Detection reports `gemini-api-key`.
++- ADC uses existing Google Application Default Credentials with `AGY_ADC_AUTH=true` in the inherited environment. Detection reports `adc`.
++
++agy checks `modelProvider` before `AGY_ADC_AUTH`, so `"modelProvider": "gemini"` selects the API key method even when ADC is enabled. When the user chooses another method while that value is set, remove only `modelProvider`.
++
++Rerun detection after preparing the method. Confirm `auth.method`, and for the Gemini API key method confirm `auth.geminiApiKeyPresent`, before collecting the catalog. If the key is reported absent, this host did not inherit it. The runner reports only these safe fields and passes no authentication option to agy. A version probe and these fields do not prove authentication or model access.
++
++Run `poteto-mode/scripts/run-agy.mjs catalog --cwd ABS --run-dir ABS_NEW_LOCAL_DIRECTORY`. This collects sanitized exact model IDs, labels, per-model capability sources, and the runtime version without a task prompt. A fixed-effort label supplies only its reported variant effort. Unclassified models remain candidates until per-model evidence supplies supported efforts. Catalog availability does not establish successful inference. The catalog lists the models of the active method, so collect it again after a method change. Antigravity-only setup skips every other executor's probes and catalog inputs.
 diff --git a/skills/setup-pstack/scripts/detect.mjs b/skills/setup-pstack/scripts/detect.mjs
 new file mode 100644
 index 0000000..5186a4a
@@ -622,10 +604,10 @@ index 0000000..5186a4a
 +});
 diff --git a/skills/setup-pstack/scripts/models.mjs b/skills/setup-pstack/scripts/models.mjs
 new file mode 100644
-index 0000000..a22c08c
+index 0000000..979e158
 --- /dev/null
 +++ b/skills/setup-pstack/scripts/models.mjs
-@@ -0,0 +1,524 @@
+@@ -0,0 +1,500 @@
 +#!/usr/bin/env node
 +
 +import * as fs from 'node:fs/promises';
@@ -664,13 +646,6 @@ index 0000000..a22c08c
 +  agyEfforts,
 +} from '../../poteto-mode/scripts/agy-capabilities.mjs';
 +
-+import {
-+  piEntry,
-+  piCapability,
-+  piEfforts,
-+  routeKey,
-+} from '../../poteto-mode/scripts/pi-route.mjs';
-+
 +const nativeAliases = new Set([
 +  'default',
 +  'best',
@@ -684,10 +659,9 @@ index 0000000..a22c08c
 +const executorEfforts = {
 +  'claude-code': new Set(['low', 'medium', 'high', 'xhigh', 'max']),
 +  codex: new Set(efforts),
-+  pi: new Set(piEfforts),
 +  antigravity: new Set(agyEfforts),
 +};
-+const keyFor = (entry) => routeKey(entry, 'claude-code');
++const keyFor = (entry) => `${entry.executor}\0${entry.model}`;
 +
 +function isNativeAlias(model) {
 +  const base = model.split('[')[0];
@@ -706,10 +680,8 @@ index 0000000..a22c08c
 +  )
 +    throw new Error(`Invalid model entry for ${role}.`);
 +  const executor = value.executor ?? 'claude-code';
-+  if (!['claude-code', 'codex', 'pi', 'antigravity'].includes(executor))
++  if (!['claude-code', 'codex', 'antigravity'].includes(executor))
 +    throw new Error(`Unknown executor for ${role}.`);
-+  routeKey({ ...value, executor });
-+  if (executor === 'pi') return piEntry(value);
 +  if (executor === 'antigravity') return agyEntry(value);
 +  if (aliases.has(value.model)) {
 +    if (executor !== 'claude-code' || value.reasoningEffort !== undefined)
@@ -805,7 +777,7 @@ index 0000000..a22c08c
 +  };
 +}
 +
-+export function normalizeCatalog(input, native, piCatalog, agyCatalog) {
++export function normalizeCatalog(input, native, agyCatalog) {
 +  const response = input?.codex?.models
 +    ? input.codex
 +    : (input?.result ?? input ?? { models: [] });
@@ -829,12 +801,6 @@ index 0000000..a22c08c
 +  if (nativeResponse?.nextCursor || nativeResponse?.next_cursor)
 +    throw new Error('Native catalog is incomplete.');
 +  if (
-+    piCatalog &&
-+    (!Array.isArray(piCatalog.models) ||
-+      piCatalog.models.some((entry) => entry.executor !== 'pi'))
-+  )
-+    throw new Error('--pi-catalog requires a Pi models array.');
-+  if (
 +    agyCatalog &&
 +    (!Array.isArray(agyCatalog.models) ||
 +      agyCatalog.models.some((entry) => entry.executor !== 'antigravity'))
@@ -843,7 +809,6 @@ index 0000000..a22c08c
 +  const seen = new Set();
 +  const models = [
 +    ...data,
-+    ...(piCatalog?.models ?? []),
 +    ...(agyCatalog?.models ?? []),
 +    ...nativeModels.map((entry) => ({
 +      ...entry,
@@ -861,7 +826,7 @@ index 0000000..a22c08c
 +        : (effort.reasoningEffort ?? effort.reasoning_effort),
 +    );
 +    if (
-+      !['claude-code', 'codex', 'pi', 'antigravity'].includes(executor) ||
++      !['claude-code', 'codex', 'antigravity'].includes(executor) ||
 +      typeof model !== 'string' ||
 +      !model ||
 +      model.trim() !== model ||
@@ -893,8 +858,6 @@ index 0000000..a22c08c
 +    seen.add(key);
 +    if (executor === 'antigravity')
 +      return agyCapability({ ...entry, model, supportedReasoningEfforts });
-+    if (executor === 'pi')
-+      return piCapability({ ...entry, model, supportedReasoningEfforts });
 +    return {
 +      executor,
 +      model,
@@ -974,9 +937,6 @@ index 0000000..a22c08c
 +      options.nativeCatalog
 +        ? await inputJson(options.nativeCatalog, '--native-catalog')
 +        : undefined,
-+      options.piCatalog
-+        ? await inputJson(options.piCatalog, '--pi-catalog')
-+        : undefined,
 +      options.agyCatalog
 +        ? await inputJson(options.agyCatalog, '--agy-catalog')
 +        : undefined,
@@ -1054,8 +1014,7 @@ index 0000000..a22c08c
 +        if (typeof entry === 'string' || aliases.has(entry.model)) continue;
 +        const target = targetEffort(role, options.budget);
 +        const supported = detected.get(keyFor(entry)) ?? [];
-+        const ladder =
-+          { pi: piEfforts, antigravity: agyEfforts }[entry.executor] ?? efforts;
++        const ladder = entry.executor === 'antigravity' ? agyEfforts : efforts;
 +        const resolved = ladder
 +          .slice(0, ladder.indexOf(target) + 1)
 +          .reverse()
@@ -1135,7 +1094,6 @@ index 0000000..a22c08c
 +        '--budget',
 +        '--catalog',
 +        '--native-catalog',
-+        '--pi-catalog',
 +        '--agy-catalog',
 +        '--input',
 +        '--expected-hash',
@@ -1144,7 +1102,7 @@ index 0000000..a22c08c
 +    );
 +    if (options.help) {
 +      process.stdout.write(
-+        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG] [--pi-catalog ABS] [--agy-catalog ABS]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
++        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG] [--agy-catalog ABS]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
 +      );
 +      return;
 +    }

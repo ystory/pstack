@@ -680,10 +680,10 @@ index 0000000..f46e84a
 +}
 diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
 new file mode 100644
-index 0000000..5a8812d
+index 0000000..619f37e
 --- /dev/null
 +++ b/skills/poteto-mode/references/execution.md
-@@ -0,0 +1,93 @@
+@@ -0,0 +1,89 @@
 +# Claude Code execution
 +
 +Read this reference before launching, steering, waiting for, or collecting pstack workers. Resolve bundled files from the actual installed skill path. This reference binds the upstream workflow to Claude Code. The calling workflow still owns its scope, roles, retries, dropouts, model-diversity rules, fresh-worker rules, and parent review.
@@ -747,10 +747,6 @@ index 0000000..5a8812d
 +Track the native Bash task ID and collect its terminal outcome through the host's task-result controls. Read `<run-dir>/result.json` and `<run-dir>/final.txt` for the retained receipt and final answer. Bash stdout can truncate. Inspect the actual exit outcome, exact Codex thread identity, terminal status, result, requested and observed settings, and evidence paths. A final-answer item before a later failed terminal event is not success. Read the retained prompt, request, progress, diagnostics, and result when investigating failure. Review the worker's files and verification evidence under the calling workflow's rules.
 +
 +The outbound runner automatically includes the shared [receiving-worker execution context](worker-context.md) in its task payload. It keeps the launching configuration authority and distinguishes native receiving tools from parent launch recipes. The task still supplies its original role, selected model and effort, scope, and permissions.
-+
-+## Pi workers
-+
-+For `executor: "pi"`, preserve the returned exact `provider`, `model`, and separate `reasoningEffort`. Read [Pi execution](pi-execution.md) for the owned RPC runner, explicit tool selection, context delivery, structured rejection handling, terminal receipts, and exact resume. Use this host's asynchronous command controls and collect every terminal receipt. Pi entries have no native agent type. Parent aliases stay native. Known model lineage establishes family diversity. Pi, provider names, ambiguous custom IDs, and virtual routes with unknown lineage do not. Preserve the calling workflow's selected-pool, fresh-worker, required capability, and family gates.
 +
 +## Antigravity workers
 +

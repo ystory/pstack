@@ -24,7 +24,6 @@ export const retiredRoles = new Set([
   'why investigators',
   'why synthesizer',
 ]);
-export const retiredExecutors = new Map([['pi', 'Pi']]);
 export const seats = { scalar: 1, panel: 3, pool: 3 };
 const budgetLadder = ['low', 'medium', 'high', 'xhigh', 'max'];
 export const budgets = { unlimited: 1, large: 0, medium: -1, small: -2 };

@@ -23,7 +23,6 @@ import {
   entriesFor,
   modelFor,
   namedEffort,
-  retiredExecutors,
   retiredRoles,
   roles,
   seats,
@@ -115,7 +114,6 @@ export function normalizeConfig(input, previous) {
     throw new Error('Model configuration roles must be an object.');
   const normalized = { ...(previous?.roles ?? {}) };
   const droppedRoles = [];
-  const retiredExecutorRoles = [];
   for (const [role, value] of Object.entries(selected)) {
     if (retiredRoles.has(role)) {
       droppedRoles.push(role);
@@ -123,13 +121,6 @@ export function normalizeConfig(input, previous) {
     }
     if (!Object.hasOwn(roles, role))
       throw new Error(`Unknown pstack role: ${role}`);
-    const retired = entriesFor(value).find((entry) =>
-      retiredExecutors.has(entry?.executor),
-    );
-    if (retired) {
-      retiredExecutorRoles.push({ role, executor: retired.executor });
-      continue;
-    }
     if (roles[role].kind === 'scalar') {
       if (Array.isArray(value))
         throw new Error(
@@ -150,7 +141,6 @@ export function normalizeConfig(input, previous) {
       roles: normalized,
     },
     droppedRoles,
-    retiredExecutorRoles,
   };
 }
 
@@ -355,7 +345,6 @@ async function main(options) {
       config: loaded.config,
       proposal: { ...loaded.config, roles: proposal },
       droppedRoles: loaded.droppedRoles,
-      retiredExecutorRoles: loaded.retiredExecutorRoles,
       needsChoice: choicesFor(proposal),
       targetReasoningEffort: namedEffort(loaded.config.budget),
     };
@@ -390,7 +379,6 @@ async function main(options) {
       budget: loaded.config.budget,
       targetReasoningEffort: targetEffort(options.role, loaded.config.budget),
       droppedRoles: loaded.droppedRoles,
-      retiredExecutorRoles: loaded.retiredExecutorRoles,
     };
   }
   const catalog = normalizeCatalog(
@@ -436,7 +424,6 @@ async function main(options) {
       config,
       targetReasoningEffort: namedEffort(options.budget),
       droppedRoles: loaded.droppedRoles,
-      retiredExecutorRoles: loaded.retiredExecutorRoles,
       needsChoice: [...choicesFor(config.roles, catalog), ...unmapped],
     };
   }
@@ -449,11 +436,6 @@ async function main(options) {
     supplied.config ?? supplied,
     loaded.config,
   );
-  const [submitted] = normalized.retiredExecutorRoles;
-  if (submitted)
-    throw new Error(
-      `The ${retiredExecutors.get(submitted.executor)} executor was removed from pstack. Choose another executor for ${submitted.role}.`,
-    );
   const needsChoice = choicesFor(normalized.config.roles, catalog);
   if (needsChoice.length)
     throw new Error(
@@ -474,7 +456,6 @@ async function main(options) {
     droppedRoles: [
       ...new Set([...loaded.droppedRoles, ...normalized.droppedRoles]),
     ],
-    retiredExecutorRoles: loaded.retiredExecutorRoles,
     changed,
     dryRun: Boolean(options.dryRun),
     sha256: hash(bytes),

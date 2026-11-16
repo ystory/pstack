@@ -17,3 +17,5 @@ shared/0004-agy-mcp-drain.patch
 shared/0005-remove-pi-executor.patch
 0013-remove-pi-executor.patch
 0014-remove-pi-version.patch
+0015-drop-pi-entry-retirement.patch
+0016-drop-pi-retirement-version.patch

@@ -39,7 +39,7 @@ const fakeProtocol = String.raw`
 const send = (value) => console.log(JSON.stringify(value));
 const notify = (method, params) => send({method,params});
 const respond = (request, result) => send({id:request.id,result});
-let threadId, turnId, timer;
+let threadId, turnId, rollout, timer;
 const lines = readline.createInterface({input:process.stdin});
 lines.on('line', (line) => {
  const request = JSON.parse(line); log({request});
@@ -56,14 +56,17 @@ lines.on('line', (line) => {
  case 'thread/start': case 'thread/resume':
   if (process.env.FAKE_HOLD_THREAD) break;
   threadId = p.threadId ?? 'thread-'+process.pid;
-  respond(request,{thread:{id:threadId},model:'observed-model',reasoningEffort:'high',cwd:p.cwd}); break;
+  rollout = process.env.FAKE_LOG+'.'+threadId+'.rollout.jsonl';
+  fs.appendFileSync(rollout,JSON.stringify({type:'turn_context',payload:{turn_id:'earlier-turn',model:'earlier-model',effort:'ultra'}})+'\n{"type":\n');
+  respond(request,{thread:{id:threadId,path:rollout},model:'observed-model',reasoningEffort:'high',cwd:p.cwd}); break;
  case 'turn/start': {
   if (process.env.FAKE_HOLD_TURN_STARTED) break;
   turnId = 'turn-'+process.pid;
   const prompt = p.input[0].text;
+  if (!process.env.FAKE_UNKNOWN_SETTINGS) fs.appendFileSync(rollout,JSON.stringify({type:'turn_context',payload:{turn_id:turnId,model:'turn-model',effort:'low'}})+'\n');
   notify('turn/started',{threadId,turn:{id:turnId,status:'inProgress'}});
   const started = () => {
-   respond(request,{turn:{id:turnId,status:'inProgress'},...(process.env.FAKE_UNKNOWN_SETTINGS ? {} : {model:'observed-model',effort:'high'})});
+   respond(request,{turn:{id:turnId,status:'inProgress'}});
    if (prompt.includes('WAIT')) return;
    if (process.env.FAKE_MALFORMED_OUTPUT) { process.stdout.write('{"method":\n'); return; }
    if (process.env.FAKE_OUTPUT !== undefined) {
@@ -271,10 +274,15 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
     model: 'selected-model',
     effort: 'xhigh',
   });
-  assert.deepEqual(receipt.observed, {
+  assert.deepEqual(receipt.observed, { model: 'turn-model', effort: 'low' });
+  assert.deepEqual(receipt.threadSettings, {
     model: 'observed-model',
     effort: 'high',
   });
+  assert.equal(
+    receipt.rolloutPath,
+    `${f.root}/server.jsonl.${receipt.threadId}.rollout.jsonl`,
+  );
   assert.equal(receipt.process.closed, true);
   assert.equal(receipt.process.exitCode, 0);
   assert.equal(receipt.runtime.kind, 'standalone-app-server');

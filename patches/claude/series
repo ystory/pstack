@@ -8,14 +8,3 @@
 0008-vendored-codex-runtime.patch
 shared/0001-workflow-bodies.patch
 shared/0002-worker-execution.patch
-shared/0003-agy-auth-method.patch
-0009-agy-auth-setup.patch
-0010-agy-auth-version.patch
-shared/0004-agy-mcp-drain.patch
-0011-agy-mcp-drain-version.patch
-0012-retire-pi-entries.patch
-shared/0005-remove-pi-executor.patch
-0013-remove-pi-executor.patch
-0014-remove-pi-version.patch
-0015-drop-pi-entry-retirement.patch
-0016-drop-pi-retirement-version.patch

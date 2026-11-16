@@ -31,10 +31,10 @@ index 0000000..0e5569d
 +After a restart, read the local task store, branch/PR state, and each executor's agent/session inventory. Reattach only identities the host reports as live. Replace a missing child with a fresh brief carrying the standing orders and current evidence. Restore the watcher and saved fallback only for a run the user asked to continue. A checkpoint is recoverable state, not proof that background work is still running.
 diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
 new file mode 100644
-index 0000000..8e7db8f
+index 0000000..8353843
 --- /dev/null
 +++ b/skills/poteto-mode/references/execution.md
-@@ -0,0 +1,124 @@
+@@ -0,0 +1,122 @@
 +# Codex execution
 +
 +Read this reference before launching, steering, waiting for, or collecting pstack delegates. Resolve every bundled path from the directory containing the actual installed `SKILL.md`, not from the workspace or a guessed installation directory.
@@ -112,23 +112,21 @@ index 0000000..8e7db8f
 +
 +The outbound runner automatically includes the shared [receiving-worker execution context](worker-context.md) in its task payload. It keeps the launching configuration authority and distinguishes native receiving tools from parent launch recipes. The task still supplies its original role, selected model and effort, scope, and permissions.
 +
-+## Pi workers
-+
-+For `executor: "pi"`, preserve the returned exact `provider`, `model`, and separate `reasoningEffort`. Read [Pi execution](pi-execution.md) for the owned RPC runner, explicit tool selection, context delivery, structured rejection handling, terminal receipts, and exact resume. Use this host's asynchronous command controls and collect every terminal receipt. Pi entries have no native agent type. Parent aliases stay native. Known model lineage establishes family diversity. Pi, provider names, ambiguous custom IDs, and virtual routes with unknown lineage do not. Preserve the calling workflow's selected-pool, fresh-worker, required capability, and family gates.
-+
 +## Antigravity workers
 +
 +For `executor: "antigravity"`, preserve the returned exact `model` and separate `reasoningEffort`. Read [Antigravity execution](agy-execution.md) for the official agy runner, scoped session permissions, complete context, terminal receipts, cumulative usage, and exact continuation. Use this host's asynchronous command controls and collect every terminal receipt. Antigravity entries have no native agent type. Parent aliases stay native. Use known exact-model lineage for diversity. Custom or virtual routes with unknown lineage remain unknown. Preserve the calling workflow's selected-pool, cardinality, fresh-worker, required capability, and family gates.
 +
 +## Local worktrees
 +
-+Workers run on the current host through their selected executor. Give each independent worker an exclusive Git worktree and branch when it writes code. Use native managed-worktree tools when exposed, waiting for creation to complete, or `git worktree add` with an explicit base ref and a local `codex/` branch. The worker's prompt names its absolute checkout, branch, and resolved starting SHA; every shell command runs in that checkout. Keep the coordinator's checkout separate.
++Workers run on the current host through their selected executor. Give each independent worker an exclusive Git worktree and branch when it writes code. Use native managed-worktree tools when exposed, or `git worktree add` with an explicit base ref and a local `codex/` branch. The worker's prompt names its absolute checkout, branch, and resolved starting SHA; every shell command runs in that checkout. Keep the coordinator's checkout separate.
 +
 +For workflows that previously started from the repository's default branch, resolve the actual default ref and SHA before creating the worker checkouts. A caller-supplied non-default ref replaces that base. Measurements and verification pin the exact SHAs required by their brief. Local uncommitted changes enter a worker's input only when the brief explicitly includes them.
 +
-+The coordinator creates and removes worktrees and coordinates shared repository metadata. Each branch owner performs the pushes, rebases, and PR operations its calling workflow assigns. Workers own their assigned checkout and output only. Worktrees isolate files and indexes; they share the host, repository metadata, credentials, and other machine resources. Assign distinct ports, temporary/cache/data directories, simulator/device resources, and output locations for work that uses them. Serialize a machine resource that cannot be separated. Restrict the brief's commands to the assigned resources.
++The coordinator owns worktree preparation and cleanup coordination. Inspect the native tool's caller and attachment semantics. When managed creation retargets its caller, invoke it from a native child preparation context instead of the coordinator chat. For an external worker, a short native setup child may return the ready checkout before the selected runner launches. Preserve the chosen worker executor and model. Wait for terminal creation and use the returned absolute cwd explicitly, even when the child's thread cwd stays unchanged. Check host thread and attachment state before and after preparation to confirm that the coordinator's primary checkout stays unchanged. Shell `pwd` alone does not establish this.
 +
-+After collecting and verifying artifacts, integrate accepted work deliberately. Retain any unintegrated changes and evidence. Remove temporary worktrees and local branches only after their needed work has been integrated or preserved, following the worktree cleanup playbook. A completed worker alone does not authorize discarding its checkout.
++The coordinator manages shared repository metadata. Each branch owner performs the pushes, rebases, and PR operations its calling workflow assigns. Workers own their assigned checkout and output only. Worktrees isolate files and indexes; they share the host, repository metadata, credentials, and other machine resources. Assign distinct ports, temporary/cache/data directories, simulator/device resources, and output locations for work that uses them. Serialize a machine resource that cannot be separated. Restrict the brief's commands to the assigned resources.
++
++After workers release their checkouts, collect and verify their artifacts and integrate accepted work deliberately. Preserve needed unintegrated changes and evidence outside each temporary checkout before removing it. Follow the worktree cleanup playbook through the checkout's proper owner and confirm cleanup completion. Remove local branches only after their needed work has been integrated or preserved. A completed worker alone does not authorize discarding its checkout.
 +
 +### Working-tree transfer
 +

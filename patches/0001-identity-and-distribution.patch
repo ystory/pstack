@@ -456,7 +456,7 @@ index 0000000..e030790
 +OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 +SOFTWARE.
 diff --git a/plugin.json b/plugin.json
-index c461ff0..6cde000 100644
+index c461ff0..13a04dc 100644
 --- a/plugin.json
 +++ b/plugin.json
 @@ -1,13 +1,13 @@
@@ -465,7 +465,7 @@ index c461ff0..6cde000 100644
 -  "name": "pstack",
 -  "version": "0.15.42",
 +  "name": "pstack-codex",
-+  "version": "0.1.0-dev.19",
++  "version": "0.1.0-dev.20",
    "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
    "author": {
      "name": "Lauren Tan"

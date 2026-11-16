@@ -55,7 +55,7 @@ Start a local Code session in your project and run:
 /pstack-cc:setup-pstack
 ```
 
-Setup offers Claude Code, Codex, Pi, and Antigravity as worker executors. The host running setup prepares missing selected tools from official sources, makes them available to future workers, and checks readiness. Only interactive authentication or operating-system approvals need your participation. Codex workers use the official standalone server with shared Codex authentication and persistent history. Pstack does not distribute or pin native server versions or manage their updates. Then choose supported exact models, role assignments, and a reasoning budget across the 13 roles. Review the proposal before saving. Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`, independently of Codex-host preferences.
+Setup offers Claude Code, Codex, and Antigravity as worker executors. The host running setup prepares missing selected tools from official sources, makes them available to future workers, and checks readiness. Only interactive authentication or operating-system approvals need your participation. Codex workers use the official standalone server with shared Codex authentication and persistent history. Pstack does not distribute or pin native server versions or manage their updates. Then choose supported exact models, role assignments, and a reasoning budget across the 13 roles. Review the proposal before saving. Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`, independently of Codex-host preferences.
 
 Start a new session after setup so Claude discovers the registered agents. Try a read-only question about a real module in your project:
 
@@ -69,7 +69,7 @@ For updates and restores, follow [Update or remove](plugin-claude/docs/guide/01-
 
 ## Install in Codex
 
-Setup offers Codex, Claude Code, Pi, and Antigravity as worker executors. It checks installation and login only for selected CLIs, guides any needed installation and human authentication, and then helps you choose exact supported models, role assignments, and reasoning budget. No fixed model is required. The parent chat model stays unchanged.
+Setup offers Codex, Claude Code, and Antigravity as worker executors. It checks installation and login only for selected CLIs, guides any needed installation and human authentication, and then helps you choose exact supported models, role assignments, and reasoning budget. No fixed model is required. The parent chat model stays unchanged.
 
 A fresh saved configuration has no chosen roles. Before setup, missing scalar roles use one native-parent entry and panels or pools use three. Generic seats can run through the host's native general-purpose or default path when it supports the selected model and effort. The `poteto-agent` and `comment-sicko` custom roles require setup registration. Setup presents all 13 roles with unresolved choices. Saved exact selections take precedence. Required different-model or different-family checks apply only at the workflow step that needs them. If its eligible selected choices cannot satisfy a required verifier, that step retains its unmet outcome. Arena discloses and skips an unavailable judge. See [compatibility notes](docs/spec.md) for verified scope.
 
@@ -154,14 +154,6 @@ There is no automatic uninstall hook to clean up registered agents after the plu
 
 </details>
 
-## Pi workers on either host
-
-Setup can select Pi alongside either host's existing executors. Choose the exact Pi provider, model ID, and supported reasoning effort for each role. Native parent aliases keep the native parent, and saved role shapes, panel order, and duplicate seats remain intact. Pi requires version 1.5.2 or newer and POSIX process groups. Prepare only selected executors and reuse their existing authentication.
-
-The shared Pi runner uses exact RPC selection and per-model thinking-level readback. Catalog collection sends no model prompt. Tasks receive complete explicit context and tools chosen for their role. Discovered extensions, MCP, context files, skills, templates, and startup refresh are disabled. Pi inherits no parent MCP, full conversation, native nested delegation, or OS read-only boundary. A required missing capability or unknown model lineage remains a workflow gap.
-
-Every seat starts a fresh session and writes local diagnostic receipts. A completed receipt requires current-turn successful settlement and orderly process closure. Stateful continuation requires the exact terminal prior receipt, route, effort, cwd, persisted session hash, and exclusive lease. Requested settings and assistant-observed identity are recorded separately. See [Pi execution](plugin/skills/poteto-mode/references/pi-execution.md) for commands and limits. Source and fixture checks do not establish provider compatibility or native host runtime compatibility.
-
 ## Antigravity workers on either host
 
 Setup can select the official agy CLI alongside the existing executors. No unofficial extension is required. Choose an exact model ID and a separate supported effort. The runner requires agy 1.5.8 or newer and POSIX process groups. Setup prepares only selected executors. It lets you choose subscription login, the Gemini API key method, or ADC, and prepares the chosen method with the official guidance. Workers inherit that method.
@@ -169,6 +161,8 @@ Setup can select the official agy CLI alongside the existing executors. No unoff
 Catalog collection submits no model task and retains each model's capability source. A fixed-effort catalog label confirms only that variant's configured availability. Budget previews keep its exact ID and request a choice when a lower target has no supported effort. Parent aliases stay native, and Antigravity choices create no native agent definitions.
 
 Workers receive complete explicit context, normal scoped session permissions, and agy's native tools. They do not inherit the parent's MCP inventory or full conversation. Every seat starts a fresh native conversation. Costly-state continuation requires an exact successful closed receipt with identical settings, cwd, and inherited auth method. Each receipt can continue once. Native CLI history remains available, usage is conversation-cumulative, and effective effort stays unknown when the CLI does not report it. See [Antigravity execution](plugin/skills/poteto-mode/references/agy-execution.md) for commands and limits. Direct runner evidence remains separate from native host onboarding and Desktop verification.
+
+Earlier versions also offered Pi workers. Pi was removed. A saved role that still holds a Pi entry runs on the native parent until you rerun setup, which shows the role and asks for a replacement. Existing Pi sessions and receipts are left where they are.
 
 ## Docs and help
 

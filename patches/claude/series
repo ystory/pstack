@@ -13,3 +13,4 @@ shared/0003-agy-auth-method.patch
 0010-agy-auth-version.patch
 shared/0004-agy-mcp-drain.patch
 0011-agy-mcp-drain-version.patch
+0012-retire-pi-entries.patch

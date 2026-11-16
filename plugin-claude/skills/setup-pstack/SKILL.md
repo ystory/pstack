@@ -53,11 +53,11 @@ For Pi-only worker choices, skip native and other external model collection. Nor
 
 ## 4. Load current choices
 
-Run `scripts/models.mjs read`. Retain its `sha256`, `config`, `proposal`, `needsChoice`, and `droppedRoles`.
+Run `scripts/models.mjs read`. Retain its `sha256`, `config`, `proposal`, `needsChoice`, `droppedRoles`, and `retiredExecutorRoles`.
 
 `config` contains only saved selections and is empty on a fresh install. `proposal` exposes all 13 roles with unresolved model slots. Scalar roles have one initial slot, and panels or pools have three. No exact model is a proposal default. Missing roles execute on the actual native Claude parent with their original cardinality and `source: "unconfigured"`. Disclose that resolution. Before-setup tasks remain available.
 
-On a rerun, retain independently chosen models, executors, aliases, efforts, list order, and duplicates. A retired role in the saved file, such as `how explorer` or `why investigators`, appears in `droppedRoles` and not in `config`. Show each one to the user. The next save drops it. Other unknown role keys fail validation without changing preferences.
+On a rerun, retain independently chosen models, executors, aliases, efforts, list order, and duplicates. A retired role in the saved file, such as `how explorer` or `why investigators`, appears in `droppedRoles` and not in `config`. Show each one to the user. The next save drops it. Other unknown role keys fail validation without changing preferences. A saved role with any entry for the removed Pi executor appears in `retiredExecutorRoles` and not in `config`. It runs on the native parent at its original count until replaced. Show each one with the dropped roles and obtain a replacement from another executor or leave it unconfigured. The next save omits it. A submitted Pi entry fails validation.
 
 ## 5. Select the budget and role mapping
 

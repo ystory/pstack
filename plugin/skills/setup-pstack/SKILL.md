@@ -29,9 +29,11 @@ The [execution binding](../poteto-mode/references/execution.md) describes runtim
 
 ## 3. Load choices and collect supported models
 
-Run `scripts/models.mjs read` and retain `config`, `proposal`, `needsChoice`, `droppedRoles`, and `sha256`. Fresh `config.roles` is empty. The proposal presents all 13 roles with unresolved model slots. Scalars start with one slot and panels or pools with three. Saved choices prefill the proposal and remain authoritative. Missing roles execute on the actual native parent with their original counts, disclosed as `unconfigured`. Setup is optional before a task.
+Run `scripts/models.mjs read` and retain `config`, `proposal`, `needsChoice`, `droppedRoles`, `retiredExecutorRoles`, and `sha256`. Fresh `config.roles` is empty. The proposal presents all 13 roles with unresolved model slots. Scalars start with one slot and panels or pools with three. Saved choices prefill the proposal and remain authoritative. Missing roles execute on the actual native parent with their original counts, disclosed as `unconfigured`. Setup is optional before a task.
 
 A retired role in the saved file, such as `how explorer` or `why investigators`, appears in `droppedRoles` and not in `config`. Show each one to the user. The next save drops it. Any other unknown role still fails validation.
+
+A saved role with any entry for the removed Pi executor appears in `retiredExecutorRoles` and not in `config`. It runs on the native parent at its original count until replaced. Show each one with the dropped roles and obtain a replacement from another executor or leave it unconfigured. The next save omits it. A submitted Pi entry fails validation.
 
 For selected native Codex workers, enumerate exact model IDs and supported efforts from this session's native tools or Codex `model/list`. Collect every page. For selected Claude workers, collect model-specific host or configuration evidence, or ask for confirmation of the exact model and its efforts. Label that source. A configured candidate alone does not prove access. Honor confirmation already supplied in the conversation.
 

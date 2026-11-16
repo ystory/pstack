@@ -162,8 +162,6 @@ Catalog collection submits no model task and retains each model's capability sou
 
 Workers receive complete explicit context, normal scoped session permissions, and agy's native tools. They do not inherit the parent's MCP inventory or full conversation. Every seat starts a fresh native conversation. Costly-state continuation requires an exact successful closed receipt with identical settings, cwd, and inherited auth method. Each receipt can continue once. Native CLI history remains available, usage is conversation-cumulative, and effective effort stays unknown when the CLI does not report it. See [Antigravity execution](plugin/skills/poteto-mode/references/agy-execution.md) for commands and limits. Direct runner evidence remains separate from native host onboarding and Desktop verification.
 
-Earlier versions also offered Pi workers. Pi was removed. A saved role that still holds a Pi entry runs on the native parent until you rerun setup, which shows the role and asks for a replacement. Existing Pi sessions and receipts are left where they are.
-
 ## Docs and help
 
 - [Codex guide](plugin/docs/guide/README.md) and [Claude Code guide](plugin-claude/docs/guide/README.md) cover setup, prompting, design, review, and verification.

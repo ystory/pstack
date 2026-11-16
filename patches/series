@@ -14,3 +14,4 @@ shared/0004-agy-mcp-drain.patch
 0010-retire-pi-entries.patch
 shared/0005-remove-pi-executor.patch
 0011-remove-pi-executor.patch
+0012-drop-pi-entry-retirement.patch

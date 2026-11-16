@@ -988,3 +988,60 @@ test(
     assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
   },
 );
+
+test(
+  'agy catalog and run succeed when descendants exit shortly after a normal CLI exit',
+  { timeout: 15000 },
+  async (t) => {
+    const f = await fixture(t);
+    for (const command of ['catalog', 'run']) {
+      const run = await f.invoke('draining-descendant', [], command);
+      const receipt = JSON.parse(
+        await readFile(path.join(run.runDir, 'result.json'), 'utf8'),
+      );
+      const diagnostic = `${command} ${JSON.stringify(receipt)}`;
+      assert.equal(run.code, 0, diagnostic);
+      assert.equal(receipt.status, 'completed', diagnostic);
+      assert.equal(receipt.error, null, diagnostic);
+      assert.equal(receipt.process.exitCode, 0, diagnostic);
+      assert.equal(receipt.process.groupClosed, true, diagnostic);
+      assert.equal(receipt.process.shutdown, 'orderly', diagnostic);
+      if (command === 'catalog')
+        assert.deepEqual(
+          receipt.models.map((entry: any) => entry.model),
+          [model, 'claude-fixture-20261115'],
+        );
+      else assert.equal(receipt.result, 'fresh answer 한글 🥔');
+      const pid = Number(await readFile(run.childPid, 'utf8'));
+      assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    }
+  },
+);
+
+test(
+  'agy fails and kills descendants that outlive the closure grace after a normal CLI exit',
+  { timeout: 20000 },
+  async (t) => {
+    const f = await fixture(t);
+    for (const command of ['catalog', 'run']) {
+      const run = await f.invoke('lingering-descendant', [], command);
+      const receipt = JSON.parse(
+        await readFile(path.join(run.runDir, 'result.json'), 'utf8'),
+      );
+      const diagnostic = `${command} ${JSON.stringify(receipt)}`;
+      assert.notEqual(run.code, 0, diagnostic);
+      assert.equal(receipt.status, 'failed', diagnostic);
+      assert.equal(
+        receipt.error,
+        'Owned CLI left descendant processes alive.',
+        diagnostic,
+      );
+      assert.equal(receipt.process.exitCode, 0, diagnostic);
+      assert.equal(receipt.process.groupClosed, true, diagnostic);
+      assert.equal(receipt.process.shutdown, 'terminated', diagnostic);
+      if (command === 'run') assert.equal(receipt.result, null, diagnostic);
+      const pid = Number(await readFile(run.childPid, 'utf8'));
+      assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
+    }
+  },
+);

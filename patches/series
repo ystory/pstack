@@ -10,3 +10,4 @@ shared/0002-worker-execution.patch
 0008-worker-worktree-lifecycle.patch
 shared/0003-agy-auth-method.patch
 0009-agy-auth-setup.patch
+shared/0004-agy-mcp-drain.patch

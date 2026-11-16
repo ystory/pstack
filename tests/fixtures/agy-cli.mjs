@@ -11,6 +11,21 @@ const trace = (value) => {
 };
 const emit = (value) => process.stdout.write(`${JSON.stringify(value)}\n`);
 const option = (name) => args[args.indexOf(name) + 1];
+const leaveDescendant = () => {
+  if (!['draining-descendant', 'lingering-descendant'].includes(mode)) return;
+  const descendant = spawn(
+    process.execPath,
+    [
+      '-e',
+      mode === 'draining-descendant'
+        ? 'setTimeout(() => {}, 400)'
+        : 'setInterval(() => {}, 1000)',
+    ],
+    { stdio: 'ignore' },
+  );
+  descendant.unref();
+  writeFileSync(process.env.AGY_CHILD_PID, String(descendant.pid));
+};
 trace({
   args,
   cwd: process.cwd(),
@@ -58,6 +73,7 @@ if (args[0] === '--version') {
     console.log(
       '\x1b[32mgemini-4-hydrogen-xhigh\x1b[0m\tGemini 4 Hydrogen (XHigh)\nclaude-fixture-20261115\tClaude Fixture (High)\nunclassified-model\tUnclassified Label\nfixed-standard\tFixed Nonadjustable',
     );
+  leaveDescendant();
 } else {
   const nativeId = args.includes('--conversation')
     ? option('--conversation')
@@ -200,5 +216,6 @@ if (args[0] === '--version') {
       emit({ event: 'error', error: 'failure after apparent success' });
     process.stderr.write('native harness diagnostic\n');
     if (mode === 'nonzero') process.exitCode = 7;
+    leaveDescendant();
   }
 }

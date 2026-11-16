@@ -9,6 +9,7 @@ import {
   agyEntry,
   agyEfforts,
   AGY_MINIMUM_VERSION,
+  inheritedAgyAuth,
   supportedAgyVersion,
   parseAgyModels,
 } from './agy-capabilities.mjs';
@@ -26,8 +27,6 @@ const contains = (root, target) =>
 const uuid = (value) =>
   typeof value === 'string' &&
   /^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(value);
-const authMode = () =>
-  process.env.AGY_ADC_AUTH === 'true' ? 'adc' : 'inherited-default';
 const limitations = [
   'Native agy inherits its environment, credentials, tools and customizations; it does not inherit parent MCP, conversation or permissions and is not an OS read-only boundary.',
   'Native agy owns conversation storage. This receipt does not establish transcript integrity or protect against direct native clients.',
@@ -387,6 +386,7 @@ async function ownedProcess(executable, args, options) {
 }
 
 async function detect(options) {
+  const auth = await inheritedAgyAuth();
   let executable;
   try {
     executable = await executablePath(options.executable);
@@ -400,7 +400,7 @@ async function detect(options) {
       executor,
       available: false,
       compatible: false,
-      auth: { mode: authMode(), verified: false },
+      auth,
       modelExecutionVerified: false,
     };
   }
@@ -460,12 +460,7 @@ async function detect(options) {
       supportedAgyVersion(version) &&
       Object.values(requiredOptions).every(Boolean) &&
       effortSyntax.length > 0,
-    auth: {
-      mode: authMode(),
-      verified: false,
-      description:
-        'Inherited environment only; no credential or authentication probe.',
-    },
+    auth,
     modelExecutionVerified: false,
     probeError: versionProbe.error ?? helpProbe.error ?? null,
     probeCause: versionProbe.cause ?? helpProbe.cause ?? null,
@@ -526,7 +521,7 @@ async function contextFor(options) {
   };
 }
 
-async function priorFor(options) {
+async function priorFor(options, auth) {
   if (!options.resume) return null;
   const file = absolute(options.resume, '--resume');
   await outsidePlugins(file, await fs.realpath(file));
@@ -553,8 +548,8 @@ async function priorFor(options) {
     throw new Error('Resume model and effort must be identical.');
   if (prior.cwd !== options.cwd)
     throw new Error('Resume requires the same canonical cwd.');
-  if (prior.authMode !== authMode())
-    throw new Error('Resume requires the same inherited auth mode.');
+  if (prior.authMode !== auth.method)
+    throw new Error('Resume requires the same inherited auth method.');
   if (
     !prior.process?.closed ||
     !prior.process.groupClosed ||
@@ -652,6 +647,7 @@ function streamParser(options, prior) {
     } else if (value.event === 'result') {
       count++;
       const terminal = value.result;
+      result = terminal;
       if (
         !init ||
         !userInput ||
@@ -674,7 +670,6 @@ function streamParser(options, prior) {
         throw new Error(
           'Terminal result is stale or lacks current-turn count.',
         );
-      result = terminal;
     } else throw new Error(`Unsupported native stream event ${value.event}.`);
   };
   return {
@@ -709,7 +704,9 @@ function streamParser(options, prior) {
 async function execute(options) {
   Object.assign(options, await preparePaths(options));
   const context = options.command === 'run' ? await contextFor(options) : null;
-  const prior = options.command === 'run' ? await priorFor(options) : null;
+  const auth = await inheritedAgyAuth();
+  const prior =
+    options.command === 'run' ? await priorFor(options, auth) : null;
   const executable = await executablePath(options.executable);
   await fs.mkdir(path.dirname(options.runDir), {
     recursive: true,
@@ -730,7 +727,8 @@ async function execute(options) {
     runDir: options.runDir,
     executable,
     requested: options.requested ?? null,
-    authMode: authMode(),
+    auth,
+    authMode: auth.method,
     permissions: { scope: 'session-only', allow: options.allowPermission },
     context: context?.context ?? [],
     taskSha256: context?.taskSha256 ?? null,

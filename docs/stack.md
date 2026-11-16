@@ -221,10 +221,10 @@ node scripts/check-agy-live.ts \
 	--fresh-runner /absolute/codex-artifact/plugin/skills/poteto-mode/scripts/run-agy.mjs \
 	--resume-runner /absolute/claude-artifact/plugin/skills/poteto-mode/scripts/run-agy.mjs \
 	--model APPROVED_EXACT_AGY_ID --effort APPROVED_SUPPORTED_EFFORT \
-	--inherited-auth adc
+	--inherited-auth APPROVED_INHERITED_METHOD
 ```
 
-Both runner paths and the new evidence directory are required absolute paths. Use the final source copies or built artifact copies. No model or effort is a default. `--inherited-auth adc` acknowledges authorized use of the existing `AGY_ADC_AUTH=true` environment. For another already-authorized inherited official route, pass `--inherited-auth inherited-default` with that environment unchanged. The script checks the mode and never switches it. An optional `--executable ABS` selects the installed official CLI for this invocation. `--timeout-ms N` bounds each task and defaults to 120000.
+Both runner paths and the new evidence directory are required absolute paths. Use the final source copies or built artifact copies. No model or effort is a default. `--inherited-auth` acknowledges the already-authorized inherited method: `gemini-api-key` when agy's settings set `modelProvider` to `gemini`, `adc` for the existing `AGY_ADC_AUTH=true` environment, or `inherited-default` otherwise. The script derives the method the same way as the runner before invoking the CLI, stops when it differs, and never switches it. An optional `--executable ABS` selects the installed official CLI for this invocation. `--timeout-ms N` bounds each task and defaults to 120000.
 
 The check creates an unpredictable marker behind a pointer file in a neutral temporary workspace. The fresh runner must read both files through native tool events and return the exact marker. The other runner copy continues the exact receipt and recalls the marker. The check requires matching requested and CLI-observed model, unknown effective effort, completed status, orderly zero-exit process closure, and conversation-cumulative usage labels. It verifies both personal pstack preference hashes before and after execution and returns retained evidence paths.
 

@@ -8,3 +8,5 @@
 shared/0001-workflow-bodies.patch
 shared/0002-worker-execution.patch
 0008-worker-worktree-lifecycle.patch
+shared/0003-agy-auth-method.patch
+0009-agy-auth-setup.patch

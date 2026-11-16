@@ -164,11 +164,11 @@ Every seat starts a fresh session and writes local diagnostic receipts. A comple
 
 ## Antigravity workers on either host
 
-Setup can select the official agy CLI alongside the existing executors. No unofficial extension is required. Choose an exact model ID and a separate supported effort. The runner requires agy 1.5.8 or newer and POSIX process groups. Setup prepares only selected executors and reuses inherited official authentication, including ADC when `AGY_ADC_AUTH=true` is already set.
+Setup can select the official agy CLI alongside the existing executors. No unofficial extension is required. Choose an exact model ID and a separate supported effort. The runner requires agy 1.5.8 or newer and POSIX process groups. Setup prepares only selected executors. It lets you choose subscription login, the Gemini API key method, or ADC, and prepares the chosen method with the official guidance. Workers inherit that method.
 
 Catalog collection submits no model task and retains each model's capability source. A fixed-effort catalog label confirms only that variant's configured availability. Budget previews keep its exact ID and request a choice when a lower target has no supported effort. Parent aliases stay native, and Antigravity choices create no native agent definitions.
 
-Workers receive complete explicit context, normal scoped session permissions, and agy's native tools. They do not inherit the parent's MCP inventory or full conversation. Every seat starts a fresh native conversation. Costly-state continuation requires an exact successful closed receipt with identical settings, cwd, and inherited auth mode. Each receipt can continue once. Native CLI history remains available, usage is conversation-cumulative, and effective effort stays unknown when the CLI does not report it. See [Antigravity execution](plugin/skills/poteto-mode/references/agy-execution.md) for commands and limits. Direct runner evidence remains separate from native host onboarding and Desktop verification.
+Workers receive complete explicit context, normal scoped session permissions, and agy's native tools. They do not inherit the parent's MCP inventory or full conversation. Every seat starts a fresh native conversation. Costly-state continuation requires an exact successful closed receipt with identical settings, cwd, and inherited auth method. Each receipt can continue once. Native CLI history remains available, usage is conversation-cumulative, and effective effort stays unknown when the CLI does not report it. See [Antigravity execution](plugin/skills/poteto-mode/references/agy-execution.md) for commands and limits. Direct runner evidence remains separate from native host onboarding and Desktop verification.
 
 ## Docs and help
 

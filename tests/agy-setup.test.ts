@@ -440,7 +440,12 @@ test('live agy verification requires explicit paid settings and a new evidence d
       ],
       {
         encoding: 'utf8',
-        env: { ...process.env, AGY_ADC_AUTH: 'true', PSTACK_SPY_LOG: log },
+        env: {
+          ...process.env,
+          HOME: root,
+          AGY_ADC_AUTH: 'true',
+          PSTACK_SPY_LOG: log,
+        },
       },
     );
   for (const flag of ['--model', '--effort', '--inherited-auth']) {
@@ -449,10 +454,8 @@ test('live agy verification requires explicit paid settings and a new evidence d
     assert.notEqual(call(selected).status, 0);
     await assert.rejects(stat(evidence), { code: 'ENOENT' });
   }
-  assert.notEqual(
-    call({ ...values, '--inherited-auth': 'inherited-default' }).status,
-    0,
-  );
+  for (const method of ['inherited-default', 'gemini-api-key'])
+    assert.notEqual(call({ ...values, '--inherited-auth': method }).status, 0);
   assert.notEqual(
     call({ ...values, '--evidence-dir': 'relative-evidence' }).status,
     0,

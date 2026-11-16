@@ -58,7 +58,7 @@ type ToolEvent = {
   };
 };
 
-const usage = `Usage: node scripts/check-agy-live.ts --evidence-dir ABS_NEW --fresh-runner ABS --resume-runner ABS --model EXACT_ID --effort LEVEL --inherited-auth adc|inherited-default [--executable ABS] [--timeout-ms N]`;
+const usage = `Usage: node scripts/check-agy-live.ts --evidence-dir ABS_NEW --fresh-runner ABS --resume-runner ABS --model EXACT_ID --effort LEVEL --inherited-auth gemini-api-key|adc|inherited-default [--executable ABS] [--timeout-ms N]`;
 const hash = (bytes: Buffer | string) =>
   createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
@@ -108,16 +108,11 @@ for (const flag of [
 ])
   if (options[flag] !== undefined)
     assert.ok(path.isAbsolute(options[flag]!), `${flag} must be absolute.`);
-const authMode =
-  process.env.AGY_ADC_AUTH === 'true' ? 'adc' : 'inherited-default';
 assert.ok(
-  ['adc', 'inherited-default'].includes(options['--inherited-auth']!),
-  '--inherited-auth must acknowledge an already-authorized inherited mode.',
-);
-assert.equal(
-  options['--inherited-auth'],
-  authMode,
-  'The inherited auth environment must match the acknowledged mode.',
+  ['gemini-api-key', 'adc', 'inherited-default'].includes(
+    options['--inherited-auth']!,
+  ),
+  '--inherited-auth must acknowledge an already-authorized inherited method.',
 );
 const timeoutMs = Number(options['--timeout-ms'] ?? '120000');
 assert.ok(
@@ -142,9 +137,16 @@ assert.equal(
   runnerHashes[1]!.sha256,
   'Both final runner copies must have identical bytes.',
 );
-const { agyEntry } = await import(
+const { agyEntry, inheritedAgyAuth } = await import(
   pathToFileURL(path.join(path.dirname(freshRunner), 'agy-capabilities.mjs'))
     .href
+);
+const auth = await inheritedAgyAuth();
+const authMode: string = auth.method;
+assert.equal(
+  options['--inherited-auth'],
+  authMode,
+  'The inherited agy settings and environment must match the acknowledged method.',
 );
 const entry: Entry = agyEntry({
   executor: 'antigravity',
@@ -206,7 +208,7 @@ const summary: Record<string, unknown> = {
   markerFile,
   markerSha256: hash(marker),
   entry,
-  authMode,
+  auth,
   runnerHashes,
   preferencesBefore,
   timeoutMs,
@@ -363,7 +365,7 @@ try {
   assert.equal(detection.executor, 'antigravity');
   assert.equal(detection.available, true);
   assert.equal(detection.compatible, true);
-  assert.equal(detection.auth.mode, authMode);
+  assert.deepEqual(detection.auth, auth);
   assert.equal(detection.modelExecutionVerified, false);
   summary.detection = detection;
   const freshDirectory = path.join(evidence, 'fresh');

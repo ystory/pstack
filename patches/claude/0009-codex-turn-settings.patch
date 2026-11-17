@@ -1,0 +1,77 @@
+diff --git a/skills/poteto-mode/scripts/run-codex.mjs b/skills/poteto-mode/scripts/run-codex.mjs
+index 2dc13cc..b705722 100644
+--- a/skills/poteto-mode/scripts/run-codex.mjs
++++ b/skills/poteto-mode/scripts/run-codex.mjs
+@@ -213,6 +213,30 @@ async function inspect(options, server) {
+   return result;
+ }
+ 
++function turnSettings(rolloutPath, turnId) {
++  const settings = { model: null, effort: null };
++  if (!rolloutPath || !turnId) return settings;
++  let text;
++  try {
++    text = fs.readFileSync(rolloutPath, 'utf8');
++  } catch {
++    return settings;
++  }
++  for (const line of text.split('\n')) {
++    let record;
++    try {
++      record = JSON.parse(line);
++    } catch {
++      continue;
++    }
++    if (record?.type !== 'turn_context' || record.payload?.turn_id !== turnId)
++      continue;
++    settings.model = record.payload.model ?? null;
++    settings.effort = record.payload.effort ?? null;
++  }
++  return settings;
++}
++
+ function instructionFiles(options) {
+   return [
+     ...(options.role ? [{ kind: 'role', path: options.role }] : []),
+@@ -279,9 +303,9 @@ async function run(options, server) {
+   process.on('SIGTERM', onTerminate);
+   let threadId = null,
+     turnId = null,
++    rolloutPath = null,
+     finalText = '',
+     terminal = null;
+-  const observed = { model: null, effort: null };
+   const threadSettings = { model: null, effort: null };
+   const child = { pid: null, exitCode: null, signal: null, closed: false };
+   const pending = new Map();
+@@ -311,17 +335,12 @@ async function run(options, server) {
+       pending.delete(message.id);
+       if (['thread/start', 'thread/resume'].includes(method)) {
+         threadId = message.result?.thread?.id ?? threadId;
++        rolloutPath = message.result?.thread?.path ?? rolloutPath;
+         threadSettings.model = message.result?.model ?? null;
+         threadSettings.effort =
+           message.result?.reasoningEffort ?? message.result?.effort ?? null;
+       }
+-      if (method === 'turn/start') {
+-        turnId = message.result?.turn?.id ?? turnId;
+-        observed.model =
+-          message.result?.model ?? message.result?.turn?.model ?? null;
+-        observed.effort =
+-          message.result?.effort ?? message.result?.turn?.effort ?? null;
+-      }
++      if (method === 'turn/start') turnId = message.result?.turn?.id ?? turnId;
+     }
+     if (message.params?.threadId !== threadId) return;
+     if (message.method === 'turn/started') turnId = message.params.turn.id;
+@@ -403,8 +422,9 @@ async function run(options, server) {
+     sandbox: request.sandbox,
+     threadId,
+     turnId,
++    rolloutPath,
+     requested,
+-    observed,
++    observed: turnSettings(rolloutPath, turnId),
+     threadSettings,
+     status,
+     resultStatus: result?.status ?? null,

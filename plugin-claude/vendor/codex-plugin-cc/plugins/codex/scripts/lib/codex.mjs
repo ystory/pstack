@@ -1167,6 +1167,7 @@ export async function runAppServerTurn(cwd, options = {}) {
     emitProgress(options.onProgress, `Thread ready (${threadId}).`, "starting", {
       threadId
     });
+    await options.beforeTurn?.(client, threadId);
 
     const prompt = options.prompt?.trim() || options.defaultPrompt || "";
     if (!prompt) {

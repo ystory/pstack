@@ -8,3 +8,6 @@
 0008-vendored-codex-runtime.patch
 shared/0001-workflow-bodies.patch
 shared/0002-worker-execution.patch
+0009-codex-turn-settings.patch
+0010-codex-turn-settings-version.patch
+0011-codex-denied-review-approval.patch

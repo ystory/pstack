@@ -39,7 +39,7 @@ const fakeProtocol = String.raw`
 const send = (value) => console.log(JSON.stringify(value));
 const notify = (method, params) => send({method,params});
 const respond = (request, result) => send({id:request.id,result});
-let threadId, turnId, timer;
+let threadId, turnId, rollout, timer;
 const lines = readline.createInterface({input:process.stdin});
 lines.on('line', (line) => {
  const request = JSON.parse(line); log({request});
@@ -56,14 +56,17 @@ lines.on('line', (line) => {
  case 'thread/start': case 'thread/resume':
   if (process.env.FAKE_HOLD_THREAD) break;
   threadId = p.threadId ?? 'thread-'+process.pid;
-  respond(request,{thread:{id:threadId},model:'observed-model',reasoningEffort:'high',cwd:p.cwd}); break;
+  rollout = process.env.FAKE_LOG+'.'+threadId+'.rollout.jsonl';
+  fs.appendFileSync(rollout,JSON.stringify({type:'turn_context',payload:{turn_id:'earlier-turn',model:'earlier-model',effort:'ultra'}})+'\n{"type":\n');
+  respond(request,{thread:{id:threadId,path:rollout},model:'observed-model',reasoningEffort:'high',cwd:p.cwd}); break;
  case 'turn/start': {
   if (process.env.FAKE_HOLD_TURN_STARTED) break;
   turnId = 'turn-'+process.pid;
   const prompt = p.input[0].text;
+  if (!process.env.FAKE_UNKNOWN_SETTINGS) fs.appendFileSync(rollout,JSON.stringify({type:'turn_context',payload:{turn_id:turnId,model:'turn-model',effort:'low'}})+'\n');
   notify('turn/started',{threadId,turn:{id:turnId,status:'inProgress'}});
   const started = () => {
-   respond(request,{turn:{id:turnId,status:'inProgress'},...(process.env.FAKE_UNKNOWN_SETTINGS ? {} : {model:'observed-model',effort:'high'})});
+   respond(request,{turn:{id:turnId,status:'inProgress'}});
    if (prompt.includes('WAIT')) return;
    if (process.env.FAKE_MALFORMED_OUTPUT) { process.stdout.write('{"method":\n'); return; }
    if (process.env.FAKE_OUTPUT !== undefined) {
@@ -84,6 +87,12 @@ lines.on('line', (line) => {
     });
     write(0); return;
    }
+   if (prompt.includes('DENY')) {
+    const review = (reviewId,status,thread) => ({threadId:thread,turnId,startedAtMs:1,completedAtMs:2,reviewId,targetItemId:'call-'+reviewId,decisionSource:'agent',review:{status,riskLevel:'high',userAuthorization:'low',rationale:'synthetic '+status},action:{type:'mcpToolCall',server:'cua_repl',toolName:'js',connectorId:'node_repl',connectorName:'Node REPL',toolTitle:'Read app state'}});
+    notify('item/autoApprovalReview/completed',review('review-approved','approved',threadId));
+    notify('item/autoApprovalReview/completed',review('review-denied','denied',threadId));
+    notify('item/autoApprovalReview/completed',review('review-other-thread','denied','other-thread'));
+   }
    notify('item/completed',{threadId,turnId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'answer for '+threadId}});
    if (prompt.includes('EXIT')) { setTimeout(()=>process.exit(7),40); return; }
    timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?{message:'actual terminal failure'}:null}}),prompt.includes('FAIL')?450:40);
@@ -91,6 +100,7 @@ lines.on('line', (line) => {
   if (!process.env.FAKE_HOLD_TURN_RESPONSE) started();
   break;
  }
+ case 'thread/approveGuardianDeniedAction': if (process.env.FAKE_REJECT_APPROVAL) { send({id:request.id,error:{code:-32600,message:'approval rejected'}}); break; } respond(request,{}); break;
  case 'turn/interrupt': clearTimeout(timer); if (process.env.FAKE_IGNORE_INTERRUPT) break; respond(request,{}); notify('turn/completed',{threadId,turn:{id:turnId,status:'interrupted'}}); break;
  default: send({id:request.id,error:{code:-32601,message:'unexpected '+request.method}});
  }
@@ -271,10 +281,15 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
     model: 'selected-model',
     effort: 'xhigh',
   });
-  assert.deepEqual(receipt.observed, {
+  assert.deepEqual(receipt.observed, { model: 'turn-model', effort: 'low' });
+  assert.deepEqual(receipt.threadSettings, {
     model: 'observed-model',
     effort: 'high',
   });
+  assert.equal(
+    receipt.rolloutPath,
+    `${f.root}/server.jsonl.${receipt.threadId}.rollout.jsonl`,
+  );
   assert.equal(receipt.process.closed, true);
   assert.equal(receipt.process.exitCode, 0);
   assert.equal(receipt.runtime.kind, 'standalone-app-server');
@@ -850,6 +865,199 @@ test('prompt files and unknown effective settings stay explicit, and run records
     await readFile(receipt.files.prompt, 'utf8'),
     turn.request.params.input[0].text,
   );
+});
+
+test('denied reviews are recorded and an exact approval precedes the resumed turn', async (t) => {
+  const f = await fixture(t);
+  assert.equal(f.run('denied', 'DENY the synthetic action.').status, 0);
+  const denied = await f.receipt('denied');
+  assert.deepEqual(
+    denied.deniedReviews.map((review: { reviewId: string }) => review.reviewId),
+    ['review-denied'],
+  );
+  assert.equal(denied.approvedReview, null);
+  const result = f.run('approved', 'Retry the approved action.', [
+    '--resume',
+    denied.threadId,
+    '--approve-review',
+    'review-denied',
+    '--review-receipt',
+    denied.files.result,
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  const approved = await f.receipt('approved');
+  assert.equal(approved.status, 'completed');
+  assert.equal(approved.threadId, denied.threadId);
+  assert.equal(approved.approvedReview, 'review-denied');
+  const event = {
+    id: 'review-denied',
+    turn_id: denied.turnId,
+    started_at_ms: 1,
+    completed_at_ms: 2,
+    status: 'denied',
+    risk_level: 'high',
+    user_authorization: 'low',
+    rationale: 'synthetic denied',
+    decision_source: 'agent',
+    action: {
+      type: 'mcp_tool_call',
+      server: 'cua_repl',
+      tool_name: 'js',
+      connector_id: 'node_repl',
+      connector_name: 'Node REPL',
+      tool_title: 'Read app state',
+    },
+  };
+  const request = JSON.parse(await readFile(approved.files.request, 'utf8'));
+  assert.deepEqual(request.approvedReview, {
+    reviewId: 'review-denied',
+    receipt: denied.files.result,
+    event,
+  });
+  const methods = (await f.events())
+    .filter((entry) => entry.pid === approved.process.pid && entry.request)
+    .map((entry) => entry.request.method);
+  assert.deepEqual(methods.slice(-3), [
+    'thread/resume',
+    'thread/approveGuardianDeniedAction',
+    'turn/start',
+  ]);
+  const approval = (await f.events()).find(
+    (entry) => entry.request?.method === 'thread/approveGuardianDeniedAction',
+  );
+  assert.deepEqual(approval.request.params, {
+    threadId: denied.threadId,
+    event,
+  });
+});
+
+test('approval conversion covers network protocols and refuses unsupported or mismatched reviews', async (t) => {
+  const f = await fixture(t);
+  const receipt = path.join(f.root, 'prior result.json');
+  const review = (reviewId: string, action: Record<string, unknown>) => ({
+    threadId: 'thread-prior',
+    turnId: 'turn-prior',
+    startedAtMs: 3,
+    completedAtMs: 4,
+    reviewId,
+    targetItemId: null,
+    decisionSource: 'agent',
+    review: {
+      status: 'denied',
+      riskLevel: 'medium',
+      userAuthorization: 'unknown',
+      rationale: null,
+    },
+    action,
+  });
+  await writeFile(
+    receipt,
+    JSON.stringify({
+      threadId: 'thread-prior',
+      deniedReviews: [
+        review('network', {
+          type: 'networkAccess',
+          target: 'socks5://example.invalid:1080',
+          host: 'example.invalid',
+          protocol: 'socks5Tcp',
+          port: 1080,
+        }),
+        review('stdin', {
+          type: 'writeStdin',
+          approvalId: 'a',
+          processId: 'p',
+          stdin: 'y\n',
+          cwd: '/tmp',
+        }),
+      ],
+    }),
+  );
+  const approve = (name: string, extra: string[]) =>
+    f.run(name, 'Retry.', extra);
+  const exact = [
+    '--resume',
+    'thread-prior',
+    '--approve-review',
+    'network',
+    '--review-receipt',
+    receipt,
+  ];
+  assert.equal(approve('network', exact).status, 0);
+  const network = JSON.parse(
+    await readFile(path.join(f.root, 'network', 'request.json'), 'utf8'),
+  );
+  assert.deepEqual(network.approvedReview.event.action, {
+    type: 'network_access',
+    target: 'socks5://example.invalid:1080',
+    host: 'example.invalid',
+    protocol: 'socks5_tcp',
+    port: 1080,
+  });
+  assert.equal(network.approvedReview.event.rationale, null);
+  for (const [name, extra, message] of [
+    [
+      'stdin',
+      [
+        '--resume',
+        'thread-prior',
+        '--approve-review',
+        'stdin',
+        '--review-receipt',
+        receipt,
+      ],
+      'Approving a denied writeStdin action is unsupported.',
+    ],
+    [
+      'missing',
+      [
+        '--resume',
+        'thread-prior',
+        '--approve-review',
+        'absent',
+        '--review-receipt',
+        receipt,
+      ],
+      '--review-receipt lists no denied review absent.',
+    ],
+    [
+      'thread',
+      [
+        '--resume',
+        'thread-other',
+        '--approve-review',
+        'network',
+        '--review-receipt',
+        receipt,
+      ],
+      '--review-receipt records a different thread.',
+    ],
+    [
+      'no-resume',
+      ['--approve-review', 'network', '--review-receipt', receipt],
+      '--approve-review requires --resume.',
+    ],
+    [
+      'no-receipt',
+      ['--resume', 'thread-prior', '--approve-review', 'network'],
+      '--approve-review and --review-receipt go together.',
+    ],
+  ] as const) {
+    const result = approve(name, [...extra]);
+    assert.equal(result.status, 1, name);
+    assert.equal(result.stderr.trim(), message);
+    await assert.rejects(readFile(path.join(f.root, name, 'request.json')));
+  }
+  const rejected = f.run('rejected', 'Retry.', exact, {
+    FAKE_REJECT_APPROVAL: '1',
+  });
+  assert.equal(rejected.status, 1);
+  const failed = await f.receipt('rejected');
+  assert.equal(failed.status, 'failed');
+  assert.match(failed.error.message, /approval rejected/);
+  const methods = (await f.events())
+    .filter((entry) => entry.pid === failed.process.pid && entry.request)
+    .map((entry) => entry.request.method);
+  assert.equal(methods.includes('turn/start'), false);
 });
 
 for (const [method, variable] of [

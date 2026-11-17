@@ -11,8 +11,8 @@ const usage = `Usage: node run-codex.mjs detect [--executable ABS]
        node run-codex.mjs catalog [--cwd ABS --executable ABS]
        node run-codex.mjs run --cwd ABS --run-dir ABS --model ID [--effort VALUE]
          [--instruction ABS ...] [--skill ABS ...] [--role ABS]
-         [--resume EXACT_THREAD_ID] [--sandbox read-only|workspace-write|danger-full-access]
-         [--write] [--executable ABS] [--prompt-file ABS]
+         [--resume EXACT_THREAD_ID] [--sandbox workspace-write|danger-full-access]
+         [--executable ABS] [--prompt-file ABS]
          [--approve-review REVIEW_ID --review-receipt ABS]
 Task text comes from --prompt-file or stdin. The run remains foreground until completion.
 --approve-review records the user's approval of one denied review listed in the
@@ -40,10 +40,6 @@ function parse(argv) {
   ]);
   for (let index = 0; index < args.length; index += 1) {
     const name = args[index].slice(2);
-    if (args[index] === '--write') {
-      options.write = true;
-      continue;
-    }
     if (!args[index].startsWith('--') || !values.has(name))
       throw new Error(`Unknown argument ${args[index]}.`);
     const value = args[++index];
@@ -72,17 +68,9 @@ function parse(argv) {
     }
   if (
     options.sandbox !== undefined &&
-    !['read-only', 'workspace-write', 'danger-full-access'].includes(
-      options.sandbox,
-    )
+    !['workspace-write', 'danger-full-access'].includes(options.sandbox)
   )
     throw new Error('Unsupported --sandbox.');
-  if (
-    options.write &&
-    options.sandbox !== undefined &&
-    options.sandbox !== 'workspace-write'
-  )
-    throw new Error('--write conflicts with --sandbox.');
   if (
     (options['approve-review'] === undefined) !==
     (options['review-receipt'] === undefined)
@@ -349,8 +337,7 @@ async function run(options, server) {
       receipt: options['review-receipt'],
       event: approval,
     },
-    sandbox:
-      options.sandbox ?? (options.write ? 'workspace-write' : 'read-only'),
+    sandbox: options.sandbox ?? 'workspace-write',
     instructions: bodies,
     task,
     startedAt,

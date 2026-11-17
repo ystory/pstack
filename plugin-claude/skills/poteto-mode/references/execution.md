@@ -42,13 +42,13 @@ Pass this launch request to native Bash:
 
 ```json
 {
-  "command": "node \"<poteto-mode>/scripts/run-codex.mjs\" run --cwd \"/absolute/assigned-worktree\" --run-dir \"/absolute/unique-local-run-directory\" --model \"<selected-exact-model>\" --effort \"<supported-task-effort>\" --instruction \"/absolute/applicable/AGENTS.md\" --skill \"/absolute/relevant/SKILL.md\" --role \"<plugin>/agents/poteto-agent.md\" --write --prompt-file \"/absolute/consolidated-task.txt\"",
+  "command": "node \"<poteto-mode>/scripts/run-codex.mjs\" run --cwd \"/absolute/assigned-worktree\" --run-dir \"/absolute/unique-local-run-directory\" --model \"<selected-exact-model>\" --effort \"<supported-task-effort>\" --instruction \"/absolute/applicable/AGENTS.md\" --skill \"/absolute/relevant/SKILL.md\" --role \"<plugin>/agents/poteto-agent.md\" --prompt-file \"/absolute/consolidated-task.txt\"",
   "run_in_background": true,
   "timeout": 7200000
 }
 ```
 
-Use `--role` for the selected original role body. `general-purpose` seats pass their body plus the workflow templates. Repeat `--instruction` for project rules, source references, rubrics, and templates, and `--skill` for selected skill bodies. Use `--write` only for authorized `workspace-write` tasks. Without it, the runner defaults to `read-only`. An explicit `--sandbox` must match the authorized task scope. Never silently broaden it after a denial. The runner starts each Codex thread with `on-request` approval and the `auto_review` reviewer, so a command that the sandbox blocks can request reviewed escalation. The reviewer decides whether it runs.
+Use `--role` for the selected original role body. `general-purpose` seats pass their body plus the workflow templates. Repeat `--instruction` for project rules, source references, rubrics, and templates, and `--skill` for selected skill bodies. The runner starts every Codex worker in `workspace-write`. A no-edits task relies on its brief, and the parent checks `git status --short` before dispatch and after completion. Pass `--sandbox danger-full-access` only when the authorized task scope requires it. Never silently broaden it after a denial. The runner starts each Codex thread with `on-request` approval and the `auto_review` reviewer, so a command that the sandbox blocks can request reviewed escalation. The reviewer decides whether it runs.
 
 Do not infer that browser, local-server, or network work is unavailable from the sandbox setting alone. Assign the authorized work to the selected Codex worker with the [macOS escalation guidance](worker-context.md). Before reducing its scope or applying the workflow's fallback rules, inspect the actual command, error, and approval outcome. A sandbox restriction, an explicit denial, a missing tool, and an unsupported client approval request are different outcomes. The runner cannot answer approvals sent back to its client. Report that capability gap when it occurs. Do not switch executors to bypass a denied action.
 

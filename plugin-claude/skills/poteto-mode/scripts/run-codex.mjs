@@ -13,7 +13,10 @@ const usage = `Usage: node run-codex.mjs detect [--executable ABS]
          [--instruction ABS ...] [--skill ABS ...] [--role ABS]
          [--resume EXACT_THREAD_ID] [--sandbox read-only|workspace-write|danger-full-access]
          [--write] [--executable ABS] [--prompt-file ABS]
-Task text comes from --prompt-file or stdin. The run remains foreground until completion.`;
+         [--approve-review REVIEW_ID --review-receipt ABS]
+Task text comes from --prompt-file or stdin. The run remains foreground until completion.
+--approve-review records the user's approval of one denied review listed in the
+--review-receipt result before the resumed turn starts. It requires --resume.`;
 
 function parse(argv) {
   const [command, ...args] = argv;
@@ -32,6 +35,8 @@ function parse(argv) {
     'resume',
     'executable',
     'prompt-file',
+    'approve-review',
+    'review-receipt',
   ]);
   for (let index = 0; index < args.length; index += 1) {
     const name = args[index].slice(2);
@@ -49,7 +54,14 @@ function parse(argv) {
       throw new Error(`Duplicate --${name}.`);
     else options[name] = value;
   }
-  for (const name of ['cwd', 'run-dir', 'role', 'executable', 'prompt-file']) {
+  for (const name of [
+    'cwd',
+    'run-dir',
+    'role',
+    'executable',
+    'prompt-file',
+    'review-receipt',
+  ]) {
     if (options[name] !== undefined && !path.isAbsolute(options[name]))
       throw new Error(`--${name} must be an absolute path.`);
   }
@@ -71,6 +83,13 @@ function parse(argv) {
     options.sandbox !== 'workspace-write'
   )
     throw new Error('--write conflicts with --sandbox.');
+  if (
+    (options['approve-review'] === undefined) !==
+    (options['review-receipt'] === undefined)
+  )
+    throw new Error('--approve-review and --review-receipt go together.');
+  if (options['approve-review'] !== undefined && options.resume === undefined)
+    throw new Error('--approve-review requires --resume.');
   if (command === 'run')
     for (const name of ['cwd', 'run-dir', 'model'])
       if (!options[name]) throw new Error(`Missing required --${name}.`);
@@ -237,6 +256,49 @@ function turnSettings(rolloutPath, turnId) {
   return settings;
 }
 
+const snakeCase = (value) =>
+  value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+
+function approvedAssessment(options) {
+  if (options['approve-review'] === undefined) return null;
+  const prior = JSON.parse(fs.readFileSync(options['review-receipt'], 'utf8'));
+  if (prior.threadId !== options.resume)
+    throw new Error('--review-receipt records a different thread.');
+  const review = (prior.deniedReviews ?? []).find(
+    (entry) => entry.reviewId === options['approve-review'],
+  );
+  if (!review)
+    throw new Error(
+      `--review-receipt lists no denied review ${options['approve-review']}.`,
+    );
+  const { type, ...fields } = review.action;
+  if (
+    ![
+      'command',
+      'execve',
+      'applyPatch',
+      'networkAccess',
+      'mcpToolCall',
+    ].includes(type)
+  )
+    throw new Error(`Approving a denied ${type} action is unsupported.`);
+  const action = { type: snakeCase(type) };
+  for (const [key, value] of Object.entries(fields))
+    action[snakeCase(key)] = key === 'protocol' ? snakeCase(value) : value;
+  return {
+    id: review.reviewId,
+    turn_id: review.turnId,
+    started_at_ms: review.startedAtMs,
+    completed_at_ms: review.completedAtMs,
+    status: 'denied',
+    risk_level: review.review.riskLevel,
+    user_authorization: review.review.userAuthorization,
+    rationale: review.review.rationale,
+    decision_source: review.decisionSource,
+    action,
+  };
+}
+
 function instructionFiles(options) {
   return [
     ...(options.role ? [{ kind: 'role', path: options.role }] : []),
@@ -247,6 +309,7 @@ function instructionFiles(options) {
 
 async function run(options, server) {
   const bodies = instructionFiles(options);
+  const approval = approvedAssessment(options);
   const task = fs.readFileSync(options['prompt-file'] ?? 0, 'utf8');
   if (!task.trim()) throw new Error('A nonempty task is required.');
   const prompt = [
@@ -279,6 +342,11 @@ async function run(options, server) {
     cwd: options.cwd,
     requested,
     resumeThreadId: options.resume ?? null,
+    approvedReview: approval && {
+      reviewId: approval.id,
+      receipt: options['review-receipt'],
+      event: approval,
+    },
     sandbox:
       options.sandbox ?? (options.write ? 'workspace-write' : 'read-only'),
     instructions: bodies,
@@ -307,6 +375,7 @@ async function run(options, server) {
     finalText = '',
     terminal = null;
   const threadSettings = { model: null, effort: null };
+  const deniedReviews = [];
   const child = { pid: null, exitCode: null, signal: null, closed: false };
   const pending = new Map();
   const diagnostic = (event) => {
@@ -346,6 +415,11 @@ async function run(options, server) {
     if (message.method === 'turn/started') turnId = message.params.turn.id;
     if (message.method === 'turn/completed') terminal = message.params.turn;
     if (
+      message.method === 'item/autoApprovalReview/completed' &&
+      message.params.review?.status === 'denied'
+    )
+      deniedReviews.push(message.params);
+    if (
       message.method === 'item/completed' &&
       message.params.item?.type === 'agentMessage'
     )
@@ -372,6 +446,13 @@ async function run(options, server) {
       approvalsReviewer: 'auto_review',
       persistThread: true,
       resumeThreadId: options.resume,
+      beforeTurn:
+        approval &&
+        ((client, id) =>
+          client.request('thread/approveGuardianDeniedAction', {
+            threadId: id,
+            event: approval,
+          })),
       prompt,
       onDiagnostic: diagnostic,
       onProgress: (update) => {
@@ -426,6 +507,8 @@ async function run(options, server) {
     requested,
     observed: turnSettings(rolloutPath, turnId),
     threadSettings,
+    approvedReview: request.approvedReview?.reviewId ?? null,
+    deniedReviews,
     status,
     resultStatus: result?.status ?? null,
     finalText,

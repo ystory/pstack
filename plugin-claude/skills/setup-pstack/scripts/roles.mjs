@@ -6,16 +6,9 @@ export const roles = {
   'perf-issue': { kind: 'scalar', effort: 'xhigh' },
   hillclimb: { kind: 'scalar', effort: 'xhigh' },
   'judgment and prose': { kind: 'scalar', effort: 'xhigh' },
-  'hardest tasks': { kind: 'scalar', effort: 'max' },
-  'reflect tooling': { kind: 'scalar', effort: 'high' },
-  'reflect judgment, divergent, synthesizer': {
-    kind: 'scalar',
-    effort: 'xhigh',
-  },
   'arena runners': { kind: 'panel', effort: 'high' },
   'arena cross-judge pool': { kind: 'pool', effort: 'high' },
   'swarm workers': { kind: 'scalar', effort: 'high' },
-  'architect runners': { kind: 'panel', effort: 'high' },
   'interrogate reviewers': { kind: 'panel', effort: 'high' },
 };
 export const retiredRoles = new Set([
@@ -23,10 +16,14 @@ export const retiredRoles = new Set([
   'how explainer',
   'why investigators',
   'why synthesizer',
+  'hardest tasks',
+  'reflect tooling',
+  'reflect judgment, divergent, synthesizer',
+  'architect runners',
 ]);
-export const seats = { scalar: 1, panel: 3, pool: 3 };
-const budgetLadder = ['low', 'medium', 'high', 'xhigh', 'max'];
-export const budgets = { unlimited: 1, large: 0, medium: -1, small: -2 };
+export const seats = { scalar: 1, panel: 3, pool: 2 };
+const budgetLadder = ['low', 'medium', 'high', 'xhigh'];
+export const budgets = { large: 0, medium: -1, small: -2 };
 const shifted = (effort, budget) =>
   budgetLadder[
     Math.min(
@@ -48,6 +45,7 @@ export const efforts = [
   'max',
   'ultra',
 ];
+export const effortsAboveXhigh = new Set(['max', 'ultra']);
 export const aliases = new Set(['auto', 'inherit-parent']);
 export const kinds = [
   'general-purpose',

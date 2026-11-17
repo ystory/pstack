@@ -20,6 +20,7 @@ import {
   aliases,
   budgets,
   efforts,
+  effortsAboveXhigh,
   entriesFor,
   modelFor,
   namedEffort,
@@ -97,7 +98,7 @@ function entryFor(value, role) {
   };
 }
 
-export function normalizeConfig(input, previous) {
+export function normalizeConfig(input, previous, saved = false) {
   if (
     !input ||
     typeof input !== 'object' ||
@@ -106,7 +107,13 @@ export function normalizeConfig(input, previous) {
     (input.host !== undefined && input.host !== 'claude-code')
   )
     throw new Error('Expected Claude model configuration schemaVersion 1.');
-  const budget = input.budget ?? previous?.budget ?? 'large';
+  const replacedBudget =
+    saved && input.budget === 'unlimited'
+      ? { from: 'unlimited', to: 'large' }
+      : null;
+  const budget = replacedBudget
+    ? replacedBudget.to
+    : (input.budget ?? previous?.budget ?? 'large');
   if (!Object.hasOwn(budgets, budget))
     throw new Error('Unknown pstack budget.');
   const selected = input.roles ?? {};
@@ -141,6 +148,7 @@ export function normalizeConfig(input, previous) {
       roles: normalized,
     },
     droppedRoles,
+    replacedBudget,
   };
 }
 
@@ -315,7 +323,13 @@ export async function loadConfig(home) {
       throw new Error('Model configuration is not valid JSON.');
     }
   }
-  return { file, directory, existing, ...normalizeConfig(saved ?? {}), saved };
+  return {
+    file,
+    directory,
+    existing,
+    ...normalizeConfig(saved ?? {}, undefined, true),
+    saved,
+  };
 }
 
 async function main(options) {
@@ -345,6 +359,7 @@ async function main(options) {
       config: loaded.config,
       proposal: { ...loaded.config, roles: proposal },
       droppedRoles: loaded.droppedRoles,
+      replacedBudget: loaded.replacedBudget,
       needsChoice: choicesFor(proposal),
       targetReasoningEffort: namedEffort(loaded.config.budget),
     };
@@ -379,6 +394,7 @@ async function main(options) {
       budget: loaded.config.budget,
       targetReasoningEffort: targetEffort(options.role, loaded.config.budget),
       droppedRoles: loaded.droppedRoles,
+      replacedBudget: loaded.replacedBudget,
     };
   }
   const catalog = normalizeCatalog(
@@ -424,6 +440,7 @@ async function main(options) {
       config,
       targetReasoningEffort: namedEffort(options.budget),
       droppedRoles: loaded.droppedRoles,
+      replacedBudget: loaded.replacedBudget,
       needsChoice: [...choicesFor(config.roles, catalog), ...unmapped],
     };
   }
@@ -436,6 +453,15 @@ async function main(options) {
     supplied.config ?? supplied,
     loaded.config,
   );
+  for (const [role, value] of Object.entries(normalized.config.roles))
+    for (const entry of entriesFor(value))
+      if (
+        typeof entry === 'object' &&
+        effortsAboveXhigh.has(entry.reasoningEffort)
+      )
+        throw new Error(
+          `Reasoning effort ${entry.reasoningEffort} for ${role} is above xhigh; pstack runs roles at xhigh or below.`,
+        );
   const needsChoice = choicesFor(normalized.config.roles, catalog);
   if (needsChoice.length)
     throw new Error(
@@ -456,6 +482,7 @@ async function main(options) {
     droppedRoles: [
       ...new Set([...loaded.droppedRoles, ...normalized.droppedRoles]),
     ],
+    replacedBudget: loaded.replacedBudget,
     changed,
     dryRun: Boolean(options.dryRun),
     sha256: hash(bytes),
@@ -492,7 +519,7 @@ if (
     );
     if (options.help) {
       process.stdout.write(
-        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG] [--agy-catalog ABS]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
+        'Usage: node models.mjs read|resolve|budget|write|catalog\nread/resolve: [--claude-home ABS] [--role ROLE] [--kind KIND]\ncatalog: [--input ABS_CODEX_CATALOG] [--native-catalog ABS_CONFIRMED_NATIVE_CATALOG] [--agy-catalog ABS]\nbudget: --budget large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\n',
       );
       return;
     }

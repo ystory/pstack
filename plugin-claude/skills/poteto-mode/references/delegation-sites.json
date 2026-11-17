@@ -8,25 +8,12 @@
     "perf-issue": "scalar",
     "hillclimb": "scalar",
     "judgment and prose": "scalar",
-    "hardest tasks": "scalar",
-    "reflect tooling": "scalar",
-    "reflect judgment, divergent, synthesizer": "scalar",
     "arena runners": "list",
     "arena cross-judge pool": "list",
     "swarm workers": "scalar",
-    "architect runners": "list",
     "interrogate reviewers": "list"
   },
   "sites": [
-    {
-      "path": "skills/architect/SKILL.md",
-      "classification": "configured",
-      "roles": [
-        "architect runners"
-      ],
-      "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/execution.md"
-    },
     {
       "path": "skills/arena/SKILL.md",
       "classification": "configured",
@@ -118,13 +105,9 @@
         "perf-issue",
         "hillclimb",
         "judgment and prose",
-        "hardest tasks",
-        "reflect tooling",
-        "reflect judgment, divergent, synthesizer",
         "arena runners",
         "arena cross-judge pool",
         "swarm workers",
-        "architect runners",
         "interrogate reviewers"
       ],
       "workerKind": "poteto-agent",
@@ -159,7 +142,6 @@
       "classification": "configured",
       "roles": [
         "bug-fix",
-        "hardest tasks",
         "swarm workers"
       ],
       "workerKind": "poteto-agent",
@@ -180,7 +162,6 @@
       "classification": "configured",
       "roles": [
         "feature, refactoring",
-        "hardest tasks",
         "swarm workers"
       ],
       "workerKind": "poteto-agent",
@@ -191,34 +172,6 @@
       "classification": "configured",
       "roles": [
         "hillclimb",
-        "hardest tasks",
-        "swarm workers"
-      ],
-      "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/execution.md"
-    },
-    {
-      "path": "skills/poteto-mode/playbooks/multi-phase-plan.md",
-      "classification": "configured",
-      "roles": [
-        "judgment and prose",
-        "swarm workers"
-      ],
-      "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/execution.md"
-    },
-    {
-      "path": "skills/poteto-mode/playbooks/opening-a-pr.md",
-      "classification": "inherits-caller",
-      "roles": [],
-      "workerKind": "poteto-agent",
-      "binding": "skills/poteto-mode/references/execution.md"
-    },
-    {
-      "path": "skills/poteto-mode/playbooks/orchestrate.md",
-      "classification": "configured",
-      "roles": [
-        "feature, refactoring",
         "swarm workers"
       ],
       "workerKind": "poteto-agent",
@@ -236,7 +189,6 @@
       "classification": "configured",
       "roles": [
         "perf-issue",
-        "hardest tasks",
         "swarm workers"
       ],
       "workerKind": "poteto-agent",
@@ -247,7 +199,6 @@
       "classification": "configured",
       "roles": [
         "feature, refactoring",
-        "hardest tasks",
         "swarm workers"
       ],
       "workerKind": "poteto-agent",
@@ -291,6 +242,18 @@
       "binding": "skills/poteto-mode/references/execution.md"
     },
     {
+      "path": "skills/poteto-mode/worker.md",
+      "classification": "context",
+      "roles": [],
+      "workerKind": [
+        "general-purpose",
+        "poteto-agent",
+        "comment-sicko",
+        "read-only"
+      ],
+      "binding": "skills/poteto-mode/references/execution.md"
+    },
+    {
       "path": "skills/principle-build-the-lever/SKILL.md",
       "classification": "context",
       "roles": [],
@@ -317,23 +280,6 @@
       "roles": [
         "swarm workers"
       ],
-      "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/execution.md"
-    },
-    {
-      "path": "skills/reflect/SKILL.md",
-      "classification": "configured",
-      "roles": [
-        "reflect judgment, divergent, synthesizer",
-        "reflect tooling"
-      ],
-      "workerKind": "general-purpose",
-      "binding": "skills/poteto-mode/references/execution.md"
-    },
-    {
-      "path": "skills/reflect/references/judgment-reviewer.md",
-      "classification": "context",
-      "roles": [],
       "workerKind": "general-purpose",
       "binding": "skills/poteto-mode/references/execution.md"
     },
@@ -432,10 +378,6 @@
       "reason": "Native target installation, commands, host capabilities and upstream attribution."
     },
     {
-      "path": "skills/architect/SKILL.md",
-      "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
-    },
-    {
       "path": "skills/arena/SKILL.md",
       "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
     },
@@ -528,16 +470,8 @@
       "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
     },
     {
-      "path": "skills/poteto-mode/playbooks/multi-phase-plan.md",
-      "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
-    },
-    {
       "path": "skills/poteto-mode/playbooks/opening-a-pr.md",
       "reason": "Map host-specific paths, tooling or lifecycle to shared native execution, history, wakeup or authoring guidance."
-    },
-    {
-      "path": "skills/poteto-mode/playbooks/orchestrate.md",
-      "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
     },
     {
       "path": "skills/poteto-mode/playbooks/pause-safely.md",
@@ -576,14 +510,6 @@
       "reason": "Retain the accepted immutable-bundle bootstrap, watcher, plan checker or project-scoped history adaptation."
     },
     {
-      "path": "skills/poteto-mode/scripts/check-plan.mjs",
-      "reason": "Retain the accepted immutable-bundle bootstrap, watcher, plan checker or project-scoped history adaptation."
-    },
-    {
-      "path": "skills/poteto-mode/scripts/check-plan.test.ts",
-      "reason": "Retain the accepted immutable-bundle bootstrap, watcher, plan checker or project-scoped history adaptation."
-    },
-    {
       "path": "skills/poteto-mode/scripts/watch-pr/cli.ts",
       "reason": "Retain the accepted immutable-bundle bootstrap, watcher, plan checker or project-scoped history adaptation."
     },
@@ -604,22 +530,6 @@
       "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
     },
     {
-      "path": "skills/reflect/references/divergent-reviewer.md",
-      "reason": "Map host-specific paths, tooling or lifecycle to shared native execution, history, wakeup or authoring guidance."
-    },
-    {
-      "path": "skills/reflect/references/judgment-reviewer.md",
-      "reason": "Map host-specific paths, tooling or lifecycle to shared native execution, history, wakeup or authoring guidance."
-    },
-    {
-      "path": "skills/reflect/references/synthesizer.md",
-      "reason": "Map host-specific paths, tooling or lifecycle to shared native execution, history, wakeup or authoring guidance."
-    },
-    {
-      "path": "skills/reflect/references/tooling-reviewer.md",
-      "reason": "Map host-specific paths, tooling or lifecycle to shared native execution, history, wakeup or authoring guidance."
-    },
-    {
       "path": "skills/show-me-your-work/SKILL.md",
       "reason": "Bind existing roles and workflow semantics to the selected executor; retain cardinality and review rules."
     },
@@ -638,8 +548,6 @@
   ],
   "preservedExecutionAdaptations": [
     "skills/poteto-mode/scripts/bootstrap.ts",
-    "skills/poteto-mode/scripts/check-plan.mjs",
-    "skills/poteto-mode/scripts/check-plan.test.ts",
     "skills/poteto-mode/scripts/watch-pr/cli.ts",
     "skills/poteto-mode/scripts/watch-pr/watch-pr",
     "skills/poteto-mode/scripts/worktree-audit.sh"

@@ -105,7 +105,7 @@ test('Claude plugin loads a unique skill catalog, native agents, and retained li
   assert.ok(!tree.some((entry) => entry.path.startsWith('automations/benny')));
 });
 
-test('actual readonly callers retain native file-tool restrictions and recall and Reflect retain full access', async () => {
+test('actual readonly callers retain native file-tool restrictions and recall retains full access', async () => {
   const readonly = await text('agents/read-only.md');
   assert.equal(frontmatter(readonly).model, 'inherit');
   assert.equal(
@@ -126,7 +126,7 @@ test('actual readonly callers retain native file-tool restrictions and recall an
     assert.ok(site);
     assert.ok([site.workerKind].flat().includes('read-only'));
   }
-  for (const caller of ['skills/recall/SKILL.md', 'skills/reflect/SKILL.md']) {
+  for (const caller of ['skills/recall/SKILL.md']) {
     assert.ok((await text(caller)).includes('`general-purpose`'), caller);
     assert.ok(!(await text(caller)).includes('kind `read-only`'), caller);
   }
@@ -170,7 +170,7 @@ test('delegation inventory retains the upstream role shapes and covers every sou
     .split('\n')
     .filter((line) => /^[^#\s].+: /.test(line))
     .map((line) => line.split(': ')[0]!);
-  assert.equal(upstreamRoles.length, 13);
+  assert.equal(upstreamRoles.length, 9);
   assert.deepEqual(
     Object.keys(inventory.roleShapes).sort(),
     upstreamRoles.sort(),
@@ -180,12 +180,7 @@ test('delegation inventory retains the upstream role shapes and covers every sou
       .filter(([, shape]) => shape === 'list')
       .map(([role]) => role)
       .sort(),
-    [
-      'arena runners',
-      'arena cross-judge pool',
-      'architect runners',
-      'interrogate reviewers',
-    ].sort(),
+    ['arena runners', 'arena cross-judge pool', 'interrogate reviewers'].sort(),
   );
   const sourceTree = await inspectTree(path.join(root, 'upstream/pstack'));
   const sites = new Map(inventory.sites.map((site) => [site.path, site]));

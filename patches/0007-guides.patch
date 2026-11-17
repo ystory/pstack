@@ -1,5 +1,5 @@
 diff --git a/docs/guide/01-setup.md b/docs/guide/01-setup.md
-index 37c1ccf..6d0c1f7 100644
+index c581355..6d0c1f7 100644
 --- a/docs/guide/01-setup.md
 +++ b/docs/guide/01-setup.md
 @@ -4,63 +4,68 @@ In this page you install the plugin, pick which models pstack uses, and run your
@@ -40,7 +40,7 @@ index 37c1ccf..6d0c1f7 100644
 +
 +Review the accepted selections before saving. Setup stores `$CODEX_HOME/pstack-codex/models.json`, defaulting to `~/.codex/pstack-codex/models.json`. Only accepted roles are saved. A role left unconfigured uses the actual native parent with disclosure. Scalars have one entry and initial panels or pools have three.
  
--The defaults are the same as the `large` budget. Most roles run at `xhigh` reasoning. The hardest changes run at `max`, and the review panels and swarm workers run at `high`. `unlimited` raises each role one level, up to `max`. Gemini tops out at `high`, so it stays there. `medium` lowers each role one level and `small` lowers it two, and both spend fewer tokens.
+-The defaults are the same as the `large` budget. Code, prose, and judgment run on Opus 5.5 at `xhigh` reasoning, and the review panels and swarm workers run at `high`. No role runs above `xhigh`. Outside a review panel, Fable 5.2 runs only when you name it for a task or after two Opus 5.5 runs of the same brief fail their check. `medium` lowers each role one level and `small` lowers it two, and both spend fewer tokens.
 +`auto` and `inherit-parent` bind to the current native parent's model and effort. Exact choices carry model and effort separately. Under the `large` budget, most roles target `xhigh` reasoning. The hardest changes target `max`, and the review panels and swarm workers target `high`. `unlimited` raises each role one level, up to `max`. `medium` lowers each role one level and `small` lowers it two, and both spend fewer tokens. A budget change retains exact models and selects each model's highest supported effort at or below its role's target. Parent aliases keep the parent's actual settings.
  
 -You only override what you care about. A role with no line in the rule keeps the skill's default. To restore a default, delete that role's line. A rerun of `/setup-pstack` keeps any role whose model differs from the default. When a default changes, a rule written before the change still pins the old default until you run `/setup-pstack` again. That run replaces the old defaults it recognizes, tells you which, and keeps your other choices. To drop a pin it does not recognize, delete that role's line or the file first.
@@ -85,7 +85,7 @@ index 37c1ccf..6d0c1f7 100644
 +$pstack-codex:poteto-mode add a --json flag to this command. text output stays byte-identical. verify both.
  ```
  
--Watch the todo list. Its first items are the matched playbook's steps copied in, the Feature playbook for this prompt. If `/poteto-mode` skips a step, the step stays in the list with `skip: <reason>`, so you can see what it chose not to do.
+-Watch the todo list. Its first items are the matched playbook's steps copied in, the Feature playbook for this prompt.
 +Watch the todo list. Its first items are the matched playbook's steps copied in, the Feature playbook for this prompt. If `$pstack-codex:poteto-mode` skips a step, the step stays in the list with `skip: <reason>`, so you can see what it chose not to do.
  
 -From here you can type normal follow-ups. To keep `/poteto-mode` on for the whole chat, pick it from the `/` menu with Option+Enter (Mac) or Alt+Enter (Windows) instead of Enter. That makes it a [Custom Mode](https://cursor.com/docs/skills#using-a-skill-as-a-custom-mode), which stays in context on every turn until you exit it. Custom Modes are available in the Agents Window and the CLI. Plain Enter attaches the skill to one message, and it fades as the chat moves on.
@@ -94,14 +94,14 @@ index 37c1ccf..6d0c1f7 100644
 -Next: [Route work through `/poteto-mode`](./02-poteto-mode.md).
 +Next: [Route work through `$pstack-codex:poteto-mode`](./02-poteto-mode.md).
 diff --git a/docs/guide/02-poteto-mode.md b/docs/guide/02-poteto-mode.md
-index b2906f6..ede703a 100644
+index 5b78906..90cf15f 100644
 --- a/docs/guide/02-poteto-mode.md
 +++ b/docs/guide/02-poteto-mode.md
 @@ -1,6 +1,6 @@
 -# Route work through `/poteto-mode`
 +# Route work through poteto-mode
  
--`/poteto-mode` is the front door. You give it a goal, it matches one of twenty-three playbooks, copies that playbook's steps into the todo list, and calls the other skills as the steps need them. In this page you learn what a good prompt looks like, and how little of one you actually need.
+-`/poteto-mode` is the front door. You give it a goal, it matches one of twenty-two playbooks, copies that playbook's steps into the todo list, and calls the other skills as the steps need them. In this page you learn what a good prompt looks like, and how little of one you actually need.
 +`$pstack-codex:poteto-mode` is the front door. You give it a goal, it matches one of twenty-three playbooks, copies that playbook's steps into the todo list, and calls the other skills as the steps need them. In this page you learn what a good prompt looks like, and how little of one you actually need.
  
  ![A dispatcher pulls a switch lever to route robots on rail handcars toward lit gates, under a /poteto-mode departure board listing BUG FIX, FEATURE, and INVESTIGATION.](./images/router.jpg)
@@ -114,7 +114,7 @@ index b2906f6..ede703a 100644
 +$pstack-codex:poteto-mode users get two notifications after a retry. repro first, then fix and verify.
  ```
  
- That's a Bug fix prompt. "repro first" is a real constraint, not politeness, and the playbook honors it. Watch the todo list fill with the Bug fix steps. A skipped step stays visible with `skip: <reason>`.
+ That's a Bug fix prompt. "repro first" is a real constraint, not politeness, and the playbook honors it. Watch the todo list fill with the Bug fix steps.
 @@ -50,7 +50,7 @@ A useful prompt carries up to five things, and each one fits in a sentence:
  Here's one prompt with all five:
  
@@ -318,10 +318,10 @@ index ee23324..83396db 100644
  
  Next: [Design the change](./04-design.md).
 diff --git a/docs/guide/04-design.md b/docs/guide/04-design.md
-index 38a8144..dfcdb9e 100644
+index 4c5ebc2..bc6a1cd 100644
 --- a/docs/guide/04-design.md
 +++ b/docs/guide/04-design.md
-@@ -1,34 +1,34 @@
+@@ -1,28 +1,28 @@
  # Design before you write code
  
 -One attempt at a hard design locks in the first shape the model thought of. `/architect` settles types and boundaries before implementation. `/arena` runs several attempts at the same brief and merges the best parts. `/interrogate` has other models try to break the result. When the job is coverage rather than design synthesis, `/swarm` fans out slices or races and aggregates their results.
@@ -339,17 +339,10 @@ index 38a8144..dfcdb9e 100644
 +$pstack-codex:architect design the import pipeline before writing any code. i care most about how callers use it.
  ```
  
--[`/architect`](../../skills/architect/SKILL.md) grounds itself first, tracing the code the design touches and running `/why` when it moves ownership or layers. Then it runs `/arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
+-[`/architect`](../../skills/architect/SKILL.md) traces every system the change touches first. Then it sketches two different shapes, each with types, signatures, and module boundaries, and picks the one where each piece of state has one owner, each task has one way to do it, and callers need to know least. For a large or contested design, it runs `/arena` instead of sketching alone. If you want to see the design before any code, say so in the prompt.
 +[`$pstack-codex:architect`](../../skills/architect/SKILL.md) grounds itself first, tracing the code the design touches and running `$pstack-codex:why` when it moves ownership or layers. Then it runs `$pstack-codex:arena` to produce competing design sketches, with the caller's usage written first in each, followed by types, signatures, and a module map.
  
- By default it proceeds straight from the synthesized design into implementation. If you want to see the design first, say so:
- 
- ```text
--/architect with checkpoint. stop and show me before implementing.
-+$pstack-codex:architect with checkpoint. stop and show me before implementing.
- ```
- 
--The design isn't sacred once code starts. If implementation shows the same workaround in unrelated places, or types that only compile with `any` or forced casts, `/architect` treats that as proof the design is wrong. It scraps the sketch and starts over instead of patching around it.
+-The design isn't sacred once code starts. If the same workaround keeps coming back, `/architect` redesigns instead of patching around it.
 +The design isn't sacred once code starts. If implementation shows the same workaround in unrelated places, or types that only compile with `any` or forced casts, `$pstack-codex:architect` treats that as proof the design is wrong. It scraps the sketch and starts over instead of patching around it.
  
 -## Fan out attempts with `/arena`
@@ -365,7 +358,7 @@ index 38a8144..dfcdb9e 100644
  
  ```mermaid
  flowchart LR
-@@ -44,29 +44,29 @@ flowchart LR
+@@ -38,29 +38,29 @@ flowchart LR
      H --> I[Verify]
  ```
  
@@ -404,7 +397,7 @@ index 38a8144..dfcdb9e 100644
  
  Read the Dropped list too. You can override the verdict.
  
-@@ -75,35 +75,35 @@ Read the Dropped list too. You can override the verdict.
+@@ -69,35 +69,35 @@ Read the Dropped list too. You can override the verdict.
  Never take the first design. Ask for a few, and pick from evidence you can see:
  
  ```text
@@ -446,8 +439,8 @@ index 38a8144..dfcdb9e 100644
 +$pstack-codex:poteto-mode turn this design into a plan. small verifiable PRs, each with its own verification steps.
  ```
  
- The [Multi-phase plan playbook](../../skills/poteto-mode/playbooks/multi-phase-plan.md) settles any remaining open questions by prototype, then writes one section per PR, each ending in proof that the change works. A passing test suite alone doesn't count as that proof. The plan is the deliverable. The playbook doesn't implement it, and it names which execution playbook should run it next.
-@@ -111,7 +111,7 @@ The [Multi-phase plan playbook](../../skills/poteto-mode/playbooks/multi-phase-p
+ The [Multi-phase plan playbook](../../skills/poteto-mode/playbooks/multi-phase-plan.md) settles any remaining open questions by prototype, then writes one section per PR, each ending in proof that the change works. A passing test suite alone doesn't count as that proof. The plan is the deliverable. The playbook doesn't implement it, and execution starts only when you say go.
+@@ -105,7 +105,7 @@ The [Multi-phase plan playbook](../../skills/poteto-mode/playbooks/multi-phase-p
  For a migration, state the bar in the prompt:
  
  ```text
@@ -456,12 +449,12 @@ index 38a8144..dfcdb9e 100644
  ```
  
  "bugs included" keeps the migration from quietly fixing things on the way, which would make the old and new output impossible to compare. For a project that spans many days, you can commit the plan to the repo for a while so other agents see the work in progress. Delete it when the work lands.
-@@ -120,14 +120,14 @@ For a migration, state the bar in the prompt:
+@@ -114,14 +114,14 @@ For a migration, state the bar in the prompt:
  
  You might be wondering whether every change needs this. No. Most changes need none of it. A rough ladder:
  
 -- A small, finished change you're unsure about needs `/interrogate` alone.
--- A change that crosses function boundaries or moves ownership earns `/architect`, which brings `/arena` with it.
+-- A change that crosses function boundaries or moves ownership earns `/architect`, which brings `/arena` with it when the design is large or contested.
 -- A standalone decision where independent attempts would help, like naming, formats, or an algorithm, is `/arena` directly.
 -- A coverage matrix, set of parallel checks, or race with declared arms is `/swarm`.
 +- A small, finished change you're unsure about needs `$pstack-codex:interrogate` alone.
@@ -478,7 +471,7 @@ index 38a8144..dfcdb9e 100644
  
  Next: [Build and clean the change](./05-build-and-clean.md).
 diff --git a/docs/guide/05-build-and-clean.md b/docs/guide/05-build-and-clean.md
-index dbadc3d..31065f1 100644
+index ce191d1..31065f1 100644
 --- a/docs/guide/05-build-and-clean.md
 +++ b/docs/guide/05-build-and-clean.md
 @@ -7,76 +7,76 @@ The build playbooks share one discipline. Say what you observed, and let the pla
@@ -544,7 +537,7 @@ index dbadc3d..31065f1 100644
  
  ## Clean before you commit
  
--The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md) runs `/deslop` on the diff before each commit and applies [`/unslop`](../../skills/unslop/SKILL.md) to the PR description and commit bodies. `/deslop` ships in the `cursor-team-kit` plugin, not in pstack. If you don't have it, ask for the same outcome in plain words: remove narrating comments, unsupported guards, dead compatibility paths, and unrelated edits.
+-The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md) runs `/deslop` on the diff before each commit, and poteto-mode applies [`/unslop`](../../skills/unslop/SKILL.md) to the PR description and commit bodies. `/deslop` ships in the `cursor-team-kit` plugin, not in pstack. If you don't have it, ask for the same outcome in plain words: remove narrating comments, unsupported guards, dead compatibility paths, and unrelated edits.
 +The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md) runs [`$pstack-codex:deslop`](../../skills/deslop/SKILL.md) on the diff before each commit and applies [`$pstack-codex:unslop`](../../skills/unslop/SKILL.md) to the PR description and commit bodies. This distribution bundles `deslop` from `cursor-team-kit` with its original attribution. Its pass removes narrating comments, unsupported guards, dead compatibility paths, and unrelated edits.
  
 -For prose, `/unslop` takes a target and any extra rules you have:
@@ -576,7 +569,7 @@ index dbadc3d..31065f1 100644
  **Pitfall:** cleanup is not optional polish. A diff with narrating comments and defensive dead weight reads as unfinished to reviewers, and the extra code is where the next bug hides. If the diff feels padded, say `deslop it` before you commit, not after review calls it out.
  
 diff --git a/docs/guide/06-verify-and-ship.md b/docs/guide/06-verify-and-ship.md
-index ffcdc0d..bb8ad60 100644
+index 8ee5ca6..22f0d88 100644
 --- a/docs/guide/06-verify-and-ship.md
 +++ b/docs/guide/06-verify-and-ship.md
 @@ -11,7 +11,7 @@ Verification is the slowest step in most agent work, because it's the step that
@@ -704,7 +697,7 @@ index ffcdc0d..bb8ad60 100644
 +$pstack-codex:poteto-mode open the pr. small ordered commits, evidence in the description.
  ```
  
- The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md) works from a worktree, rebases the work into small ordered commits, cleans the diff, unslops the prose, and returns the PR link. Five narrow PRs beat one fat one, and stacked follow-ups beat a growing branch.
+ The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md) works from a worktree, rebases the work into small landable commits, cleans the diff, writes a one-minute briefing as the body, and opens the PR ready. Stacked follow-ups beat a growing branch.
 @@ -138,13 +138,13 @@ The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md)
  An open PR starts collecting blockers immediately. Checks fail, reviewers comment, trunk moves. Hand that churn to the [Babysit playbook](../../skills/poteto-mode/playbooks/babysit.md):
  
@@ -713,7 +706,7 @@ index ffcdc0d..bb8ad60 100644
 +$pstack-codex:poteto-mode babysit this pr. get it green.
  ```
  
- Babysit watches the PR, with a bundled watcher on GitHub or the Origin CLI when it's available, and takes blockers in order: conflicts, then review threads, then CI. Every known fix batches into one push, so the checks restart once instead of after every fix. The comment triage is skeptical, because humans and bots file real catches and noise in the same list. A real finding gets a fix, and noise gets dismissed with the disproof posted on the thread. When all you want is status, ask smaller and Babysit answers without starting the loop:
+ Babysit watches the PR, with a bundled watcher on GitHub or the Origin CLI when it's available, and takes blockers in order: conflicts, then review threads, then CI. It never rebases or force-pushes. A conflict or a stale base comes back to you with the branch that needs the rebase. The comment triage is skeptical, because humans and bots file real catches and noise in the same list. A real finding gets a fix, and noise gets dismissed with the disproof posted on the thread. When all you want is status, ask smaller and Babysit answers without starting the loop:
  
  ```text
 -/poteto-mode check on pr 123. anything outstanding?
@@ -731,7 +724,7 @@ index ffcdc0d..bb8ad60 100644
  
  The [Shipping playbook](../../skills/poteto-mode/playbooks/shipping.md) verifies each PR independently before it arms anything. One fresh agent per PR proves the behavior live, and the agent that judges a change is never the one that wrote it. Then Shipping lands only the contiguous verified run from the bottom, one PR at a time through GitHub by default or Origin when its CLI is available, and reports the first PR that breaks the chain. A verified PR sitting above an unverified one waits, because merging it would pull the gap in underneath.
 diff --git a/docs/guide/07-overnight.md b/docs/guide/07-overnight.md
-index 17bae40..a3a01fc 100644
+index 3f9ee8b..92b32fc 100644
 --- a/docs/guide/07-overnight.md
 +++ b/docs/guide/07-overnight.md
 @@ -1,6 +1,6 @@
@@ -807,16 +800,16 @@ index 17bae40..a3a01fc 100644
 +$pstack-codex:poteto-mode autopilot these five changes, but don't merge. i'll land them in the morning.
  ```
  
- [Orchestrate](../../skills/poteto-mode/playbooks/orchestrate.md) is for a program that outlives any single agent: multi-day, many stacked PRs, fleets of subagents under one standing coordinator chat. The coordinator decides which agent does each piece of work, checks what each one produces, and never writes code itself. If one agent could finish the work in a session, the playbook itself routes you back to the overnight contract above:
+ A whole program, such as a migration across many packages, has no playbook of its own. `/poteto-mode` routes large or cross-cutting work to [`/figure-it-out`](../../skills/figure-it-out/SKILL.md), which designs one rigorous run for it:
  
  ```text
--/poteto-mode orchestrate the store migration. own it until every package is converted and merged. i'll check in twice a day.
+-/poteto-mode migrate every package to the new store. own it until each one is converted and merged. i'll check in twice a day.
 +$pstack-codex:poteto-mode orchestrate the store migration. own it until every package is converted and merged. i'll check in twice a day.
  ```
  
  ## Run many projects in parallel
  
--A [Cursor Project](https://cursor.com/blog/projects) gives one coordinator agent a persistent thread. The coordinator doesn't write code. It directs subagents, which run in the cloud by default, so the work continues when your laptop is closed. That's the shape the Orchestrate playbook expects. Start your prompts to the coordinator with `/poteto-mode`, and the subagents it spawns follow the playbooks.
+-A [Cursor Project](https://cursor.com/blog/projects) gives one coordinator agent a persistent thread. The coordinator doesn't write code. It directs subagents, which run in the cloud by default, so the work continues when your laptop is closed. Start your prompts to the coordinator with `/poteto-mode`, and the subagents it spawns follow the playbooks. Each agent it starts reads [`worker.md`](../../skills/poteto-mode/worker.md) first, so workers hold to the kickoff's bar, decide reversible calls instead of asking you, and open PRs ready for review.
 +Use one Codex project and a standing coordinator chat for a body of work. The coordinator doesn't write code. It directs native subagents in separate local Git worktrees. Start your prompts to the coordinator with `$pstack-codex:poteto-mode`, and the subagents it spawns follow the playbooks.
 +
 +Keep the host awake and available for the work to run. Worktrees preserve files, but they do not provide a separate VM or a remote machine that keeps working when your laptop sleeps. After a restart, the coordinator reads its saved state, checks which agents and watchers survived, and starts replacements only for work you asked to continue.
@@ -878,7 +871,7 @@ index d292150..828c958 100644
  Don't memorize the list. Skim it now, then come back when you catch the agent doing something a name here would have prevented. That's how the vocabulary sticks.
  
 diff --git a/docs/guide/09-make-it-yours.md b/docs/guide/09-make-it-yours.md
-index 8d1c4b4..320375a 100644
+index 92ed39b..320375a 100644
 --- a/docs/guide/09-make-it-yours.md
 +++ b/docs/guide/09-make-it-yours.md
 @@ -4,33 +4,33 @@ poteto-mode is one person's style. The playbooks, routing, and model roles under
@@ -915,7 +908,7 @@ index 8d1c4b4..320375a 100644
 +$pstack-codex:reflect that took way too long. capture what we learned so the next run doesn't repeat it.
  ```
  
--[`/reflect`](../../skills/reflect/SKILL.md) sends the transcript to three parallel reviewers, then a synthesizer sorts the proposals into `Accepted`, `Rejected`, and `Backlog` and waits for your approval before any skill changes. Approve a proposal only if it would change a future decision. One weird session is an anecdote, not a rule.
+-[`/reflect`](../../skills/reflect/SKILL.md) reads the transcript, keeps only lessons that would change a future agent's work, and sorts the proposals into `Accepted`, `Rejected`, and `Backlog`. It waits for your approval before any skill changes. Approve a proposal only if it would change a future decision. One weird session is an anecdote, not a rule.
 +[`$pstack-codex:reflect`](../../skills/reflect/SKILL.md) sends the transcript to three parallel reviewers, then a synthesizer sorts the proposals into `Accepted`, `Rejected`, and `Backlog` and waits for your approval before any skill changes. Approve a proposal only if it would change a future decision. One weird session is an anecdote, not a rule.
  
 -## Fix the environment with `/correct`
@@ -1240,10 +1233,10 @@ index 17422b9..1d99da6 100644
  
  Next: [Set up pstack](./01-setup.md).
 diff --git a/docs/harness/claude-code.md b/docs/harness/claude-code.md
-index 8500e6f..76835e8 100644
+index 0f12039..76835e8 100644
 --- a/docs/harness/claude-code.md
 +++ b/docs/harness/claude-code.md
-@@ -1,67 +1,7 @@
+@@ -1,68 +1,7 @@
 -# pstack in Claude Code
 +# Claude Code workers from Codex
  
@@ -1257,7 +1250,7 @@ index 8500e6f..76835e8 100644
 -| --- | --- |
 -| `Task` | `Agent` |
 -| `AskQuestion` | `AskUserQuestion`. In `-p` mode it is absent, so ask in plain text. |
--| Open a todolist | Use `TodoWrite` if the session offers it. Otherwise keep the list in your reply and update it at each phase. |
+-| Open a todolist, or copy steps into the todolist tool | Use `TodoWrite` if the session offers it. Otherwise keep the list in your reply and update it at each phase. |
 -| Run another pstack skill (`/name` or "the **name** skill") | `Read` `<pstack>/skills/<name>/SKILL.md` and follow it. The `Skill` tool refuses most pstack skills. When you tell the user to type it, write `/pstack:<name>`. |
 -| `Grep`, `Glob` | `Bash` with `rg` when the session has no `Grep` or `Glob`. |
 -
@@ -1267,6 +1260,7 @@ index 8500e6f..76835e8 100644
 -| --- | --- |
 -| `subagent_type: generalPurpose` | `subagent_type: "general-purpose"` |
 -| `poteto-agent`, `comment-sicko` | `pstack:poteto-agent`, `pstack:comment-sicko` |
+-| The `model:` line in `poteto-agent`'s file | It holds a Cursor slug. Pass `model` and `effort` on every `Agent` call that spawns `pstack:poteto-agent`, mapped with the Models table, so that slug never reaches the API. |
 -| `readonly: true` | `subagent_type: "Explore"`. It keeps `Bash`, so the brief also says "do not edit files", and you check `git status` afterward. |
 -| `readonly: false` | `general-purpose`. It keeps the session's MCP servers. |
 -| `environment: "cloud"` | `isolation: "worktree"`. Name the branch or commit the worker checks out. |
@@ -1291,7 +1285,7 @@ index 8500e6f..76835e8 100644
 -Claude Code loads every `.md` file in `~/.claude/rules/` into each new session, so `setup-pstack` writes its rule there. Follow its steps with these changes:
 -
 -- Detect. The detected models are the `model` values that the `Agent` tool schema lists, each with an effort from its `effort` values. Write a real model as `<model> <effort>`, such as `opus xhigh`. The effort is the last token, so the budget step works as written.
--- Defaults. Map each default slug with the rows above: `claude-opus-5-5-xhigh` is `opus xhigh`, `claude-opus-5-5-high-fast` is `opus high`, `claude-fable-5-2-max` is `fable max`, and `gemini-4-carbon-high` is `inherit-parent`.
+-- Defaults. Map each default slug with the rows above: `claude-opus-5-5-xhigh-fast` is `opus xhigh`, `claude-opus-5-5-high-fast` is `opus high`, `claude-fable-5-2-high` is `fable high`, and `gemini-4-carbon-high` is `inherit-parent`.
 -- Write. Write `~/.claude/rules/pstack-models.md` with no frontmatter, then the comment lines, the `# budget` line, and one line per role from step 5. Overwrite the whole file. Never put the role lines in `CLAUDE.md` or `AGENTS.md`.
 -
 -## Paths

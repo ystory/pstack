@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Show me your work
 
-Read [Codex execution](../poteto-mode/references/execution.md) and resolve `judgment and prose` through the sibling setup helper before dispatching the trail reviewer. Select an eligible exact different-family entry already resolved by this workflow or an explicit task counterpart under that binding. Parent aliases and unknown families do not satisfy the required review.
+Read [Codex execution](../poteto-mode/references/execution.md) and resolve `judgment and prose` through the sibling setup helper before dispatching the trail reviewer. Select an eligible exact entry from another vendor, already resolved by this workflow, or an explicit task counterpart under that binding. Parent aliases and unknown lineage do not satisfy the required review.
 
 Keep one canonical log.
 
@@ -66,7 +66,7 @@ Correct the log, not the story. The audit never edits or removes a row, even an 
 
 ## Cross-model review of the trail
 
-Before handing back, launch a general-purpose delegate on a different model family from the one that did the work. Select a different-family counterpart through Codex execution, using `agent_type: "pstack-general-purpose"` on the native path and the audit task with its source files on the Claude Code path. Self-review is not a substitute. The subagent reads the audit trail and the run's transcript, then flags what the user should pay attention to. Not a redo of the work, a scan for what's suboptimal or risky. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section of the **poteto-mode** skill.
+Before handing back, launch a general-purpose delegate on another vendor's model than the one that did the work. Select another vendor's counterpart through Codex execution, using `agent_type: "pstack-general-purpose"` on the native path and the audit task with its source files on the Claude Code path. Self-review is not a substitute. The subagent reads the audit trail and the run's transcript, then flags what the user should pay attention to. Not a redo of the work, a scan for what's suboptimal or risky. Pick each subagent's reasoning level for the job, per the Subagents section of the **poteto-mode** skill.
 
 - Decisions logged with weak or absent evidence.
 - Verification steps skipped or claimed without proof in the transcript.

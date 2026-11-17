@@ -24,16 +24,17 @@ index 0000000..5f9957a
 +
 +Follow the supplied pstack workflow, task brief, scope, and verification contract. Use complete supplied skill and reference bodies. Read required paths whose bodies are missing or incomplete. Return the requested artifact and evidence to the parent.
 diff --git a/agents/poteto-agent.md b/agents/poteto-agent.md
-index e1d2df2..43c545b 100644
+index 801b01c..752a2c5 100644
 --- a/agents/poteto-agent.md
 +++ b/agents/poteto-agent.md
-@@ -1,9 +1,11 @@
+@@ -1,10 +1,12 @@
  ---
  name: poteto-agent
 -description: Delegate subagent for code-writing and helper tasks spawned during a `/poteto-mode` run. Use for delegates, not as the runner for `/poteto-mode` itself. Spawn a fresh `poteto-agent` for each new task, and resume one only in the strict cases that poteto-mode's Subagents section names. Reads the `poteto-mode` skill's `SKILL.md` in full before any work, including its inline Principles index. Substituting `generalPurpose` skips that read and drifts.
 -is_background: true
 +description: Delegate subagent for code-writing and helper tasks spawned during a `/poteto-mode` run. Use for delegates, not as the runner for `/poteto-mode` itself. Spawn a fresh `poteto-agent` for each new task, and resume one only in the strict cases that poteto-mode's Subagents section names. Reads the `poteto-mode` skill's `SKILL.md` in full before any work, including its inline Principles index. Substituting `general-purpose` skips that read and drifts.
 +model: inherit
+ model: claude-opus-5-5-xhigh-fast
  ---
  
  # Poteto subagent

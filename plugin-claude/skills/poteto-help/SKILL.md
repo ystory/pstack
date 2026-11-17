@@ -47,7 +47,7 @@ This distribution runs in Claude Code as `pstack-cc`. Use `/pstack-cc:setup-psta
 
 ## Start a task with `/pstack-cc:poteto-mode`
 
-`/pstack-cc:poteto-mode` matches the task to a playbook, copies the playbook's steps into the todo list, and runs the other skills as the steps need them. A step it skips stays in the list as `skip: <reason>`. A good prompt states the goal and how to tell it's done. It doesn't list skills, because a hand-written sequence tends to drop or reorder steps the playbook would keep. Read [`references/prompting.md`](references/prompting.md) before you help word one. [Guide page 2](../../docs/guide/02-poteto-mode.md) has examples.
+`/pstack-cc:poteto-mode` matches the task to a playbook, copies the playbook's steps into the todo list, and runs the other skills as the steps need them. A good prompt states the goal and how to tell it's done. It doesn't list skills, because a hand-written sequence tends to drop or reorder steps the playbook would keep. Read [`references/prompting.md`](references/prompting.md) before you help word one. [Guide page 2](../../docs/guide/02-poteto-mode.md) has examples.
 
 Start each new task with `/pstack-cc:poteto-mode`. Follow-ups continue the active playbook. Claude Code does not offer Cursor's Custom Mode shortcut.
 
@@ -100,16 +100,15 @@ Close calls:
 
 - `/pstack-cc:how` explains what the code does. `/pstack-cc:why` explains the reasons. `/pstack-cc:teach` runs one or both and explains the result plainly.
 - `/pstack-cc:arena` gives every worker the same brief and merges the best parts. `/pstack-cc:swarm` splits work into slices or a race and returns one report.
-- `/pstack-cc:architect` implements right after it settles the design. Add "with checkpoint" to review the design before it writes code.
 - `/pstack-cc:interrogate` reviews the diff. `/pstack-cc:blast-radius` looks for breakage outside the diff and proves the one fact that makes the change safe.
 - `/pstack-cc:recall` rebuilds context across recent chats. `/pstack-cc:ketchup` covers only this chat since the user's last message. Resuming one specific chat or branch is the Session pickup playbook.
-- `/pstack-cc:figure-it-out` designs one rigorous run. The Orchestrate playbook runs a program that spans days and many PRs. The Autonomous run playbook drives one task to a finish condition.
+- `/pstack-cc:figure-it-out` designs one rigorous run. The Autonomous run playbook drives one task to a finish condition.
 
 Not in pstack:
 
 - `deslop`, `control-cli`, and `control-ui` are bundled from `cursor-team-kit`. Read their installed skill paths.
 - Native `/loop` uses [Claude Code wakeups](../poteto-mode/references/claude-wakeups.md). Skill authoring uses the [native authoring binding](../poteto-mode/references/skill-authoring.md).
-- pstack has no `/orchestrate` skill. Orchestrate is a `/pstack-cc:poteto-mode` playbook. If the slash menu shows `/orchestrate`, another plugin provides it.
+- pstack has no `/orchestrate` skill. If the slash menu shows `/orchestrate`, another plugin provides it.
 
 ## Playbooks and principles
 
@@ -122,7 +121,7 @@ Playbooks are step lists inside `/pstack-cc:poteto-mode`, not skills, so they ha
 - "full autopilot on this queue" runs Autopilot-full. "autopilot, don't merge" runs Autopilot-stack.
 - "run the eval playbook" runs Eval.
 
-Without `/pstack-cc:poteto-mode`, a phrase such as "babysit this pr" can start another skill for the same job instead. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) lists every playbook and when it applies. [Guide page 6](../../docs/guide/06-verify-and-ship.md) covers opening, babysitting, and landing a PR.
+Without `/pstack-cc:poteto-mode`, a phrase such as "babysit this pr" can start another skill for the same job instead. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) lists every playbook. [Guide page 6](../../docs/guide/06-verify-and-ship.md) covers opening, babysitting, and landing a PR.
 
 pstack has no planning skill. Claude Code Plan Mode works alongside it. For work that spans phases or stacked PRs, asking `/pstack-cc:poteto-mode` for a plan runs the [Multi-phase plan playbook](../poteto-mode/playbooks/multi-phase-plan.md), which writes the plan and doesn't implement it. For a design question, the Prototype playbook or `/pstack-cc:architect` settles it in code first.
 

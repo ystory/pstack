@@ -21,16 +21,9 @@ const roles = {
   'perf-issue': { kind: 'scalar', effort: 'xhigh' },
   hillclimb: { kind: 'scalar', effort: 'xhigh' },
   'judgment and prose': { kind: 'scalar', effort: 'xhigh' },
-  'hardest tasks': { kind: 'scalar', effort: 'max' },
-  'reflect tooling': { kind: 'scalar', effort: 'high' },
-  'reflect judgment, divergent, synthesizer': {
-    kind: 'scalar',
-    effort: 'xhigh',
-  },
   'arena runners': { kind: 'panel', effort: 'high' },
   'arena cross-judge pool': { kind: 'pool', effort: 'high' },
   'swarm workers': { kind: 'scalar', effort: 'high' },
-  'architect runners': { kind: 'panel', effort: 'high' },
   'interrogate reviewers': { kind: 'panel', effort: 'high' },
 };
 const retiredRoles = new Set([
@@ -38,10 +31,14 @@ const retiredRoles = new Set([
   'how explainer',
   'why investigators',
   'why synthesizer',
+  'hardest tasks',
+  'reflect tooling',
+  'reflect judgment, divergent, synthesizer',
+  'architect runners',
 ]);
-const seats = { scalar: 1, panel: 3, pool: 3 };
-const budgetLadder = ['low', 'medium', 'high', 'xhigh', 'max'];
-const budgets = { unlimited: 1, large: 0, medium: -1, small: -2 };
+const seats = { scalar: 1, panel: 3, pool: 2 };
+const budgetLadder = ['low', 'medium', 'high', 'xhigh'];
+const budgets = { large: 0, medium: -1, small: -2 };
 const shifted = (effort, budget) =>
   budgetLadder[
     Math.min(
@@ -62,6 +59,7 @@ const efforts = [
   'max',
   'ultra',
 ];
+const effortsAboveXhigh = new Set(['max', 'ultra']);
 const aliases = new Set(['auto', 'inherit-parent']);
 const commands = new Set(['read', 'resolve', 'budget', 'write', 'catalog']);
 
@@ -301,7 +299,7 @@ function unresolvedChoices(proposal) {
   );
 }
 
-function normalizeConfig(input, previous) {
+function normalizeConfig(input, previous, saved = false) {
   if (
     !input ||
     typeof input !== 'object' ||
@@ -309,7 +307,13 @@ function normalizeConfig(input, previous) {
     (input.schemaVersion !== undefined && input.schemaVersion !== 1)
   )
     throw new Error('Model configuration schemaVersion must be 1.');
-  const budget = input.budget ?? previous?.budget ?? 'large';
+  const replacedBudget =
+    saved && input.budget === 'unlimited'
+      ? { from: 'unlimited', to: 'large' }
+      : null;
+  const budget = replacedBudget
+    ? replacedBudget.to
+    : (input.budget ?? previous?.budget ?? 'large');
   if (!Object.hasOwn(budgets, budget))
     throw new Error('Unknown pstack budget.');
   const selected = input.roles ?? {};
@@ -333,6 +337,7 @@ function normalizeConfig(input, previous) {
   return {
     config: { schemaVersion: 1, budget, roles: normalized },
     droppedRoles,
+    replacedBudget,
   };
 }
 
@@ -346,6 +351,10 @@ function validateCatalog(config, catalog) {
   for (const [role, entries] of Object.entries(config.roles)) {
     for (const entry of entries) {
       if (aliases.has(entry.model)) continue;
+      if (effortsAboveXhigh.has(entry.reasoningEffort))
+        throw new Error(
+          `Reasoning effort ${entry.reasoningEffort} for ${role} is above xhigh; pstack runs roles at xhigh or below.`,
+        );
       const supported = detected.get(modelKey(entry));
       if (!supported)
         throw new Error(
@@ -429,7 +438,11 @@ async function main(options) {
   const saved = existing
     ? parseJson(existing.bytes, 'Model configuration')
     : undefined;
-  const loaded = normalizeConfig(saved ?? { schemaVersion: 1 });
+  const loaded = normalizeConfig(
+    saved ?? { schemaVersion: 1 },
+    undefined,
+    true,
+  );
   const info = {
     file,
     exists: Boolean(existing),
@@ -462,6 +475,7 @@ async function main(options) {
       budget: loaded.config.budget,
       targetReasoningEffort: targetEffort(options.role, loaded.config.budget),
       droppedRoles: loaded.droppedRoles,
+      replacedBudget: loaded.replacedBudget,
     };
   }
   const catalog = normalizeCatalog(
@@ -473,6 +487,7 @@ async function main(options) {
       ...info,
       ...applyBudget(loaded.config, options.budget, catalog),
       droppedRoles: loaded.droppedRoles,
+      replacedBudget: loaded.replacedBudget,
     };
   const supplied = await inputJson(options.input, '--input');
   if (Array.isArray(supplied.needsChoice) && supplied.needsChoice.length)
@@ -498,6 +513,7 @@ async function main(options) {
     droppedRoles: [
       ...new Set([...loaded.droppedRoles, ...proposal.droppedRoles]),
     ],
+    replacedBudget: loaded.replacedBudget,
     changed,
     dryRun: options.dryRun,
     sha256: hash(bytes),
@@ -532,7 +548,7 @@ try {
   const options = argumentsFor(process.argv.slice(2));
   if (options.help)
     process.stdout.write(
-      'Usage: node models.mjs read|resolve|budget|write|catalog [options]\nread/resolve: [--codex-home ABS] [--role ROLE]\nbudget: --budget unlimited|large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\ncatalog: [--input ABS] (native model/list or combined model capabilities) [--claude-runtime ABS] [--agy-catalog ABS]\nbudget/write also accept --claude-runtime ABS or a normalized catalog containing its runtime receipt.\n',
+      'Usage: node models.mjs read|resolve|budget|write|catalog [options]\nread/resolve: [--codex-home ABS] [--role ROLE]\nbudget: --budget large|medium|small --catalog ABS\nwrite: --input ABS --catalog ABS --expected-hash HASH|absent [--dry-run]\ncatalog: [--input ABS] (native model/list or combined model capabilities) [--claude-runtime ABS] [--agy-catalog ABS]\nbudget/write also accept --claude-runtime ABS or a normalized catalog containing its runtime receipt.\n',
     );
   else
     process.stdout.write(`${JSON.stringify(await main(options), null, 2)}\n`);

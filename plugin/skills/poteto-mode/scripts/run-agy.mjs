@@ -41,14 +41,13 @@ const capabilities = {
   osReadOnlyEnforcement: false,
 };
 const usage =
-  'Usage: run-agy.mjs detect [--executable ABS] | catalog --cwd ABS --run-dir ABS [--executable ABS] | run --cwd ABS --run-dir ABS --model EXACT_ID --effort LEVEL [--instruction ABS] [--skill ABS] [--role ABS] [--prompt-file ABS] [--resume ABS_PRIOR_RECEIPT] [--allow-permission RULE] [--timeout-ms N] [--executable ABS]';
+  'Usage: run-agy.mjs detect [--executable ABS] | catalog --cwd ABS --run-dir ABS [--executable ABS] | run --cwd ABS --run-dir ABS --model EXACT_ID --effort LEVEL [--instruction ABS] [--skill ABS] [--role ABS] [--prompt-file ABS] [--resume ABS_PRIOR_RECEIPT] [--timeout-ms N] [--executable ABS]';
 
 function optionsFor(argv) {
   const options = {
     command: argv[0],
     instruction: [],
     skill: [],
-    allowPermission: [],
   };
   if (['--help', '-h'].includes(options.command)) return { command: 'help' };
   if (!['detect', 'catalog', 'run'].includes(options.command))
@@ -63,7 +62,6 @@ function optionsFor(argv) {
     '--role': 'role',
     '--prompt-file': 'promptFile',
     '--resume': 'resume',
-    '--allow-permission': 'allowPermission',
     '--timeout-ms': 'timeoutMs',
     '--executable': 'executable',
   };
@@ -100,12 +98,6 @@ function optionsFor(argv) {
       model: options.model,
       reasoningEffort: options.effort,
     });
-    for (const rule of options.allowPermission)
-      if (/[\p{Cc}\p{Cf}]/u.test(rule) || !/^[a-z][a-z_]*\(.+\)$/.test(rule))
-        throw new Error(
-          'Expected a nonempty native permission rule such as command(git).',
-        );
-    options.allowPermission = [...new Set(options.allowPermission)];
   }
   return options;
 }
@@ -435,7 +427,7 @@ async function detect(options) {
       '--input-format',
       '--output-format',
       '--conversation',
-      '--settings',
+      '--dangerously-skip-permissions',
     ].map((flag) => [
       flag.slice(2),
       new RegExp(`(?:^|[\\s,])${flag}(?:[\\s=<]|$)`, 'm').test(help),
@@ -524,6 +516,47 @@ async function contextFor(options) {
   };
 }
 
+function conversationVerified(receipt, requested) {
+  return (
+    uuid(receipt.conversationId) &&
+    receipt.observedModel === requested.model &&
+    receipt.init?.conversation_id === receipt.conversationId &&
+    receipt.init?.init?.cwd === requested.cwd &&
+    receipt.init?.init?.model === requested.model &&
+    (!receipt.terminalResult ||
+      receipt.terminalResult.conversation_id === receipt.conversationId) &&
+    (!receipt.resume ||
+      receipt.resume.conversationId === receipt.conversationId) &&
+    receipt.identityBeforeInput === true &&
+    receipt.inputSent === true &&
+    receipt.process?.closed === true &&
+    receipt.process.groupClosed === true
+  );
+}
+
+const interruptionCauses = {
+  'timed-out': 'deadline',
+  interrupted: 'SIGINT',
+  terminated: 'SIGTERM',
+};
+
+function stopFor(receipt) {
+  const [kind, cause] =
+    receipt.status in interruptionCauses
+      ? ['interrupted', interruptionCauses[receipt.status]]
+      : receipt.status === 'completed'
+        ? ['completed', 'completed']
+        : ['error', receipt.error ?? receipt.status];
+  return {
+    kind,
+    cause,
+    continuable: conversationVerified(receipt, {
+      model: receipt.requested?.model,
+      cwd: receipt.cwd,
+    }),
+  };
+}
+
 async function priorFor(options, auth) {
   if (!options.resume) return null;
   const file = absolute(options.resume, '--resume');
@@ -538,12 +571,9 @@ async function priorFor(options, auth) {
     prior.runDir !== path.dirname(file) ||
     prior.schemaVersion !== 1 ||
     prior.command !== 'run' ||
-    prior.executor !== executor ||
-    prior.status !== 'completed'
+    prior.executor !== executor
   )
-    throw new Error(
-      '--resume requires the exact successful Antigravity terminal result receipt.',
-    );
+    throw new Error('--resume requires an exact Antigravity run receipt.');
   if (
     JSON.stringify(agyEntry(prior.requested)) !==
     JSON.stringify(options.requested)
@@ -556,33 +586,18 @@ async function priorFor(options, auth) {
   if (
     !prior.process?.closed ||
     !prior.process.groupClosed ||
-    prior.process.shutdown !== 'orderly' ||
-    prior.process.exitCode !== 0 ||
-    prior.process.signal !== null ||
     !Number.isInteger(prior.process.pid)
   )
     throw new Error(
       'Resume requires verified closed owned process and process group.',
     );
-  if (
-    !uuid(prior.conversationId) ||
-    prior.observedModel !== options.model ||
-    prior.terminalResult?.conversation_id !== prior.conversationId ||
-    prior.terminalResult.status !== 'SUCCESS' ||
-    typeof prior.result !== 'string' ||
-    !prior.result.trim() ||
-    prior.result !== prior.terminalResult.response ||
-    prior.init?.conversation_id !== prior.conversationId ||
-    prior.init?.init?.cwd !== options.cwd ||
-    prior.init?.init?.model !== options.model ||
-    !prior.identityBeforeInput ||
-    !prior.inputSent ||
-    !Number.isSafeInteger(prior.terminalResult.num_turns) ||
-    prior.terminalResult.num_turns < 1
-  )
+  if (!conversationVerified(prior, options))
     throw new Error(
-      'Resume receipt lacks exact conversation and current terminal evidence.',
+      'Resume receipt lacks exact conversation identity evidence.',
     );
+  const numTurns = prior.terminalResult?.num_turns ?? 0;
+  if (!Number.isSafeInteger(numTurns) || numTurns < 0)
+    throw new Error('Resume receipt has an invalid native turn count.');
   const continuedByPath = path.join(path.dirname(file), 'continued-by.json');
   try {
     await fs.lstat(continuedByPath);
@@ -594,7 +609,7 @@ async function priorFor(options, auth) {
     file,
     sha256: sha256(bytes),
     conversationId: prior.conversationId,
-    numTurns: prior.terminalResult.num_turns,
+    numTurns,
     continuedByPath,
   };
 }
@@ -604,6 +619,8 @@ function streamParser(options, prior) {
   let pending = '',
     init = null,
     result = null,
+    failedStep = null,
+    toolErrors = [],
     userInput = false,
     count = 0;
   const line = (text, ready) => {
@@ -635,13 +652,25 @@ function streamParser(options, prior) {
     } else if (value.event === 'step_update') {
       if (!init || value.step_update?.conversation_id !== init.conversation_id)
         throw new Error('Step conversation ID disagrees with init.');
+      const { step_type, state, tool_name, tool_info } = value.step_update;
       if (
         ['ERROR', 'FAILED', 'CANCELLED', 'CANCELED', 'ABORTED'].includes(
-          value.step_update.state,
+          state,
         ) ||
         value.step_update.error
-      )
-        throw new Error('Native step reported failure.');
+      ) {
+        const step = {
+          step_type,
+          state,
+          tool_name: tool_name ?? null,
+          parameters: tool_info?.parameters ?? null,
+        };
+        if (step_type === 'tool') toolErrors.push(step);
+        else {
+          failedStep = step;
+          throw new Error('Native step reported failure.');
+        }
+      }
       if (
         value.step_update.step_type === 'user_input' &&
         value.step_update.state === 'DONE'
@@ -699,6 +728,8 @@ function streamParser(options, prior) {
         observedModel: init?.init?.model ?? null,
         init,
         terminalResult: result,
+        failedStep,
+        toolErrors,
       };
     },
   };
@@ -732,7 +763,8 @@ async function execute(options) {
     requested: options.requested ?? null,
     auth,
     authMode: auth.method,
-    permissions: { scope: 'session-only', allow: options.allowPermission },
+    permissions: 'all-native-tools-auto-approved',
+    timeoutMs: options.timeoutMs ?? null,
     context: context?.context ?? [],
     taskSha256: context?.taskSha256 ?? null,
     resume: prior
@@ -800,13 +832,9 @@ async function execute(options) {
         options.model,
         '--effort',
         options.effort,
+        '--dangerously-skip-permissions',
       ];
       if (prior) args.push('--conversation', prior.conversationId);
-      if (options.allowPermission.length)
-        args.push(
-          '--settings',
-          JSON.stringify({ permissions: { allow: options.allowPermission } }),
-        );
       const promptPath = path.join(options.runDir, 'prompt.txt');
       await fs.writeFile(promptPath, context.prompt, {
         flag: 'wx',
@@ -899,6 +927,7 @@ async function execute(options) {
       : {}),
     completedAt: new Date().toISOString(),
   };
+  if (context) receipt.stop = stopFor(receipt);
   await fs.writeFile(resultPath, json(receipt), { flag: 'wx', mode: 0o600 });
   console.log(JSON.stringify(receipt));
   process.exitCode = !error

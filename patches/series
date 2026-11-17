@@ -7,3 +7,5 @@
 0007-guides.patch
 shared/0001-workflow-bodies.patch
 shared/0002-worker-execution.patch
+shared/0003-continue-stopped-workers.patch
+0008-continue-stopped-workers.patch

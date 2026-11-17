@@ -489,6 +489,15 @@ async function run(options, server) {
       : !failure && result?.status === 0 && terminal?.status === 'completed'
         ? 'completed'
         : 'failed';
+  const [stopKind, stopCause] = signal
+    ? ['interrupted', signal]
+    : terminal?.status === 'interrupted'
+      ? ['interrupted', 'native']
+      : deniedReviews.length
+        ? ['permission', 'denied review']
+        : status === 'completed'
+          ? ['completed', 'completed']
+          : ['error', failure?.message ?? 'failed'];
   const exitCode =
     signal === 'SIGINT'
       ? 130
@@ -512,6 +521,7 @@ async function run(options, server) {
     approvedReview: request.approvedReview?.reviewId ?? null,
     deniedReviews,
     status,
+    stop: { kind: stopKind, cause: stopCause, continuable: threadId !== null },
     resultStatus: result?.status ?? null,
     finalText,
     turn: terminal,

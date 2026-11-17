@@ -62,6 +62,8 @@ const fakeHelp = [
   '  --output-format <format> text, json, stream-json',
   '  --verbose',
   '  --resume <value>',
+  '  --permission-mode <mode>  Permission mode to use for the session',
+  '      (choices: "acceptEdits", "auto", "bypassPermissions", "manual")',
 ].join('\n');
 
 async function fixture(t: TestContext) {
@@ -123,6 +125,8 @@ if (args[0] === '--version') {
   } else if (scenario === 'malformed') {
     process.stdout.write(Buffer.from([0xff, 0x0a]));
     process.stdout.write('not JSON\\n');
+  } else if (scenario === 'denied') {
+    process.stdout.write(JSON.stringify({type: 'result', subtype: 'success', is_error: false, result: 'Read was denied.', session_id: '${sessionId}', permission_denials: [{tool_name: 'Read', tool_use_id: 'toolu_denied', tool_input: {file_path: '/outside/secret.txt'}}]}) + '\\n');
   } else if (scenario === 'missing-result') {
     process.stdout.write(JSON.stringify({type: 'system', subtype: 'init', session_id: '${sessionId}'}) + '\\n');
   } else {
@@ -230,6 +234,7 @@ test('detect checks installed CLI capability without asserting model execution',
     outputFormat: true,
     verbose: true,
     resume: true,
+    permissionModeAuto: true,
   });
   assert.deepEqual(receipt.effortSyntax, [
     'low',
@@ -389,12 +394,8 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
     '--output-format',
     'stream-json',
     '--verbose',
-    '--allowedTools',
-    `Read(/${f.instruction})`,
-    '--allowedTools',
-    `Read(/${f.skill})`,
-    '--allowedTools',
-    `Read(/${f.role})`,
+    '--permission-mode',
+    'auto',
     '--allowedTools',
     'Bash(node --test index.test.mjs)',
     '--allowedTools',
@@ -411,6 +412,12 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
   assert.deepEqual(receipt.resultEvent, finalEvent);
   assert.equal(receipt.exitCode, 0);
   assert.equal(receipt.signal, null);
+  assert.equal(receipt.status, 'completed');
+  assert.deepEqual(receipt.stop, {
+    kind: 'completed',
+    cause: 'completed',
+    continuable: true,
+  });
   assert.equal(receipt.spawnError, null);
   assert.equal(receipt.parseError, null);
   assert.ok(Number.isInteger(receipt.pid));
@@ -512,7 +519,7 @@ for (const category of ['instruction', 'skill', 'role'])
     await assert.rejects(access(f.runDir), { code: 'ENOENT' });
   });
 
-test('documented invocation grants exact context reads and task-authorized leaf and verification access', async (t) => {
+test('documented invocation runs in auto mode and passes only the supplied approved rules', async (t) => {
   const f = await fixture(t);
   const leaf = path.join(f.root, 'installed skill/principles/source.md');
   const leafRule = `Read(/${leaf})`;
@@ -529,14 +536,9 @@ test('documented invocation grants exact context reads and task-authorized leaf 
   const allowedTools = call.args.flatMap((arg: string, index: number) =>
     arg === '--allowedTools' ? [call.args[index + 1]] : [],
   );
-  assert.deepEqual(allowedTools, [
-    `Read(/${f.instruction})`,
-    `Read(/${f.skill})`,
-    leafRule,
-    verificationRule,
-  ]);
+  assert.deepEqual(allowedTools, [leafRule, verificationRule]);
   assert.ok(!call.args.includes('--dangerously-skip-permissions'));
-  assert.ok(!call.args.includes('--permission-mode'));
+  assert.equal(call.args[call.args.indexOf('--permission-mode') + 1], 'auto');
   assert.ok(!call.input.includes(f.roleBody));
 });
 
@@ -556,7 +558,7 @@ test('generic reviewer omits original role and resumes only an exact session', a
   const call = JSON.parse(await readFile(f.callPath, 'utf8'));
   const resumeIndex = call.args.indexOf('--resume');
   assert.equal(call.args[resumeIndex + 1], sessionId);
-  assert.ok(call.args.includes(`Read(/${rubric})`));
+  assert.ok(!call.args.includes(`Read(/${rubric})`));
   assert.ok(
     call.input.includes('Judge the supplied candidate on correctness.'),
   );
@@ -576,6 +578,12 @@ test('child failure preserves the original result, stderr, and exit status', asy
   assert.equal(receipt.exitCode, 7);
   assert.equal(receipt.result, 'Original authentication failure');
   assert.equal(receipt.resultEvent.is_error, true);
+  assert.equal(receipt.status, 'failed');
+  assert.deepEqual(receipt.stop, {
+    kind: 'error',
+    cause: 'error_during_execution',
+    continuable: true,
+  });
   assert.equal(await readFile(receipt.stderrPath, 'utf8'), 'original stderr\n');
 });
 
@@ -588,6 +596,8 @@ test('a child startup failure returns a receipt without fabricating a result', a
   assert.match(receipt.spawnError, /ENOENT/);
   assert.equal(receipt.resultEvent, null);
   assert.equal(receipt.sessionId, null);
+  assert.equal(receipt.stop.kind, 'error');
+  assert.equal(receipt.stop.continuable, false);
   assert.equal(receipt.pid, null);
   assert.equal((await readFile(receipt.stdoutPath)).length, 0);
   assert.equal((await readFile(receipt.stderrPath)).length, 0);
@@ -630,6 +640,31 @@ test('child termination preserves the signal and conventional process exit statu
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.exitCode, null);
   assert.equal(receipt.signal, 'SIGTERM');
+  assert.equal(receipt.status, 'interrupted');
+  assert.equal(receipt.stop.kind, 'interrupted');
+  assert.equal(receipt.stop.cause, 'SIGTERM');
+});
+
+test('permission denials mark a completed Claude run for an approved continuation', async (t) => {
+  const f = await fixture(t);
+  const result = f.invoke(f.runArgs, 'Perform the assignment.', {
+    PSTACK_FAKE_SCENARIO: 'denied',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'completed');
+  assert.deepEqual(receipt.stop, {
+    kind: 'permission',
+    cause: 'permission denial',
+    continuable: true,
+    permissionDenials: [
+      {
+        tool_name: 'Read',
+        tool_use_id: 'toolu_denied',
+        tool_input: { file_path: '/outside/secret.txt' },
+      },
+    ],
+  });
 });
 
 test('run rejects unresolved inputs before starting Claude or writing inside the plugin', async (t) => {

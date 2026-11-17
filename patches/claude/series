@@ -16,3 +16,5 @@ shared/0002-worker-execution.patch
 shared/0003-continue-stopped-workers.patch
 0014-continue-stopped-workers.patch
 0015-continue-stopped-workers-version.patch
+0016-codex-workspace-write.patch
+0017-codex-workspace-write-version.patch

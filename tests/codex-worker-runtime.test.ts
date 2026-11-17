@@ -339,7 +339,7 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
   assert.equal(start.cwd, f.cwd);
   assert.equal(start.request.params.cwd, f.cwd);
   assert.equal(start.request.params.ephemeral, false);
-  assert.equal(start.request.params.sandbox, 'read-only');
+  assert.equal(start.request.params.sandbox, 'workspace-write');
   assert.equal(start.request.params.approvalPolicy, 'on-request');
   assert.equal(start.request.params.approvalsReviewer, 'auto_review');
   assert.equal(Object.hasOwn(start.request.params, 'threadSource'), false);
@@ -701,11 +701,8 @@ test('parallel workers and interleaved exact continuation retain separate identi
   assert.notEqual(first.threadId, second.threadId);
   assert.notEqual(first.files.progress, second.files.progress);
   assert.equal(
-    f.run('resumed', 'Continue that worker.', [
-      '--resume',
-      first.threadId,
-      '--write',
-    ]).status,
+    f.run('resumed', 'Continue that worker.', ['--resume', first.threadId])
+      .status,
     0,
   );
   const resumed = await f.receipt('resumed');
@@ -1160,7 +1157,7 @@ for (const [method, variable] of [
     assert.throws(() => process.kill(receipt.process.pid, 0), /ESRCH/);
   });
 
-test('explicit sandbox selection is recorded without changing the default or write shorthand', async (t) => {
+test('explicit sandbox selection is recorded and read-only is refused', async (t) => {
   const f = await fixture(t);
   assert.equal(
     f.run('explicit-access', 'Synthetic authorized access.', [
@@ -1178,11 +1175,8 @@ test('explicit sandbox selection is recorded without changing the default or wri
   );
   assert.equal(start.request.params.sandbox, 'danger-full-access');
   assert.equal(
-    f.run('conflicting-access', 'Synthetic task.', [
-      '--sandbox',
-      'read-only',
-      '--write',
-    ]).status,
+    f.run('read-only-access', 'Synthetic task.', ['--sandbox', 'read-only'])
+      .status,
     1,
   );
   assert.equal(
@@ -1209,13 +1203,13 @@ test('Codex transport injects its receiving executor and the bundled shared cont
     model: 'selected-model',
     effort: 'xhigh',
   });
-  assert.equal(request.sandbox, 'read-only');
+  assert.equal(request.sandbox, 'workspace-write');
   const events = await f.events();
   const start = events.find(
     (event) => event.request?.method === 'thread/start',
   );
   const turn = events.find((event) => event.request?.method === 'turn/start');
-  assert.equal(start.request.params.sandbox, 'read-only');
+  assert.equal(start.request.params.sandbox, 'workspace-write');
   assert.equal(turn.request.params.model, 'selected-model');
   assert.equal(turn.request.params.effort, 'xhigh');
   assert.equal(turn.request.params.input[0].text, prompt);

@@ -74,7 +74,7 @@ Native `isolation: "worktree"` is available when its base and copy behavior meet
 
 Workers share the machine, repository metadata, credentials, and devices. Assign separate ports, cache and data directories, temporary paths, and output files. Serialize a resource that cannot be separated. The parent prepares worktrees and reviews accepted artifacts before integration. Retain unintegrated work and diagnostic evidence.
 
-A new worktree has none of the source checkout's ignored dependency or build directories. Follow the repository's own worktree setup when it documents one. Otherwise run its documented install or build command inside that worktree for what the task needs. Do not link or share such a directory from another checkout. An install, scan, or cleanup that runs in the worktree then acts on the other checkout's files.
+Before a worker runs in a new worktree, prepare its dependency and build directories per [Worktree dependency and build state](worktree-setup.md).
 
 Conversation history is not filesystem state. When a review includes uncommitted changes, record the source checkout and exact HEAD. Create all receiving worktrees at that HEAD. Capture scoped tracked final contents with `git diff --binary HEAD -- <scope>`. Inventory and copy scoped untracked files separately, preserving bytes, file types, symlink targets, and executable modes. Include ignored input only when the task needs it. Apply that same captured input to each receiver and compare its files, modes, deletions, and untracked inventory with the source before launch. Recapture if the source changes during the transfer.
 

@@ -16,3 +16,5 @@ shared/0002-worker-execution.patch
 shared/0003-continue-stopped-workers.patch
 0014-continue-stopped-workers.patch
 0015-continue-stopped-workers-version.patch
+shared/0004-agy-recovered-error.patch
+0016-agy-recovered-error-version.patch

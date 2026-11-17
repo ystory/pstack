@@ -47,7 +47,7 @@ This distribution uses saved worker choices or the actual native parent for unco
 
 ## Start a task with `$pstack-codex:poteto-mode`
 
-`$pstack-codex:poteto-mode` matches the task to a playbook, copies the playbook's steps into the todo list, and runs the other skills as the steps need them. A step it skips stays in the list as `skip: <reason>`. A good prompt states the goal and how to tell it's done. It doesn't list skills, because a hand-written sequence tends to drop or reorder steps the playbook would keep. Read [`references/prompting.md`](references/prompting.md) before you help word one. [Guide page 2](../../docs/guide/02-poteto-mode.md) has examples.
+`$pstack-codex:poteto-mode` matches the task to a playbook, copies the playbook's steps into the todo list, and runs the other skills as the steps need them. A good prompt states the goal and how to tell it's done. It doesn't list skills, because a hand-written sequence tends to drop or reorder steps the playbook would keep. Read [`references/prompting.md`](references/prompting.md) before you help word one. [Guide page 2](../../docs/guide/02-poteto-mode.md) has examples.
 
 Load the mode for each task:
 - Invoke `$pstack-codex:poteto-mode` explicitly at the start of each task. Its instructions remain part of this task's context; a fresh task gets a fresh invocation.
@@ -102,16 +102,15 @@ Close calls:
 
 - `$pstack-codex:how` explains what the code does. `$pstack-codex:why` explains the reasons. `$pstack-codex:teach` runs one or both and explains the result plainly.
 - `$pstack-codex:arena` gives every worker the same brief and merges the best parts. `$pstack-codex:swarm` splits work into slices or a race and returns one report.
-- `$pstack-codex:architect` implements right after it settles the design. Add "with checkpoint" to review the design before it writes code.
 - `$pstack-codex:interrogate` reviews the diff. `$pstack-codex:blast-radius` looks for breakage outside the diff and proves the one fact that makes the change safe.
 - `$pstack-codex:recall` rebuilds context across recent chats. `$pstack-codex:ketchup` covers only this chat since the user's last message. Resuming one specific chat or branch is the Session pickup playbook.
-- `$pstack-codex:figure-it-out` designs one rigorous run. The Orchestrate playbook runs a program that spans days and many PRs. The Autonomous run playbook drives one task to a finish condition.
+- `$pstack-codex:figure-it-out` designs one rigorous run. The Autonomous run playbook drives one task to a finish condition.
 
 Companion bindings:
 
 - `$pstack-codex:deslop`, `$pstack-codex:control-cli`, and `$pstack-codex:control-ui` are bundled unchanged from the pinned `cursor-team-kit` source. They provide code cleanup and browser/terminal harness guidance; repository-managed source updates track them together with pstack.
 - Skill authoring uses Codex's `skill-creator`. Repeated work uses the [Codex event-watch and heartbeat binding](../poteto-mode/references/codex-loops.md).
-- pstack has no `$orchestrate` skill. Orchestrate is a `$pstack-codex:poteto-mode` playbook. If the skill picker shows `$orchestrate`, another plugin provides it.
+- pstack has no `$orchestrate` skill. If the skill picker shows `$orchestrate`, another plugin provides it.
 
 ## Playbooks and principles
 
@@ -124,7 +123,7 @@ Playbooks are step lists inside `$pstack-codex:poteto-mode`, not skills, so they
 - "full autopilot on this queue" runs Autopilot-full. "autopilot, don't merge" runs Autopilot-stack.
 - "run the eval playbook" runs Eval.
 
-Without an explicit invocation of `$pstack-codex:poteto-mode`, a phrase such as "babysit this pr" may select another available skill for the same job. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) lists every playbook and when it applies. [Guide page 6](../../docs/guide/06-verify-and-ship.md) covers opening, babysitting, and landing a PR.
+Without an explicit invocation of `$pstack-codex:poteto-mode`, a phrase such as "babysit this pr" may select another available skill for the same job. The Playbooks section of [`poteto-mode`](../poteto-mode/SKILL.md) lists every playbook. [Guide page 6](../../docs/guide/06-verify-and-ship.md) covers opening, babysitting, and landing a PR.
 
 pstack has no planning skill. Codex's Plan mode works alongside it. For work that spans phases or stacked PRs, asking `$pstack-codex:poteto-mode` for a plan runs the [Multi-phase plan playbook](../poteto-mode/playbooks/multi-phase-plan.md), which writes the plan and doesn't implement it. For a design question, the Prototype playbook or `$pstack-codex:architect` settles it in code first.
 

@@ -1,5 +1,5 @@
 diff --git a/skills/poteto-mode/SKILL.md b/skills/poteto-mode/SKILL.md
-index 98b16f9..72d4538 100644
+index 057af2d..b5c8d56 100644
 --- a/skills/poteto-mode/SKILL.md
 +++ b/skills/poteto-mode/SKILL.md
 @@ -8,6 +8,8 @@ color: yellow
@@ -11,54 +11,32 @@ index 98b16f9..72d4538 100644
  Bundled skills live at `../<name>/SKILL.md` from this file, so put this file's absolute path in every `poteto-agent` prompt.
  
  ## Non-negotiables
-@@ -17,19 +19,19 @@ The Principles section below grounds every trigger. In your reply, name each pri
- Remaining triggers:
+@@ -17,11 +19,11 @@ The Principles section below grounds every trigger. In your reply, name each pri
+ The remaining triggers live only here:
  
- - Your first message on a task → tell the user, in your own words, their goal, the problem they are solving, and, if the task ships a change, the smallest change you expect to meet it. Don't wait for confirmation. If the evidence rules out the change the user asked for, show it and stop. Restate the user's goal in each subagent brief, and open each PR's `## Why` with it. Open each final report with it too, your final reply included, except after a fully specified one-line edit.
--- About to `AskQuestion` on a "which approach", "how should I", or "what should this do" fork → classify it before you ask. If the answer is a fact you could observe by running something (behavior, timing, layout, output, perf, even whether an eval separates), it is not the human's to answer. Sketch it via the Prototype playbook (`playbooks/prototype.md`) and let the result decide. If the task is a read-only Investigation whose deliverable is a cited answer, stay in it and answer from the evidence rather than building a sketch. Reserve the question for a genuine product or preference call no experiment can settle. Under a full-autonomy grant, decide a call the grant covers, act on it, and report it, with no reply word and no offer. Under the grant, for a call only the operator can make, apply a default, report it with a full explanation, and say in plain words what the operator could tell you to do instead. The operator answers in their own words. Never give a shorthand token to type back. Gates the operator named and the Always-pause list in Autonomy still need the operator.
+ - First message → restate the user's goal and the smallest change that meets it, then proceed. Open each subagent brief, PR `## Why`, and final report with the goal.
+-- Starting any agent, whether a Task subagent or a Project worker → the first line of its kickoff is `Read <path>/worker.md before anything else.`, with `<path>` the absolute path of this skill's folder. The operator's rules live in skills that only load from a slash command, so they reach another agent no other way. Keep the rest of the kickoff to the goal and the task, plus this file's absolute path for a `poteto-agent`.
 +- About to `AskUserQuestion` on a "which approach", "how should I", or "what should this do" fork → classify it before you ask. If the answer is a fact you could observe by running something (behavior, timing, layout, output, perf, even whether an eval separates), it is not the human's to answer. Sketch it via the Prototype playbook (`playbooks/prototype.md`) and let the result decide. If the task is a read-only Investigation whose deliverable is a cited answer, stay in it and answer from the evidence rather than building a sketch. Reserve the question for a genuine product or preference call no experiment can settle. Under a full-autonomy grant, decide a call the grant covers, act on it, and report it, with no reply word and no offer. Under the grant, for a call only the operator can make, apply a default, report it with a full explanation, and say in plain words what the operator could tell you to do instead. The operator answers in their own words. Never give a shorthand token to type back. Gates the operator named and the Always-pause list in Autonomy still need the operator.
- - Any code → name the data shape first, and choose its organizing structure per **principle-model-the-domain**.
- - Code crossing a function boundary → the **architect** skill, parallel design exploration before implementing.
- - Parallel fan-out → the **swarm** skill for coverage matrices, races, gauntlets, and exploration partitions. Use **arena** for design or code bakeoffs with base selection and grafting.
- - Contested design → the **interrogate** skill (multi-model adversarial) before shipping.
- - Nontrivial multi-step → write the throughput checkpoint (Feature step 3).
--- Any prose surface, your reply to the user included → the **unslop** skill. Write the reply per **Writing the reply**. Agent-facing prose also follows the **create-skill** skill (Cursor's built-in for authoring SKILL.md files).
-+- Any prose surface, your reply to the user included → the **unslop** skill. Write the reply per **Writing the reply**. Agent-facing prose follows [skill authoring](references/skill-authoring.md).
- - Docs, RFCs, readmes, PR descriptions, or commit messages → the **technical-writing** skill (`/technical-writing`).
--- Before commit → the `deslop` skill from the `cursor-team-kit` plugin (`/deslop`).
+ - A fork you could settle by running something → prototype it per `playbooks/prototype.md` instead of asking.
+ - Code → name the data shape first. Across a function boundary → **architect**. Fan-out → **swarm**. Bakeoff → **arena**. Contested design → **interrogate**.
+ - Prose, your reply included → **unslop**. Docs, PR descriptions, commit messages → **technical-writing**.
+-- Before commit → `/deslop` from the `cursor-team-kit` plugin. Before review → **no-comments**.
 +- Before commit → the bundled **deslop** skill at `../deslop/SKILL.md`.
- - Before review → the **no-comments** skill (`/no-comments`).
- - Shipping UI / IDE / CLI → the matching control skill. `cursor-team-kit` publishes `control-cli` (CLIs and TUIs) and `control-ui` (browser / Electron / web UIs). For bug fixes, reproduce first on the same surface yourself. Hand to the user only under the narrow Bug fix step 1 exception.
- - Running a benchmark, measuring perf yourself, or reporting a speedup or regression you measured → the **benchmark-checklist** skill before you report or act on the number.
--- Any PR-status request ("babysit this", "get it green", "address the bugbot comments", and most often "check on PR X" or "anything outstanding on X") → the **Babysit** playbook (`playbooks/babysit.md`), not Cursor's built-in babysit skill, whose description matches the same words. Never triggered by merely opening a PR. Declare its mode before polling. The playbook's step 1 owns the request-to-mode mapping. Reaching for `drive` inside a phase agent stops that agent finishing its turn.
-+- Any PR-status request ("babysit this", "get it green", "address the bugbot comments", and most often "check on PR X" or "anything outstanding on X") → the **Babysit** playbook (`playbooks/babysit.md`), not another babysit skill, whose description matches the same words. Never triggered by merely opening a PR. Declare its mode before polling. The playbook's step 1 owns the request-to-mode mapping. Reaching for `drive` inside a phase agent stops that agent finishing its turn.
- - Asked to land or ship a green stack → the **Shipping** playbook (`playbooks/shipping.md`). Green is not safe. Nothing gets armed before an independent per-PR verdict, and only the contiguous verified run from the root lands.
- - Bugbot or the agentic security review commented → skeptical posture. They catch real bugs and also file non-issues and nitpicks, so assess each on its merits and dismiss noise with a concrete reason instead of churning code. Triage fix / dismiss / ask per `references/bugbot-triage.md`.
- - Broken skill mid-task → fix it in its own PR. Don't block. Don't silently work around it.
-@@ -90,11 +92,11 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
+ - Shipping UI / IDE / CLI → `control-ui` or `control-cli` from `cursor-team-kit`.
+ - A number you measured → **benchmark-checklist**.
+ - PR status → the **Babysit** playbook, not Cursor's built-in babysit skill. Landing a green stack → the **Shipping** playbook.
+@@ -83,9 +85,9 @@ Read the leaf skill in full for any principle you apply. Each entry names when i
  
  ## Subagents
  
--**Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`interrogate`, `reflect`, `swarm`) set their own `subagent_type` for diverse-model review. Respect what the skill prescribes, don't override to `poteto-agent`.
+-**Use `subagent_type: "poteto-agent"` for any subagent you spawn directly inside a playbook step.** The chat that receives `/poteto-mode` runs the playbook itself. Routed workflow skills (`interrogate`, `swarm`) set their own `subagent_type`. Respect it.
 +**Use the `poteto-agent` instructions for any subagent you spawn inside a playbook step** (code-writing delegates and ad-hoc helpers). The chat that receives `/poteto-mode` runs the playbook. Never spawn a `poteto-agent` to run the playbook itself. Routed workflow skills (`interrogate`, `reflect`, `swarm`) select `general-purpose` for their own seats and model roles. Respect that selection. Resolve the worker kind and model role through Claude Code execution. Pass this file's absolute path to every poteto-agent.
  
--**Defaults for every `Task` call.** `run_in_background: true` (a steer or resume of a running agent too, because a foreground call holds your turn while other reports wait), agent mode (readonly strips MCP), file pointers not inlined context, explicit model per role (configurable via `/setup-pstack`. Defaults `claude-opus-5-5-xhigh` for code, prose, and judgment). Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to your `hardest tasks` model (default `claude-fable-5-2-max`), whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your `swarm workers` model (default `claude-opus-5-5-high-fast`). Review and design panels default to one runner each on `claude-fable-5-2-high`, `claude-opus-5-5-high-fast`, and `gemini-4-carbon-high`. Per-role lines in the `/setup-pstack` rule override these defaults and the model choices in the routed skills (`arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model (omit Task `model`). Each code playbook's configured model comes from its line (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`), and the hardest changes read `hardest tasks`. Prose and judgment read `judgment and prose`. If the rule has no `# defaults: 2` line, an older setup wrote it. Keep honoring its lines, and tell the user once per session to rerun `/setup-pstack`.
+-**Defaults for every `Task` call.** `run_in_background: true`, agent mode (readonly strips MCP), file pointers not inlined context, and an explicit model per role, Project workers included. `/setup-pstack` writes `~/.cursor/rules/pstack-models.mdc`, whose per-role lines override the defaults below and the role models in the routed skills (`arena`, `swarm`, `interrogate`). A role with no line keeps its default. A line of `inherit-parent` or `auto` runs the role on the parent model, so omit `model` and spawn `generalPurpose`, because `poteto-agent` defaults to Opus 5.5. Each code playbook reads its own line (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`), prose and judgment read `judgment and prose`, and trivial mechanical edits read `swarm workers`. If the rule has no `# defaults: 3` line, an older setup wrote it. Keep honoring its lines, and tell the user once per session to rerun `/setup-pstack`.
 +**Choices for every delegate call.** Execute asynchronously through the selected executor, including steering and continuation. Use file pointers rather than inlined context. Resolve an explicit model per role through `/setup-pstack`. Setup presents unresolved choices for missing roles. No bundled exact model is an execution default. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) use `hardest tasks`, whether the task needs judgment on vague intent or follows a precise specification. Trivial mechanical edits use `swarm workers`. Saved per-role entries override the routed skills (`arena`, `swarm`, `architect`, `interrogate`, `reflect`). A missing role uses the actual native parent selection with disclosure and preserves its original cardinality. `inherit-parent` and `auto` select the actual native Claude parent. Each code playbook resolves its role (`feature, refactoring`, `bug-fix`, `perf-issue`, or `hillclimb`). Prose and judgment resolve `judgment and prose`.
  
--**Match the model to the job.** Before each spawn, start from the role's line or default and pick the reasoning level and speed the job needs. The `/setup-pstack` budget sets each role's starting level, xhigh or high by default, and max for `hardest tasks`. Raise it one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more steps for routine work. Use fast mode only when the job is urgent, meaning CI or trunk is red or a person is blocked on the result right now. Otherwise use standard speed, the same slug without `-fast`. Verification is the exception and stays on the `swarm workers` model and speed (`claude-opus-5-5-high-fast` by default). Change only the effort level and whether the slug is fast, and keep the family the role names, so a diverse panel stays diverse. Fable (`claude-fable-*`) is its own family, apart from the other Claude models. If the family has no slug at that level and speed, use its nearest slug. Gemini has no xhigh, max, or fast slug, so a Gemini subagent runs at high, such as `gemini-4-carbon-high`, whenever the job calls for high or above. Fable 5.2 has no fast slug, so an urgent Fable 5.2 subagent runs at standard speed and keeps its level. A role on `auto` or `inherit-parent` stays on the parent model. If the Task tool rejects the adjusted slug, do not try another adjusted slug. Use the role's line or default and say so. If the Task tool rejects that too, continue with the calling skill's fallback. A slug counts as rejected once a Task error says that the model is not valid, or leaves the slug out of its list of valid slugs. Never pass a rejected slug, and skip any fallback whose slug is already rejected. When the calling skill has no fallback, use the closest valid slug of the role's family from the error's list of valid slugs, or omit `model` so the subagent runs on the parent model when the list has none. When the calling skill's fallback runs out of slugs without saying what to do next, omit `model` too. Say so in both cases.
-+**Match the model to the job.** Parent aliases keep the actual parent's model and effort. For an exact model, preserve an explicit task effort or start from the role's saved reasoning budget. Raise it one step, up to max, for the hardest or subtlest work. Lower it one step for judgment and two or more for routine work. Use fast mode only when CI or trunk is red or a person is blocked on the result now. Otherwise use standard speed through the host's available controls. Verification stays on the `swarm workers` model and available host speed, except where the caller requires another model or family. Select that counterpart through the execution binding. Keep the selected exact model ID unchanged and pass supported effort and speed separately. Do not append effort or `-fast` suffixes. Use the highest supported effort at or below the requested level. If an adjusted setting is rejected, return to the role's supported starting setting and say so. If that fails, follow the caller's fallback through the execution binding. Record rejected model IDs per executor and never resubmit them, including in fallbacks. When the caller has no fallback, try the closest valid model of the role's family from the error's list. Fable (`claude-fable-*`) is its own family, apart from the other Claude models. If none remains, or the caller exhausts its fallback without another outcome, bind to the actual native parent and disclose it. An unavailable executor or unresolved parent stays a capability gap. Preserve every required different-model or different-family gate and Arena's disclosed judge skip.
- 
- You own every subagent's work. Review the diff and write your own summary, don't pass through what it said. A second opinion is the same prompt against a different model. Agreement is high-signal.
- 
-@@ -143,7 +145,7 @@ A large or cross-cutting effort (a migration across many call sites, an ambitiou
- - **Autopilot-full.** A queue of independent PRs run to merged with full autonomy. One owner per PR carries build through merge, and the root swarm-verifies each PR before its owner merges ("autopilot this queue", "full autopilot", one-owner-per-PR programs).
- - **Autopilot-stack.** Autopilot-full without the merge. A queue of PRs built and verified with full autonomy, then handed to the operator to land. A PR stacks only on a PR it builds on ("autopilot-stack", "autopilot, don't merge", "stack them, don't ship", "build the stack, I'll land it").
- - **Session pickup.** Resuming or taking over a prior agent's in-flight work from a transcript, cloud-agent URL, or pushed branch.
--- **Pause safely.** Suspending in-flight work cleanly so it can be resumed, on an explicit pause, going offline, a Cursor restart, or imminent context compaction. The complement to Session pickup.
-+- **Pause safely.** Suspending in-flight work cleanly so it can be resumed, on an explicit pause, going offline, a Claude Code restart, or imminent context compaction. The complement to Session pickup.
- - **Multi-phase or multi-PR plan.** Work that spans phases or stacked PRs. File: `playbooks/multi-phase-plan.md`.
- - **Worktree and simulator cleanup.** Reclaiming local disk by pruning merged or abandoned git worktrees and stale iOS simulators ("what's using my disk", "clean up worktrees", "prune safe-to-prune worktrees", "free up space", "delete old simulators"). File: `playbooks/worktree-cleanup.md`.
- - **Opening a PR.** Invoked at the end of every other playbook.
+ - Code, prose, and judgment: `claude-opus-5-5-xhigh-fast`.
+ - Trivial mechanical edits: `claude-opus-5-5-high-fast`.
 diff --git a/skills/poteto-mode/playbooks/authoring-a-skill.md b/skills/poteto-mode/playbooks/authoring-a-skill.md
 index 8c5a55a..2ff8e19 100644
 --- a/skills/poteto-mode/playbooks/authoring-a-skill.md
@@ -73,14 +51,14 @@ index 8c5a55a..2ff8e19 100644
  3. Test cases if structural. Skip if subjective.
  4. Run **Opening a PR**.
 diff --git a/skills/poteto-mode/playbooks/autonomous-run.md b/skills/poteto-mode/playbooks/autonomous-run.md
-index af3bf11..b8ce602 100644
+index 853f9ec..b8ce602 100644
 --- a/skills/poteto-mode/playbooks/autonomous-run.md
 +++ b/skills/poteto-mode/playbooks/autonomous-run.md
 @@ -3,10 +3,10 @@
  **You own the exit condition. Define done, then drive to it without stopping.**
  
  1. State the exit condition as a checkable predicate before the first iteration (tests green, repro fixed, all N PRs merged, pixel-diff zero).
--2. Pick the wake mechanism using Cursor's `/loop` command (a built-in, not a pstack skill). An event to watch (CI, a merge, a ref advancing) gets a watcher subagent that wakes you on the event, with a long time-based heartbeat as fallback. No event gets a fixed-interval heartbeat sized to when the result is worth re-checking. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+-2. Pick the wake mechanism using Cursor's `/loop` command (a built-in, not a pstack skill). An event to watch (CI, a merge, a ref advancing) gets a watcher subagent that wakes you on the event, with a long time-based heartbeat as fallback. No event gets a fixed-interval heartbeat sized to when the result is worth re-checking. Pick each subagent's reasoning level for the job, per the Subagents section.
 +2. Pick the wake mechanism using [Claude Code wakeups](../references/claude-wakeups.md). An event (CI, merge, or advancing ref) gets a watcher that wakes you on the event, with a long time-based heartbeat as fallback. No event gets a fixed-interval native schedule sized to when another check is useful. Apply poteto-mode's reasoning and speed guidance.
  3. Each iteration makes the smallest change the evidence justifies, verifies it against the predicate, commits if it advanced, discards changes that didn't help. Belt-and-suspenders that "might help" gets reverted, not left to ride.
     Sequence the work via the **sequence-verifiable-units** principle skill, verifying each unit before the next instead of batching checks at the end.
@@ -90,7 +68,7 @@ index af3bf11..b8ce602 100644
  6. Stop when the predicate is met. A plateau is not a stop, so keep going and pivot your approach to push past it. Surface a genuine dead end rather than spinning, and never relax the predicate to declare victory.
  
 diff --git a/skills/poteto-mode/playbooks/autopilot-full.md b/skills/poteto-mode/playbooks/autopilot-full.md
-index bbc5b37..8712997 100644
+index be91d5a..8712997 100644
 --- a/skills/poteto-mode/playbooks/autopilot-full.md
 +++ b/skills/poteto-mode/playbooks/autopilot-full.md
 @@ -1,15 +1,17 @@
@@ -103,7 +81,7 @@ index bbc5b37..8712997 100644
  A verdict covers one patch and green CI covers one head. Step 4 runs a full swarm once, and again only for a major change. The patch-id rule in `playbooks/shipping.md` can carry a lane's result, and every new head needs its own green CI.
  
  1. **The operator's gates come first.** The grant covers only the queue's items, so items the operator names as theirs and PRs outside the queue stop at merge-ready. A request to state the plan is not a go.
--2. **Spawn one owner per PR, and keep its work where a replacement can find it.** Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). Each owner is a Cursor cloud agent that builds, opens its PR per `playbooks/opening-a-pr.md`, proves the change on the real artifact, babysits to green per `playbooks/babysit.md`, and merges once steps 4 and 5 clear it.
+-2. **Spawn one owner per PR, and keep its work where a replacement can find it.** Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). Each owner is a Cursor cloud agent that builds, opens its PR per `playbooks/opening-a-pr.md`, proves the change on the real artifact, babysits to green per `playbooks/babysit.md`, and merges once steps 4 and 5 clear it. Where that playbook says to report a rebase, the owner rebases its own branch and publishes it with `git push --force-with-lease`.
 +2. **Spawn one owner per PR, and keep its work where a replacement can find it.** Resolve, create, and record one absolute local task-store path before spawning owners or arming a heartbeat. Use the caller's explicit path or `<project>/.local/pstack/orchestrate/<project-slug>/` per [Orchestrate's Store layout](orchestrate.md#store-layout). Pass that same path in every owner, replacement, and resume brief and the heartbeat prompt. Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). Each owner is an independent worker in an exclusive worktree that builds, opens its PR per `playbooks/opening-a-pr.md`, proves the change on the real artifact, babysits to green per `playbooks/babysit.md`, and merges once steps 4 and 5 clear it.
  
 -   Open the PR early so CI and bots run alongside the work. The code is ready only after the slop-strip (the `deslop` skill from the `cursor-team-kit` plugin (`/deslop`)) and the `/no-comments` pass, so the full swarm runs on finished code. Then rebase onto current trunk and report the code-ready head before self-proof, so verification runs on the base the patch lands on. Report every later head, and merge-ready once self-proof, CI, and babysit are done. Fix rounds stay on that base unless trunk conflicts, breaks CI, or lands a known concurrent change to the same files, because each rebase restarts CI. Run the repo's checks for the touched paths on the committed head before the code-ready push and before a later push that needs a verifier.
@@ -124,7 +102,7 @@ index bbc5b37..8712997 100644
  
  **Reply:** catch the operator up per the **ketchup** skill, covering each PR's state and verdict, what merged, countersigns and why, open operator gates, and parked follow-ups, with links to each PR and the trails.
 diff --git a/skills/poteto-mode/playbooks/autopilot-stack.md b/skills/poteto-mode/playbooks/autopilot-stack.md
-index 819862c..472a6b1 100644
+index 2cca412..665d7c7 100644
 --- a/skills/poteto-mode/playbooks/autopilot-stack.md
 +++ b/skills/poteto-mode/playbooks/autopilot-stack.md
 @@ -1,5 +1,7 @@
@@ -136,21 +114,21 @@ index 819862c..472a6b1 100644
  
  1. **In place of step 5, stop at verified.** Stop when each PR is verified and green at its current head, then hand the PRs to the operator. After the handoff, nobody pushes without the operator's go. Every loop tick prompt names this file, so each tick sees the no-merge rule.
 diff --git a/skills/poteto-mode/playbooks/babysit.md b/skills/poteto-mode/playbooks/babysit.md
-index 14d5783..bcc4198 100644
+index 0685ac2..fe4001c 100644
 --- a/skills/poteto-mode/playbooks/babysit.md
 +++ b/skills/poteto-mode/playbooks/babysit.md
 @@ -1,6 +1,8 @@
  ### Babysit
  
--**You own the merge frontier. Declare a mode, clear one PR at a time, stop where the human's call begins.** This playbook replaces Cursor's built-in babysit skill for these requests, so do not route there even though its description matches the same words. A request to land or ship is `playbooks/shipping.md`, which begins where this playbook ends.
+-**You own the merge frontier. Declare a mode, clear one PR at a time, stop where the human's call begins.**
 +Use [Claude Code execution](../references/execution.md) for worker identities and [Claude Code wakeups](../references/claude-wakeups.md) for the run's event watcher and schedule lifecycle.
-+
 +**You own the merge frontier. Declare a mode, clear one PR at a time, stop where the human's call begins.** This playbook replaces another babysit skill for these requests, so do not route there even though its description matches the same words. A request to land or ship is `playbooks/shipping.md`, which begins where this playbook ends.
++
  
- Babysitting starts when the user asks for it, which is normally once a phase or a whole stack is built, not when a PR opens. Finish the stack, get it green here, then land it through Shipping.
- 
+ - Declare the mode in your first line, before any poll. Modes: `drive` loops to merge-ready, `threads-only` touches only review threads, `check` is one status pass and a report.
+ - Use `gh` by default, or `origin pr` when Origin's CLI resolves the repository. Never require Graphite (`gt`). On GitHub, status comes from the mode's watcher at `scripts/watch-pr/watch-pr`. In `check` mode pass `--status-only`. The watcher covers GitHub only. On Origin, use `origin pr view <pr> --checks` and `origin pr checks <pr> --watch`.
 diff --git a/skills/poteto-mode/playbooks/bug-fix.md b/skills/poteto-mode/playbooks/bug-fix.md
-index 8f76e32..eb4be08 100644
+index 0e9e734..d3ac72f 100644
 --- a/skills/poteto-mode/playbooks/bug-fix.md
 +++ b/skills/poteto-mode/playbooks/bug-fix.md
 @@ -1,12 +1,14 @@
@@ -158,20 +136,20 @@ index 8f76e32..eb4be08 100644
  
 +Read [Claude Code execution](../references/execution.md). Resolve `bug-fix` with worker kind `poteto-agent` for implementation, `hardest tasks` for its hardest work, and `swarm workers` for verification through the calling verification workflow. Preserve each selected executor and supported task effort.
 +
- **You own this task. Plan, review, verify.** Delegate investigation and the fix to subagents, stay in the lead. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+ **You own this task. Plan, review, verify.** Delegate investigation and the fix to subagents, stay in the lead. Pick each subagent's reasoning level for the job, per the Subagents section.
  
  Be scientific. Every shipped line traces to runtime evidence. Belt-and-suspenders that "might help" is a hypothesis, not a fix. It does not ship. When evidence refutes a hypothesis, revert what it motivated. The smallest change the evidence justifies ships, nothing more.
  
  1. Reproduce it yourself on the matching surface via the control skill (Non-negotiables), even when a debug or instrumentation protocol says to ask the user to reproduce. Ask the user only with a stated, specific reason the control surface cannot reach the target, and only after driving it as far as it goes. If it won't reproduce directly, synthesize the trigger, tighten conditions, or instrument until it fires.
--2. Binary-search the cause. Form the candidate hypotheses, then rule them out until one survives. Seed them with a trace of the affected subsystem and the **why** skill for regression history. Each pass, take the split that cuts the most remaining problem space, get runtime evidence, eliminate. When program state is unclear, add instrumentation or logging and read it as the code runs. Don't guess. Drive a long or stubborn hunt with Cursor's `/loop` command. Confirm the surviving *mechanism* with runtime evidence before the step-3 architect/interrogate fan-out.
--3. Plan the fix. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured bug-fix model (default `claude-opus-5-5-xhigh`) with a specific scope.
+-2. Binary-search the cause. Form the candidate hypotheses, then rule them out until one survives. Seed them with a trace of the affected subsystem and the **why** skill for regression history. Each pass, take the split that cuts the most remaining problem space, get runtime evidence, eliminate. When program state is unclear, add instrumentation or logging and read it as the code runs. Don't guess. Drive a long or stubborn hunt with Cursor's `/loop` command. Confirm the surviving *mechanism* with runtime evidence before step 3's `architect` or an `interrogate` fan-out.
+-3. Plan the fix. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured bug-fix model (default `claude-opus-5-5-xhigh-fast`) with a specific scope.
 +2. Binary-search the cause. Form the candidate hypotheses, then rule them out until one survives. Seed them with a trace of the affected subsystem and the **why** skill for regression history. Each pass, take the split that cuts the most remaining problem space, get runtime evidence, eliminate. When program state is unclear, add instrumentation or logging and read it as the code runs. Don't guess. Drive a long or stubborn hunt with [Claude Code wakeups](../references/claude-wakeups.md). Confirm the surviving *mechanism* with runtime evidence before the step-3 architect/interrogate fan-out.
 +3. Plan the fix. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured bug-fix model from setup with a specific scope.
  4. Verify on the same surface. The original repro now passes. "Inconclusive" or wrong-surface is not a pass. Flag it. Unit tests show branch behavior, not bug absence.
  5. Stage the commits so the failing repro lands before the fix in git history. See the **tdd** skill for the failing-test-first cadence when the bug has a cheap local test path. Skip it when the test would be expensive, integration-heavy, or unclear.
     This is the canonical **sequence-verifiable-units** principle skill, the failing test first and the fix on top.
 diff --git a/skills/poteto-mode/playbooks/eval.md b/skills/poteto-mode/playbooks/eval.md
-index 768a894..d5d5715 100644
+index 5e57625..8e11fb5 100644
 --- a/skills/poteto-mode/playbooks/eval.md
 +++ b/skills/poteto-mode/playbooks/eval.md
 @@ -1,5 +1,7 @@
@@ -184,7 +162,7 @@ index 768a894..d5d5715 100644
  **Non-negotiables for blinding:**
 @@ -19,7 +21,7 @@
  3. **Author one organic prompt.** What a user would type. No leakage of what's being measured.
- 4. **Spawn N parallel candidates** on different models per the **arena** skill's Phase B. Each works in its own sanitized dir. Same prompt to each. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+ 4. **Spawn N parallel candidates** on different models per the **arena** skill's Phase B. Each works in its own sanitized dir. Same prompt to each. Pick each subagent's reasoning level for the job, per the Subagents section. An agent that only dispatches, polls, or packs results runs on `claude-opus-5-5-medium-fast`.
  5. **Spawn one blinded judge** on a different model family per the **arena** skill's Phase C. Judge sees outputs by sanitized label and the rubric, never a model name.
 -6. **Verify the chain from transcripts, not self-report.** Read each candidate's local transcript under the active workspace's `agent-transcripts/` directory (the system prompt names this path). Do not glob across `~/.cursor/projects/*/`. That crosses workspace boundaries and reads private chats from unrelated projects. Look at which files each candidate actually opened. Grade chain-following from the files it really read plus the shape of the code, never from the candidate's own claims.
 +6. **Verify the chain from transcripts, not self-report.** Use [Claude history](../../recall/references/claude-history.md) to read each candidate's exact scoped transcript. For Codex candidates, inspect their assigned runner evidence and exact thread. Inspect complete instruction bodies in the actual input and files each candidate actually opened. Required bodies absent from the input still need real reads. Grade chain-following from the candidate's actions and code shape, never from delivery alone or the candidate's own claims. Keep unrelated projects outside the search.
@@ -192,7 +170,7 @@ index 768a894..d5d5715 100644
  
  **Reply:** variant under test, rubric, per-candidate notes, judge's verdict, your synthesis, and a recommendation for whether to promote the variant.
 diff --git a/skills/poteto-mode/playbooks/feature.md b/skills/poteto-mode/playbooks/feature.md
-index 17e7f00..551ee2c 100644
+index 27d76a5..69113c0 100644
 --- a/skills/poteto-mode/playbooks/feature.md
 +++ b/skills/poteto-mode/playbooks/feature.md
 @@ -1,5 +1,7 @@
@@ -207,13 +185,13 @@ index 17e7f00..551ee2c 100644
     - **Independent workstreams.** Disjoint files, services, or layers parallelize. Shared writes serialize.
     - **Shared mutable state.** Default to splitting the target (the **separate-before-serializing-shared-state** principle skill). Serialize only for real invariants.
     - **Smallest safe decomposition.** If one worker is best, name why.
--4. Delegate code-writing to a subagent using your configured feature model (default `claude-opus-5-5-xhigh`) with a specific scope (file paths, named data shape and its organizing structure per **principle-model-the-domain**, a state machine over scattered booleans, a table/registry over branching, a typed model over repeated shape assumptions, chosen before the delegate writes logic, and success criteria). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. When the implementation admits multiple valid shapes (error handling, abstraction layer, test structure), delegate via the **arena** skill instead so the runners surface the alternatives and the cross-judge guards the pick. Mandatory: no skip-with-reason escape, and Laziness Protocol does not override it (the gain is review separation, not lines saved). A subagent forbidden to spawn satisfies this by owning the diff directly with the same review separation. No "standing by" reply that waits on a nested agent. Comments per **Comments**. Surgical edits, re-ground against the source for upstream-derived files. Port shared-primitive improvements to all consumers and verify each. Commit liberally.
+-4. Delegate code-writing to a subagent using your configured feature model (default `claude-opus-5-5-xhigh-fast`) with a specific scope (file paths, named data shape and its organizing structure per **principle-model-the-domain**, a state machine over scattered booleans, a table/registry over branching, a typed model over repeated shape assumptions, chosen before the delegate writes logic, and success criteria). Pick each subagent's reasoning level for the job, per the Subagents section. When the implementation admits multiple valid shapes (error handling, abstraction layer, test structure), delegate via the **arena** skill instead so the runners surface the alternatives and the cross-judge guards the pick. Mandatory: no skip-with-reason escape, and Laziness Protocol does not override it (the gain is review separation, not lines saved). A subagent forbidden to spawn satisfies this by owning the diff directly with the same review separation. No "standing by" reply that waits on a nested agent. Surgical edits, re-ground against the source for upstream-derived files. Port shared-primitive improvements to all consumers and verify each. Commit liberally.
 +4. Delegate code-writing to a subagent using your configured feature model from setup with a specific scope (file paths, named data shape and its organizing structure per **principle-model-the-domain**, a state machine over scattered booleans, a table/registry over branching, a typed model over repeated shape assumptions, chosen before the delegate writes logic, and success criteria). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. When the implementation admits multiple valid shapes (error handling, abstraction layer, test structure), delegate via the **arena** skill instead so the runners surface the alternatives and the cross-judge guards the pick. Mandatory: no skip-with-reason escape, and Laziness Protocol does not override it (the gain is review separation, not lines saved). A subagent forbidden to spawn satisfies this by owning the diff directly with the same review separation. No "standing by" reply that waits on a nested agent. Comments per **Comments**. Surgical edits, re-ground against the source for upstream-derived files. Port shared-primitive improvements to all consumers and verify each. Commit liberally.
  5. Verify on the matching surface. "Inconclusive" or wrong-surface is not a pass. Flag it.
  6. Rebase into small, ordered commits. Stack follow-ups.
     Use the **sequence-verifiable-units** principle skill, building, verifying, and committing each small unit before the next.
 diff --git a/skills/poteto-mode/playbooks/hillclimb.md b/skills/poteto-mode/playbooks/hillclimb.md
-index d135cf3..550195a 100644
+index dbcff8f..550195a 100644
 --- a/skills/poteto-mode/playbooks/hillclimb.md
 +++ b/skills/poteto-mode/playbooks/hillclimb.md
 @@ -1,5 +1,7 @@
@@ -228,165 +206,11 @@ index d135cf3..550195a 100644
  3. Open the decision log via the **show-me-your-work** skill. A `decision.tsv`, one row per attempt: id, hypothesis, change, before, after, delta, tests, verdict (kept or reverted), note. Read it before each attempt. Keep it out of the tree (gitignored).
  4. Ground each hypothesis in the architecture model from step 1, so it names a specific mechanism ("defer X off the boot path because it blocks first paint"), not "try memoizing something". For a perf metric, order hypotheses by the performance mantras in step 2 of the Perf issue playbook (`playbooks/perf-issue.md`). Borrow only their order, not that step's stop rule.
  5. Loop, one hypothesis per iteration:
--   - Hand the change to a subagent using your configured hillclimb model (default `claude-opus-5-5-xhigh`) with a tight scope. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Supervise and review the diff rather than typing it (the **guard-the-context-window** principle skill). When several independent hypotheses are live, fan them to parallel subagents, each in its own worktree (the **separate-before-serializing-shared-state** principle skill).
+-   - Hand the change to a subagent using your configured hillclimb model (default `claude-opus-5-5-xhigh-fast`) with a tight scope. Pick each subagent's reasoning level for the job, per the Subagents section. Supervise and review the diff rather than typing it (the **guard-the-context-window** principle skill). When several independent hypotheses are live, fan them to parallel subagents, each in its own worktree (the **separate-before-serializing-shared-state** principle skill).
 +   - Hand the change to a subagent using your configured hillclimb model from setup with a tight scope. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Supervise and review the diff rather than typing it (the **guard-the-context-window** principle skill). When several independent hypotheses are live, fan them to parallel subagents, each in its own worktree (the **separate-before-serializing-shared-state** principle skill).
     - Measure before and after with the frozen harness, and run the regression gate.
     - Accept only when the metric moves past noise and the gate stays green. Otherwise revert the change in full. A tweak that "might help" is not kept.
     - One commit per accepted fix, staging only the files you changed (`git add <files>`, never `-A`). Log the row either way, kept or reverted.
-diff --git a/skills/poteto-mode/playbooks/multi-phase-plan.md b/skills/poteto-mode/playbooks/multi-phase-plan.md
-index 277091a..8ba3f22 100644
---- a/skills/poteto-mode/playbooks/multi-phase-plan.md
-+++ b/skills/poteto-mode/playbooks/multi-phase-plan.md
-@@ -1,16 +1,18 @@
- ### Multi-phase or multi-PR plan
- 
-+Read [Claude Code execution](../references/execution.md) and resolve `judgment and prose` with worker kind `poteto-agent` for the corresponding seats. Keep caller-specific different-model and different-family requirements. Select a supported counterpart when a requirement needs one. Arena's disclosed judge skip does not waive a required verifier or eval judge.
-+
- **You own the plan, not the code. The plan is a checklist an owner runs box by box and the operator audits from the evidence.** The plan is the deliverable. Do not implement.
- 
- 1. When the change is one or two files with an obvious approach, skip the plan. Say so and stop.
- 2. Settle open questions by prototype before you write. Run `playbooks/prototype.md` for each. Keep the branch, the SHA, and the screenshots for Appendix A. Ask the operator only about a product or preference call that no run can settle. Give options (the **never-block-on-the-human** principle skill).
--3. Explore in subagents with `subagent_type: "poteto-agent"` and an explicit model per the Subagents section (the **guard-the-context-window** principle skill). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Each returns file pointers, conventions, test commands, and entry points. No inlined dumps.
--4. Copy the skeleton below into the plan file and fill every placeholder. Unless the operator names a path, write the file under the agent store's `docs/`. Keep every heading and every sub-block in the order shown. One section per PR. One PR is one change with its own evidence (the **sequence-verifiable-units** principle skill). Name the execution playbook in **How to read this**. Pick `playbooks/autopilot-full.md` when the run may merge. Pick `playbooks/autopilot-stack.md` when the operator lands the PRs. A standing program takes `playbooks/orchestrate.md`.
-+3. Explore in subagents with the selected `poteto-agent` instructions and an explicit model per the Subagents section (the **guard-the-context-window** principle skill). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Each returns file pointers, conventions, test commands, and entry points. No inlined dumps.
-+4. Copy the skeleton below into the plan file and fill every placeholder. Unless the operator names a path, write the file under the local-only project store's `docs/`, default `<project>/.local/pstack/docs/`. Keep every heading and every sub-block in the order shown. One section per PR. One PR is one change with its own evidence (the **sequence-verifiable-units** principle skill). Name the execution playbook in **How to read this**. Pick `playbooks/autopilot-full.md` when the run may merge. Pick `playbooks/autopilot-stack.md` when the operator lands the PRs. A standing program takes `playbooks/orchestrate.md`.
- 5. Write under `/technical-writing` in full, then `/unslop`. The body is one Diátaxis mode, how-to. Appendices hold explanation and reference. Each heading states the task or the finding. No long dashes. No mid-sentence colons.
--6. Run `node pstack/skills/poteto-mode/scripts/check-plan.mjs <plan.md>` and fix every line it prints (the **encode-lessons-in-structure** principle skill).
-+6. Run `node "<absolute-installed-poteto-mode>/scripts/check-plan.mjs" <plan.md>` and fix every line it prints (the **encode-lessons-in-structure** principle skill).
- 7. Hand back. Post the plan path and the script's output, then stop. Execution starts on the operator's explicit go, under the execution playbook the plan names.
- 
--**Verification.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked (the **prove-it-works** principle skill). That sentence is the verification rule. Every verification block opens with it. The live block is mandatory. Ten lanes at the PR head drive the real surface through its control skill, per the **swarm** skill, on the `swarm workers` model (default `claude-opus-5-5-high-fast`). Each lane is one box with a concrete scenario, the screenshot it saves, and its pass predicate. One lane is the **Regression lane against trunk.** It runs the same load-bearing scenario on trunk and head. If trunk does not have the feature, the lane records that fact and gates the behavior the diff adds plus the end state the user waits for instead of inventing a trunk result. The perf gate is dual-sided. Trunk and head must both produce the named metric. If trunk lacks the feature, also isolate the work the diff adds and set an absolute budget for that work plus the end-to-end state the user waits for. Do not claim a ratio between unlike scenarios. The perf block names the metric, the interleaved probe, the trunk baseline measured first, and the rule with the number that fails. A PR that changes an interaction is review-gated. The operator reviews it in chat with screenshots and a video before merge. A PR that changes no interaction writes `**Review gate.** None. <PR id> is not review-gated.` and no boxes under it.
-+**Verification.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked (the **prove-it-works** principle skill). That sentence is the verification rule. Every verification block opens with it. The live block is mandatory. Ten lanes at the PR head drive the real surface through its control skill, per the **swarm** skill, on the `swarm workers` model from setup. Each lane is one box with a concrete scenario, the screenshot it saves, and its pass predicate. One lane is the **Regression lane against trunk.** It runs the same load-bearing scenario on trunk and head. If trunk does not have the feature, the lane records that fact and gates the behavior the diff adds plus the end state the user waits for instead of inventing a trunk result. The perf gate is dual-sided. Trunk and head must both produce the named metric. If trunk lacks the feature, also isolate the work the diff adds and set an absolute budget for that work plus the end-to-end state the user waits for. Do not claim a ratio between unlike scenarios. The perf block names the metric, the interleaved probe, the trunk baseline measured first, and the rule with the number that fails. A PR that changes an interaction is review-gated. The operator reviews it in chat with screenshots and a video before merge. A PR that changes no interaction writes `**Review gate.** None. <PR id> is not review-gated.` and no boxes under it.
- 
- **Control skill.** Pick it by surface. Browser, Electron, and web UIs use `control-ui` from `cursor-team-kit`. CLIs and TUIs use `control-cli` from `cursor-team-kit`. Native mobile uses whatever simulator-driving skill the repo has. A PR that touches two surfaces gets lanes on both. A surface with no control skill is a risk in Appendix C, and its live block still names how each lane drives it.
- 
-@@ -23,7 +25,7 @@
- 
- One box is one unit of work. Every box names the evidence that checks it. A nested box is a sub-step of the box above it. Check a box only when its evidence exists, a file, a log line, a screenshot, a test run, or a SHA. The body is a how-to. The appendices explain and record.
- 
--The program runs `pstack/skills/poteto-mode/playbooks/<execution playbook>.md`. <Who merges, and which PR ids are the operator's items that stop at merge-ready.>
-+The program runs `<absolute-installed-poteto-mode>/playbooks/<execution playbook>.md`. <Who merges, and which PR ids are the operator's items that stop at merge-ready.>
- 
- Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
- 
-@@ -32,14 +34,14 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
- ### Arm the program
- 
- - [ ] State the protocol and this plan to the operator, then stop. Start execution only on the operator's explicit go.
--- [ ] Read these from trunk at program start. Re-read them at every tick.
--  - [ ] `git show origin/main:pstack/skills/poteto-mode/playbooks/<execution playbook>.md`
--  - [ ] `git show origin/main:pstack/skills/swarm/SKILL.md`
--  - [ ] `git show origin/main:<control skill path>`
--  - [ ] `git show origin/main:pstack/skills/poteto-mode/playbooks/opening-a-pr.md`
--  - [ ] `git show origin/main:pstack/skills/<each other leaf skill the program uses>`
--- [ ] On the operator's go, arm the audit tick as `/loop 1h` with the tick prompt below. Never leave the cadence to memory.
--- [ ] Use this tick prompt, verbatim. "Re-read the execution playbook from trunk. Audit the operation against it and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then post a short status message to the operator in chat only when the audit found a tracked change that no earlier status message reported, such as a PR opened, a code-ready head, a round launched or closed, a verdict, a merge, a stuck agent and the action taken, a blocker added or cleared, or a decision only the operator can make. Name every such change and nothing else. Do not repeat a table, the merged list, or an unchanged blocker. If the audit found none, end the turn with no reply text. Either way, log this tick's row in your decision trail. The row names the items reported, or none."
-+- [ ] Read current skill sources at program start. Re-read them at every tick. Resolve actual installed absolute paths. When the project tracks a skill on trunk, read its actual repository-relative path with `git show origin/main:<path>`; otherwise read the installed versioned bundle.
-+  - [ ] Read `<absolute-installed-poteto-mode>/playbooks/<execution playbook>.md`.
-+  - [ ] Read `<absolute-installed-swarm>/SKILL.md`.
-+  - [ ] Read `<absolute-control-skill>/SKILL.md`.
-+  - [ ] Read `<absolute-installed-poteto-mode>/playbooks/opening-a-pr.md`.
-+  - [ ] Read `<absolute-other-leaf-skill>/SKILL.md` for each leaf the program uses.
-+- [ ] On the operator's go, arm the audit tick as a Claude heartbeat every 1h per `references/claude-wakeups.md` with the tick prompt below. Never leave the cadence to memory.
-+- [ ] Use this tick prompt, verbatim. "Re-read the current execution playbook source. Audit the operation against it and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then post a short status message to the operator in chat only when the audit found a tracked change that no earlier status message reported, such as a PR opened, a code-ready head, a round launched or closed, a verdict, a merge, a stuck agent and the action taken, a blocker added or cleared, or a decision only the operator can make. Name every such change and nothing else. Do not repeat a table, the merged list, or an unchanged blocker. If the audit found none, end the turn with no reply text. Either way, log this tick's row in your decision trail. The row names the items reported, or none."
- - [ ] On the operator's hold or stand-down, send every owner a zero-writes order at once.
- 
- ### Spawn owners
-@@ -62,15 +64,15 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
- 
- ### Verdict and merge, for every PR
- 
--- [ ] A full swarm runs once, at the code-ready head. Another full swarm runs only for new behavior, a redesign, or a large new diff. A rebase, a merge-conflict resolution, or a minor fix gets a single verifier at the new head, and a wording-only change gets none. Run each full swarm per `pstack/skills/swarm/SKILL.md`. One gates lane. The ten live lanes from the PR's **Verify, live** block. The perf lane from its **Verify, perf** block. Two or more audit lanes, each with its own focus, that read the diff and the receipts and distrust the PR body. The root audits the receipts in the merge-ready report before the verdict.
-+- [ ] A full swarm runs once, at the code-ready head. Another full swarm runs only for new behavior, a redesign, or a large new diff. A rebase, a merge-conflict resolution, or a minor fix gets a single verifier at the new head, and a wording-only change gets none. Run each full swarm per the installed **swarm** skill. One gates lane. The ten live lanes from the PR's **Verify, live** block. The perf lane from its **Verify, perf** block. Two or more audit lanes, each with its own focus, that read the diff and the receipts and distrust the PR body. The root audits the receipts in the merge-ready report before the verdict.
- - [ ] Judge every finding by the execution playbook's blocking rule. The verdict is clean when none blocks. A failure on trunk behavior in a lane marked `Regression lane against trunk.` is recorded against trunk and does not block the PR. A new head gets a fresh verdict, except for results that stay valid under the patch-id rule in `playbooks/shipping.md`.
- - [ ] <The merge or handoff rule from the execution playbook, with the patch-id rule from `playbooks/shipping.md`.>
- 
- ### Boot recipe, for every live lane
- 
--Each live lane runs on its own cloud VM at the PR head. Drive through `control-ui` or `control-cli` from `cursor-team-kit`.
-+Each live lane runs in its own local Git worktree at the PR head. Local worktrees share the machine, so allocate independent ports, data directories, and app or terminal sessions. Serialize a resource that cannot be isolated. Follow [Claude Code execution](../references/execution.md). Drive through the bundled control-ui or control-cli skill.
- 
--- [ ] `git fetch origin <head-branch> && git checkout <head SHA>`.
-+- [ ] Fetch the head branch, create the lane's dedicated worktree at `<head SHA>`, and confirm its exact HEAD. Bind every lane command to that worktree.
- - [ ] <Start the backend and the surface. Wait for ready.>
- - [ ] <Deliver input only through the control skill's commands. Name the read-only diagnostics.>
- - [ ] Save every screenshot to `/tmp/swarm-<pr-id>/worker-<n>/<slug>.png` and return the paths with the report.
-@@ -120,7 +122,7 @@ Each live lane runs on its own cloud VM at the PR head. Drive through `control-u
- **Review gate.** The operator reviews before merge.
- 
- - [ ] Copy lane <n> screenshots into `<media path>/<pr-id>-review-<slug>.png`.
--- [ ] Record a 30 to 60 second video of the change on a lane VM. Save it as `<media path>/<pr-id>-review.mp4`.
-+- [ ] Record a 30 to 60 second video of the change in a lane's isolated app session. Save it as `<media path>/<pr-id>-review.mp4`.
- - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
- 
- **Merge.**
-@@ -128,11 +130,11 @@ Each live lane runs on its own cloud VM at the PR head. Drive through `control-u
- - [ ] Root's clean verdict at the exact head SHA.
- - [ ] Bugbot triage done.
- - [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
--- [ ] <The owner squash-merges its own PR, or the root appends it to the base-branch stack and the operator lands it bottom-up.>
-+- [ ] <The owner squash-merges its own PR, or hands verified PRs to the operator under Autopilot-stack. Stack only PRs that depend on another PR.>
- 
- ## Close the program
- 
--- [ ] Every box above is checked with its evidence.
-+- [ ] Every box above is checked with its evidence. Stop the watcher and remove this program's heartbeat.
- - [ ] Reply to the operator with the report the execution playbook names.
- 
- ## Appendix A. Prototype evidence
-@@ -149,7 +151,7 @@ Each live lane runs on its own cloud VM at the PR head. Drive through `control-u
- 
- ## Appendix D. Links and reading list
- 
--<Docs to read before editing. Which PRs get `pstack/skills/interrogate/SKILL.md`. The trail per `pstack/skills/show-me-your-work/SKILL.md`.>
-+<Docs to read before editing. Which PRs get the installed **interrogate** skill. The trail per the installed **show-me-your-work** skill.>
- ````
- 
- **Reply:** the plan path, the PR ids with their dependencies and the review-gated set, what the prototypes proved and what stays unproven, and the check script's output.
-diff --git a/skills/poteto-mode/playbooks/opening-a-pr.md b/skills/poteto-mode/playbooks/opening-a-pr.md
-index 4a92c50..e7cafb2 100644
---- a/skills/poteto-mode/playbooks/opening-a-pr.md
-+++ b/skills/poteto-mode/playbooks/opening-a-pr.md
-@@ -2,11 +2,11 @@
- 
- Invoked at the end of every other playbook.
- 
--**Worktree.** Work from a git worktree off main. Subagents inherit it. Multiple `Task` calls on the same branch each get their own worktree, or `git fetch && git reset --hard origin/<branch>` between them. Dirty branch with unrelated work: patch out, fresh worktree, apply. Snarled worktree: reset from main, redo minimally.
-+**Worktree.** Work from an exclusive Git worktree at the workflow's resolved base ref. Each independent writer gets its own branch and checkout. The coordinator prepares and verifies any scoped working-tree transfer before dispatch through [Claude Code execution](../references/execution.md). Preserve unrelated dirty work and review the actual diff before integration.
- 
- **Commits.** Commit liberally. Rebase into small, ordered commits before opening PRs. Each commit is a future PR: landable, ordered to tell the story. Amend when the fix belongs in a just-made commit. New commit when separable. Commit bodies don't restate the subject.
- 
--**PRs.** Run `/deslop` from `cursor-team-kit` over the diff before commit and `/no-comments` before review. Write every PR title, description, and commit body with `/technical-writing` (every layer except Diátaxis, and apply the STE vocabulary rules: one word per action, keep articles, a plain verb over `-ing` where one works), then apply `/unslop`.
-+**PRs.** Read the bundled `../deslop/SKILL.md` and run its pass over the diff before commit and `/no-comments` before review. Write every PR title, description, and commit body with `/technical-writing` (every layer except Diátaxis, and apply the STE vocabulary rules: one word per action, keep articles, a plain verb over `-ing` where one works), then apply `/unslop`.
- 
- **Titles.** Conventional Commits `type(scope): subject`, no trailing period. Type such as `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, or `perf`. Scope is the area, such as `pstack` or `poteto-mode`. Subject is short, imperative, and names a real symbol when one carries the change, for example `fix(pstack): retarget opening-a-pr babysit trigger`.
- 
-diff --git a/skills/poteto-mode/playbooks/orchestrate.md b/skills/poteto-mode/playbooks/orchestrate.md
-index b6e5f56..97c210f 100644
---- a/skills/poteto-mode/playbooks/orchestrate.md
-+++ b/skills/poteto-mode/playbooks/orchestrate.md
-@@ -2,14 +2,18 @@
- 
- **You run the program, never the code. Decide which agent does each piece of work, then check what each one produces.** For a standing project handed to one coordinator chat: multi-day, many stacked PRs, dozens to hundreds of subagents, few human turns. One task driven to a predicate is Autonomous run. One ambitious run that needs a bespoke workflow is figure-it-out. Work that one agent could finish inside the session's budget is not a program.
- 
--Run it with your own tools. Spawn workers with `Task`. Keep the program's state in the Project tracker (`notes.md`) and the Project store. Watch each PR with PR and CI event subscriptions when your harness has them. Call no scripts, run no polling loops, and never relay messages or status between agents.
-+Run it with the native Claude Code tools through [Claude Code execution](../references/execution.md). Keep state in a local project tracker (`notes.md`) and the local project store below. Watch each PR with real PR and CI event subscriptions when the host exposes them. Native child-completion events are not PR subscriptions. Call no orchestration scripts, run no polling loops, and never relay messages or status between agents. The foreground Codex task command is an executor binding, not an orchestration service. When PR subscriptions are absent, owners report completion and the coordinator checks forge state at workflow checkpoints without inventing a poller.
-+
-+#### Store layout
-+
-+Resolve, create, and record one absolute local task-store path before spawning. Use the caller's explicit path or `<project>/.local/pstack/orchestrate/<project-slug>/`. Keep `notes.md`, briefs, reports, and required evidence there, outside the installed plugin cache, and pass the same absolute path to every owner and replacement. Each mutable file has one writer. Choose the tracker shape for this program.
- 
- #### Topology
- 
- - **One owner per PR.** The owner is the only writer of its branch and carries the PR from build to merge. Only the owner pushes, rebases, or retargets it. Closing or retargeting a base PR orphans every PR above it, so the owner does that only on your call. You never author or edit code. Conflicted merges, chain rebases, and fixes go to owners.
--- **A fresh worker for each independent task.** Its kickoff carries everything it needs, including each upstream report it depends on, pasted in full. Workers can't see their siblings. Run workers on a new cloud VM (`environment: "cloud"`) unless the work needs this machine: a `control-ui` or `control-cli` runtime check (from `cursor-team-kit`), local transcripts, a simulator, or auth that exists only here. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
-+- **A fresh worker for each independent task.** Its kickoff carries everything it needs, including the complete upstream reports it depends on. Pass their absolute paths and required skill paths through Claude Code execution, with the applicable constraints in the consolidated brief. Workers do not inherit their siblings' conversations. Assign an exclusive local worktree and branch through Claude Code execution. A worktree does not provide a cloud VM. Keep local transcripts, authentication, simulators, and control checks on their actual host, and separate shared machine resources. If a task truly requires a remote machine, use an available configured remote environment and report its identity. Apply poteto-mode's reasoning and speed guidance.
- - **A sub-coordinator only when one area has many parallel workers.** It owns that area's workers and kickoffs and sends you one rollup, never raw worker reports. Stop at three levels: you, sub-coordinators, and workers. Keep about ten workers in flight per coordinator, and start the next one as each finishes instead of waiting on a whole batch.
--- **Fork when new work needs a worker's built state,** such as its checkout, uncommitted changes, or a running process. Message a worker only for a follow-up on the same work. Never message one to check on it, because a message restarts an idle agent.
-+- **Use a fresh worker when new work needs a completed worker's built state.** Transfer its checkout and uncommitted changes coherently into an exclusive worktree, or hand off the stopped writer's checkout. A history fork does not copy files or processes. Reuse the existing worker only for poteto-mode's costly-state exception, including a process it still runs. Message a worker only for a follow-up on the same work, never as a status probe.
- - **Each PR gets a verifier that isn't its author,** on a different model family. The owner merges only on that verifier's pass at the current head.
- - **Start with one unit.** Take it through kickoff, owner, verifier, and merge before you fan out, so a flaw in the kickoff costs one agent instead of fifty. On near-identical cheap units, the first unit is that test.
- 
 diff --git a/skills/poteto-mode/playbooks/pause-safely.md b/skills/poteto-mode/playbooks/pause-safely.md
 index 9d1c5f8..934c361 100644
 --- a/skills/poteto-mode/playbooks/pause-safely.md
@@ -400,7 +224,7 @@ index 9d1c5f8..934c361 100644
  
  1. Stop at a safe boundary. Finish the current atomic step or back out of it. Start nothing new, and cancel any nested subagents.
 diff --git a/skills/poteto-mode/playbooks/perf-issue.md b/skills/poteto-mode/playbooks/perf-issue.md
-index adf5c26..72e156e 100644
+index f5264c2..72e156e 100644
 --- a/skills/poteto-mode/playbooks/perf-issue.md
 +++ b/skills/poteto-mode/playbooks/perf-issue.md
 @@ -1,5 +1,7 @@
@@ -415,13 +239,13 @@ index adf5c26..72e156e 100644
     7. Do it cheaper.
  
     When an earlier mantra meets the target, stop.
--3. Plan the fix from the trace. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured perf-issue model (default `claude-opus-5-5-xhigh`). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Review the diff. Capture a post-fix trace.
+-3. Plan the fix from the trace. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured perf-issue model (default `claude-opus-5-5-xhigh-fast`). Pick each subagent's reasoning level for the job, per the Subagents section. Review the diff. Capture a post-fix trace.
 +3. Plan the fix from the trace. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using your configured perf-issue model from setup. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Review the diff. Capture a post-fix trace.
     Apply the **sequence-verifiable-units** principle skill, verifying each attempt before trying the next.
  4. Parse and compare the artifacts (JSON to sqlite, diff). "Inconclusive" or wrong-surface is not a pass. Flag it.
  5. Cite the measurement in the PR.
 diff --git a/skills/poteto-mode/playbooks/refactoring.md b/skills/poteto-mode/playbooks/refactoring.md
-index 8a76dc2..1cc45b7 100644
+index d4db06b..c5cdf06 100644
 --- a/skills/poteto-mode/playbooks/refactoring.md
 +++ b/skills/poteto-mode/playbooks/refactoring.md
 @@ -1,5 +1,7 @@
@@ -434,15 +258,15 @@ index 8a76dc2..1cc45b7 100644
  If the cleanup reveals a missing feature or a real bug, split it out and ship the structural change first against the pinned contract. A redesign is allowed, but name it and route to Feature. Large or cross-cutting structural work belongs to the **figure-it-out** skill. This playbook is the focused-to-medium change.
 @@ -8,7 +10,7 @@ If the cleanup reveals a missing feature or a real bug, split it out and ship th
  2. Name the structure the code is missing per **principle-model-the-domain**. Boring code stays when the shape is already clear and local. The reshape must delete branches or invalid states, not add indirection.
- 3. Name the target shape. State what the module layout, types, and call graph should be if built today (**principle-foundational-thinking**, **principle-redesign-from-first-principles**). If the target crosses a function boundary, run the **architect** skill for parallel design exploration of the shape before the move.
+ 3. Name the target shape. State what the module layout, types, and call graph should be if built today (**principle-foundational-thinking**, **principle-redesign-from-first-principles**). If the target crosses a function boundary, run the **architect** skill for the shape before the move.
  4. Subtract before you add. Delete dead code, collapse one-caller wrappers, drop redundant validators, and remove orphan references before introducing the new shape (**principle-subtract-before-you-add**). The smallest change that reaches the target shape ships (**principle-laziness-protocol**). A speculative cleanup that "might help" gets reverted.
--5. Move in small behavior-preserving steps, each keeping the pin green. For API reshapes, migrate every caller and delete the old API in the same wave (**principle-migrate-callers-then-delete-legacy-apis**). No compatibility shims, no parallel old-and-new paths. Spot-check every rename against the actual files. Renames silently miss usages in strings, prose, and back-references. Delegate the mechanical edits to a subagent using your configured refactoring model (default `claude-opus-5-5-xhigh`) with a specific scope (file paths, the names being moved, the behavior to hold). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+-5. Move in small behavior-preserving steps, each keeping the pin green. For API reshapes, migrate every caller and delete the old API in the same wave (**principle-migrate-callers-then-delete-legacy-apis**). No compatibility shims, no parallel old-and-new paths. Spot-check every rename against the actual files. Renames silently miss usages in strings, prose, and back-references. Delegate the mechanical edits to a subagent using your configured refactoring model (default `claude-opus-5-5-xhigh-fast`) with a specific scope (file paths, the names being moved, the behavior to hold). Pick each subagent's reasoning level for the job, per the Subagents section.
 +5. Move in small behavior-preserving steps, each keeping the pin green. For API reshapes, migrate every caller and delete the old API in the same wave (**principle-migrate-callers-then-delete-legacy-apis**). No compatibility shims, no parallel old-and-new paths. Spot-check every rename against the actual files. Renames silently miss usages in strings, prose, and back-references. Delegate the mechanical edits to a subagent using your configured refactoring model from setup with a specific scope (file paths, the names being moved, the behavior to hold). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
  6. Prove behavior is unchanged on the real artifact, not "it compiles" (**principle-prove-it-works**). For larger reshapes, run an equivalence check: a script that diffs old-vs-new outputs, a recorded baseline replayed against the new code, or a smoke run on the matching surface via the relevant control skill.
  7. Confirm the change is worth keeping. The success measure is reduced reader load (**principle-minimize-reader-load**). If the diff does not lower reader load somewhere, revert it.
  8. Rebase into small ordered commits. A subtraction commit, then the reshape, then any follow-on cleanup. Shape them with the **sequence-verifiable-units** principle skill, so each behavior-preserving slice stays green before the next. Run **Opening a PR**.
 diff --git a/skills/poteto-mode/playbooks/runtime-forensics.md b/skills/poteto-mode/playbooks/runtime-forensics.md
-index 6bf6424..08a66f4 100644
+index 8364ce4..6133313 100644
 --- a/skills/poteto-mode/playbooks/runtime-forensics.md
 +++ b/skills/poteto-mode/playbooks/runtime-forensics.md
 @@ -1,5 +1,7 @@
@@ -454,20 +278,20 @@ index 6bf6424..08a66f4 100644
  
  1. Capture the live signal on the matching surface via the control skill: a CPU profile for a spinning process, a heap snapshot for a leak, a CDP trace for a visual glitch. A real artifact, not a guess.
 diff --git a/skills/poteto-mode/playbooks/session-pickup.md b/skills/poteto-mode/playbooks/session-pickup.md
-index 876b143..a51b479 100644
+index fcde2b2..a51b479 100644
 --- a/skills/poteto-mode/playbooks/session-pickup.md
 +++ b/skills/poteto-mode/playbooks/session-pickup.md
 @@ -2,7 +2,7 @@
  
  **You own the resume point. Read the prior trail, don't redo it.**
  
--1. Locate the prior trail. A local transcript under the active workspace's `agent-transcripts/` directory (the system prompt names the path. Do not glob across `~/.cursor/projects/*/`, that crosses workspace boundaries and reads private chats from unrelated projects), a cloud-agent URL, or a pushed branch. Read the metadata overview and last messages first, then scan back for the decision points. Parse a long transcript in a subagent and keep the reduced timeline in the main thread (the **principle-guard-the-context-window** skill). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+-1. Locate the prior trail. A local transcript under the active workspace's `agent-transcripts/` directory (the system prompt names the path. Do not glob across `~/.cursor/projects/*/`, that crosses workspace boundaries and reads private chats from unrelated projects), a cloud-agent URL, or a pushed branch. Read the metadata overview and last messages first, then scan back for the decision points. Parse a long transcript in a subagent and keep the reduced timeline in the main thread (the **principle-guard-the-context-window** skill). Pick each subagent's reasoning level for the job, per the Subagents section.
 +1. Locate the prior trail. Use [Claude history](../../recall/references/claude-history.md) for an exact project-scoped session, a supplied remote-agent URL, or a pushed branch. For a Codex worker, inspect its retained run receipt and exact thread. Read metadata and last messages first, then scan back for decision points. Parse a long transcript in a subagent through [Claude Code execution](../references/execution.md) and keep the reduced timeline in the parent, per **principle-guard-the-context-window**. Apply poteto-mode's reasoning and speed guidance.
  2. Reconstruct operational state. The branch and worktree, what already landed (`git log`, `git diff` against the base), the open todos, the decisions made. The prior trail is authoritative input. Resist the bias to re-derive it.
  3. Diff done vs pending. Compare what shipped against what was planned, name the resume point, do not re-run the prior repro or redo completed work. A "let me verify from scratch" pass means you're treating the trail as untrustworthy when it's authoritative.
  4. Route the remaining work to the matching playbook and pick the verdict: continue the execution, ship a finished recommendation, ratify or override a prior conclusion, or postmortem a failed run. The pickup playbook ends here. The routed playbook owns the rest.
 diff --git a/skills/poteto-mode/playbooks/shipping.md b/skills/poteto-mode/playbooks/shipping.md
-index 0a0c3cf..8db9c79 100644
+index 8f7e7b9..1d90e89 100644
 --- a/skills/poteto-mode/playbooks/shipping.md
 +++ b/skills/poteto-mode/playbooks/shipping.md
 @@ -1,8 +1,10 @@
@@ -483,7 +307,7 @@ index 0a0c3cf..8db9c79 100644
  3. **Re-check that the verdicts still describe the code.** A verdict covers a patch, and a chain rebase moves every PR above it to a new SHA without failing any check. Compare `git patch-id` at the verdict SHA with the current head before trusting an older verdict. When the patches differ only in tests, docs, or lint config, a lane's result stands if what it ran builds the same at both SHAs apart from noise. Noise is a difference that also shows up between two builds of the verdict SHA, or an embedded commit SHA. Report each kind of noise with its files, so a reader can check the call. The change itself still gets fresh checks and a review, because the old verdict never saw it. A lane with no build output, such as a dev server, cannot show this, so rerun it, and re-verify anything else that drifted.
  4. **Land bottom-up, one PR at a time.** Always merge the run's lowest unmerged PR, with `origin pr merge <pr>` or `gh pr merge <pr> --squash`. On Origin the plain command also merges every PR below the one you name, and on GitHub a PR whose base is still its parent's branch merges into that branch, not trunk. Read the PR back for the result (`origin pr view <pr>` or `gh pr view <pr> --json state,mergedAt,baseRefName`), because a merge command can report success when a merge queue only queued the PR, and a requested auto-merge is not a merge. A landed PR reads merged with trunk as its base, not its parent's branch. Arm `--auto` (Origin merge-when-ready or GitHub auto-merge) only on a PR whose verdict covers its current head, because it lands whatever head is ready. After a merge lands, retarget the PR whose base was the merged branch to trunk (`origin pr edit <pr> --base <trunk>` or `gh pr edit <pr> --base <trunk>`), move its patch onto the merge result, and push with `--force-with-lease`. The verdict covers the patch, not its commits, so step 3's patch-id rule decides whether the verdict survives. Merge it once its checks pass and its verdict survives.
 diff --git a/skills/poteto-mode/playbooks/trace-forensics.md b/skills/poteto-mode/playbooks/trace-forensics.md
-index bf1b003..d75fa37 100644
+index 2aec6f1..9b981a8 100644
 --- a/skills/poteto-mode/playbooks/trace-forensics.md
 +++ b/skills/poteto-mode/playbooks/trace-forensics.md
 @@ -1,5 +1,7 @@
@@ -495,7 +319,7 @@ index bf1b003..d75fa37 100644
  
  Distinct from **Runtime forensics**, which instruments the live process. Here the capture already exists. The artifact is a fixed dataset, read it, don't re-run it. Keep tooling generic: a DevTools or trace parser for cpuprofile and `.json.gz`, a text editor for a spindump, your heap tooling for a heapsnapshot.
 diff --git a/skills/poteto-mode/playbooks/worktree-cleanup.md b/skills/poteto-mode/playbooks/worktree-cleanup.md
-index 45e1af6..431f3c5 100644
+index 5ea9079..3be133d 100644
 --- a/skills/poteto-mode/playbooks/worktree-cleanup.md
 +++ b/skills/poteto-mode/playbooks/worktree-cleanup.md
 @@ -1,6 +1,6 @@
@@ -504,5 +328,5 @@ index 45e1af6..431f3c5 100644
 -1. Snapshot and audit. Record `df -h /`, then run `scripts/worktree-audit.sh [-b <pr-base-ref>] [repo-path]` (principle-build-the-lever). Without `-b` it checks `MERGED` against `origin/HEAD`, so pass `-b origin/<branch>` when PRs target another branch. It reads paths from `git worktree list`, never hand-typed, since a hand-typed `myrepo-worktrees/x` misses one that lives at `.cursor/worktrees/myrepo/x` (principle-encode-lessons-in-structure). It classifies each worktree by size, age, merge state, uncommitted work, PR state, and the newest chat that touched it, then suggests a bucket. The transcript scan is slow, so background it.
 +1. Snapshot and audit. Record `df -h /`, then run `scripts/worktree-audit.sh [-b <pr-base-ref>] [repo-path]` (principle-build-the-lever). Without `-b` it checks `MERGED` against `origin/HEAD`, so pass `-b origin/<branch>` when PRs target another branch. It reads paths from `git worktree list`, never hand-typed, since a hand-typed `myrepo-worktrees/x` misses one that lives at `.claude/worktrees/myrepo/x` (principle-encode-lessons-in-structure). It classifies each worktree by size, age, merge state, uncommitted work, PR state, and the newest chat that touched it, then suggests a bucket. The transcript scan is slow, so background it.
  2. The bucket is advice, not permission. The pinned and active chats are the real artifact (principle-prove-it-works). Get that set from the user or sidebar and cross-check every candidate. The lever has marked `safe` a worktree the user had pinned, so the pinned set wins.
- 3. Verify usage before deleting. For every `verify-recent-chat` row, or anything you doubt, fan subagents out to read the transcripts and report whether the chat is pinned or ongoing and which worktrees it touches (principle-guard-the-context-window, transcripts are bulk). A pinned chat spawns arena and repro trees into sibling worktrees via background subagents, and those are in use even when their names never hit the sidebar. Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section.
+ 3. Verify usage before deleting. For every `verify-recent-chat` row, or anything you doubt, fan subagents out to read the transcripts and report whether the chat is pinned or ongoing and which worktrees it touches (principle-guard-the-context-window, transcripts are bulk). A pinned chat spawns arena and repro trees into sibling worktrees via background subagents, and those are in use even when their names never hit the sidebar. Pick each subagent's reasoning level for the job, per the Subagents section.
  4. Pause on irreversible loss. `wip:N` is N tracked uncommitted edits. Show the diff and get a decision first, since removing a clean worktree is recoverable from its branch but uncommitted work is gone. `scratch:N` is untracked throwaway, safe to drop, but name the files. Per Autonomy, clean and merged and not-in-use proceeds. `wip` and in-use pause.

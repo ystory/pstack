@@ -285,8 +285,8 @@ try {
   if (
     models.config.schemaVersion !== 1 ||
     Object.keys(models.config.roles).length !== 0 ||
-    Object.keys(models.proposal.roles).length !== 13 ||
-    models.needsChoice.length !== 21 ||
+    Object.keys(models.proposal.roles).length !== 9 ||
+    models.needsChoice.length !== 14 ||
     models.exists !== false ||
     models.sha256 !== null
   )
@@ -663,7 +663,7 @@ try {
   const initialClaude = claudeModelCall(['read']);
   if (
     initialClaude.exists ||
-    Object.keys(initialClaude.proposal.roles).length !== 13
+    Object.keys(initialClaude.proposal.roles).length !== 9
   )
     throw new Error(
       'Packaged Claude helper did not expose the original role proposal.',

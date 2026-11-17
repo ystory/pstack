@@ -12,7 +12,7 @@ Give the work to a fresh worker with the consolidated brief only when one of the
 - The conversation cannot continue. The receipt says `continuable: false`, the executor rejects the continuation, or the executor, exact model, effort, working directory, or authentication must change.
 - The calling workflow's retry by cause asks for a different model or a smaller scope.
 
-When two continuations for the same cause stop again, stop retrying. Follow the calling workflow's retry limit, such as Orchestrate's rule to drop the unit and replan around it.
+When two continuations for the same cause stop again, stop retrying. Follow the calling workflow's retry limit.
 
 ## Read the stop
 

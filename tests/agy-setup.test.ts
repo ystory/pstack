@@ -190,6 +190,20 @@ for (const host of ['codex', 'claude-code']) {
         (entry: { model: string }) => entry.model === 'inherit-parent',
       ),
     );
+    const absentPool = call(
+      'resolve',
+      homeFlag,
+      root,
+      '--role',
+      'arena cross-judge pool',
+    );
+    assert.equal(absentPool.source, 'unconfigured');
+    assert.equal(absentPool.entries.length, 2);
+    assert.ok(
+      absentPool.entries.every(
+        (entry: { model: string }) => entry.model === 'inherit-parent',
+      ),
+    );
     const preview = call(
       'budget',
       homeFlag,
@@ -345,7 +359,21 @@ for (const host of ['codex', 'claude-code']) {
       await writeFile(catalog, JSON.stringify({ models: [entry] }));
       assert.notEqual(call('catalog', '--agy-catalog', catalog).status, 0);
     }
-    await writeFile(catalog, JSON.stringify(capabilities));
+    await writeFile(
+      catalog,
+      JSON.stringify({
+        models: [
+          ...capabilities.models,
+          {
+            executor: 'antigravity',
+            model: 'gemini-fixture-max',
+            supportedReasoningEfforts: ['max'],
+            source,
+            runtimeVersion: '1.5.9',
+          },
+        ],
+      }),
+    );
     const normalized = call('catalog', '--agy-catalog', catalog);
     assert.equal(normalized.status, 0, normalized.stderr);
     await writeFile(catalog, normalized.stdout);
@@ -357,6 +385,7 @@ for (const host of ['codex', 'claude-code']) {
       { ...agyEntry, reasoningEffort: 'off' },
       { ...agyEntry, reasoningEffort: undefined },
       { ...agyEntry, model: 'absent-exact-model' },
+      { ...agyEntry, model: 'gemini-fixture-max', reasoningEffort: 'max' },
     ]) {
       await writeFile(
         input,

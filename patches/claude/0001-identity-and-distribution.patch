@@ -23,14 +23,14 @@ index 0000000..6f664bb
 +}
 diff --git a/.cursor-plugin/plugin.json b/.cursor-plugin/plugin.json
 deleted file mode 100644
-index f4a2499..0000000
+index 37a0bef..0000000
 --- a/.cursor-plugin/plugin.json
 +++ /dev/null
 @@ -1,31 +0,0 @@
 -{
 -	"name": "pstack",
 -	"displayName": "pstack",
--	"version": "0.15.42",
+-	"version": "0.15.43",
 -	"description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
 -	"author": {
 -		"name": "Lauren Tan"
@@ -59,10 +59,10 @@ index f4a2499..0000000
 -	"agents": "./agents/"
 -}
 diff --git a/README.md b/README.md
-index 1bc2a2b..2053e4f 100644
+index e5d3e49..2053e4f 100644
 --- a/README.md
 +++ b/README.md
-@@ -1,291 +1,43 @@
+@@ -1,290 +1,43 @@
 -# pstack
 +# pstack for Claude Code
  
@@ -109,7 +109,7 @@ index 1bc2a2b..2053e4f 100644
 -
 -new here? the [pstack guide](./docs/guide/README.md) walks you through a first real task, from setup and prompting through verification and overnight runs. stuck, or unsure which skill fits? ask [`/poteto-help`](./skills/poteto-help/SKILL.md).
 -
--that's it. the other skills are situational, and the mode skill uses them for you as needed. out of the box the mode splits work by model strength: code delegates (feature, refactoring, bug fix, perf, hillclimb), prose, and judgment go to opus 5.5, while the hardest changes go to fable 5.2. the default panel is fable 5.2 / opus 5.5 / gemini 4 carbon. [`/setup-pstack`](./skills/setup-pstack/SKILL.md) changes any of it.
+-that's it. the other skills are situational, and the mode skill uses them for you as needed. out of the box, code delegates (feature, refactoring, bug fix, perf, hillclimb), prose, and judgment go to opus 5.5 at xhigh, and no role runs above xhigh. outside a review panel, fable 5.2 runs only when you name it or after two opus 5.5 runs of the same brief fail. the default panel is fable 5.2 / opus 5.5 / gemini 4 carbon. [`/setup-pstack`](./skills/setup-pstack/SKILL.md) changes any of it.
 -
 -## usage
 -
@@ -119,7 +119,7 @@ index 1bc2a2b..2053e4f 100644
 -
 -### just use [`/poteto-mode`](./skills/poteto-mode/SKILL.md)
 -
--this skill is the main shortcut. i use it whenever i need the agent to do rigorous engineering work. it comes with twenty-three playbooks:
+-this skill is the main shortcut. i use it whenever i need the agent to do rigorous engineering work. it comes with twenty-two playbooks:
 -
 -```
 -/poteto-mode this pr has a subtle bug where the scroll drifts every 750ms even when idle. repro
@@ -135,7 +135,7 @@ index 1bc2a2b..2053e4f 100644
  ```
  
 -<details>
--<summary>the twenty-three playbooks</summary>
+-<summary>the twenty-two playbooks</summary>
 -
 -| playbook | for |
 -|---|---|
@@ -154,7 +154,6 @@ index 1bc2a2b..2053e4f 100644
 -| [babysit](./skills/poteto-mode/playbooks/babysit.md) | drive a pr or a stack to merge-ready: conflicts, review threads, ci. |
 -| [shipping](./skills/poteto-mode/playbooks/shipping.md) | independently verify a green stack, then land the contiguous verified run bottom-up through github by default or origin when available. |
 -| [autonomous run](./skills/poteto-mode/playbooks/autonomous-run.md) | drive a long task to completion without stopping. |
--| [orchestrate](./skills/poteto-mode/playbooks/orchestrate.md) | a standing project handed to one coordinator chat: multi-day, many stacked prs, fleets of subagents. |
 -| [autopilot-full](./skills/poteto-mode/playbooks/autopilot-full.md) | run independent prs to merged with one owner per pr. a swarm verifies each code-ready head, and every later change to the patch gets a fresh check. |
 -| [autopilot-stack](./skills/poteto-mode/playbooks/autopilot-stack.md) | autopilot-full without the merge. build and verify prs for the operator to review and land, stacking a pr only on a pr it builds on. |
 -| [session pickup](./skills/poteto-mode/playbooks/session-pickup.md) | resume or take over a prior agent's in-flight work. |
@@ -406,14 +405,14 @@ index 0000000..e030790
 +SOFTWARE.
 diff --git a/plugin.json b/plugin.json
 deleted file mode 100644
-index c461ff0..0000000
+index c4d2488..0000000
 --- a/plugin.json
 +++ /dev/null
 @@ -1,21 +0,0 @@
 -{
 -  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
 -  "name": "pstack",
--  "version": "0.15.42",
+-  "version": "0.15.43",
 -  "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
 -  "author": {
 -    "name": "Lauren Tan"

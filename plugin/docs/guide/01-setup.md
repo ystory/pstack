@@ -25,11 +25,11 @@ $pstack-codex:setup-pstack
 
 First choose native Codex only, or Codex with Claude Code workers. The parent chat stays in Codex. Only selected CLIs need installation and login. Setup guides any needed authorized installation and human authentication, then rechecks the CLI before model selection. Reuse existing login. See [CLI preparation](../../skills/setup-pstack/references/cli-prerequisites.md).
 
-Then choose supported exact models, role assignments, and one of `unlimited`, `large`, `medium`, or `small`. Setup shows all 13 roles with unresolved slots on a fresh install. No fixed model is required. It retains your saved choices on reruns. Model catalogs and confirmed per-model source evidence establish choices. CLI syntax alone does not establish account access.
+Then choose supported exact models, role assignments, and one of `large`, `medium`, or `small`. Setup shows all 9 roles with unresolved slots on a fresh install. No fixed model is required. It retains your saved choices on reruns. Model catalogs and confirmed per-model source evidence establish choices. CLI syntax alone does not establish account access.
 
 Review the accepted selections before saving. Setup stores `$CODEX_HOME/pstack-codex/models.json`, defaulting to `~/.codex/pstack-codex/models.json`. Only accepted roles are saved. A role left unconfigured uses the actual native parent with disclosure. Scalars have one entry and initial panels or pools have three.
 
-`auto` and `inherit-parent` bind to the current native parent's model and effort. Exact choices carry model and effort separately. Under the `large` budget, most roles target `xhigh` reasoning. The hardest changes target `max`, and the review panels and swarm workers target `high`. `unlimited` raises each role one level, up to `max`. `medium` lowers each role one level and `small` lowers it two, and both spend fewer tokens. A budget change retains exact models and selects each model's highest supported effort at or below its role's target. Parent aliases keep the parent's actual settings.
+`auto` and `inherit-parent` bind to the current native parent's model and effort. Exact choices carry model and effort separately. Under the `large` budget, code, prose, and judgment roles target `xhigh` reasoning, and the review panels and swarm workers target `high`. No role runs above `xhigh`. Outside a review panel, Fable 5.2 runs only when you name it for a task or after two Opus 5.5 runs of the same brief fail their check. `medium` lowers each role one level and `small` lowers it two, and both spend fewer tokens. A budget change retains exact models and selects each model's highest supported effort at or below its role's target. Parent aliases keep the parent's actual settings.
 
 Panels run every ordered entry, including duplicates. Arena's ordered cross-judge pool selects one eligible judge from another vendor. Fable and the other Claude models are one vendor. Parent aliases do not establish that relationship. Arena skips its judge with disclosure if no selected eligible choice runs. Other required diversity gates keep their existing unmet outcome. No optional CLI is required for unrelated steps.
 
@@ -64,7 +64,7 @@ Pick something real but small, and describe it the way you'd describe it to a co
 $pstack-codex:poteto-mode add a --json flag to this command. text output stays byte-identical. verify both.
 ```
 
-Watch the todo list. Its first items are the matched playbook's steps copied in, the Feature playbook for this prompt. If `$pstack-codex:poteto-mode` skips a step, the step stays in the list with `skip: <reason>`, so you can see what it chose not to do.
+Watch the todo list. Its first items are the matched playbook's steps copied in, the Feature playbook for this prompt.
 
 From here you can type normal follow-ups to continue the task. Include `$pstack-codex:poteto-mode` again when you want to select it explicitly. Codex uses [skill mentions](https://learn.chatgpt.com/docs/skills-and-plugins#use-skills-for-repeatable-work); the mention selects a skill for the request. If you want a standing project instruction for new chats, ask the agent to add it to your project's `AGENTS.md` and review that instruction before activating it.
 

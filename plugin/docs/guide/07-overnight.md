@@ -71,7 +71,7 @@ For a quick status instead of an audit, run [`$pstack-codex:ketchup`](../../skil
 
 ## When the night holds a queue, not a task
 
-The contract above drives one task to one finish condition. Some nights hold more, a queue of independent changes or a whole program. Three playbooks scale the same trust up.
+The contract above drives one task to one finish condition. Some nights hold more, a queue of independent changes or a whole program. Two playbooks and one skill scale the same trust up.
 
 [Autopilot-full](../../skills/poteto-mode/playbooks/autopilot-full.md) runs a queue of independent PRs to merged. Each PR gets one owner agent that carries it from build through merge, and no owner merges on its own verdict. A swarm of fresh verifiers checks the owner's code-ready head. A later rebase or minor fix gets one fresh verifier, and only new behavior or a large new diff calls the full swarm again. Only a clean verdict on the patch that merges authorizes the merge:
 
@@ -85,15 +85,15 @@ $pstack-codex:poteto-mode full autopilot on this queue. each item is independent
 $pstack-codex:poteto-mode autopilot these five changes, but don't merge. i'll land them in the morning.
 ```
 
-[Orchestrate](../../skills/poteto-mode/playbooks/orchestrate.md) is for a program that outlives any single agent: multi-day, many stacked PRs, fleets of subagents under one standing coordinator chat. The coordinator decides which agent does each piece of work, checks what each one produces, and never writes code itself. If one agent could finish the work in a session, the playbook itself routes you back to the overnight contract above:
+A whole program, such as a migration across many packages, has no playbook of its own. `/poteto-mode` routes large or cross-cutting work to [`/figure-it-out`](../../skills/figure-it-out/SKILL.md), which designs one rigorous run for it:
 
 ```text
-$pstack-codex:poteto-mode orchestrate the store migration. own it until every package is converted and merged. i'll check in twice a day.
+$pstack-codex:poteto-mode migrate every package to the new store. own it until each one is converted and merged. i'll check in twice a day.
 ```
 
 ## Run many projects in parallel
 
-Use one Codex project and a standing coordinator chat for a body of work. The coordinator doesn't write code. It directs native subagents in separate local Git worktrees. Start your prompts to the coordinator with `$pstack-codex:poteto-mode`, and the subagents it spawns follow the playbooks.
+Use one Codex project and a standing coordinator chat for a body of work. The coordinator doesn't write code. It directs native subagents in separate local Git worktrees. Start your prompts to the coordinator with `$pstack-codex:poteto-mode`, and the subagents it spawns follow the playbooks. Each agent it starts reads [`worker.md`](../../skills/poteto-mode/worker.md) first, so workers hold to the kickoff's bar, decide reversible calls instead of asking you, and open PRs ready for review.
 
 Keep the host awake and available for the work to run. Worktrees preserve files, but they do not provide a separate VM or a remote machine that keeps working when your laptop sleeps. After a restart, the coordinator reads its saved state, checks which agents and watchers survived, and starts replacements only for work you asked to continue.
 

@@ -26,13 +26,9 @@ const roleNames = [
   'perf-issue',
   'hillclimb',
   'judgment and prose',
-  'hardest tasks',
-  'reflect tooling',
-  'reflect judgment, divergent, synthesizer',
   'arena runners',
   'arena cross-judge pool',
   'swarm workers',
-  'architect runners',
   'interrogate reviewers',
 ];
 const workerKinds = [
@@ -44,25 +40,25 @@ const workerKinds = [
 const lists = new Set([
   'arena runners',
   'arena cross-judge pool',
-  'architect runners',
   'interrogate reviewers',
 ]);
+const unconfiguredSeats = (role: string) =>
+  role === 'arena cross-judge pool' ? 2 : lists.has(role) ? 3 : 1;
 const retiredRoles = [
   'how explorer',
   'how explainer',
   'why investigators',
   'why synthesizer',
+  'hardest tasks',
+  'reflect tooling',
+  'reflect judgment, divergent, synthesizer',
+  'architect runners',
 ];
 const baseEffort = (role: string) =>
-  role === 'hardest tasks'
-    ? 'max'
-    : lists.has(role) || ['swarm workers', 'reflect tooling'].includes(role)
-      ? 'high'
-      : 'xhigh';
+  lists.has(role) || role === 'swarm workers' ? 'high' : 'xhigh';
 const budgetTargets: Record<string, Record<string, string>> = {
-  max: { unlimited: 'max', large: 'max', medium: 'xhigh', small: 'high' },
-  xhigh: { unlimited: 'max', large: 'xhigh', medium: 'high', small: 'medium' },
-  high: { unlimited: 'xhigh', large: 'high', medium: 'medium', small: 'low' },
+  xhigh: { large: 'xhigh', medium: 'high', small: 'medium' },
+  high: { large: 'high', medium: 'medium', small: 'low' },
 };
 type Entry =
   | string
@@ -99,6 +95,7 @@ type Models = {
   budget: string;
   targetReasoningEffort: string;
   droppedRoles: string[];
+  replacedBudget: { from: string; to: string } | null;
   models: {
     executor: string;
     model: string;
@@ -109,6 +106,7 @@ type Agents = {
   changed: boolean;
   recovered: boolean;
   agents: { file: string; agentType: string; kind: string; model: string }[];
+  retained: string[];
   registry: string;
 };
 
@@ -288,9 +286,10 @@ test('every unconfigured role resolves to native parent at original cardinality 
       'general-purpose',
     );
     assert.equal(resolved.source, 'unconfigured');
+    assert.equal(resolved.replacedBudget, null);
     assert.deepEqual(
       resolved.entries,
-      Array.from({ length: lists.has(role) ? 3 : 1 }, () => ({
+      Array.from({ length: unconfiguredSeats(role) }, () => ({
         executor: 'claude-code',
         model: 'inherit-parent',
         agentType: 'pstack-cc:general-purpose',
@@ -299,7 +298,17 @@ test('every unconfigured role resolves to native parent at original cardinality 
     assert.deepEqual(resolved.needsChoice, []);
   }
   const proposal = f.models('read');
-  assert.equal(proposal.needsChoice.length, 21);
+  assert.equal(proposal.replacedBudget, null);
+  assert.equal(
+    Array.isArray(proposal.proposal.roles['arena cross-judge pool']) &&
+      proposal.proposal.roles['arena cross-judge pool'].length,
+    2,
+  );
+  assert.equal(proposal.needsChoice.length, 14);
+  const help = f.invoke('models.mjs', ['--help']);
+  assert.equal(help.status, 0);
+  assert.match(help.stdout, /--budget large\|medium\|small/);
+  assert.doesNotMatch(help.stdout, /unlimited/);
   for (const value of Object.values(proposal.proposal.roles))
     for (const entry of Array.isArray(value) ? value : [value])
       assert.equal(typeof entry === 'string' ? entry : entry.model, undefined);
@@ -325,7 +334,7 @@ test('sparse saves retain exact selections while missing roles keep the native p
   };
   await f.save({ roles: { 'bug-fix': chosen } });
   assert.deepEqual(f.models('resolve', '--role', 'bug-fix').entries, [chosen]);
-  const missing = f.models('resolve', '--role', 'hardest tasks');
+  const missing = f.models('resolve', '--role', 'judgment and prose');
   assert.equal(missing.source, 'unconfigured');
   assert.deepEqual(missing.entries, [
     { executor: 'claude-code', model: 'inherit-parent' },
@@ -383,7 +392,7 @@ test('scalar shapes, panel duplicates, pool order and aliases survive actual wri
   config.roles['arena cross-judge pool'] = [...panel].reverse();
   await f.save(config);
   const read = f.models('read');
-  assert.equal(Object.keys(read.config.roles).length, 13);
+  assert.equal(Object.keys(read.config.roles).length, 9);
   assert.equal(read.config.roles['bug-fix'], 'auto');
   assert.deepEqual(read.config.roles['arena runners'], panel);
   const resolved = f.models(
@@ -479,7 +488,7 @@ test('full native model IDs retain context modifiers through catalog save read a
     const saved = await f.save(f.config(model));
     assert.deepEqual(f.models('read').config, saved.config);
     assert.equal(
-      f.models('resolve', '--role', 'hardest tasks').entries[0]?.model,
+      f.models('resolve', '--role', 'judgment and prose').entries[0]?.model,
       model,
     );
   }
@@ -522,8 +531,8 @@ test('partial reconfiguration preserves chosen roles and idempotent saves preser
   await f.save({ roles: { 'bug-fix': 'inherit-parent' } });
   assert.equal(f.models('read').config.roles['bug-fix'], 'inherit-parent');
   assert.deepEqual(
-    f.models('read').config.roles['hardest tasks'],
-    first.config.roles['hardest tasks'],
+    f.models('read').config.roles['judgment and prose'],
+    first.config.roles['judgment and prose'],
   );
 });
 
@@ -531,17 +540,37 @@ test('budgets retain executor and exact ID with effort fallback and parent alias
   const f = await fixture(t);
   const config = f.config();
   config.roles['bug-fix'] = 'inherit-parent';
+  config.roles['feature, refactoring'] = {
+    executor: 'codex',
+    model: 'gpt-fixture',
+    reasoningEffort: 'medium',
+  };
   await f.save(config);
+  assert.equal(
+    f.invoke('models.mjs', [
+      'budget',
+      '--budget',
+      'unlimited',
+      '--catalog',
+      f.catalog,
+    ]).status,
+    1,
+  );
   const budget = f.models(
     'budget',
     '--budget',
-    'unlimited',
+    'large',
     '--catalog',
     f.catalog,
   );
   assert.equal(budget.config.roles['bug-fix'], 'inherit-parent');
+  assert.deepEqual(budget.config.roles['feature, refactoring'], {
+    executor: 'codex',
+    model: 'gpt-fixture',
+    reasoningEffort: 'high',
+  });
   assert.deepEqual(budget.config.roles['arena runners'], [
-    { executor: 'claude-code', model: f.model, reasoningEffort: 'xhigh' },
+    { executor: 'claude-code', model: f.model, reasoningEffort: 'high' },
     { executor: 'codex', model: 'gpt-fixture', reasoningEffort: 'high' },
   ]);
   assert.deepEqual(budget.needsChoice, []);
@@ -1390,7 +1419,7 @@ test('budget preview marks a supported effort above the target as needing a choi
   config.roles['bug-fix'] = {
     executor: 'codex',
     model: 'above-target',
-    reasoningEffort: 'ultra',
+    reasoningEffort: 'xhigh',
   };
   await writeFile(
     f.catalog,
@@ -1399,7 +1428,7 @@ test('budget preview marks a supported effort above the target as needing a choi
         {
           executor: 'codex',
           model: 'above-target',
-          supportedReasoningEfforts: ['ultra'],
+          supportedReasoningEfforts: ['xhigh'],
         },
       ],
     }),
@@ -1533,6 +1562,18 @@ test('saved retired Claude role keys still read and resolve, are reported, and o
           model: 'claude-retired-20250101',
           reasoningEffort: 'max',
         },
+        'hardest tasks': {
+          executor: 'claude-code',
+          model: 'claude-retired-20250101',
+          reasoningEffort: 'max',
+        },
+        'reflect tooling': {
+          executor: 'codex',
+          model: 'gpt-retired',
+          reasoningEffort: 'high',
+        },
+        'reflect judgment, divergent, synthesizer': 'inherit-parent',
+        'architect runners': ['auto', 'inherit-parent'],
       },
     }),
   );
@@ -1638,9 +1679,195 @@ test('a saved unknown Claude role key beside retired keys still fails without ch
   assert.deepEqual(await readFile(file), before);
 });
 
-test('each Claude role budget moves its own target effort and clamps at both ladder ends', async (t) => {
+test('saved unlimited Claude budget becomes large, reports replacedBudget, and only unlimited receives that replacement', async (t) => {
   const f = await fixture(t);
-  for (const budget of ['unlimited', 'large', 'medium', 'small']) {
+  const file = path.join(f.home, 'pstack-cc/models.json');
+  await mkdir(path.dirname(file), { recursive: true });
+  const savedUnlimited = {
+    schemaVersion: 1,
+    host: 'claude-code',
+    budget: 'unlimited',
+    roles: {
+      'bug-fix': {
+        executor: 'claude-code',
+        model: f.model,
+        reasoningEffort: 'xhigh',
+      },
+    },
+  };
+  await writeFile(file, JSON.stringify(savedUnlimited));
+  const before = await readFile(file);
+  const replacement = { from: 'unlimited', to: 'large' };
+
+  const read = f.models('read');
+  assert.equal(read.config.budget, 'large');
+  assert.equal(read.proposal.budget, 'large');
+  assert.equal(read.targetReasoningEffort, 'xhigh');
+  assert.deepEqual(read.replacedBudget, replacement);
+
+  const resolved = f.models('resolve', '--role', 'swarm workers');
+  assert.equal(resolved.budget, 'large');
+  assert.equal(resolved.targetReasoningEffort, 'high');
+  assert.deepEqual(resolved.replacedBudget, replacement);
+
+  const preview = f.models(
+    'budget',
+    '--budget',
+    'small',
+    '--catalog',
+    f.catalog,
+  );
+  assert.equal(preview.config.budget, 'small');
+  assert.deepEqual(preview.replacedBudget, replacement);
+
+  await writeFile(f.input, JSON.stringify({ budget: 'unlimited' }));
+  const rejectedWrite = f.invoke('models.mjs', [
+    'write',
+    '--input',
+    f.input,
+    '--catalog',
+    f.catalog,
+    '--expected-hash',
+    read.sha256!,
+  ]);
+  assert.equal(rejectedWrite.status, 1);
+  assert.match(rejectedWrite.stderr, /Unknown pstack budget/);
+  assert.deepEqual(await readFile(file), before);
+
+  const dryRun = await f.save({ roles: { hillclimb: 'auto' } }, '--dry-run');
+  assert.equal(dryRun.config.budget, 'large');
+  assert.deepEqual(dryRun.replacedBudget, replacement);
+  assert.deepEqual(await readFile(file), before);
+
+  const savedDefault = await f.save({ roles: { hillclimb: 'auto' } });
+  assert.equal(savedDefault.changed, true);
+  assert.equal(savedDefault.config.budget, 'large');
+  assert.deepEqual(savedDefault.replacedBudget, replacement);
+  assert.equal(JSON.parse(await readFile(file, 'utf8')).budget, 'large');
+  assert.equal(f.models('read').replacedBudget, null);
+
+  await writeFile(file, JSON.stringify(savedUnlimited));
+  const savedOverride = await f.save({ budget: 'medium' });
+  assert.equal(savedOverride.config.budget, 'medium');
+  assert.deepEqual(savedOverride.replacedBudget, replacement);
+  assert.equal(JSON.parse(await readFile(file, 'utf8')).budget, 'medium');
+
+  await writeFile(
+    file,
+    JSON.stringify({ ...savedUnlimited, budget: 'unknown-budget' }),
+  );
+  const unknownBytes = await readFile(file);
+  for (const args of [
+    ['read'],
+    ['resolve', '--role', 'bug-fix'],
+    ['budget', '--budget', 'large', '--catalog', f.catalog],
+  ]) {
+    const failed = f.invoke('models.mjs', args);
+    assert.equal(failed.status, 1);
+    assert.match(failed.stderr, /Unknown pstack budget/);
+  }
+  assert.deepEqual(await readFile(file), unknownBytes);
+});
+
+test('native agent registration covers only the nine active roles and does not regenerate retired role models', async (t) => {
+  const f = await fixture(t);
+  const retiredRegistered = 'claude-retired-registered-20300101';
+  const retiredUnregistered = 'claude-retired-unregistered-20300101';
+  await writeFile(
+    f.catalog,
+    JSON.stringify({
+      models: [
+        ...f.catalogValue.models,
+        { ...f.catalogValue.models[0], model: retiredRegistered },
+      ],
+    }),
+  );
+  await f.save({
+    roles: {
+      'bug-fix': {
+        executor: 'claude-code',
+        model: f.model,
+        reasoningEffort: 'xhigh',
+      },
+      'judgment and prose': {
+        executor: 'claude-code',
+        model: retiredRegistered,
+        reasoningEffort: 'xhigh',
+      },
+    },
+  });
+  const first = f.run<Agents>('register-agents.mjs');
+  assert.equal(first.agents.length, 8);
+  const retiredAgents = first.agents.filter(
+    (entry) => entry.model === retiredRegistered,
+  );
+  assert.equal(retiredAgents.length, 4);
+  const retiredBytesBefore = await Promise.all(
+    retiredAgents.map((entry) => readFile(entry.file)),
+  );
+
+  const file = path.join(f.home, 'pstack-cc/models.json');
+  await writeFile(
+    file,
+    JSON.stringify({
+      schemaVersion: 1,
+      host: 'claude-code',
+      budget: 'unlimited',
+      roles: {
+        'bug-fix': {
+          executor: 'claude-code',
+          model: f.model,
+          reasoningEffort: 'xhigh',
+        },
+        'hardest tasks': {
+          executor: 'claude-code',
+          model: retiredRegistered,
+          reasoningEffort: 'max',
+        },
+        'architect runners': [
+          {
+            executor: 'claude-code',
+            model: retiredUnregistered,
+            reasoningEffort: 'high',
+          },
+        ],
+      },
+    }),
+  );
+
+  const potetoSource = path.join(f.plugin, 'agents/poteto-agent.md');
+  await writeFile(
+    potetoSource,
+    (await readFile(potetoSource, 'utf8')).replace(
+      'Original poteto-agent body.',
+      'Updated poteto-agent body for active roles only.',
+    ),
+  );
+
+  const refreshed = f.run<Agents>('register-agents.mjs');
+  assert.equal(refreshed.agents.length, 4);
+  assert.ok(refreshed.agents.every((entry) => entry.model === f.model));
+  const activePoteto = refreshed.agents.find(
+    (entry) => entry.kind === 'poteto-agent',
+  )!;
+  assert.match(
+    await readFile(activePoteto.file, 'utf8'),
+    /Updated poteto-agent body for active roles only\./,
+  );
+  assert.deepEqual(
+    [...refreshed.retained].sort(),
+    retiredAgents.map((entry) => entry.file).sort(),
+  );
+  for (const [index, entry] of retiredAgents.entries())
+    assert.deepEqual(await readFile(entry.file), retiredBytesBefore[index]);
+
+  const generatedFiles = await readdir(path.join(f.home, 'agents/pstack-cc'));
+  assert.equal(generatedFiles.length, 8);
+});
+
+test('each Claude role budget moves its own target effort and clamps at the bottom of the ladder', async (t) => {
+  const f = await fixture(t);
+  for (const budget of ['large', 'medium', 'small']) {
     await f.save({ budget, roles: {} });
     assert.deepEqual(
       Object.fromEntries(
@@ -1666,7 +1893,7 @@ test('each Claude role budget moves its own target effort and clamps at both lad
   await f.save({
     budget: 'large',
     roles: {
-      'hardest tasks': native('max'),
+      'feature, refactoring': native('xhigh'),
       'swarm workers': native('high'),
       'interrogate reviewers': [
         native('high'),
@@ -1674,16 +1901,10 @@ test('each Claude role budget moves its own target effort and clamps at both lad
       ],
     },
   });
-  const top = f.models(
-    'budget',
-    '--budget',
-    'unlimited',
-    '--catalog',
-    f.catalog,
-  );
-  assert.equal(top.targetReasoningEffort, 'max');
-  assert.deepEqual(top.config.roles['hardest tasks'], native('max'));
-  assert.deepEqual(top.config.roles['swarm workers'], native('xhigh'));
+  const top = f.models('budget', '--budget', 'large', '--catalog', f.catalog);
+  assert.equal(top.targetReasoningEffort, 'xhigh');
+  assert.deepEqual(top.config.roles['feature, refactoring'], native('xhigh'));
+  assert.deepEqual(top.config.roles['swarm workers'], native('high'));
   assert.deepEqual(top.needsChoice, []);
   const bottom = f.models(
     'budget',
@@ -1693,7 +1914,10 @@ test('each Claude role budget moves its own target effort and clamps at both lad
     f.catalog,
   );
   assert.equal(bottom.targetReasoningEffort, 'medium');
-  assert.deepEqual(bottom.config.roles['hardest tasks'], native('high'));
+  assert.deepEqual(
+    bottom.config.roles['feature, refactoring'],
+    native('medium'),
+  );
   assert.deepEqual(bottom.config.roles['swarm workers'], native('low'));
   assert.deepEqual(
     bottom.needsChoice.map(({ role, index, targetReasoningEffort }) => ({
@@ -1798,10 +2022,20 @@ test('Claude native effort limits also reject invalid saved preferences before r
   );
 });
 
-test('mixed executor efforts retain all native Claude values and Codex none minimal ultra', async (t) => {
+test('mixed executor efforts retain catalog capabilities, reject efforts above xhigh on write, and still read and resolve saved entries above xhigh', async (t) => {
   const f = await fixture(t);
-  const nativeEfforts = ['low', 'medium', 'high', 'xhigh', 'max'];
-  const codexEfforts = ['none', 'minimal', 'ultra'];
+  const nativeCatalogEfforts = ['low', 'medium', 'high', 'xhigh', 'max'];
+  const codexCatalogEfforts = [
+    'none',
+    'minimal',
+    'low',
+    'medium',
+    'high',
+    'xhigh',
+    'max',
+    'ultra',
+  ];
+  const agyCatalogEfforts = ['low', 'medium', 'high', 'xhigh', 'max'];
   await writeFile(
     f.catalog,
     JSON.stringify({
@@ -1810,33 +2044,117 @@ test('mixed executor efforts retain all native Claude values and Codex none mini
         {
           executor: 'codex',
           model: 'gpt-fixture',
-          supportedReasoningEfforts: codexEfforts,
+          supportedReasoningEfforts: codexCatalogEfforts,
+        },
+        {
+          executor: 'antigravity',
+          model: 'gemini-fixture',
+          supportedReasoningEfforts: agyCatalogEfforts,
+          source: {
+            kind: 'manual-confirmation',
+            description: 'Fixture confirms exact agy model and efforts.',
+          },
         },
       ],
     }),
   );
-  const entries = [
-    ...nativeEfforts.map((reasoningEffort) => ({
-      executor: 'claude-code',
-      model: f.model,
-      reasoningEffort,
-    })),
-    ...codexEfforts.map((reasoningEffort) => ({
-      executor: 'codex',
-      model: 'gpt-fixture',
-      reasoningEffort,
-    })),
-  ];
   assert.deepEqual(
     f
       .models('catalog', '--input', f.catalog)
       .models.map((entry) => entry.supportedReasoningEfforts),
-    [nativeEfforts, codexEfforts],
+    [nativeCatalogEfforts, codexCatalogEfforts, agyCatalogEfforts],
   );
-  await f.save({ roles: { 'arena runners': entries } });
-  assert.deepEqual(f.models('read').config.roles['arena runners'], entries);
+  const writableEntries = [
+    ...['low', 'medium', 'high', 'xhigh'].map((reasoningEffort) => ({
+      executor: 'claude-code',
+      model: f.model,
+      reasoningEffort,
+    })),
+    ...['none', 'minimal', 'low', 'medium', 'high', 'xhigh'].map(
+      (reasoningEffort) => ({
+        executor: 'codex',
+        model: 'gpt-fixture',
+        reasoningEffort,
+      }),
+    ),
+    ...['low', 'medium', 'high', 'xhigh'].map((reasoningEffort) => ({
+      executor: 'antigravity',
+      model: 'gemini-fixture',
+      reasoningEffort,
+    })),
+  ];
+  const saved = await f.save({ roles: { 'arena runners': writableEntries } });
+  assert.deepEqual(
+    f.models('read').config.roles['arena runners'],
+    writableEntries,
+  );
   assert.deepEqual(
     f.models('resolve', '--role', 'arena runners').entries,
-    entries,
+    writableEntries,
+  );
+
+  const before = await readFile(saved.file);
+  for (const aboveXhigh of [
+    { executor: 'claude-code', model: f.model, reasoningEffort: 'max' },
+    { executor: 'codex', model: 'gpt-fixture', reasoningEffort: 'max' },
+    { executor: 'codex', model: 'gpt-fixture', reasoningEffort: 'ultra' },
+    {
+      executor: 'antigravity',
+      model: 'gemini-fixture',
+      reasoningEffort: 'max',
+    },
+    {
+      executor: 'antigravity',
+      model: 'gemini-fixture',
+      reasoningEffort: 'ultra',
+    },
+  ]) {
+    await writeFile(
+      f.input,
+      JSON.stringify({ roles: { 'bug-fix': aboveXhigh } }),
+    );
+    for (const extra of [[], ['--dry-run']]) {
+      const rejected = f.invoke('models.mjs', [
+        'write',
+        '--input',
+        f.input,
+        '--catalog',
+        f.catalog,
+        '--expected-hash',
+        saved.sha256!,
+        ...extra,
+      ]);
+      assert.equal(rejected.status, 1, JSON.stringify(aboveXhigh));
+      assert.match(rejected.stderr, /above xhigh|explicit effort/i);
+      assert.deepEqual(await readFile(saved.file), before);
+    }
+  }
+
+  const savedAboveXhigh = [
+    { executor: 'claude-code', model: f.model, reasoningEffort: 'max' },
+    { executor: 'codex', model: 'gpt-fixture', reasoningEffort: 'max' },
+    { executor: 'codex', model: 'gpt-fixture', reasoningEffort: 'ultra' },
+    {
+      executor: 'antigravity',
+      model: 'gemini-fixture',
+      reasoningEffort: 'max',
+    },
+  ];
+  await writeFile(
+    saved.file,
+    JSON.stringify({
+      schemaVersion: 1,
+      host: 'claude-code',
+      budget: 'large',
+      roles: { 'arena runners': savedAboveXhigh },
+    }),
+  );
+  assert.deepEqual(
+    f.models('read').config.roles['arena runners'],
+    savedAboveXhigh,
+  );
+  assert.deepEqual(
+    f.models('resolve', '--role', 'arena runners').entries,
+    savedAboveXhigh,
   );
 });

@@ -56,7 +56,7 @@ In context, that's enough. [`$pstack-codex:tdd`](../../skills/tdd/SKILL.md) writ
 
 ## Clean before you commit
 
-The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md) runs [`$pstack-codex:deslop`](../../skills/deslop/SKILL.md) on the diff before each commit and applies [`$pstack-codex:unslop`](../../skills/unslop/SKILL.md) to the PR description and commit bodies. This distribution bundles `deslop` from `cursor-team-kit` with its original attribution. Its pass removes narrating comments, unsupported guards, dead compatibility paths, and unrelated edits.
+The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md) runs [`$pstack-codex:deslop`](../../skills/deslop/SKILL.md) on the diff before each commit, and poteto-mode applies [`$pstack-codex:unslop`](../../skills/unslop/SKILL.md) to the PR description and commit bodies. This distribution bundles `deslop` from `cursor-team-kit` with its original attribution. Its pass removes narrating comments, unsupported guards, dead compatibility paths, and unrelated edits.
 
 For prose, `$pstack-codex:unslop` takes a target and any extra rules you have:
 

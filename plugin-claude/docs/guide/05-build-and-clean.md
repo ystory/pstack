@@ -56,7 +56,7 @@ In context, that's enough. [`/pstack-cc:tdd`](../../skills/tdd/SKILL.md) writes 
 
 ## Clean before you commit
 
-The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md) runs `/pstack-cc:deslop` on the diff before each commit and applies [`/pstack-cc:unslop`](../../skills/unslop/SKILL.md) to the PR description and commit bodies. `deslop` is bundled from cursor-team-kit. Read its installed skill for comment cleanup, unsupported guards, dead compatibility paths, and unrelated edits.
+The [Opening a PR playbook](../../skills/poteto-mode/playbooks/opening-a-pr.md) runs `/pstack-cc:deslop` on the diff before each commit, and poteto-mode applies [`/pstack-cc:unslop`](../../skills/unslop/SKILL.md) to the PR description and commit bodies. `deslop` is bundled from cursor-team-kit. Read its installed skill for comment cleanup, unsupported guards, dead compatibility paths, and unrelated edits.
 
 For prose, `/pstack-cc:unslop` takes a target and any extra rules you have:
 

@@ -975,59 +975,6 @@ index d9c63e2..b51f93c 100644
 +  const modulePath = ensureDependenciesInstalled();
 +  return import(pathToFileURL(modulePath).href);
  }
-diff --git a/skills/poteto-mode/scripts/check-plan.mjs b/skills/poteto-mode/scripts/check-plan.mjs
-index c3ddc39..888d729 100755
---- a/skills/poteto-mode/scripts/check-plan.mjs
-+++ b/skills/poteto-mode/scripts/check-plan.mjs
-@@ -17,7 +17,7 @@ const SUB_BLOCKS = [
- 	"Merge.",
- ];
- const PROGRAM_H3 = ["Arm the program", "Spawn owners", "PR mechanics", "Verdict and merge", "Boot recipe"];
--const PROGRAM_MARKERS = ["git show origin/main:", "/loop 1h", "status message"];
-+const PROGRAM_MARKERS = ["Read current skill sources", "Claude heartbeat every 1h", "status message"];
- const HOW_TO_READ_MARKERS = [
- 	"One box is one unit of work",
- 	"names the evidence",
-diff --git a/skills/poteto-mode/scripts/check-plan.test.ts b/skills/poteto-mode/scripts/check-plan.test.ts
-index cd1debf..beda4ca 100644
---- a/skills/poteto-mode/scripts/check-plan.test.ts
-+++ b/skills/poteto-mode/scripts/check-plan.test.ts
-@@ -20,7 +20,7 @@ ${rule}
- ### PR mechanics
- ### Verdict and merge
- ### Boot recipe
--\`git show origin/main:\` /loop 1h status message
-+Read current skill sources. Claude heartbeat every 1h. Post a status message.
- 
- ## PR 1
- **Depends on.** None.
-@@ -50,10 +50,10 @@ Close.
- Recorded.
- `;
- 
--const runPlan = (example: string, expectedExit: number) => {
-+const runPlan = (example: string, expectedExit: number, plan: string = validPlan) => {
- 	const directory = mkdtempSync(join(tmpdir(), "check-plan-test-"));
- 	const file = join(directory, "plan.md");
--	writeFileSync(file, validPlan + example);
-+	writeFileSync(file, plan + example);
- 	try {
- 		const result = spawnSync("node", [checker, file], { encoding: "utf8" });
- 		expect(result.status).toBe(expectedExit);
-@@ -63,6 +63,13 @@ const runPlan = (example: string, expectedExit: number) => {
- 	}
- };
- 
-+test("requires the current skill source, heartbeat cadence, and status message markers", () => {
-+	for (const marker of ["Read current skill sources", "Claude heartbeat every 1h", "status message"]) {
-+		const result = runPlan("", 1, validPlan.replace(marker, "Missing marker"));
-+		expect(result.stderr).toContain(`Program checklist lacks "${marker}"`);
-+	}
-+});
-+
- test("accepts ordinary, indented, and longer closing fences", () => {
- 	for (const indent of ["", " ", "  ", "   "])
- 		runPlan(`${indent}\`\`\`markdown\n## Example only\n${indent}\`\`\`\n`, 0);
 diff --git a/skills/poteto-mode/scripts/run-codex.mjs b/skills/poteto-mode/scripts/run-codex.mjs
 new file mode 100644
 index 0000000..2dc13cc

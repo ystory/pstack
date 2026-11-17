@@ -11,3 +11,5 @@ shared/0002-worker-execution.patch
 0009-codex-turn-settings.patch
 0010-codex-turn-settings-version.patch
 0011-codex-denied-review-approval.patch
+0012-codex-review-command-source.patch
+0013-codex-review-command-source-version.patch

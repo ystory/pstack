@@ -1,0 +1,15 @@
+diff --git a/skills/poteto-mode/scripts/run-codex.mjs b/skills/poteto-mode/scripts/run-codex.mjs
+index 6dc634a..3935be4 100644
+--- a/skills/poteto-mode/scripts/run-codex.mjs
++++ b/skills/poteto-mode/scripts/run-codex.mjs
+@@ -284,7 +284,9 @@ function approvedAssessment(options) {
+     throw new Error(`Approving a denied ${type} action is unsupported.`);
+   const action = { type: snakeCase(type) };
+   for (const [key, value] of Object.entries(fields))
+-    action[snakeCase(key)] = key === 'protocol' ? snakeCase(value) : value;
++    action[snakeCase(key)] = ['protocol', 'source'].includes(key)
++      ? snakeCase(value)
++      : value;
+   return {
+     id: review.reviewId,
+     turn_id: review.turnId,

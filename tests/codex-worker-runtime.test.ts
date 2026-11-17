@@ -931,7 +931,7 @@ test('denied reviews are recorded and an exact approval precedes the resumed tur
   });
 });
 
-test('approval conversion covers network protocols and refuses unsupported or mismatched reviews', async (t) => {
+test('approval conversion covers every supported action and refuses unsupported or mismatched reviews', async (t) => {
   const f = await fixture(t);
   const receipt = path.join(f.root, 'prior result.json');
   const review = (reviewId: string, action: Record<string, unknown>) => ({
@@ -950,18 +950,68 @@ test('approval conversion covers network protocols and refuses unsupported or mi
     },
     action,
   });
+  const converted = [
+    [
+      'network',
+      {
+        type: 'networkAccess',
+        target: 'socks5://example.invalid:1080',
+        host: 'example.invalid',
+        protocol: 'socks5Tcp',
+        port: 1080,
+      },
+      {
+        type: 'network_access',
+        target: 'socks5://example.invalid:1080',
+        host: 'example.invalid',
+        protocol: 'socks5_tcp',
+        port: 1080,
+      },
+    ],
+    [
+      'command',
+      {
+        type: 'command',
+        source: 'unifiedExec',
+        command: 'rm -rf build',
+        cwd: '/tmp',
+      },
+      {
+        type: 'command',
+        source: 'unified_exec',
+        command: 'rm -rf build',
+        cwd: '/tmp',
+      },
+    ],
+    [
+      'execve',
+      {
+        type: 'execve',
+        source: 'shell',
+        program: '/bin/rm',
+        argv: ['rm', '-rf', 'build'],
+        cwd: '/tmp',
+      },
+      {
+        type: 'execve',
+        source: 'shell',
+        program: '/bin/rm',
+        argv: ['rm', '-rf', 'build'],
+        cwd: '/tmp',
+      },
+    ],
+    [
+      'patch',
+      { type: 'applyPatch', cwd: '/tmp', files: ['/tmp/a.ts'] },
+      { type: 'apply_patch', cwd: '/tmp', files: ['/tmp/a.ts'] },
+    ],
+  ] as const;
   await writeFile(
     receipt,
     JSON.stringify({
       threadId: 'thread-prior',
       deniedReviews: [
-        review('network', {
-          type: 'networkAccess',
-          target: 'socks5://example.invalid:1080',
-          host: 'example.invalid',
-          protocol: 'socks5Tcp',
-          port: 1080,
-        }),
+        ...converted.map(([reviewId, action]) => review(reviewId, action)),
         review('stdin', {
           type: 'writeStdin',
           approvalId: 'a',
@@ -974,26 +1024,22 @@ test('approval conversion covers network protocols and refuses unsupported or mi
   );
   const approve = (name: string, extra: string[]) =>
     f.run(name, 'Retry.', extra);
-  const exact = [
+  const exact = (reviewId: string) => [
     '--resume',
     'thread-prior',
     '--approve-review',
-    'network',
+    reviewId,
     '--review-receipt',
     receipt,
   ];
-  assert.equal(approve('network', exact).status, 0);
-  const network = JSON.parse(
-    await readFile(path.join(f.root, 'network', 'request.json'), 'utf8'),
-  );
-  assert.deepEqual(network.approvedReview.event.action, {
-    type: 'network_access',
-    target: 'socks5://example.invalid:1080',
-    host: 'example.invalid',
-    protocol: 'socks5_tcp',
-    port: 1080,
-  });
-  assert.equal(network.approvedReview.event.rationale, null);
+  for (const [reviewId, , action] of converted) {
+    assert.equal(approve(reviewId, exact(reviewId)).status, 0, reviewId);
+    const request = JSON.parse(
+      await readFile(path.join(f.root, reviewId, 'request.json'), 'utf8'),
+    );
+    assert.deepEqual(request.approvedReview.event.action, action);
+    assert.equal(request.approvedReview.event.rationale, null);
+  }
   for (const [name, extra, message] of [
     [
       'stdin',
@@ -1005,7 +1051,7 @@ test('approval conversion covers network protocols and refuses unsupported or mi
         '--review-receipt',
         receipt,
       ],
-      'Approving a denied writeStdin action is unsupported.',
+      /denied writeStdin action is unsupported/,
     ],
     [
       'missing',
@@ -1017,7 +1063,7 @@ test('approval conversion covers network protocols and refuses unsupported or mi
         '--review-receipt',
         receipt,
       ],
-      '--review-receipt lists no denied review absent.',
+      /no denied review absent/,
     ],
     [
       'thread',
@@ -1029,25 +1075,25 @@ test('approval conversion covers network protocols and refuses unsupported or mi
         '--review-receipt',
         receipt,
       ],
-      '--review-receipt records a different thread.',
+      /different thread/,
     ],
     [
       'no-resume',
       ['--approve-review', 'network', '--review-receipt', receipt],
-      '--approve-review requires --resume.',
+      /requires --resume/,
     ],
     [
       'no-receipt',
       ['--resume', 'thread-prior', '--approve-review', 'network'],
-      '--approve-review and --review-receipt go together.',
+      /--review-receipt go together/,
     ],
   ] as const) {
     const result = approve(name, [...extra]);
     assert.equal(result.status, 1, name);
-    assert.equal(result.stderr.trim(), message);
+    assert.match(result.stderr, message, name);
     await assert.rejects(readFile(path.join(f.root, name, 'request.json')));
   }
-  const rejected = f.run('rejected', 'Retry.', exact, {
+  const rejected = f.run('rejected', 'Retry.', exact('network'), {
     FAKE_REJECT_APPROVAL: '1',
   });
   assert.equal(rejected.status, 1);

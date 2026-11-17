@@ -1,0 +1,3 @@
+# Worktree dependency and build state
+
+A new worktree has none of the source checkout's ignored dependency or build directories. Follow the repository's own worktree setup when it documents one. Otherwise run its documented install or build command inside that worktree for what the task needs. Do not link or share such a directory from another checkout. An install, scan, or cleanup that runs in the worktree then acts on the other checkout's files.

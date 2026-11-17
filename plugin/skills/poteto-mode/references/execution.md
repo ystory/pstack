@@ -86,6 +86,8 @@ The coordinator owns worktree preparation and cleanup coordination. Inspect the 
 
 The coordinator manages shared repository metadata. Each branch owner performs the pushes, rebases, and PR operations its calling workflow assigns. Workers own their assigned checkout and output only. Worktrees isolate files and indexes; they share the host, repository metadata, credentials, and other machine resources. Assign distinct ports, temporary/cache/data directories, simulator/device resources, and output locations for work that uses them. Serialize a machine resource that cannot be separated. Restrict the brief's commands to the assigned resources.
 
+A new worktree has none of the source checkout's ignored dependency or build directories. Follow the repository's own worktree setup when it documents one. Otherwise run its documented install or build command inside that worktree for what the task needs. Do not link or share such a directory from another checkout. An install, scan, or cleanup that runs in the worktree then acts on the other checkout's files.
+
 After workers release their checkouts, collect and verify their artifacts and integrate accepted work deliberately. Preserve needed unintegrated changes and evidence outside each temporary checkout before removing it. Follow the worktree cleanup playbook through the checkout's proper owner and confirm cleanup completion. Remove local branches only after their needed work has been integrated or preserved. A completed worker alone does not authorize discarding its checkout.
 
 ### Working-tree transfer

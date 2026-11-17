@@ -12,3 +12,4 @@ shared/0003-continue-stopped-workers.patch
 shared/0004-agy-recovered-error.patch
 shared/0005-upstream-0-15-43-refresh.patch
 0009-upstream-0-15-43-refresh.patch
+0010-worktree-dependency-state.patch

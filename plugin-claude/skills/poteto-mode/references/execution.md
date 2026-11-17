@@ -42,7 +42,7 @@ Pass this launch request to native Bash:
 
 ```json
 {
-  "command": "node \"<poteto-mode>/scripts/run-codex.mjs\" run --cwd \"/absolute/assigned-worktree\" --run-dir \"/absolute/unique-local-run-directory\" --model \"<selected-exact-model>\" --effort \"<supported-task-effort>\" --instruction \"/absolute/applicable/AGENTS.md\" --skill \"/absolute/relevant/SKILL.md\" --role \"<plugin>/agents/poteto-agent.md\" --write --prompt-file \"/absolute/consolidated-task.txt\"",
+  "command": "node \"<poteto-mode>/scripts/run-codex.mjs\" run --cwd \"/absolute/assigned-worktree\" --run-dir \"/absolute/unique-local-run-directory\" --model \"<selected-exact-model>\" --effort \"<supported-task-effort>\" --instruction \"/absolute/applicable/AGENTS.md\" --skill \"/absolute/relevant/SKILL.md\" --role \"<plugin>/agents/poteto-agent.md\" --prompt-file \"/absolute/consolidated-task.txt\"",
   "run_in_background": true,
   "timeout": 7200000
 }

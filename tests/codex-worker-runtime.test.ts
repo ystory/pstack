@@ -1157,6 +1157,26 @@ for (const [method, variable] of [
     assert.throws(() => process.kill(receipt.process.pid, 0), /ESRCH/);
   });
 
+test('the Claude launch template passes only options the Codex runner accepts', async () => {
+  const plugin = path.join(project, 'plugin-claude');
+  const reference = await readFile(
+    path.join(plugin, 'skills/poteto-mode/references/execution.md'),
+    'utf8',
+  );
+  const template = reference
+    .split('\n')
+    .find((line) => line.includes('run-codex.mjs\\" run'));
+  assert.ok(template, 'execution reference shows a Codex launch template');
+  const help = spawnSync(
+    process.execPath,
+    [path.join(plugin, 'skills/poteto-mode/scripts/run-codex.mjs'), '--help'],
+    { encoding: 'utf8' },
+  ).stdout;
+  const accepted = new Set(help.match(/--[a-z-]+/g));
+  for (const flag of template.match(/--[a-z-]+/g) ?? [])
+    assert.ok(accepted.has(flag), `runner accepts ${flag}`);
+});
+
 test('explicit sandbox selection is recorded and read-only is refused', async (t) => {
   const f = await fixture(t);
   assert.equal(

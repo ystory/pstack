@@ -680,13 +680,16 @@ function streamParser(options, prior) {
       count++;
       const terminal = value.result;
       result = terminal;
+      const recovered =
+        terminal?.status === 'ERROR' &&
+        terminal.finished_reason === 'error' &&
+        typeof terminal.error === 'string';
       if (
         !init ||
         !userInput ||
         !terminal ||
         terminal.conversation_id !== init.conversation_id ||
-        terminal.status !== 'SUCCESS' ||
-        terminal.error ||
+        (!recovered && (terminal.status !== 'SUCCESS' || terminal.error)) ||
         terminal.is_error === true ||
         terminal.success === false ||
         typeof terminal.response !== 'string' ||
@@ -927,7 +930,13 @@ async function execute(options) {
       : {}),
     completedAt: new Date().toISOString(),
   };
-  if (context) receipt.stop = stopFor(receipt);
+  if (context) {
+    receipt.recoveredError =
+      !error && evidence.terminalResult?.status === 'ERROR'
+        ? evidence.terminalResult.error
+        : null;
+    receipt.stop = stopFor(receipt);
+  }
   await fs.writeFile(resultPath, json(receipt), { flag: 'wx', mode: 0o600 });
   console.log(JSON.stringify(receipt));
   process.exitCode = !error

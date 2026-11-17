@@ -1,8 +1,15 @@
 diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
-index 39910cc..a2c8f0d 100644
+index 39910cc..f8a79cd 100644
 --- a/skills/poteto-mode/references/execution.md
 +++ b/skills/poteto-mode/references/execution.md
-@@ -48,7 +48,7 @@ Pass this launch request to native Bash:
+@@ -42,13 +42,13 @@ Pass this launch request to native Bash:
+ 
+ ```json
+ {
+-  "command": "node \"<poteto-mode>/scripts/run-codex.mjs\" run --cwd \"/absolute/assigned-worktree\" --run-dir \"/absolute/unique-local-run-directory\" --model \"<selected-exact-model>\" --effort \"<supported-task-effort>\" --instruction \"/absolute/applicable/AGENTS.md\" --skill \"/absolute/relevant/SKILL.md\" --role \"<plugin>/agents/poteto-agent.md\" --write --prompt-file \"/absolute/consolidated-task.txt\"",
++  "command": "node \"<poteto-mode>/scripts/run-codex.mjs\" run --cwd \"/absolute/assigned-worktree\" --run-dir \"/absolute/unique-local-run-directory\" --model \"<selected-exact-model>\" --effort \"<supported-task-effort>\" --instruction \"/absolute/applicable/AGENTS.md\" --skill \"/absolute/relevant/SKILL.md\" --role \"<plugin>/agents/poteto-agent.md\" --prompt-file \"/absolute/consolidated-task.txt\"",
+   "run_in_background": true,
+   "timeout": 7200000
  }
  ```
  

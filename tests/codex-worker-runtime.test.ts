@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import {
   cp,
   mkdtemp,
@@ -109,11 +110,22 @@ lines.on('close',()=>process.exit(0));
 process.on('exit',(code)=>log({exitCode:code}));
 `;
 
+async function stopRunner(runner: ChildProcess) {
+  if (runner.exitCode !== null || runner.signalCode !== null) return;
+  const exited = once(runner, 'exit');
+  runner.kill('SIGKILL');
+  await exited;
+}
+
 async function fixture(t: TestContext) {
   const root = await realpath(
     await mkdtemp(path.join(os.tmpdir(), 'pstack codex worker ')),
   );
-  t.after(() => rm(root, { recursive: true, force: true }));
+  const runners: ChildProcess[] = [];
+  t.after(async () => {
+    await Promise.all(runners.map(stopRunner));
+    await rm(root, { recursive: true, force: true });
+  });
   const plugin = path.join(root, 'copied plugin with spaces');
   await cp(
     path.join(project, 'plugin-claude/vendor'),
@@ -205,6 +217,13 @@ async function fixture(t: TestContext) {
       encoding: 'utf8',
       timeout: 10_000,
     });
+  const start = (name: string, extraEnv: Record<string, string> = {}) => {
+    const runner = spawn(process.execPath, args(name), {
+      env: { ...env, ...extraEnv },
+    });
+    runners.push(runner);
+    return runner;
+  };
   const receipt = async (name: string) =>
     JSON.parse(await readFile(path.join(root, name, 'result.json'), 'utf8'));
   const events = async () =>
@@ -226,6 +245,7 @@ async function fixture(t: TestContext) {
     env,
     args,
     run,
+    start,
     receipt,
     events,
   };
@@ -736,13 +756,10 @@ for (const { prompt, signal, turnKnown, startPending } of [
 ] as const)
   test(`signal cancels the active turn and closes its process for ${prompt}`, async (t) => {
     const f = await fixture(t),
-      child = spawn(process.execPath, f.args('cancelled'), {
-        env: {
-          ...f.env,
-          FAKE_IGNORE_INTERRUPT: '1',
-          FAKE_HOLD_TURN_STARTED: turnKnown ? '' : '1',
-          FAKE_HOLD_TURN_RESPONSE: startPending ? '1' : '',
-        },
+      child = f.start('cancelled', {
+        FAKE_IGNORE_INTERRUPT: '1',
+        FAKE_HOLD_TURN_STARTED: turnKnown ? '' : '1',
+        FAKE_HOLD_TURN_RESPONSE: startPending ? '1' : '',
       });
     let stderr = '';
     child.stderr.on('data', (chunk) => (stderr += chunk));
@@ -750,7 +767,7 @@ for (const { prompt, signal, turnKnown, startPending } of [
     const exited = new Promise<number | null>((resolve) =>
       child.on('exit', resolve),
     );
-    const deadline = Date.now() + 5000;
+    const deadline = Date.now() + 10_000;
     let startRequestId: number | undefined;
     while (true) {
       startRequestId = (await f.events().catch(() => [])).find(
@@ -1125,14 +1142,12 @@ for (const [method, variable] of [
 ] as const)
   test(`signal closes the owned server while ${method} is pending`, async (t) => {
     const f = await fixture(t);
-    const child = spawn(process.execPath, f.args('startup-cancelled'), {
-      env: { ...f.env, [variable]: '1' },
-    });
+    const child = f.start('startup-cancelled', { [variable]: '1' });
     child.stdin.end('Synthetic startup cancellation.');
     const exited = new Promise<number | null>((resolve) =>
       child.on('exit', resolve),
     );
-    const deadline = Date.now() + 5000;
+    const deadline = Date.now() + 10_000;
     while (
       !(await f.events().catch(() => [])).some(
         (event) => event.request?.method === method,

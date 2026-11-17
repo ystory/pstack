@@ -415,6 +415,7 @@ for (const mode of [
   'duplicate-result',
   'late-error',
   'nonzero',
+  'recovered-error-nonzero',
   'no-newline',
 ]) {
   test(`agy rejects ${mode} even if native output or exit looks successful`, async (t) => {
@@ -721,6 +722,25 @@ test('agy keeps a native ERROR terminal result and its usage in the failed recei
   assert.equal(resumed.receipt.status, 'completed');
   assert.equal(resumed.receipt.conversationId, receipt.conversationId);
   assert.equal(resumed.receipt.terminalResult.num_turns, 2);
+});
+
+test('agy completes a turn whose native ERROR result carries a recovered model error and a zero exit', async (t) => {
+  const f = await fixture(t);
+  const run = await f.invoke('recovered-error');
+  assert.equal(run.code, 0, run.stderr + run.stdout);
+  assert.equal(run.receipt.status, 'completed');
+  assert.equal(run.receipt.error, null);
+  assert.equal(run.receipt.result, 'fresh answer 한글 🥔');
+  assert.equal(run.receipt.terminalResult.status, 'ERROR');
+  assert.equal(
+    run.receipt.recoveredError,
+    'API error (attempt 1): Error 429, Status: RESOURCE_EXHAUSTED',
+  );
+  assert.equal(run.receipt.stop.kind, 'completed');
+  assert.equal(
+    await readFile(path.join(run.runDir, 'final.txt'), 'utf8'),
+    'fresh answer 한글 🥔',
+  );
 });
 
 test('agy interrupted runs keep a continuable conversation and continue it', async (t) => {

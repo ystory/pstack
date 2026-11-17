@@ -189,6 +189,23 @@ if (args[0] === '--version') {
       },
     });
   }
+  if (['recovered-error', 'recovered-error-nonzero'].includes(mode)) {
+    emit({
+      event: 'step_update',
+      step_update: {
+        conversation_id: conversationId,
+        step_index: 1,
+        state: 'DONE',
+        step_type: 'error_message',
+      },
+    });
+    Object.assign(result.result, {
+      status: 'ERROR',
+      error: 'API error (attempt 1): Error 429, Status: RESOURCE_EXHAUSTED',
+      finished_reason: 'error',
+    });
+    if (mode === 'recovered-error-nonzero') process.exitCode = 3;
+  }
   if (mode === 'error-then-success')
     emit({ event: 'error', error: 'original native failure' });
   if (

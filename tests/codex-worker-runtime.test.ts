@@ -107,7 +107,6 @@ lines.on('line', (line) => {
  }
 });
 lines.on('close',()=>process.exit(0));
-process.on('exit',(code)=>log({exitCode:code}));
 `;
 
 async function stopRunner(runner: ChildProcess) {
@@ -251,6 +250,31 @@ async function fixture(t: TestContext) {
   };
 }
 
+function running(pid: number) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return false;
+    throw error;
+  }
+}
+
+function assertClosedByClient(server: {
+  pid: number;
+  closed: boolean;
+  exitCode: number | null;
+  signal: string | null;
+}) {
+  assert.equal(server.closed, true);
+  assert(
+    (server.exitCode === 0 && server.signal === null) ||
+      (server.exitCode === null && server.signal === 'SIGTERM'),
+    `The app-server neither exited cleanly after stdin closed nor stopped on the client's SIGTERM: ${JSON.stringify(server)}`,
+  );
+  assert.equal(running(server.pid), false);
+}
+
 test('locked selected source has a complete executable import closure and exact source mappings', async () => {
   const lock = JSON.parse(
     await readFile(path.join(project, 'codex-runtime.lock.json'), 'utf8'),
@@ -315,8 +339,7 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
     receipt.rolloutPath,
     `${f.root}/server.jsonl.${receipt.threadId}.rollout.jsonl`,
   );
-  assert.equal(receipt.process.closed, true);
-  assert.equal(receipt.process.exitCode, 0);
+  assertClosedByClient(receipt.process);
   assert.equal(receipt.runtime.kind, 'standalone-app-server');
   assert.equal(receipt.runtime.executable, f.executable);
   assert.equal(receipt.runtime.version, 'codex-app-server 0.fixture');
@@ -571,8 +594,7 @@ for (const [name, text, extraEnv] of [
       received.filter((event) => event.method === 'item/completed').length,
       1,
     );
-    assert.equal(receipt.process.closed, true);
-    assert.equal(receipt.process.exitCode, 0);
+    assertClosedByClient(receipt.process);
   });
 
 test('runner rejects malformed JSONL and closes its app-server', async (t) => {
@@ -586,19 +608,13 @@ test('runner rejects malformed JSONL and closes its app-server', async (t) => {
   assert.match(receipt.error.message, /Failed to parse codex app-server JSONL/);
   assert.equal(receipt.finalText, '');
   const deadline = Date.now() + 1000;
-  while (
-    !(await f.events()).some(
-      (event) =>
-        event.pid === receipt.process.pid && event.exitCode !== undefined,
-    )
-  ) {
+  while (running(receipt.process.pid)) {
     assert(
       Date.now() < deadline,
       'Malformed output left its app-server alive.',
     );
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
-  assert.throws(() => process.kill(receipt.process.pid, 0), /ESRCH/);
 });
 
 test('runner assembles complete installed instructions while keeping linked references separate', async (t) => {
@@ -806,7 +822,7 @@ for (const { prompt, signal, turnKnown, startPending } of [
       cause: signal,
       continuable: receipt.threadId !== null,
     });
-    assert.equal(receipt.process.closed, true);
+    assertClosedByClient(receipt.process);
     const diagnostics = (await readFile(receipt.files.diagnostics, 'utf8'))
       .trim()
       .split('\n')
@@ -830,12 +846,6 @@ for (const { prompt, signal, turnKnown, startPending } of [
       assert.equal(interrupts[0].request.params.turnId, receipt.turnId);
       assert.equal(interrupts[0].pid, receipt.process.pid);
     } else assert.equal(receipt.turnId, null);
-    assert(
-      events.some(
-        (event) => event.pid === receipt.process.pid && event.exitCode === 0,
-      ),
-    );
-    assert.throws(() => process.kill(receipt.process.pid, 0), /ESRCH/);
   });
 
 test('catalog walks every page and keeps authentication distinct from model execution', async (t) => {

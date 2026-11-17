@@ -1,0 +1,320 @@
+diff --git a/skills/poteto-mode/references/agy-execution.md b/skills/poteto-mode/references/agy-execution.md
+index 4bf242d..617111c 100644
+--- a/skills/poteto-mode/references/agy-execution.md
++++ b/skills/poteto-mode/references/agy-execution.md
+@@ -10,23 +10,22 @@ node "<poteto-mode>/scripts/run-agy.mjs" run \
+ 	--model "<selected-exact-model>" --effort "<supported-effort>" \
+ 	--role "/absolute/original-role.md" \
+ 	--instruction "/absolute/project/AGENTS.md" --skill "/absolute/relevant/SKILL.md" \
+-	--allow-permission 'command(git)' \
+ 	--prompt-file "/absolute/consolidated-task.txt"
+ ```
+ 
+-On Codex, use the exposed command and session controls. Request reviewed escalation with a task-specific justification when the host sandbox blocks required existing runtime access. On Claude Code, use native background Bash with `run_in_background: true` and the task's supported timeout. Track the host command identity and collect its terminal receipt. Set `--timeout-ms N` when the task needs an overall deadline. Stop through the host's actual process controls and collect the resulting receipt. Signal delivery alone does not prove closure.
++On Codex, use the exposed command and session controls. Request reviewed escalation with a task-specific justification when the host sandbox blocks required existing runtime access. On Claude Code, use native background Bash with `run_in_background: true` and `timeout: 7200000`, the limit the Codex runner uses. Track the host command identity and collect its terminal receipt. Set `--timeout-ms N` only when the task itself has a deadline. The request and receipt record it as `timeoutMs`. Stop through the host's actual process controls and collect the resulting receipt. Signal delivery alone does not prove closure.
+ 
+ Pass the complete consolidated brief, assigned checkout, ownership, constraints, expected result, and artifact paths. Repeat `--instruction` for project rules, templates, rubrics, and references, and `--skill` for skill bodies. Use `--role` for the selected original agent body. A general-purpose seat has no added role body. Pass the absolute poteto-mode skill for a poteto-agent. The runner embeds these complete files and the shared [receiving-worker context](worker-context.md). Linked references and principle leaves still require complete supplied bodies or actual reads.
+ 
+ The runner uses the official agy CLI version 1.5.8 or newer. Setup prepares only selected executors and the authentication method the user chose. The worker inherits that method through the existing official CLI environment and settings. The runner passes no authentication option. The receipt's `auth.method` names it. It is `gemini-api-key` when agy's settings set `modelProvider` to `gemini`, otherwise `adc` when `AGY_ADC_AUTH=true`, otherwise `inherited-default`. `auth` also records that `modelProvider` value and whether `GEMINI_API_KEY` is set, never the key. `verified: false` means no authentication probe ran. Do not read or copy credentials, change authentication methods, or save personal defaults. A missing executor remains a capability gap.
+ 
+-Keep normal session permissions. Repeat `--allow-permission RULE` for already-authorized operations the task needs. The runner supplies these rules through agy's documented inline `--settings` object for that invocation. Use scoped rules such as `command(git)`, `command(regex:npm run (build|lint|test))`, or `write_file(src/)`. These permissions do not enforce OS read-only access. The worker uses agy's native tools and customizations. It does not inherit the parent's MCP inventory, complete conversation, native subagent controls, or permissions. Keep a required missing capability as the calling workflow's gap.
++The runner passes `--dangerously-skip-permissions`, so agy approves every native tool request. Headless agy cannot ask for a permission, and a request that no rule allows would end the run with no answer. A tool error, such as a read of a missing file, returns to the worker, and the receipt lists it in `toolErrors`. The run continues. Approval is not an OS boundary, so a read-only task stays read-only only through its brief. Check `git status --short` before and after it. The worker uses agy's native tools and customizations. It does not inherit the parent's MCP inventory, complete conversation, native subagent controls, or permissions. Keep a required missing capability as the calling workflow's gap.
+ 
+ Preserve the exact model ID and selected effort. A catalog label with a fixed effort confirms only that variant's configured availability. It does not prove inference or support for other efforts. Use each model's source-labeled capabilities for adjustments. If no supported effort is at or below the requested budget, report the required choice. Never switch model IDs or authentication routes silently. Keep rejected settings by executor, exact model, and effort. Never resubmit a rejected setting. Follow the caller's supported starting-effort retry or existing fallback rules with disclosure.
+ 
+ Inspect `result.json` and `final.txt` in the run directory. Host stdout can truncate. Requested model and effort, CLI-observed model, and effective effort are separate evidence. The CLI does not separately report effective effort, so that value remains unknown. Native usage is conversation-cumulative. Do not add resumed usage to prior totals or describe it as current-turn usage or settled billing. Only a completed receipt with matching init and result conversation IDs, one successful terminal result, a nonempty response, and orderly zero-exit process closure establishes success. A late apparent success cannot override an error, cancellation, or timeout. A failed receipt keeps the native terminal result, including its status, error, finished reason, and usage. Review files and verification evidence under the calling workflow's own rules.
+ 
+-Continue only under poteto-mode's costly-state exception. Pass `--resume /absolute/prior-run/result.json` for an exact successful closed receipt with identical model, effort, canonical cwd, and inherited authentication method. A method change between runs blocks continuation. Each receipt permits one continuation. The runner retains a permanent `continued-by.json` edge before launch, so a second continuation from that predecessor fails even after the first finishes. A new successful receipt can continue once. Keep failed continuation evidence and investigate it. Never use a latest selector, a naked conversation ID, or a fresh fallback.
++The receipt's `stop.kind` names how the run ended. It is `completed`, `interrupted` for a deadline or a signal, or `error`. `stop.continuable` is true when the receipt proves the exact conversation identity, delivered task input, and a closed process group. Continue a stopped run per [Continuing a stopped worker](continuation.md). Pass `--resume /absolute/prior-run/result.json` with identical model, effort, canonical cwd, and inherited authentication method. A method change between runs blocks continuation. Each receipt permits one continuation. The runner retains a permanent `continued-by.json` edge before launch, so a second continuation from that predecessor fails even after the first finishes. The new receipt can continue once. Keep failed continuation evidence and investigate it. Never use a latest selector or a naked conversation ID, and never replace a failed continuation with a fresh worker without saying so.
+ 
+ The official CLI owns native conversation storage and history. The receipt does not hash that transcript or prevent direct native clients from changing it. No native host history inheritance is claimed. Antigravity entries do not install or register native parent roles.
+ 
+diff --git a/skills/poteto-mode/references/continuation.md b/skills/poteto-mode/references/continuation.md
+new file mode 100644
+index 0000000..a2c2939
+--- /dev/null
++++ b/skills/poteto-mode/references/continuation.md
+@@ -0,0 +1,42 @@
++# Continuing a stopped worker
++
++Read this before you retry, replace, or resume a worker that stopped before it returned a usable result. It binds poteto-mode's costly-state exception to this host's executors.
++
++## Continue by default
++
++A worker's conversation is state that lives in that worker and is costly to move. A conversation that stopped before its result still holds the reads, tool results, and reasoning the worker finished. Continue that conversation. A fresh worker would repeat that work and spend its time and tokens again.
++
++Give the work to a fresh worker with the consolidated brief only when one of these holds:
++
++- The worker returned a result, and the result is wrong or unusable.
++- The conversation cannot continue. The receipt says `continuable: false`, the executor rejects the continuation, or the executor, exact model, effort, working directory, or authentication must change.
++- The calling workflow's retry by cause asks for a different model or a smaller scope.
++
++When two continuations for the same cause stop again, stop retrying. Follow the calling workflow's retry limit, such as Orchestrate's rule to drop the unit and replan around it.
++
++## Read the stop
++
++Runner receipts record `stop.kind`, `stop.cause`, and `stop.continuable`. A native worker's stop arrives as the host's task notice.
++
++- `interrupted`. Something outside the worker ended it, such as a deadline, a signal, a task stop, a session or host stop, or a usage limit. Continue it once the cause is gone.
++- `permission`. The executor's own approval refused an action, such as a denied Codex review. Show the user the refused action and continue only after the user's explicit approval in chat. Do not grant permissions one by one on your own.
++- `error`. The executor reported an error. Read `stop.cause`. A rate limit, a quota limit, or a dropped connection continues after it clears. A tool or model error follows the calling workflow's retry by cause.
++- `completed`. Review the result under the calling workflow. New work that needs this worker's state continues it under the costly-state exception.
++
++## Write the continuation
++
++Interrupt-chained resumes can drop directives, so every continuation message repeats the consolidated brief: the original brief, every later directive, and what changed since the stop, such as a granted permission. Name the actual cause. For an interruption, say that it came from outside and was not a refusal, and that the worker reruns an interrupted step it still needs. A stopped native worker otherwise reads its cut-off tool call as a user rejection. For a permission stop, name the action the user approved.
++
++Keep the executor, exact model, effort, working directory, and authentication. Give each runner continuation a new run directory.
++
++| Executor                       | Continue with                                                                                                                                                  |
++| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
++| Native Claude worker           | `SendMessage` to the exact agent ID. It resumes a stopped agent from its transcript.                                                                          |
++| Native Codex worker            | `followup_task` on the same agent after `interrupt_agent` or another stop.                                                                                    |
++| `run-agy.mjs`                  | `--resume /absolute/prior/result.json`.                                                                           |
++| `run-codex.mjs` on Claude Code | `--resume` with the receipt's `threadId`. A denied review also needs `--approve-review` and `--review-receipt`.                                               |
++| `run-claude.mjs` on Codex      | `--resume` with the receipt's `sessionId`, with the approved `--allowed-tool` rule.                                                                            |
++
++## Deadlines
++
++Set a deadline only when the task itself has one. A deadline the task does not need turns work in progress into an interruption, and its continuation costs another turn.
+diff --git a/skills/poteto-mode/scripts/run-agy.mjs b/skills/poteto-mode/scripts/run-agy.mjs
+index 89c9e6b..a4a62f1 100644
+--- a/skills/poteto-mode/scripts/run-agy.mjs
++++ b/skills/poteto-mode/scripts/run-agy.mjs
+@@ -41,14 +41,13 @@ const capabilities = {
+   osReadOnlyEnforcement: false,
+ };
+ const usage =
+-  'Usage: run-agy.mjs detect [--executable ABS] | catalog --cwd ABS --run-dir ABS [--executable ABS] | run --cwd ABS --run-dir ABS --model EXACT_ID --effort LEVEL [--instruction ABS] [--skill ABS] [--role ABS] [--prompt-file ABS] [--resume ABS_PRIOR_RECEIPT] [--allow-permission RULE] [--timeout-ms N] [--executable ABS]';
++  'Usage: run-agy.mjs detect [--executable ABS] | catalog --cwd ABS --run-dir ABS [--executable ABS] | run --cwd ABS --run-dir ABS --model EXACT_ID --effort LEVEL [--instruction ABS] [--skill ABS] [--role ABS] [--prompt-file ABS] [--resume ABS_PRIOR_RECEIPT] [--timeout-ms N] [--executable ABS]';
+ 
+ function optionsFor(argv) {
+   const options = {
+     command: argv[0],
+     instruction: [],
+     skill: [],
+-    allowPermission: [],
+   };
+   if (['--help', '-h'].includes(options.command)) return { command: 'help' };
+   if (!['detect', 'catalog', 'run'].includes(options.command))
+@@ -63,7 +62,6 @@ function optionsFor(argv) {
+     '--role': 'role',
+     '--prompt-file': 'promptFile',
+     '--resume': 'resume',
+-    '--allow-permission': 'allowPermission',
+     '--timeout-ms': 'timeoutMs',
+     '--executable': 'executable',
+   };
+@@ -100,12 +98,6 @@ function optionsFor(argv) {
+       model: options.model,
+       reasoningEffort: options.effort,
+     });
+-    for (const rule of options.allowPermission)
+-      if (/[\p{Cc}\p{Cf}]/u.test(rule) || !/^[a-z][a-z_]*\(.+\)$/.test(rule))
+-        throw new Error(
+-          'Expected a nonempty native permission rule such as command(git).',
+-        );
+-    options.allowPermission = [...new Set(options.allowPermission)];
+   }
+   return options;
+ }
+@@ -435,7 +427,7 @@ async function detect(options) {
+       '--input-format',
+       '--output-format',
+       '--conversation',
+-      '--settings',
++      '--dangerously-skip-permissions',
+     ].map((flag) => [
+       flag.slice(2),
+       new RegExp(`(?:^|[\\s,])${flag}(?:[\\s=<]|$)`, 'm').test(help),
+@@ -524,6 +516,47 @@ async function contextFor(options) {
+   };
+ }
+ 
++function conversationVerified(receipt, requested) {
++  return (
++    uuid(receipt.conversationId) &&
++    receipt.observedModel === requested.model &&
++    receipt.init?.conversation_id === receipt.conversationId &&
++    receipt.init?.init?.cwd === requested.cwd &&
++    receipt.init?.init?.model === requested.model &&
++    (!receipt.terminalResult ||
++      receipt.terminalResult.conversation_id === receipt.conversationId) &&
++    (!receipt.resume ||
++      receipt.resume.conversationId === receipt.conversationId) &&
++    receipt.identityBeforeInput === true &&
++    receipt.inputSent === true &&
++    receipt.process?.closed === true &&
++    receipt.process.groupClosed === true
++  );
++}
++
++const interruptionCauses = {
++  'timed-out': 'deadline',
++  interrupted: 'SIGINT',
++  terminated: 'SIGTERM',
++};
++
++function stopFor(receipt) {
++  const [kind, cause] =
++    receipt.status in interruptionCauses
++      ? ['interrupted', interruptionCauses[receipt.status]]
++      : receipt.status === 'completed'
++        ? ['completed', 'completed']
++        : ['error', receipt.error ?? receipt.status];
++  return {
++    kind,
++    cause,
++    continuable: conversationVerified(receipt, {
++      model: receipt.requested?.model,
++      cwd: receipt.cwd,
++    }),
++  };
++}
++
+ async function priorFor(options, auth) {
+   if (!options.resume) return null;
+   const file = absolute(options.resume, '--resume');
+@@ -538,12 +571,9 @@ async function priorFor(options, auth) {
+     prior.runDir !== path.dirname(file) ||
+     prior.schemaVersion !== 1 ||
+     prior.command !== 'run' ||
+-    prior.executor !== executor ||
+-    prior.status !== 'completed'
++    prior.executor !== executor
+   )
+-    throw new Error(
+-      '--resume requires the exact successful Antigravity terminal result receipt.',
+-    );
++    throw new Error('--resume requires an exact Antigravity run receipt.');
+   if (
+     JSON.stringify(agyEntry(prior.requested)) !==
+     JSON.stringify(options.requested)
+@@ -556,33 +586,18 @@ async function priorFor(options, auth) {
+   if (
+     !prior.process?.closed ||
+     !prior.process.groupClosed ||
+-    prior.process.shutdown !== 'orderly' ||
+-    prior.process.exitCode !== 0 ||
+-    prior.process.signal !== null ||
+     !Number.isInteger(prior.process.pid)
+   )
+     throw new Error(
+       'Resume requires verified closed owned process and process group.',
+     );
+-  if (
+-    !uuid(prior.conversationId) ||
+-    prior.observedModel !== options.model ||
+-    prior.terminalResult?.conversation_id !== prior.conversationId ||
+-    prior.terminalResult.status !== 'SUCCESS' ||
+-    typeof prior.result !== 'string' ||
+-    !prior.result.trim() ||
+-    prior.result !== prior.terminalResult.response ||
+-    prior.init?.conversation_id !== prior.conversationId ||
+-    prior.init?.init?.cwd !== options.cwd ||
+-    prior.init?.init?.model !== options.model ||
+-    !prior.identityBeforeInput ||
+-    !prior.inputSent ||
+-    !Number.isSafeInteger(prior.terminalResult.num_turns) ||
+-    prior.terminalResult.num_turns < 1
+-  )
++  if (!conversationVerified(prior, options))
+     throw new Error(
+-      'Resume receipt lacks exact conversation and current terminal evidence.',
++      'Resume receipt lacks exact conversation identity evidence.',
+     );
++  const numTurns = prior.terminalResult?.num_turns ?? 0;
++  if (!Number.isSafeInteger(numTurns) || numTurns < 0)
++    throw new Error('Resume receipt has an invalid native turn count.');
+   const continuedByPath = path.join(path.dirname(file), 'continued-by.json');
+   try {
+     await fs.lstat(continuedByPath);
+@@ -594,7 +609,7 @@ async function priorFor(options, auth) {
+     file,
+     sha256: sha256(bytes),
+     conversationId: prior.conversationId,
+-    numTurns: prior.terminalResult.num_turns,
++    numTurns,
+     continuedByPath,
+   };
+ }
+@@ -604,6 +619,8 @@ function streamParser(options, prior) {
+   let pending = '',
+     init = null,
+     result = null,
++    failedStep = null,
++    toolErrors = [],
+     userInput = false,
+     count = 0;
+   const line = (text, ready) => {
+@@ -635,13 +652,25 @@ function streamParser(options, prior) {
+     } else if (value.event === 'step_update') {
+       if (!init || value.step_update?.conversation_id !== init.conversation_id)
+         throw new Error('Step conversation ID disagrees with init.');
++      const { step_type, state, tool_name, tool_info } = value.step_update;
+       if (
+         ['ERROR', 'FAILED', 'CANCELLED', 'CANCELED', 'ABORTED'].includes(
+-          value.step_update.state,
++          state,
+         ) ||
+         value.step_update.error
+-      )
+-        throw new Error('Native step reported failure.');
++      ) {
++        const step = {
++          step_type,
++          state,
++          tool_name: tool_name ?? null,
++          parameters: tool_info?.parameters ?? null,
++        };
++        if (step_type === 'tool') toolErrors.push(step);
++        else {
++          failedStep = step;
++          throw new Error('Native step reported failure.');
++        }
++      }
+       if (
+         value.step_update.step_type === 'user_input' &&
+         value.step_update.state === 'DONE'
+@@ -699,6 +728,8 @@ function streamParser(options, prior) {
+         observedModel: init?.init?.model ?? null,
+         init,
+         terminalResult: result,
++        failedStep,
++        toolErrors,
+       };
+     },
+   };
+@@ -732,7 +763,8 @@ async function execute(options) {
+     requested: options.requested ?? null,
+     auth,
+     authMode: auth.method,
+-    permissions: { scope: 'session-only', allow: options.allowPermission },
++    permissions: 'all-native-tools-auto-approved',
++    timeoutMs: options.timeoutMs ?? null,
+     context: context?.context ?? [],
+     taskSha256: context?.taskSha256 ?? null,
+     resume: prior
+@@ -800,13 +832,9 @@ async function execute(options) {
+         options.model,
+         '--effort',
+         options.effort,
++        '--dangerously-skip-permissions',
+       ];
+       if (prior) args.push('--conversation', prior.conversationId);
+-      if (options.allowPermission.length)
+-        args.push(
+-          '--settings',
+-          JSON.stringify({ permissions: { allow: options.allowPermission } }),
+-        );
+       const promptPath = path.join(options.runDir, 'prompt.txt');
+       await fs.writeFile(promptPath, context.prompt, {
+         flag: 'wx',
+@@ -899,6 +927,7 @@ async function execute(options) {
+       : {}),
+     completedAt: new Date().toISOString(),
+   };
++  if (context) receipt.stop = stopFor(receipt);
+   await fs.writeFile(resultPath, json(receipt), { flag: 'wx', mode: 0o600 });
+   console.log(JSON.stringify(receipt));
+   process.exitCode = !error

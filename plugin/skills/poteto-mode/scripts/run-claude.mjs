@@ -32,8 +32,8 @@ const USAGE = `Usage:
     [--executable /absolute/claude] < task.txt
 
 Repeat --instruction, --skill, and --allowed-tool as needed. --role supplies only
-the requested role's Markdown body. Each supplied context file receives an exact
-Read allowance. Pass the task's other authorized tool rules with --allowed-tool.
+the requested role's Markdown body. Claude runs with --permission-mode auto. Pass
+--allowed-tool only for an action the user approved after an auto-mode denial.
 Fresh sessions are the default. Artifacts are saved in --run-dir outside the
 plugin; stdout is the result receipt JSON. Dispatchers pass the resolved model.
 Run requires an explicit exact model ID.`;
@@ -169,6 +169,7 @@ async function detect(options) {
       help.includes('--output-format') && help.includes('stream-json'),
     verbose: help.includes('--verbose'),
     resume: help.includes('--resume'),
+    permissionModeAuto: /--permission-mode\b[\s\S]*?"auto"/.test(help),
   };
   const effortStart = help.indexOf('--effort');
   const effortEnd = help.indexOf('\n  --', effortStart + 1);
@@ -300,13 +301,11 @@ async function run(options) {
     '--output-format',
     'stream-json',
     '--verbose',
+    '--permission-mode',
+    'auto',
   ];
   if (options.resume) args.push('--resume', options.resume);
-  // Claude's absolute file rule adds a slash before the absolute POSIX path.
-  const contextTools = context.map(
-    ({ path: sourcePath }) => `Read(/${sourcePath.split(path.sep).join('/')})`,
-  );
-  for (const tool of new Set([...contextTools, ...options.allowedTool])) {
+  for (const tool of new Set(options.allowedTool)) {
     args.push('--allowedTools', tool);
   }
   const request = {
@@ -380,7 +379,11 @@ async function run(options) {
     stdinError = error.message;
   });
   child.stdin.end(prompt);
-  const forwardSignal = (signal) => child.kill(signal);
+  let received = null;
+  const forwardSignal = (signal) => {
+    received ??= signal;
+    child.kill(signal);
+  };
   const onInterrupt = () => forwardSignal('SIGINT');
   const onTerminate = () => forwardSignal('SIGTERM');
   process.on('SIGINT', onInterrupt);
@@ -397,6 +400,31 @@ async function run(options) {
   pending += decoder.end();
   if (pending) event(pending);
   await Promise.all([finished(stdout), finished(stderr)]);
+  const signal =
+    received ??
+    completion.signal ??
+    { 130: 'SIGINT', 143: 'SIGTERM' }[completion.exitCode] ??
+    null;
+  const denials = resultEvent?.permission_denials ?? [];
+  const succeeded =
+    completion.exitCode === 0 &&
+    !parseError &&
+    resultEvent?.subtype === 'success' &&
+    resultEvent.is_error !== true;
+  const status = signal ? 'interrupted' : succeeded ? 'completed' : 'failed';
+  const [kind, cause] = signal
+    ? ['interrupted', signal]
+    : denials.length
+      ? ['permission', 'permission denial']
+      : succeeded
+        ? ['completed', 'completed']
+        : [
+            'error',
+            spawnError ??
+              parseError ??
+              resultEvent?.subtype ??
+              `exit ${completion.exitCode}`,
+          ];
   const receipt = {
     ...request,
     pid: child.pid ?? null,
@@ -405,6 +433,13 @@ async function run(options) {
     observedModel,
     result: typeof resultEvent?.result === 'string' ? resultEvent.result : null,
     resultEvent,
+    status,
+    stop: {
+      kind,
+      cause,
+      continuable: sessionId !== null,
+      ...(denials.length ? { permissionDenials: denials } : {}),
+    },
     spawnError,
     stdinError,
     parseError,

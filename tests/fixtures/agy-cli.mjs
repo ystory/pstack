@@ -55,7 +55,11 @@ if (args[0] === '--version') {
       '  --input-format <format> text, stream-json',
       '  --output-format <format> text, json, stream-json',
       '  --conversation <id>',
-      ...(mode === 'missing-syntax' ? [] : ['  --settings <json>']),
+      ...(mode === 'missing-syntax'
+        ? []
+        : [
+            '  --dangerously-skip-permissions  Auto-approve all tool permission requests',
+          ]),
       'Commands:',
       '  models  Show available models',
     ].join('\n'),
@@ -135,6 +139,22 @@ if (args[0] === '--version') {
     },
   };
   if (mode !== 'missing-current-input') emit(update);
+  if (mode === 'tool-error')
+    for (const state of ['ACTIVE', 'ERROR'])
+      emit({
+        event: 'step_update',
+        step_update: {
+          conversation_id: conversationId,
+          step_index: 1,
+          state,
+          step_type: 'tool',
+          tool_name: 'read_file',
+          tool_info: {
+            name: 'read_file',
+            parameters: { Path: 'app/layout.tsx' },
+          },
+        },
+      });
   const result = {
     event: 'result',
     result: {

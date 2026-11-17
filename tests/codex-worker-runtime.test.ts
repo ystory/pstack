@@ -276,6 +276,11 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
   assert.equal(result.status, 0, result.stderr);
   const receipt = await f.receipt('completed');
   assert.equal(receipt.status, 'completed');
+  assert.deepEqual(receipt.stop, {
+    kind: 'completed',
+    cause: 'completed',
+    continuable: true,
+  });
   assert.equal(receipt.finalText, `answer for ${receipt.threadId}`);
   assert.deepEqual(receipt.requested, {
     model: 'selected-model',
@@ -654,6 +659,8 @@ test('terminal failure wins over an earlier final answer and abrupt server exit 
   const failed = await f.receipt('failed');
   assert.equal(failed.status, 'failed');
   assert.equal(failed.turn.status, 'failed');
+  assert.equal(failed.stop.kind, 'error');
+  assert.equal(failed.stop.continuable, true);
   assert.match(JSON.stringify(failed.error), /actual terminal failure/);
   assert.equal(f.run('exited', 'EXIT').status, 1);
   const exited = await f.receipt('exited');
@@ -777,6 +784,11 @@ for (const { prompt, signal, turnKnown, startPending } of [
     assert.equal(await exited, signal === 'SIGINT' ? 130 : 143, stderr);
     const receipt = await f.receipt('cancelled');
     assert.equal(receipt.status, 'interrupted');
+    assert.deepEqual(receipt.stop, {
+      kind: 'interrupted',
+      cause: signal,
+      continuable: receipt.threadId !== null,
+    });
     assert.equal(receipt.process.closed, true);
     const diagnostics = (await readFile(receipt.files.diagnostics, 'utf8'))
       .trim()
@@ -875,6 +887,7 @@ test('denied reviews are recorded and an exact approval precedes the resumed tur
     denied.deniedReviews.map((review: { reviewId: string }) => review.reviewId),
     ['review-denied'],
   );
+  assert.equal(denied.stop.kind, 'permission');
   assert.equal(denied.approvedReview, null);
   const result = f.run('approved', 'Retry the approved action.', [
     '--resume',

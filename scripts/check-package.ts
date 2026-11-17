@@ -339,7 +339,7 @@ try {
     `#!${process.execPath}\n` +
       `const args = process.argv.slice(2);\n` +
       `if (args[0] === '--version') console.log('2.1.300 (Claude Code)');\n` +
-      `else if (args[0] === '--help') console.log('--print --model --effort low medium high xhigh max --output-format stream-json --verbose --resume');\n` +
+      `else if (args[0] === '--help') console.log('--print --model --effort low medium high xhigh max --output-format stream-json --verbose --resume --permission-mode (choices: "auto")');\n` +
       `else if (args[0] === 'auth') console.log(JSON.stringify({loggedIn:true,authMethod:'oauth_token'}));\n` +
       `else {\n` +
       `  process.stdin.resume();\n` +

@@ -1,0 +1,57 @@
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 3387691..39910cc 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -54,7 +54,7 @@ Do not infer that browser, local-server, or network work is unavailable from the
+ 
+ Pass the absolute poteto-mode skill with `--skill` for a poteto-agent. Pass context paths to the runner instead of reading and copying their bodies into the brief. The runner reads the files and includes their complete bodies in its task input. The worker applies the [receiving-worker context rules](worker-context.md). Required reads of bodies absent from the input still need transcript evidence.
+ 
+-Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. Never resume the latest thread or infer identity from a directory name. Setup prepares the official server and makes it available on inherited PATH. The runner calls `codex-app-server --session-source app-server`. Absolute-path flags override one invocation for diagnostics and are not saved. If runtime preparation is incomplete, use [setup prerequisites](../../setup-pstack/references/prerequisites.md). There is no umbrella CLI fallback.
++Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. A stopped thread's conversation meets that exception, per [Continuing a stopped worker](continuation.md). The receipt's `stop` records how the run ended. Never resume the latest thread or infer identity from a directory name. Setup prepares the official server and makes it available on inherited PATH. The runner calls `codex-app-server --session-source app-server`. Absolute-path flags override one invocation for diagnostics and are not saved. If runtime preparation is incomplete, use [setup prerequisites](../../setup-pstack/references/prerequisites.md). There is no umbrella CLI fallback.
+ 
+ Workers share the existing Codex account, configuration, and persistent rollout/state storage through inherited `CODEX_HOME`. Fresh roots use the server's `app-server` session source without a `threadSource` tag. They remain persistent and can resume by exact thread ID. Existing threads retain their original source on resume and are not migrated or hidden retroactively. Ordinary Desktop lists filter session sources, but a successful help probe alone does not verify screen behavior or descendant visibility. Claude tools, MCP servers, conversation history, and permissions do not automatically become Codex tools or state. Verify the external executor has the capabilities needed for its assigned task.
+ 
+@@ -76,13 +76,13 @@ Workers share the machine, repository metadata, credentials, and devices. Assign
+ 
+ Conversation history is not filesystem state. When a review includes uncommitted changes, record the source checkout and exact HEAD. Create all receiving worktrees at that HEAD. Capture scoped tracked final contents with `git diff --binary HEAD -- <scope>`. Inventory and copy scoped untracked files separately, preserving bytes, file types, symlink targets, and executable modes. Include ignored input only when the task needs it. Apply that same captured input to each receiver and compare its files, modes, deletions, and untracked inventory with the source before launch. Recapture if the source changes during the transfer.
+ 
+-A fresh worker can receive a stopped writer's checkout or a copied committed and uncommitted state. A history fork copies no process. Reuse a worker only when its costly checkout state, uncommitted changes, or live process meets poteto-mode's exception. A role outlives an individual worker. New rounds otherwise get a fresh consolidated brief with every later directive and prior report.
++A fresh worker can receive a stopped writer's checkout or a copied committed and uncommitted state. A history fork copies no process. Reuse a worker only when its costly checkout state, uncommitted changes, live process, or the conversation of a worker that stopped before its result meets poteto-mode's exception, per [Continuing a stopped worker](continuation.md). A role outlives an individual worker. New rounds otherwise get a fresh consolidated brief with every later directive and prior report.
+ 
+ ## Steering, results, and host features
+ 
+ Use the exposed native messaging control, such as `SendMessage`, for a running Claude worker's steering or a permitted stateful resume by exact agent ID. Keep stop orders distinct from new briefs. Stop a Codex Bash task through the host's actual task-stop control and collect the resulting receipt. Do not equate interrupt delivery with observed process death. Retain exact thread identity for a later permitted continuation.
+ 
+-Wait for all required terminal results before synthesis. Account for every seat and apply only the calling workflow's failure or dropout rule. The parent reviews diffs and reruns load-bearing claims. Never accept an author summary as a non-author verdict.
++Wait for all required terminal results before synthesis. Before you retry or replace a worker that stopped before its result, read [Continuing a stopped worker](continuation.md). Account for every seat and apply only the calling workflow's failure or dropout rule. The parent reviews diffs and reruns load-bearing claims. Never accept an author summary as a non-author verdict.
+ 
+ Read [Claude Code wakeups](claude-wakeups.md) for repeated watchers and schedules, and [Claude history](../../recall/references/claude-history.md) for transcripts. Use native TodoWrite or task tools when offered, otherwise maintain the workflow's list in its local tracker. Inspect the live schemas rather than assuming a Project store or a PR-event subscription exists.
+ 
+diff --git a/skills/poteto-mode/scripts/run-codex.mjs b/skills/poteto-mode/scripts/run-codex.mjs
+index 3935be4..f7fbb50 100644
+--- a/skills/poteto-mode/scripts/run-codex.mjs
++++ b/skills/poteto-mode/scripts/run-codex.mjs
+@@ -489,6 +489,15 @@ async function run(options, server) {
+       : !failure && result?.status === 0 && terminal?.status === 'completed'
+         ? 'completed'
+         : 'failed';
++  const [stopKind, stopCause] = signal
++    ? ['interrupted', signal]
++    : terminal?.status === 'interrupted'
++      ? ['interrupted', 'native']
++      : deniedReviews.length
++        ? ['permission', 'denied review']
++        : status === 'completed'
++          ? ['completed', 'completed']
++          : ['error', failure?.message ?? 'failed'];
+   const exitCode =
+     signal === 'SIGINT'
+       ? 130
+@@ -512,6 +521,7 @@ async function run(options, server) {
+     approvedReview: request.approvedReview?.reviewId ?? null,
+     deniedReviews,
+     status,
++    stop: { kind: stopKind, cause: stopCause, continuable: threadId !== null },
+     resultStatus: result?.status ?? null,
+     finalText,
+     turn: terminal,

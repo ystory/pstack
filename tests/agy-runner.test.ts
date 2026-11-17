@@ -289,10 +289,6 @@ test('agy sends one official user event with complete context, role body, exact 
       skill,
       '--role',
       role,
-      '--allow-permission',
-      'command(git)',
-      '--allow-permission',
-      'write_file(src/)',
     ]);
     assert.equal(run.code, 0, run.stderr + JSON.stringify(run.receipt));
     assert.equal(run.receipt.status, 'completed');
@@ -331,15 +327,17 @@ test('agy sends one official user event with complete context, role body, exact 
     assert.equal(call.input.trim().split('\n').length, 1);
     assert.equal(JSON.parse(call.input).message.content, prompt);
     const args = run.receipt.args;
-    assert.deepEqual(JSON.parse(args[args.indexOf('--settings') + 1]), {
-      permissions: { allow: ['command(git)', 'write_file(src/)'] },
+    assert.ok(args.includes('--dangerously-skip-permissions'));
+    assert.equal(args.includes('--settings'), false);
+    assert.equal(run.receipt.permissions, 'all-native-tools-auto-approved');
+    assert.deepEqual(run.receipt.toolErrors, []);
+    assert.equal(run.receipt.timeoutMs, null);
+    assert.deepEqual(run.receipt.stop, {
+      kind: 'completed',
+      cause: 'completed',
+      continuable: true,
     });
-    for (const forbidden of [
-      '-p',
-      '--continue',
-      '--dangerously-skip-permissions',
-      '--disable-slash-commands',
-    ])
+    for (const forbidden of ['-p', '--continue', '--disable-slash-commands'])
       assert.equal(args.includes(forbidden), false);
     assert.deepEqual(run.receipt.requested, {
       executor: 'antigravity',
@@ -450,7 +448,6 @@ test('agy validates absent selections, aliases, unsafe directories, nonregular i
     ['--model', 'auto'],
     ['--effort', 'ultra'],
     ['--instruction', f.cwd],
-    ['--allow-permission', 'bad rule'],
     ['--timeout-ms', 'NaN'],
   ]) {
     const rejected = await f.invoke('normal', extra);
@@ -688,7 +685,7 @@ test('agy resume rejects a prior receipt whose auth method differs from the inhe
   assert.equal(resumed.receipt.auth.method, 'adc');
 });
 
-test('agy keeps a native ERROR terminal result and its usage in the failed receipt and never continues it', async (t) => {
+test('agy keeps a native ERROR terminal result and its usage in the failed receipt and continues its conversation', async (t) => {
   const f = await fixture(t);
   const run = await f.invoke('failure');
   assert.notEqual(run.code, 0);
@@ -717,27 +714,50 @@ test('agy keeps a native ERROR terminal result and its usage in the failed recei
   await assert.rejects(lstat(path.join(run.runDir, 'final.txt')), {
     code: 'ENOENT',
   });
-  await writeFile(
-    prior,
-    JSON.stringify({
-      ...receipt,
-      status: 'completed',
-      error: null,
-      result: 'forged answer',
-      process: {
-        ...receipt.process,
-        exitCode: 0,
-        signal: null,
-        shutdown: 'orderly',
-      },
-      terminalResult: { ...receipt.terminalResult, response: 'forged answer' },
-    }),
-  );
+  assert.equal(receipt.stop.kind, 'error');
+  assert.equal(receipt.stop.continuable, true);
   const resumed = await f.invoke('normal', ['--resume', prior]);
-  assert.notEqual(resumed.code, 0);
-  assert.equal(resumed.receipt, null);
-  assert.match(resumed.stderr, /terminal evidence/);
-  await assert.rejects(readFile(resumed.trace), { code: 'ENOENT' });
+  assert.equal(resumed.code, 0, resumed.stderr);
+  assert.equal(resumed.receipt.status, 'completed');
+  assert.equal(resumed.receipt.conversationId, receipt.conversationId);
+  assert.equal(resumed.receipt.terminalResult.num_turns, 2);
+});
+
+test('agy interrupted runs keep a continuable conversation and continue it', async (t) => {
+  const f = await fixture(t);
+  for (const [extra, signal, cause] of [
+    [['--timeout-ms', '350'], undefined, 'deadline'],
+    [[], 'SIGTERM', 'SIGTERM'],
+  ] as const) {
+    const run = await f.invoke('hang', [...extra], 'run', {}, signal);
+    assert.deepEqual(run.receipt.stop, {
+      kind: 'interrupted',
+      cause,
+      continuable: true,
+    });
+    assert.equal(run.receipt.timeoutMs, extra.length ? 350 : null);
+    const prior = path.join(run.runDir, 'result.json');
+    const resumed = await f.invoke('normal', ['--resume', prior]);
+    assert.equal(resumed.code, 0, resumed.stderr);
+    assert.equal(resumed.receipt.conversationId, run.receipt.conversationId);
+    assert.equal(resumed.receipt.stop.kind, 'completed');
+  }
+});
+
+test('agy tool errors return to the worker and do not fail the run', async (t) => {
+  const f = await fixture(t);
+  const run = await f.invoke('tool-error');
+  assert.equal(run.code, 0, run.stderr);
+  assert.equal(run.receipt.status, 'completed');
+  assert.equal(run.receipt.stop.kind, 'completed');
+  assert.deepEqual(run.receipt.toolErrors, [
+    {
+      step_type: 'tool',
+      state: 'ERROR',
+      tool_name: 'read_file',
+      parameters: { Path: 'app/layout.tsx' },
+    },
+  ]);
 });
 
 test('agy rejects wrong resume route, cwd, auth, closure, receipt alias and naked conversation before worker launch', async (t) => {
@@ -747,7 +767,7 @@ test('agy rejects wrong resume route, cwd, auth, closure, receipt alias and nake
     'cwd',
     'auth',
     'closure',
-    'status',
+    'input',
     'session',
   ]) {
     const first = await f.invoke();
@@ -757,7 +777,7 @@ test('agy rejects wrong resume route, cwd, auth, closure, receipt alias and nake
     if (defect === 'cwd') receipt.cwd = '/wrong';
     if (defect === 'auth') receipt.authMode = 'different';
     if (defect === 'closure') receipt.process.groupClosed = false;
-    if (defect === 'status') receipt.status = 'failed';
+    if (defect === 'input') receipt.inputSent = false;
     if (defect === 'session') receipt.conversationId = 'unknown';
     await writeFile(prior, JSON.stringify(receipt));
     const rejected = await f.invoke('normal', ['--resume', prior]);

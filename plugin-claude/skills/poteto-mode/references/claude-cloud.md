@@ -20,7 +20,7 @@ Use the server-side wake controls that the session exposes. Tool names vary by h
 - For the fallback heartbeat, schedule a one-shot wake, such as with `send_later`. Arm the next one on each tick, at the cadence the workflow would have used.
 - For recurring work that must run with no session, create a cloud routine or trigger, such as with `create_trigger`.
 
-Verify each wake you create and record its ID in the run's task store. Point each wake at the tick instructions in the durable location. A watcher inside the session can wait for an event within one active turn, but it is never the only wake of a long run. If the session exposes no wake that outlives the container, report that gap before you claim a wake is armed. When the run stops, delete or unsubscribe each recorded wake by its ID.
+Verify each wake you create and record its ID in the run's task store. Point each wake at the tick instructions in the durable location. When the run has no durable location, report that gap before you claim a durable wake. A watcher inside the session can wait for an event within one active turn, but it is never the only wake of a long run. If the session exposes no wake that outlives the container, report that gap before you claim a wake is armed. When the run stops, delete or unsubscribe each recorded wake by its ID.
 
 ## Keep state in a durable location
 
@@ -31,7 +31,7 @@ The durable location holds the run's task store, decision trail, resume note, ti
 
 Wherever a workflow passes a local store path, pass the durable location instead. That is the run's folder path in a Project, or the note's PR comment URL outside one.
 
-When the run has no durable location and may not push to make one, say so in the reply. Its work then lives only in this container and is lost once the session goes idle.
+When the run has no durable location, say so in the reply. Its work then lives only in this container and is lost once the session goes idle.
 
 When the run already pushes its branch, push each finished unit before you end a turn or arm a wake.
 

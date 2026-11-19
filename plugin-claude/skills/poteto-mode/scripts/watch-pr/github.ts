@@ -859,9 +859,12 @@ async function pushHead(): Promise<string | null> {
   ]);
   const remoteName = remote.stdout.trim();
   if (remote.code !== 0 || !remoteName) return null;
-  const url = await run(["git", "remote", "get-url", "--push", remoteName]);
-  const owner = url.code === 0 ? parseRemote(url.stdout)?.owner : undefined;
-  return owner === undefined ? null : `head=${owner}:${name}`;
+  for (const flags of [["--push"], []]) {
+    const url = await run(["git", "remote", "get-url", ...flags, remoteName]);
+    const owner = url.code === 0 ? parseRemote(url.stdout)?.owner : undefined;
+    if (owner !== undefined) return `head=${owner}:${name}`;
+  }
+  return null;
 }
 
 export class RestGitHubReader implements GhReads {

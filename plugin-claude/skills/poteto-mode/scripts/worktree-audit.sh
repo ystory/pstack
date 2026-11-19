@@ -76,7 +76,7 @@ elif me=$(gh api user --jq .login 2>/dev/null) && [ -n "$me" ] && rest_prs=$(mkt
 				</dev/null 2>/dev/null || echo "warn: could not read PR state for $head; verify before pruning" >&2
 		done
 	done > "$rest_prs"
-	jq -s --arg me "$me" '[add // [] | .[] | select(.login == $me) | {number, state, head}] | unique_by(.number) | sort_by(-.number)' \
+	jq -s --arg me "$me" '[add // [] | .[] | select(.login == $me) | {number, state, head}] | unique_by(.number) | sort_by(.state != "open", -.number)' \
 		"$rest_prs" > "$prs" 2>/dev/null
 fi
 [ -s "$prs" ] || echo "[]" > "$prs"

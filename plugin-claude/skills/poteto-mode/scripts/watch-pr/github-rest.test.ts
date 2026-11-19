@@ -471,7 +471,7 @@ describe("REST fallback after GitHub refuses GraphQL", () => {
       "fork",
       "git@github-work:someone/repo.git"
     );
-    git("remote", "set-url", "fork", "https://github.com/someone/repo.git");
+    git("remote", "set-url", "fork", "https://github.com/other/repo.git");
     routes([
       ...refusedCli,
       { match: `${fork} -f state=open`, stdout: [pr(14, "open")] },

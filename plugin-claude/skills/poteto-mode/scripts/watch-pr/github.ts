@@ -859,12 +859,14 @@ async function pushHead(): Promise<string | null> {
   ]);
   const remoteName = remote.stdout.trim();
   if (remote.code !== 0 || !remoteName) return null;
-  for (const flags of [["--push"], []]) {
-    const url = await run(["git", "remote", "get-url", ...flags, remoteName]);
-    const owner = url.code === 0 ? parseRemote(url.stdout)?.owner : undefined;
-    if (owner !== undefined) return `head=${owner}:${name}`;
-  }
-  return null;
+  const url = await run(["git", "remote", "get-url", "--push", remoteName]);
+  if (url.code !== 0) return null;
+  // An SSH host alias such as git@github-work:owner/repo.git still names the
+  // push destination's owner in its path.
+  const owner =
+    parseRemote(url.stdout)?.owner ??
+    /^[^@/:]+@[^/:]+:([^/]+)\/[^/]+$/.exec(url.stdout.trim())?.[1];
+  return owner === undefined ? null : `head=${owner}:${name}`;
 }
 
 export class RestGitHubReader implements GhReads {

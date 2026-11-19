@@ -1,0 +1,38 @@
+diff --git a/skills/poteto-mode/scripts/watch-pr/github-rest.test.ts b/skills/poteto-mode/scripts/watch-pr/github-rest.test.ts
+index c6eb1f1..d571470 100644
+--- a/skills/poteto-mode/scripts/watch-pr/github-rest.test.ts
++++ b/skills/poteto-mode/scripts/watch-pr/github-rest.test.ts
+@@ -471,7 +471,7 @@ describe("REST fallback after GitHub refuses GraphQL", () => {
+       "fork",
+       "git@github-work:someone/repo.git"
+     );
+-    git("remote", "set-url", "fork", "https://github.com/someone/repo.git");
++    git("remote", "set-url", "fork", "https://github.com/other/repo.git");
+     routes([
+       ...refusedCli,
+       { match: `${fork} -f state=open`, stdout: [pr(14, "open")] },
+diff --git a/skills/poteto-mode/scripts/watch-pr/github.ts b/skills/poteto-mode/scripts/watch-pr/github.ts
+index 2c3d81f..c817625 100644
+--- a/skills/poteto-mode/scripts/watch-pr/github.ts
++++ b/skills/poteto-mode/scripts/watch-pr/github.ts
+@@ -859,12 +859,14 @@ async function pushHead(): Promise<string | null> {
+   ]);
+   const remoteName = remote.stdout.trim();
+   if (remote.code !== 0 || !remoteName) return null;
+-  for (const flags of [["--push"], []]) {
+-    const url = await run(["git", "remote", "get-url", ...flags, remoteName]);
+-    const owner = url.code === 0 ? parseRemote(url.stdout)?.owner : undefined;
+-    if (owner !== undefined) return `head=${owner}:${name}`;
+-  }
+-  return null;
++  const url = await run(["git", "remote", "get-url", "--push", remoteName]);
++  if (url.code !== 0) return null;
++  // An SSH host alias such as git@github-work:owner/repo.git still names the
++  // push destination's owner in its path.
++  const owner =
++    parseRemote(url.stdout)?.owner ??
++    /^[^@/:]+@[^/:]+:([^/]+)\/[^/]+$/.exec(url.stdout.trim())?.[1];
++  return owner === undefined ? null : `head=${owner}:${name}`;
+ }
+ 
+ export class RestGitHubReader implements GhReads {

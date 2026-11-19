@@ -4,6 +4,8 @@ status: accepted
 
 # Bundle the Codex worker runtime with the Claude Code distribution
 
+[ADR 0004](0004-codex-worker-visibility-setting.md) amends the server choice: the standalone server below is the `hidden` default, and a saved `visible` setting selects `codex app-server`.
+
 Include the official Codex plugin's worker execution code in the Claude Code distribution, pinned to a reviewed source revision. This project owns the included source, license notices, updates, and host adaptations. The worker runner launches the separate official `codex-app-server --session-source app-server` binary. It shares the existing Codex account, configuration, and persistent rollout/state storage through inherited `CODEX_HOME`.
 
 Depending on a separate installation of the official plugin would require users to manage two plugins and this project to track their internal helper compatibility. Bundling the required execution code puts that dependency within the repository's source-lock and verification process. The included code supports the worker executors users select through setup and preserves pstack's workflow behavior. The runtime is integrated behind the foreground worker runner. Its source pin and verified scope are recorded in [Design and compatibility](../spec.md).

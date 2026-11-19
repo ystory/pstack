@@ -74,6 +74,7 @@ type Config = {
   schemaVersion: number;
   host: string;
   budget: string;
+  codexWorkers?: string;
   roles: Record<string, Entry | Entry[]>;
 };
 type Models = {
@@ -141,7 +142,7 @@ async function fixture(t: TestContext) {
   );
   await writeFile(
     path.join(plugin, 'skills/poteto-mode/scripts/run-codex.mjs'),
-    'process.stdout.write(JSON.stringify(JSON.parse(process.env.PSTACK_FIXTURE_CODEX)));\n',
+    "if (process.env.PSTACK_FIXTURE_ARGV) process.getBuiltinModule('node:fs').writeFileSync(process.env.PSTACK_FIXTURE_ARGV, JSON.stringify(process.argv.slice(2)));\nprocess.stdout.write(JSON.stringify(JSON.parse(process.env.PSTACK_FIXTURE_CODEX)));\n",
   );
   const home = path.join(root, 'Claude home');
   const codex = path.join(root, 'Codex home');
@@ -1028,6 +1029,68 @@ test('detect reports missing optional Codex and logged-out Claude guidance witho
   await assert.rejects(stat(f.home), { code: 'ENOENT' });
 });
 
+test('saved codexWorkers survives later saves, rejects other values, and selects detection and guidance', async (t) => {
+  const f = await fixture(t);
+  assert.equal(f.models('read').config.codexWorkers, 'hidden');
+  await f.save({ codexWorkers: 'visible', roles: {} });
+  await f.save({ budget: 'medium', roles: {} });
+  assert.equal(f.models('read').config.codexWorkers, 'visible');
+  await writeFile(f.input, JSON.stringify({ codexWorkers: 'shown' }));
+  const rejected = f.invoke('models.mjs', [
+    'write',
+    '--input',
+    f.input,
+    '--catalog',
+    f.catalog,
+    '--expected-hash',
+    f.models('read').sha256!,
+  ]);
+  assert.equal(rejected.status, 1);
+  assert.match(rejected.stderr, /codexWorkers must be hidden or visible/);
+  const argv = path.join(f.root, 'runner argv.json');
+  const detect = (...extra: string[]) => {
+    const result = f.invoke(
+      'detect.mjs',
+      ['detect', '--executors', 'claude-code,codex', ...extra],
+      {
+        PSTACK_FIXTURE_ARGV: argv,
+        PSTACK_FIXTURE_CODEX: JSON.stringify({
+          cli: { available: false },
+          auth: { verified: false, loggedIn: null, method: null },
+        }),
+      },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout);
+  };
+  const visible = detect().guidance.find(
+    (entry: { executor: string }) => entry.executor === 'codex',
+  );
+  assert.deepEqual(JSON.parse(await readFile(argv, 'utf8')).slice(1, 3), [
+    '--codex-workers',
+    'visible',
+  ]);
+  assert.equal(visible.runtime, 'codex');
+  assert.equal(visible.command, 'npm i -g @openai/codex');
+  const hidden = detect('--codex-workers', 'hidden').guidance.find(
+    (entry: { executor: string }) => entry.executor === 'codex',
+  );
+  assert.deepEqual(JSON.parse(await readFile(argv, 'utf8')).slice(1, 3), [
+    '--codex-workers',
+    'hidden',
+  ]);
+  assert.equal(hidden.runtime, 'codex-app-server');
+  const misspelled = f.invoke('detect.mjs', [
+    'detect',
+    '--executors',
+    'claude-code,codex',
+    '--codex-workers',
+    'visble',
+  ]);
+  assert.equal(misspelled.status, 1);
+  assert.match(misspelled.stderr, /codexWorkers must be hidden or visible/);
+});
+
 test('mixed setup uses the selected standalone server for safe account status and all model pages', async (t) => {
   const f = await fixture(t);
   await cp(
@@ -1584,6 +1647,7 @@ test('saved retired Claude role keys still read and resolve, are reported, and o
     schemaVersion: 1,
     host: 'claude-code',
     budget: 'medium',
+    codexWorkers: 'hidden',
     roles: kept,
   });
   assert.deepEqual(Object.keys(read.proposal.roles), roleNames);
@@ -1618,6 +1682,7 @@ test('saved retired Claude role keys still read and resolve, are reported, and o
     schemaVersion: 1,
     host: 'claude-code',
     budget: 'medium',
+    codexWorkers: 'hidden',
     roles: kept,
   });
   const reread = f.models('read');

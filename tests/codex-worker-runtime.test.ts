@@ -131,6 +131,11 @@ async function fixture(t: TestContext) {
     path.join(plugin, 'vendor'),
     { recursive: true },
   );
+  await cp(
+    path.join(project, 'plugin-claude/skills/setup-pstack/scripts'),
+    path.join(plugin, 'skills/setup-pstack/scripts'),
+    { recursive: true },
+  );
   const runner = path.join(plugin, 'skills/poteto-mode/scripts/run-codex.mjs');
   await mkdir(path.dirname(runner), { recursive: true });
   await cp(
@@ -169,8 +174,17 @@ async function fixture(t: TestContext) {
   const cwd = path.join(root, 'assigned worktree');
   await mkdir(cwd);
   const log = path.join(root, 'server.jsonl');
+  const claudeHome = path.join(root, 'claude home');
+  const saveCodexWorkers = async (codexWorkers: 'hidden' | 'visible') => {
+    await mkdir(path.join(claudeHome, 'pstack-cc'), { recursive: true });
+    await writeFile(
+      path.join(claudeHome, 'pstack-cc/models.json'),
+      JSON.stringify({ schemaVersion: 1, host: 'claude-code', codexWorkers }),
+    );
+  };
   const env = {
     ...process.env,
+    CLAUDE_CONFIG_DIR: claudeHome,
     FAKE_LOG: log,
     CODEX_COMPANION_APP_SERVER_ENDPOINT: '/must-not-use-shared-broker',
   };
@@ -240,6 +254,7 @@ async function fixture(t: TestContext) {
     runner,
     executable,
     umbrella,
+    saveCodexWorkers,
     cwd,
     env,
     args,
@@ -340,6 +355,7 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
     `${f.root}/server.jsonl.${receipt.threadId}.rollout.jsonl`,
   );
   assertClosedByClient(receipt.process);
+  assert.equal(receipt.runtime.workers, 'hidden');
   assert.equal(receipt.runtime.kind, 'standalone-app-server');
   assert.equal(receipt.runtime.executable, f.executable);
   assert.equal(receipt.runtime.version, 'codex-app-server 0.fixture');
@@ -420,6 +436,125 @@ await runAppServerTurn(${JSON.stringify(f.cwd)}, ${JSON.stringify({
     events.filter((event) => event.args).map((event) => event.args),
     [['--version'], ['app-server', '--help'], ['app-server']],
   );
+});
+
+test('saved visible codexWorkers launches the Codex CLI app-server', async (t) => {
+  const f = await fixture(t);
+  await f.saveCodexWorkers('visible');
+  const args = f.args('visible');
+  args[args.indexOf('--executable') + 1] = f.umbrella;
+  const result = spawnSync(process.execPath, args, {
+    env: f.env,
+    input: 'Use the Codex CLI.',
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = await f.receipt('visible');
+  assert.equal(receipt.status, 'completed');
+  assert.equal(receipt.runtime.workers, 'visible');
+  assert.equal(receipt.runtime.kind, 'codex-cli');
+  assert.equal(receipt.runtime.version, 'codex-cli 0.fixture');
+  assert.deepEqual(receipt.runtime.args, ['app-server']);
+  assert.deepEqual(
+    (await f.events()).filter((event) => event.args).map((event) => event.args),
+    [
+      ['--version'],
+      ['app-server', '--help'],
+      ['--version'],
+      ['app-server', '--help'],
+      ['app-server'],
+    ],
+  );
+});
+
+test('visible codexWorkers detects, catalogs, and runs codex from PATH and rejects the standalone server', async (t) => {
+  const f = await fixture(t);
+  await f.saveCodexWorkers('visible');
+  await cp(f.executable, path.join(f.root, 'codex-app-server'));
+  const env = { ...f.env, PATH: f.root };
+  for (const command of ['detect', 'catalog']) {
+    const result = spawnSync(
+      process.execPath,
+      [f.runner, command, '--cwd', f.cwd],
+      { env, encoding: 'utf8', timeout: 10_000 },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const detected = JSON.parse(result.stdout);
+    assert.equal(detected.cli.available, true);
+    assert.equal(detected.cli.workers, 'visible');
+    assert.equal(detected.cli.executable, f.umbrella);
+    if (command === 'catalog')
+      assert.deepEqual(
+        detected.models.map((model: { id: string }) => model.id),
+        ['selected-model', 'second-model'],
+      );
+  }
+  const pathArgs = f.args('visible-path');
+  pathArgs.splice(pathArgs.indexOf('--executable'), 2);
+  const run = spawnSync(process.execPath, pathArgs, {
+    env,
+    input: 'Use the PATH CLI.',
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  assert.equal(run.status, 0, run.stderr);
+  const pathReceipt = await f.receipt('visible-path');
+  assert.equal(pathReceipt.status, 'completed');
+  assert.equal(pathReceipt.runtime.executable, f.umbrella);
+  assert.deepEqual(pathReceipt.runtime.args, ['app-server']);
+  const args = f.args('standalone-for-visible');
+  args[args.indexOf('--executable') + 1] = f.executable;
+  const result = spawnSync(process.execPath, args, {
+    env,
+    input: 'Do not create a thread.',
+    encoding: 'utf8',
+    timeout: 10_000,
+  });
+  assert.equal(result.status, 1, result.stderr);
+  const receipt = await f.receipt('standalone-for-visible');
+  assert.equal(receipt.threadId, null);
+  assert.match(
+    receipt.error.message,
+    /Codex CLI app-server unavailable for visible Codex workers/,
+  );
+  assert.match(receipt.error.message, /npm i -g @openai\/codex/);
+});
+
+test('--codex-workers overrides the saved setting only for detect and catalog', async (t) => {
+  const f = await fixture(t);
+  await f.saveCodexWorkers('visible');
+  const detected = JSON.parse(
+    spawnSync(
+      process.execPath,
+      [
+        f.runner,
+        'detect',
+        '--codex-workers',
+        'hidden',
+        '--executable',
+        f.executable,
+      ],
+      { env: f.env, encoding: 'utf8', timeout: 10_000 },
+    ).stdout,
+  );
+  assert.equal(detected.cli.available, true);
+  assert.equal(detected.cli.workers, 'hidden');
+  assert.deepEqual(detected.cli.args, ['--session-source', 'app-server']);
+  const result = f.run('override', 'Do the task.', [
+    '--codex-workers',
+    'hidden',
+  ]);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /run uses the saved codexWorkers setting/);
+  const home = path.join(f.root, 'home');
+  await mkdir(home);
+  const unset = f.run('empty-config-dir', 'Do the task.', [], {
+    CLAUDE_CONFIG_DIR: '',
+    HOME: home,
+  });
+  assert.equal(unset.status, 0, unset.stderr);
+  assert.equal((await f.receipt('empty-config-dir')).runtime.workers, 'hidden');
 });
 
 test('runner skips directories on PATH across detect, catalog, and run', async (t) => {

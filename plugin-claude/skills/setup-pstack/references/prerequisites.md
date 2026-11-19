@@ -22,13 +22,15 @@ Detection checks the existing CLI login through the inherited environment, inclu
 
 ## Codex workers
 
-Codex is optional when every worker uses native Claude. Prepare the official standalone `codex-app-server` from [Codex releases](https://github.com/openai/codex/releases). Reuse a working installation or obtain the complete package for this machine. Preserve its companion files. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary.
+Codex is optional when every worker uses native Claude. The saved `codexWorkers` setting selects the worker server.
 
-As part of setup, make the server available on the PATH inherited by Claude Code and future workers. Choose an appropriate normal installation location; pstack does not prescribe its own layout. Verify detection without an override before completing Codex setup. Absolute-path options are per-invocation diagnostics overrides, not saved installation settings.
+With `hidden`, the default, prepare the official standalone `codex-app-server` from [Codex releases](https://github.com/openai/codex/releases). Reuse a working installation or obtain the complete package for this machine. Preserve its companion files. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary. Pstack calls `codex-app-server --session-source app-server`, so worker threads stay out of Codex Desktop lists and `codex resume`. The CLI's `codex app-server` does not provide this source selection.
 
-Pstack calls `codex-app-server --session-source app-server` and checks the capabilities that this invocation needs. The umbrella `codex app-server` does not provide this source selection. The setup host performs ordinary dependency installation; pstack does not bundle or pin native server releases, host downloads, manage upgrades, or maintain a version compatibility matrix.
+With `visible`, workers use the [Codex CLI](https://developers.openai.com/codex/cli) through `codex app-server`. Install it with `npm i -g @openai/codex`. That server records worker threads with the `vscode` session source, so they appear in Codex Desktop lists and `codex resume`. Use `visible` only where the standalone package cannot be obtained, such as a cloud container that blocks GitHub release downloads.
 
-The [Codex CLI](https://developers.openai.com/codex/cli) remains the human login tool. Installing it through npm does not install the standalone worker package. Run `codex login` in a terminal. In Claude Code, the user can run `!codex login` to open the CLI flow. In a headless environment or when a localhost callback cannot complete, use the documented device flow.
+As part of setup, make the selected server available on the PATH inherited by Claude Code and future workers. Choose an appropriate normal installation location; pstack does not prescribe its own layout. Verify detection without an override before completing Codex setup. Absolute-path options are per-invocation diagnostics overrides, not saved installation settings. The setup host performs ordinary dependency installation; pstack does not bundle or pin native server releases, host downloads, manage upgrades, or maintain a version compatibility matrix.
+
+The Codex CLI is also the human login tool. With `hidden`, installing it through npm does not install the standalone worker package. Run `codex login` in a terminal. In Claude Code, the user can run `!codex login` to open the CLI flow. In a headless environment or when a localhost callback cannot complete, use the documented device flow.
 
 ```sh
 codex login --device-auth
@@ -36,7 +38,7 @@ codex login --device-auth
 
 Device login may need to be enabled by the account or workspace. See the [official Codex authentication guide](https://learn.chatgpt.com/docs/auth).
 
-The CLI and standalone server must inherit the same `CODEX_HOME`, or both use its default `~/.codex`. Workers share that configuration, account, and persistent rollout/state storage. Do not create a separate profile or copy credentials to hide workers.
+The CLI and the worker server must inherit the same `CODEX_HOME`, or both use its default `~/.codex`. Workers share that configuration, account, and persistent rollout/state storage. Do not create a separate profile or copy credentials to hide workers.
 
 ChatGPT login uses the account's Codex plan. API-key login uses OpenAI API billing. Let the user choose the intended method, and follow the official auth guide for API-key setup outside the conversation. Never print a key, credential cache, or full authentication response. The bundled runner reports safe status and method fields.
 

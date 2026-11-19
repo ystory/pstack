@@ -9,8 +9,7 @@ export const jsonBytes = (value) =>
 export const claudeHome = (selected) => {
   const home =
     selected ??
-    process.env.CLAUDE_CONFIG_DIR ??
-    path.join(os.homedir(), '.claude');
+    (process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'));
   if (!path.isAbsolute(home))
     throw new Error('Claude home must be an absolute path.');
   return path.resolve(home);
@@ -33,6 +32,26 @@ export async function snapshot(file) {
   if (!stat) return undefined;
   const bytes = await fs.readFile(file);
   return { bytes, sha256: hash(bytes), mode: stat.mode & 0o777 };
+}
+export function codexWorkersFrom(config) {
+  const codexWorkers = config?.codexWorkers ?? 'hidden';
+  if (!['hidden', 'visible'].includes(codexWorkers))
+    throw new Error('codexWorkers must be hidden or visible.');
+  return codexWorkers;
+}
+export async function savedCodexWorkers(home) {
+  const directory = path.join(home, 'pstack-cc');
+  await inspect(home, true);
+  await inspect(directory, true);
+  const saved = await snapshot(path.join(directory, 'models.json'));
+  if (!saved) return codexWorkersFrom();
+  let config;
+  try {
+    config = JSON.parse(saved.bytes.toString('utf8'));
+  } catch {
+    throw new Error('Model configuration is not valid JSON.');
+  }
+  return codexWorkersFrom(config);
 }
 export async function inputJson(file, label) {
   if (!file || !path.isAbsolute(file))

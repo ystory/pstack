@@ -25,3 +25,5 @@ shared/0005-upstream-0-15-43-refresh.patch
 shared/0006-worktree-dependency-state.patch
 0020-worktree-dependency-state.patch
 0021-worktree-dependency-state-version.patch
+0022-codex-worker-visibility.patch
+0023-codex-worker-visibility-version.patch

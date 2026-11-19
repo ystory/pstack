@@ -38,7 +38,7 @@ pstack reuses your host and official CLI authentication, including subscription 
 
 ## Install in Claude Code
 
-Use the Claude Code terminal client or Claude desktop's **Code** tab with a **Local** session. Ordinary Claude chat is not a pstack host. Setup needs Git, Node.js 24.12+, and the `claude` CLI. Native worker effort requires Claude Code 2.1.292+ with delegation effort support. Codex workers also need the complete matching-platform `codex-app-server` package from [official Codex releases](https://github.com/openai/codex/releases), with a shared Codex login. The npm Codex CLI is a separate login tool. See the [setup guide](plugin-claude/docs/guide/01-setup.md) for installation, login, and PATH troubleshooting.
+Use the Claude Code terminal client or Claude desktop's **Code** tab with a **Local** session. Ordinary Claude chat is not a pstack host. Setup needs Git, Node.js 24.12+, and the `claude` CLI. Native worker effort requires Claude Code 2.1.292+ with delegation effort support. Codex workers also need a shared Codex login and a worker server. By default that is the complete matching-platform `codex-app-server` package from [official Codex releases](https://github.com/openai/codex/releases), which keeps worker threads out of Codex history. Where it cannot be downloaded, setup saves `codexWorkers: "visible"` and uses the npm Codex CLI's `codex app-server`, and worker threads appear in Codex history. See the [setup guide](plugin-claude/docs/guide/01-setup.md) for installation, login, and PATH troubleshooting.
 
 In your terminal, add the marketplace from the repository's default branch and install the plugin:
 
@@ -55,7 +55,7 @@ Start a local Code session in your project and run:
 /pstack-cc:setup-pstack
 ```
 
-Setup offers Claude Code, Codex, and Antigravity as worker executors. The host running setup prepares missing selected tools from official sources, makes them available to future workers, and checks readiness. Only interactive authentication or operating-system approvals need your participation. Codex workers use the official standalone server with shared Codex authentication and persistent history. Pstack does not distribute or pin native server versions or manage their updates. Then choose supported exact models, role assignments, and a reasoning budget across the 13 roles. Review the proposal before saving. Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`, independently of Codex-host preferences.
+Setup offers Claude Code, Codex, and Antigravity as worker executors. The host running setup prepares missing selected tools from official sources, makes them available to future workers, and checks readiness. Only interactive authentication or operating-system approvals need your participation. Codex workers use the server that the saved `codexWorkers` setting selects, with shared Codex authentication and persistent history. Pstack does not distribute or pin native server versions or manage their updates. Then choose supported exact models, role assignments, and a reasoning budget across the 13 roles. Review the proposal before saving. Preferences live at `${CLAUDE_CONFIG_DIR:-~/.claude}/pstack-cc/models.json`, independently of Codex-host preferences.
 
 Start a new session after setup so Claude discovers the registered agents. Try a read-only question about a real module in your project:
 

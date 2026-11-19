@@ -4,17 +4,23 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { CodexAppServerClient } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs';
 import { runAppServerTurn } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs';
+import {
+  claudeHome,
+  savedCodexWorkers,
+} from '../../setup-pstack/scripts/state.mjs';
 
 const EXECUTOR = 'codex';
 
-const usage = `Usage: node run-codex.mjs detect [--executable ABS]
-       node run-codex.mjs catalog [--cwd ABS --executable ABS]
+const usage = `Usage: node run-codex.mjs detect [--executable ABS] [--codex-workers hidden|visible]
+       node run-codex.mjs catalog [--cwd ABS --executable ABS] [--codex-workers hidden|visible]
        node run-codex.mjs run --cwd ABS --run-dir ABS --model ID [--effort VALUE]
          [--instruction ABS ...] [--skill ABS ...] [--role ABS]
          [--resume EXACT_THREAD_ID] [--sandbox workspace-write|danger-full-access]
          [--executable ABS] [--prompt-file ABS]
          [--approve-review REVIEW_ID --review-receipt ABS]
 Task text comes from --prompt-file or stdin. The run remains foreground until completion.
+The saved codexWorkers setting selects the server. --codex-workers overrides it
+for one detect or catalog probe.
 --approve-review records the user's approval of one denied review listed in the
 --review-receipt result before the resumed turn starts. It requires --resume.`;
 
@@ -37,6 +43,7 @@ function parse(argv) {
     'prompt-file',
     'approve-review',
     'review-receipt',
+    'codex-workers',
   ]);
   for (let index = 0; index < args.length; index += 1) {
     const name = args[index].slice(2);
@@ -78,15 +85,46 @@ function parse(argv) {
     throw new Error('--approve-review and --review-receipt go together.');
   if (options['approve-review'] !== undefined && options.resume === undefined)
     throw new Error('--approve-review requires --resume.');
+  if (options['codex-workers'] !== undefined) {
+    if (command === 'run')
+      throw new Error('run uses the saved codexWorkers setting.');
+    if (!Object.hasOwn(runtimes, options['codex-workers']))
+      throw new Error('--codex-workers must be hidden or visible.');
+  }
   if (command === 'run')
     for (const name of ['cwd', 'run-dir', 'model'])
       if (!options[name]) throw new Error(`Missing required --${name}.`);
   return options;
 }
 
-function serverCommand(options) {
+const runtimes = {
+  hidden: {
+    kind: 'standalone-app-server',
+    name: 'codex-app-server',
+    args: ['--session-source', 'app-server'],
+    helpError: (help) =>
+      /(?:^|\s)--session-source(?:\s|[=,]|$)/m.test(help)
+        ? null
+        : 'The selected runtime help does not advertise --session-source. Use the official standalone codex-app-server package.',
+    unavailable:
+      'Standalone Codex app-server unavailable for hidden Codex workers: ERROR Download the complete matching-platform package from https://github.com/openai/codex/releases and put its bin directory on inherited PATH for workflows, or save codexWorkers as visible through setup to use the Codex CLI. --executable ABS overrides only this invocation.',
+  },
+  visible: {
+    kind: 'codex-cli',
+    name: 'codex',
+    args: ['app-server'],
+    helpError: () => null,
+    unavailable:
+      'Codex CLI app-server unavailable for visible Codex workers: ERROR Install the official Codex CLI with npm i -g @openai/codex and keep codex on inherited PATH for workflows. --executable ABS overrides only this invocation.',
+  },
+};
+
+async function serverCommand(options) {
+  const workers =
+    options['codex-workers'] ?? (await savedCodexWorkers(claudeHome()));
+  const runtime = runtimes[workers];
   const name =
-    process.platform === 'win32' ? 'codex-app-server.exe' : 'codex-app-server';
+    process.platform === 'win32' ? `${runtime.name}.exe` : runtime.name;
   const executable =
     options.executable ??
     (process.env.PATH ?? '')
@@ -101,7 +139,7 @@ function serverCommand(options) {
         }
       }) ??
     name;
-  return { executable, args: ['--session-source', 'app-server'] };
+  return { workers, kind: runtime.kind, executable, args: runtime.args };
 }
 
 function cliStatus(options, server) {
@@ -119,17 +157,20 @@ function cliStatus(options, server) {
     !version.error && version.status === 0
       ? invoke([...server.args, '--help'])
       : null;
+  const helpError =
+    !appServer?.error && appServer?.status === 0
+      ? runtimes[server.workers].helpError(appServer.stdout)
+      : null;
   const supported =
-    !appServer?.error &&
-    appServer?.status === 0 &&
-    /(?:^|\s)--session-source(?:\s|[=,]|$)/m.test(appServer.stdout);
+    !appServer?.error && appServer?.status === 0 && helpError === null;
   return {
-    available: Boolean(supported),
-    kind: 'standalone-app-server',
+    available: supported,
+    workers: server.workers,
+    kind: server.kind,
     executable: server.executable,
     args: server.args,
     version: version.status === 0 ? version.stdout.trim() : null,
-    appServer: Boolean(supported),
+    appServer: supported,
     error:
       version.error?.message ??
       appServer?.error?.message ??
@@ -141,9 +182,7 @@ function cliStatus(options, server) {
           ? appServer?.stderr.trim() ||
             appServer?.stdout.trim() ||
             `exit ${appServer?.status}`
-          : !supported
-            ? 'The selected runtime help does not advertise --session-source. Use the official standalone codex-app-server package.'
-            : null),
+          : helpError),
   };
 }
 
@@ -328,7 +367,7 @@ async function run(options, server) {
   const request = {
     schemaVersion: 1,
     executor: EXECUTOR,
-    runtime: { kind: 'standalone-app-server', ...server },
+    runtime: server,
     cwd: options.cwd,
     requested,
     resumeThreadId: options.resume ?? null,
@@ -421,7 +460,7 @@ async function run(options, server) {
     runtime = cliStatus(options, server);
     if (!runtime.available)
       throw new Error(
-        `Standalone Codex app-server unavailable: ${runtime.error} Download the complete matching-platform package from https://github.com/openai/codex/releases and put its bin directory on inherited PATH for workflows. --executable ABS overrides only this invocation.`,
+        runtimes[server.workers].unavailable.replace('ERROR', () => runtime.error),
       );
     result = await runAppServerTurn(options.cwd, {
       direct: true,
@@ -496,7 +535,7 @@ async function run(options, server) {
   const receipt = {
     schemaVersion: 1,
     executor: EXECUTOR,
-    runtime: runtime ?? { kind: 'standalone-app-server', ...server },
+    runtime: runtime ?? server,
     cwd: options.cwd,
     sandbox: request.sandbox,
     threadId,
@@ -534,7 +573,7 @@ try {
   const options = parse(process.argv.slice(2));
   if (options.command === 'help') console.log(usage);
   else {
-    const server = serverCommand(options);
+    const server = await serverCommand(options);
     console.log(
       JSON.stringify(
         options.command === 'run'

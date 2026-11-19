@@ -1,0 +1,472 @@
+diff --git a/docs/guide/01-setup.md b/docs/guide/01-setup.md
+index ed0f49b..b3d427f 100644
+--- a/docs/guide/01-setup.md
++++ b/docs/guide/01-setup.md
+@@ -6,11 +6,11 @@ Install the plugin, select workers for its roles, and run a first workflow. The
+ 
+ You need a current Claude desktop app with the **Code** tab and local sessions, or the Claude Code terminal client. The host must support native plugins, Agent, effort, and background Bash. Ordinary Claude chat is not a pstack host. Setup needs Git, Node.js 24.12+, and a Claude Code CLI available as `claude`. Native worker effort requires Claude Code 2.1.292+ with Agent effort support. The desktop session and installed CLI can have different versions. Use `/status` in the Code session to inspect its version.
+ 
+-Codex workers also need the official standalone `codex-app-server` package and a shared Codex login. Claude-only workers do not need Codex. `pstack-cc` does not need the separate official Codex plugin. GitHub workflows need an authenticated GitHub CLI, `gh`. The bundled PR watcher needs Bun 1.2+ and installs locked dependencies in an external cache on first use.
++Codex workers also need a Codex worker server and a shared Codex login. By default this is the official standalone `codex-app-server` package, which keeps worker threads out of Codex Desktop lists and `codex resume`. Where that package cannot be downloaded, such as some cloud containers, setup saves `codexWorkers: "visible"` and uses the npm Codex CLI's `codex app-server` instead. Worker threads then appear in Codex history. Claude-only workers do not need Codex. `pstack-cc` does not need the separate official Codex plugin. GitHub workflows need an authenticated GitHub CLI, `gh`. The bundled PR watcher needs Bun 1.2+ and installs locked dependencies in an external cache on first use.
+ 
+ ## Let setup prepare selected tools
+ 
+-Run setup after installing the plugin. The host running setup reuses existing tools, installs missing selected runtimes from official sources, and prepares the environment used by future workers. This includes making the official Codex server available on PATH when you choose Codex workers. You do not need to download a separate pstack runtime bundle or prepare PATH by hand first.
++Run setup after installing the plugin. The host running setup reuses existing tools, installs missing selected runtimes from official sources, and prepares the environment used by future workers. This includes choosing the Codex worker server for this machine, explaining the choice, and making it available on PATH when you choose Codex workers. You do not need to download a separate pstack runtime bundle or prepare PATH by hand first.
+ 
+ Complete interactive login or operating-system approvals when needed. Setup rechecks readiness afterward and reuses your existing authentication. Codex ChatGPT login uses subscription access; API-key login uses separate OpenAI API billing. See [Codex authentication](https://learn.chatgpt.com/docs/auth) and [Claude authentication](https://code.claude.com/docs/en/authentication) for the available account methods. Keep credentials out of the chat.
+ 
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 2c39f3f..530ee60 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -54,9 +54,9 @@ Do not infer that browser, local-server, or network work is unavailable from the
+ 
+ Pass the absolute poteto-mode skill with `--skill` for a poteto-agent. Pass context paths to the runner instead of reading and copying their bodies into the brief. The runner reads the files and includes their complete bodies in its task input. The worker applies the [receiving-worker context rules](worker-context.md). Required reads of bodies absent from the input still need transcript evidence.
+ 
+-Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. A stopped thread's conversation meets that exception, per [Continuing a stopped worker](continuation.md). The receipt's `stop` records how the run ended. Never resume the latest thread or infer identity from a directory name. Setup prepares the official server and makes it available on inherited PATH. The runner calls `codex-app-server --session-source app-server`. Absolute-path flags override one invocation for diagnostics and are not saved. If runtime preparation is incomplete, use [setup prerequisites](../../setup-pstack/references/prerequisites.md). There is no umbrella CLI fallback.
++Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. A stopped thread's conversation meets that exception, per [Continuing a stopped worker](continuation.md). The receipt's `stop` records how the run ended. Never resume the latest thread or infer identity from a directory name. Setup saves `codexWorkers` and makes the selected server available on inherited PATH. The runner reads that saved value, so a launch passes no runtime setting. `hidden` calls `codex-app-server --session-source app-server`, and `visible` calls `codex app-server`. Absolute-path flags override one invocation for diagnostics and are not saved. If runtime preparation is incomplete, use [setup prerequisites](../../setup-pstack/references/prerequisites.md). Neither value falls back to the other server.
+ 
+-Workers share the existing Codex account, configuration, and persistent rollout/state storage through inherited `CODEX_HOME`. Fresh roots use the server's `app-server` session source without a `threadSource` tag. They remain persistent and can resume by exact thread ID. Existing threads retain their original source on resume and are not migrated or hidden retroactively. Ordinary Desktop lists filter session sources, but a successful help probe alone does not verify screen behavior or descendant visibility. Claude tools, MCP servers, conversation history, and permissions do not automatically become Codex tools or state. Verify the external executor has the capabilities needed for its assigned task.
++Workers share the existing Codex account, configuration, and persistent rollout/state storage through inherited `CODEX_HOME`. With `hidden`, fresh roots use the server's `app-server` session source without a `threadSource` tag. With `visible`, the CLI server records its fixed `vscode` source, and worker threads appear in Codex Desktop lists and `codex resume`. Roots remain persistent and can resume by exact thread ID. Existing threads retain their original source on resume and are not migrated or hidden retroactively. Ordinary Desktop lists filter session sources, but a successful help probe alone does not verify screen behavior or descendant visibility. Claude tools, MCP servers, conversation history, and permissions do not automatically become Codex tools or state. Verify the external executor has the capabilities needed for its assigned task.
+ 
+ Track the native Bash task ID and collect its terminal outcome through the host's task-result controls. Read `<run-dir>/result.json` and `<run-dir>/final.txt` for the retained receipt and final answer. Bash stdout can truncate. Inspect the actual exit outcome, exact Codex thread identity, terminal status, result, requested and observed settings, and evidence paths. A final-answer item before a later failed terminal event is not success. Read the retained prompt, request, progress, diagnostics, and result when investigating failure. Review the worker's files and verification evidence under the calling workflow's rules.
+ 
+diff --git a/skills/poteto-mode/scripts/run-codex.mjs b/skills/poteto-mode/scripts/run-codex.mjs
+index 64bc41d..2c779ed 100644
+--- a/skills/poteto-mode/scripts/run-codex.mjs
++++ b/skills/poteto-mode/scripts/run-codex.mjs
+@@ -4,17 +4,23 @@ import path from 'node:path';
+ import { spawnSync } from 'node:child_process';
+ import { CodexAppServerClient } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs';
+ import { runAppServerTurn } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs';
++import {
++  claudeHome,
++  savedCodexWorkers,
++} from '../../setup-pstack/scripts/state.mjs';
+ 
+ const EXECUTOR = 'codex';
+ 
+-const usage = `Usage: node run-codex.mjs detect [--executable ABS]
+-       node run-codex.mjs catalog [--cwd ABS --executable ABS]
++const usage = `Usage: node run-codex.mjs detect [--executable ABS] [--codex-workers hidden|visible]
++       node run-codex.mjs catalog [--cwd ABS --executable ABS] [--codex-workers hidden|visible]
+        node run-codex.mjs run --cwd ABS --run-dir ABS --model ID [--effort VALUE]
+          [--instruction ABS ...] [--skill ABS ...] [--role ABS]
+          [--resume EXACT_THREAD_ID] [--sandbox workspace-write|danger-full-access]
+          [--executable ABS] [--prompt-file ABS]
+          [--approve-review REVIEW_ID --review-receipt ABS]
+ Task text comes from --prompt-file or stdin. The run remains foreground until completion.
++The saved codexWorkers setting selects the server. --codex-workers overrides it
++for one detect or catalog probe.
+ --approve-review records the user's approval of one denied review listed in the
+ --review-receipt result before the resumed turn starts. It requires --resume.`;
+ 
+@@ -37,6 +43,7 @@ function parse(argv) {
+     'prompt-file',
+     'approve-review',
+     'review-receipt',
++    'codex-workers',
+   ]);
+   for (let index = 0; index < args.length; index += 1) {
+     const name = args[index].slice(2);
+@@ -78,15 +85,46 @@ function parse(argv) {
+     throw new Error('--approve-review and --review-receipt go together.');
+   if (options['approve-review'] !== undefined && options.resume === undefined)
+     throw new Error('--approve-review requires --resume.');
++  if (options['codex-workers'] !== undefined) {
++    if (command === 'run')
++      throw new Error('run uses the saved codexWorkers setting.');
++    if (!Object.hasOwn(runtimes, options['codex-workers']))
++      throw new Error('--codex-workers must be hidden or visible.');
++  }
+   if (command === 'run')
+     for (const name of ['cwd', 'run-dir', 'model'])
+       if (!options[name]) throw new Error(`Missing required --${name}.`);
+   return options;
+ }
+ 
+-function serverCommand(options) {
++const runtimes = {
++  hidden: {
++    kind: 'standalone-app-server',
++    name: 'codex-app-server',
++    args: ['--session-source', 'app-server'],
++    helpError: (help) =>
++      /(?:^|\s)--session-source(?:\s|[=,]|$)/m.test(help)
++        ? null
++        : 'The selected runtime help does not advertise --session-source. Use the official standalone codex-app-server package.',
++    unavailable:
++      'Standalone Codex app-server unavailable for hidden Codex workers: ERROR Download the complete matching-platform package from https://github.com/openai/codex/releases and put its bin directory on inherited PATH for workflows, or save codexWorkers as visible through setup to use the Codex CLI. --executable ABS overrides only this invocation.',
++  },
++  visible: {
++    kind: 'codex-cli',
++    name: 'codex',
++    args: ['app-server'],
++    helpError: () => null,
++    unavailable:
++      'Codex CLI app-server unavailable for visible Codex workers: ERROR Install the official Codex CLI with npm i -g @openai/codex and keep codex on inherited PATH for workflows. --executable ABS overrides only this invocation.',
++  },
++};
++
++async function serverCommand(options) {
++  const workers =
++    options['codex-workers'] ?? (await savedCodexWorkers(claudeHome()));
++  const runtime = runtimes[workers];
+   const name =
+-    process.platform === 'win32' ? 'codex-app-server.exe' : 'codex-app-server';
++    process.platform === 'win32' ? `${runtime.name}.exe` : runtime.name;
+   const executable =
+     options.executable ??
+     (process.env.PATH ?? '')
+@@ -101,7 +139,7 @@ function serverCommand(options) {
+         }
+       }) ??
+     name;
+-  return { executable, args: ['--session-source', 'app-server'] };
++  return { workers, kind: runtime.kind, executable, args: runtime.args };
+ }
+ 
+ function cliStatus(options, server) {
+@@ -119,17 +157,20 @@ function cliStatus(options, server) {
+     !version.error && version.status === 0
+       ? invoke([...server.args, '--help'])
+       : null;
++  const helpError =
++    !appServer?.error && appServer?.status === 0
++      ? runtimes[server.workers].helpError(appServer.stdout)
++      : null;
+   const supported =
+-    !appServer?.error &&
+-    appServer?.status === 0 &&
+-    /(?:^|\s)--session-source(?:\s|[=,]|$)/m.test(appServer.stdout);
++    !appServer?.error && appServer?.status === 0 && helpError === null;
+   return {
+-    available: Boolean(supported),
+-    kind: 'standalone-app-server',
++    available: supported,
++    workers: server.workers,
++    kind: server.kind,
+     executable: server.executable,
+     args: server.args,
+     version: version.status === 0 ? version.stdout.trim() : null,
+-    appServer: Boolean(supported),
++    appServer: supported,
+     error:
+       version.error?.message ??
+       appServer?.error?.message ??
+@@ -141,9 +182,7 @@ function cliStatus(options, server) {
+           ? appServer?.stderr.trim() ||
+             appServer?.stdout.trim() ||
+             `exit ${appServer?.status}`
+-          : !supported
+-            ? 'The selected runtime help does not advertise --session-source. Use the official standalone codex-app-server package.'
+-            : null),
++          : helpError),
+   };
+ }
+ 
+@@ -328,7 +367,7 @@ async function run(options, server) {
+   const request = {
+     schemaVersion: 1,
+     executor: EXECUTOR,
+-    runtime: { kind: 'standalone-app-server', ...server },
++    runtime: server,
+     cwd: options.cwd,
+     requested,
+     resumeThreadId: options.resume ?? null,
+@@ -421,7 +460,7 @@ async function run(options, server) {
+     runtime = cliStatus(options, server);
+     if (!runtime.available)
+       throw new Error(
+-        `Standalone Codex app-server unavailable: ${runtime.error} Download the complete matching-platform package from https://github.com/openai/codex/releases and put its bin directory on inherited PATH for workflows. --executable ABS overrides only this invocation.`,
++        runtimes[server.workers].unavailable.replace('ERROR', () => runtime.error),
+       );
+     result = await runAppServerTurn(options.cwd, {
+       direct: true,
+@@ -496,7 +535,7 @@ async function run(options, server) {
+   const receipt = {
+     schemaVersion: 1,
+     executor: EXECUTOR,
+-    runtime: runtime ?? { kind: 'standalone-app-server', ...server },
++    runtime: runtime ?? server,
+     cwd: options.cwd,
+     sandbox: request.sandbox,
+     threadId,
+@@ -534,7 +573,7 @@ try {
+   const options = parse(process.argv.slice(2));
+   if (options.command === 'help') console.log(usage);
+   else {
+-    const server = serverCommand(options);
++    const server = await serverCommand(options);
+     console.log(
+       JSON.stringify(
+         options.command === 'run'
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 41882aa..875b0d6 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -19,7 +19,12 @@ Check `node --version` first. The helpers require Node.js 24.12 or newer. If Nod
+ 
+ When native Claude workers are selected, run `scripts/detect.mjs detect --executors claude-code`. Include `codex` in that list only when Codex workers are also selected. When Codex is selected without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs detect` directly. For Antigravity-only workers, skip both detectors and use the Antigravity catalog procedure below. Report runtime versions, native effort support, and login state. Unselected worker CLIs are neither probed nor required. The detection helper is read-only; it does not perform installation or login.
+ 
+-Within the authorized setup, prepare missing selected tools yourself using their official installation guidance and the host's normal tools. For Codex workers, install the official standalone server when needed and make `codex-app-server` available on the PATH inherited by this host and future workers. Choose suitable installation details for this machine. Recheck detection without an executable override before completing setup. Do not leave installation or PATH preparation as a user checklist. Hand off only steps that require human interaction, such as login or an operating-system approval.
++Within the authorized setup, prepare missing selected tools yourself using their official installation guidance and the host's normal tools. For Codex workers, also choose the saved `codexWorkers` setting, which selects the server every later worker launches:
++
++- `hidden`, the default, launches the official standalone `codex-app-server --session-source app-server`. Worker threads stay out of Codex Desktop lists and `codex resume`. Choose it when the standalone server works on this host or you can install it, as on a personal Mac. Install it when needed and make `codex-app-server` available on the PATH inherited by this host and future workers.
++- `visible` launches the Codex CLI's `codex app-server`. Worker threads appear in Codex Desktop lists and `codex resume`. Choose it only when the standalone server cannot be obtained, for example in a cloud container whose network blocks GitHub release downloads, and the official Codex CLI works.
++
++Decide from this host's actual state. Run detection with `--codex-workers hidden` first, and try the standalone installation before falling back. Tell the user which value you chose and why, including that `visible` shows worker threads in Codex history. Save the choice as `codexWorkers` in step 6. Workflows read the saved value, so no skill or run needs a per-run setting. After saving, rerun Codex detection in the environment future workers inherit, without `--codex-workers` or an executable override, and confirm that `cli.workers` reports the saved value. Choose suitable installation details for this machine. Recheck detection without an executable override before completing setup. Do not leave installation or PATH preparation as a user checklist. Hand off only steps that require human interaction, such as login or an operating-system approval.
+ 
+ When the Claude detector runs, report `configuration.claudeHome` as the setup configuration target and `claude.cli.environment` as the inherited CLI environment used for authentication. `--claude-home` changes the configuration target only. Existing CLI authentication stays in the inherited environment, including an existing `CLAUDE_CONFIG_DIR`. An intentionally selected environment profile keeps its own login state.
+ 
+@@ -31,7 +36,7 @@ Native exact-model choices use generated agent definitions and per-invocation ef
+ 
+ ## 3. Collect actual model options
+ 
+-For Codex workers with selected native Claude workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT` through inherited PATH. For Codex workers without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs catalog --cwd ABSOLUTE_PROJECT` directly. These routes use the same official standalone runtime. For diagnostics, `--codex-executable ABS` overrides only that catalog invocation. The bundled runner uses the selected server for safe account status and every `model/list` page. Its receipt separates runtime capability, authentication, catalog, and execution evidence.
++For Codex workers with selected native Claude workers, run `scripts/detect.mjs catalog --executors claude-code,codex --cwd ABSOLUTE_PROJECT --codex-workers CHOSEN` through inherited PATH. For Codex workers without native Claude workers, run the sibling `poteto-mode/scripts/run-codex.mjs catalog --cwd ABSOLUTE_PROJECT --codex-workers CHOSEN` directly. Both routes use the server that the chosen `codexWorkers` value selects. Without `--codex-workers`, they use the saved value, or `hidden` before the first save. For diagnostics, `--codex-executable ABS` overrides only that catalog invocation. The bundled runner uses the selected server for safe account status and every `model/list` page. Its receipt separates runtime capability, authentication, catalog, and execution evidence.
+ 
+ For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs catalog --cwd ABSOLUTE_PROJECT --run-dir ABSOLUTE_NEW_LOCAL_DIRECTORY`. Pass its sanitized `catalog.json` through `--agy-catalog ABSOLUTE_AGY_CATALOG` when normalizing. No model prompt is submitted. Fixed-effort labels establish only the reported variant's configured availability. Unclassified candidates need per-model evidence before selection.
+ 
+@@ -75,7 +80,7 @@ Antigravity choices retain `{ "executor": "antigravity", "model": "EXACT_AGY_ID"
+ 
+ ## 6. Review, register, and save
+ 
+-Show accepted roles, remaining unconfigured roles, any dropped retired roles or replaced `unlimited` budget, the chosen budget, and evidence sources. Every exact entry written must be in its executor's catalog and at `xhigh` or below. Write the accepted sparse config to an absolute temporary JSON file. Validate it with `scripts/models.mjs write --input ABSOLUTE_JSON --catalog ABSOLUTE_CATALOG --expected-hash HASH --dry-run`. Use the read hash, or `absent` if no file exists. Missing roles keep their disclosed native-parent fallback.
++Show accepted roles, remaining unconfigured roles, any dropped retired roles or replaced `unlimited` budget, the chosen budget, the chosen `codexWorkers` value when Codex workers are selected, and evidence sources. Every exact entry written must be in its executor's catalog and at `xhigh` or below. Write the accepted sparse config to an absolute temporary JSON file. Validate it with `scripts/models.mjs write --input ABSOLUTE_JSON --catalog ABSOLUTE_CATALOG --expected-hash HASH --dry-run`. Use the read hash, or `absent` if no file exists. Missing roles keep their disclosed native-parent fallback.
+ 
+ Run `scripts/register-agents.mjs --input ABSOLUTE_JSON`. It derives four native agent kinds from this plugin's original bodies for each distinct exact Claude model across the 9 active roles. It writes owned definitions under the Claude home, without editing the installed plugin cache, unrelated agents, `settings.json`, or Codex configuration. `general-purpose`, `poteto-agent`, and `comment-sicko` retain their supplied bodies. `read-only` retains the general-purpose body and disallows `Write`, `Edit`, and `NotebookEdit` for actual readonly callers. Bash remains available. Task-specific effort uses the native invocation parameter.
+ 
+@@ -87,7 +92,7 @@ After registration succeeds, run the same `models.mjs write` command without `--
+ 
+ ## 7. Finish setup
+ 
+-Report the preferences path, selected executors, registered exact-model definitions, and detected CLI versions. State which choices came from a catalog or manual confirmation. A saved preference or definition does not verify execution. Explain that a new Claude Code session refreshes the registered agent list when needed. When the user requests execution verification, use the selected executor binding and effort. Native Claude workers use the emitted `agentType` and the installed namespace for a small task with the selected worker. Keep observed model identity separate from requested settings. Distinguish fixture checks, native CLI execution, and Desktop UI evidence. A helper-only check does not establish first-time onboarding.
++Report the preferences path, selected executors, the saved `codexWorkers` value, registered exact-model definitions, and detected CLI versions. State which choices came from a catalog or manual confirmation. A saved preference or definition does not verify execution. Explain that a new Claude Code session refreshes the registered agent list when needed. When the user requests execution verification, use the selected executor binding and effort. Native Claude workers use the emitted `agentType` and the installed namespace for a small task with the selected worker. Keep observed model identity separate from requested settings. Distinguish fixture checks, native CLI execution, and Desktop UI evidence. A helper-only check does not establish first-time onboarding.
+ 
+ When the user requests removal, run `scripts/register-agents.mjs --unregister` before uninstalling the plugin. It removes only unchanged owned definitions and their registration record. It retains model preferences and unrelated files.
+ 
+diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
+index da51b36..33ae0cf 100644
+--- a/skills/setup-pstack/references/models-contract.md
++++ b/skills/setup-pstack/references/models-contract.md
+@@ -11,6 +11,7 @@ Preferences are in `pstack-cc/models.json` under the Claude home.
+   "schemaVersion": 1,
+   "host": "claude-code",
+   "budget": "large",
++  "codexWorkers": "hidden",
+   "roles": {
+     "bug-fix": {
+       "executor": "codex",
+@@ -85,10 +86,12 @@ Normalized entries have `executor`, `model`, and `supportedReasoningEfforts`. Na
+ The top-level `targetReasoningEffort` of `read` and `budget` is the effort the budget label names, which is the target of a role that starts at `xhigh`. Per-role targets appear in proposal slots, `resolve`, and `needsChoice` entries.
+ 
+ - `register-agents.mjs [--input ABS] [--dry-run] [--unregister]` manages owned native definitions for the 9 active roles. With no input, it uses saved preferences. Removal retains preferences.
+-- `detect.mjs detect --executors claude-code` reports native CLI, safe auth evidence, model candidates and guidance. `--executors claude-code,codex` also probes the standalone Codex server. Unselected Codex is never invoked or required. The legacy detector always includes Claude. When Claude workers are unselected, skip it. Use `poteto-mode/scripts/run-codex.mjs detect` or `catalog --cwd ABS` directly for selected Codex workers.
+-- `detect.mjs catalog --executors claude-code,codex --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` selects the Claude CLI. `--codex-executable ABS` overrides the standalone server for that detect or catalog invocation only. The path is not saved or used by future workers.
++- `detect.mjs detect --executors claude-code` reports native CLI, safe auth evidence, model candidates and guidance. `--executors claude-code,codex` also probes the Codex server that `codexWorkers` selects. `--codex-workers hidden|visible` overrides the saved value for that invocation; otherwise detection reads it from the configuration home. Unselected Codex is never invoked or required. The legacy detector always includes Claude. When Claude workers are unselected, skip it. Use `poteto-mode/scripts/run-codex.mjs detect` or `catalog --cwd ABS` directly for selected Codex workers.
++- `detect.mjs catalog --executors claude-code,codex --cwd ABS` also asks the bundled Codex runner to collect every model page. `--claude-executable ABS` selects the Claude CLI. `--codex-executable ABS` overrides the Codex server executable for that detect or catalog invocation only. The path is not saved or used by future workers.
+ 
+-Detection retains `schemaVersion: 1` and the legacy `codex.cli` container. Its `kind` is `standalone-app-server`; `executable`, `args`, and `version` identify the selected launch. Setup owns preparing the official server on the host's inherited PATH. The default executable is `codex-app-server`, and PATH discovery skips non-files and non-executables. The argument array is `['--session-source', 'app-server']` for probes and actual connections. Version and source-help probes are bounded. `available` requires successful probes and help that advertises `--session-source`. This checks required capabilities, not a native-version allowlist or a general compatibility guarantee. Missing or unsupported servers produce official installation guidance for the setup host, with no fallback to `codex app-server`.
++`codexWorkers` is `hidden` or `visible`. A missing value means `hidden`, and later saves keep the saved value unless the input sets another. `hidden` selects the official standalone server: `kind` `standalone-app-server`, default executable `codex-app-server`, arguments `['--session-source', 'app-server']`, and help that must advertise `--session-source`. `visible` selects the Codex CLI: `kind` `codex-cli`, default executable `codex`, and arguments `['app-server']`. The runner reads the saved value for `run`; `--codex-workers` overrides it only for `detect` and `catalog` probes, and `run` refuses it.
++
++Detection retains `schemaVersion: 1` and the legacy `codex.cli` container. `workers`, `kind`, `executable`, `args`, and `version` identify the selected launch. Setup owns preparing the selected server on the host's inherited PATH. PATH discovery skips non-files and non-executables. The same arguments serve probes and actual connections. Version and help probes are bounded. `available` requires successful probes and, for `hidden`, help that advertises `--session-source`. This checks required capabilities, not a native-version allowlist or a general compatibility guarantee. A missing or unsupported server produces installation guidance for the selected value: the standalone release package for `hidden`, or `npm i -g @openai/codex` for `visible`. Neither value falls back to the other server.
+ 
+ The same server handles safe `account/read` and all `model/list` pages. Auth and persistent history use the inherited `CODEX_HOME`, without credential-file reads or a separate profile. Run requests record the executable and arguments. Results add the probe version, and spawn diagnostics identify the executable and arguments actually launched. Successful detection or catalog access leaves `execution.verified` false.
+ 
+diff --git a/skills/setup-pstack/references/prerequisites.md b/skills/setup-pstack/references/prerequisites.md
+index 1645fc9..bebd10a 100644
+--- a/skills/setup-pstack/references/prerequisites.md
++++ b/skills/setup-pstack/references/prerequisites.md
+@@ -22,13 +22,15 @@ Detection checks the existing CLI login through the inherited environment, inclu
+ 
+ ## Codex workers
+ 
+-Codex is optional when every worker uses native Claude. Prepare the official standalone `codex-app-server` from [Codex releases](https://github.com/openai/codex/releases). Reuse a working installation or obtain the complete package for this machine. Preserve its companion files. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary.
++Codex is optional when every worker uses native Claude. The saved `codexWorkers` setting selects the worker server.
+ 
+-As part of setup, make the server available on the PATH inherited by Claude Code and future workers. Choose an appropriate normal installation location; pstack does not prescribe its own layout. Verify detection without an override before completing Codex setup. Absolute-path options are per-invocation diagnostics overrides, not saved installation settings.
++With `hidden`, the default, prepare the official standalone `codex-app-server` from [Codex releases](https://github.com/openai/codex/releases). Reuse a working installation or obtain the complete package for this machine. Preserve its companion files. The no-extension `codex-app-server` release asset is a DotSlash manifest, not the native binary. Pstack calls `codex-app-server --session-source app-server`, so worker threads stay out of Codex Desktop lists and `codex resume`. The CLI's `codex app-server` does not provide this source selection.
+ 
+-Pstack calls `codex-app-server --session-source app-server` and checks the capabilities that this invocation needs. The umbrella `codex app-server` does not provide this source selection. The setup host performs ordinary dependency installation; pstack does not bundle or pin native server releases, host downloads, manage upgrades, or maintain a version compatibility matrix.
++With `visible`, workers use the [Codex CLI](https://developers.openai.com/codex/cli) through `codex app-server`. Install it with `npm i -g @openai/codex`. That server records worker threads with the `vscode` session source, so they appear in Codex Desktop lists and `codex resume`. Use `visible` only where the standalone package cannot be obtained, such as a cloud container that blocks GitHub release downloads.
+ 
+-The [Codex CLI](https://developers.openai.com/codex/cli) remains the human login tool. Installing it through npm does not install the standalone worker package. Run `codex login` in a terminal. In Claude Code, the user can run `!codex login` to open the CLI flow. In a headless environment or when a localhost callback cannot complete, use the documented device flow.
++As part of setup, make the selected server available on the PATH inherited by Claude Code and future workers. Choose an appropriate normal installation location; pstack does not prescribe its own layout. Verify detection without an override before completing Codex setup. Absolute-path options are per-invocation diagnostics overrides, not saved installation settings. The setup host performs ordinary dependency installation; pstack does not bundle or pin native server releases, host downloads, manage upgrades, or maintain a version compatibility matrix.
++
++The Codex CLI is also the human login tool. With `hidden`, installing it through npm does not install the standalone worker package. Run `codex login` in a terminal. In Claude Code, the user can run `!codex login` to open the CLI flow. In a headless environment or when a localhost callback cannot complete, use the documented device flow.
+ 
+ ```sh
+ codex login --device-auth
+@@ -36,7 +38,7 @@ codex login --device-auth
+ 
+ Device login may need to be enabled by the account or workspace. See the [official Codex authentication guide](https://learn.chatgpt.com/docs/auth).
+ 
+-The CLI and standalone server must inherit the same `CODEX_HOME`, or both use its default `~/.codex`. Workers share that configuration, account, and persistent rollout/state storage. Do not create a separate profile or copy credentials to hide workers.
++The CLI and the worker server must inherit the same `CODEX_HOME`, or both use its default `~/.codex`. Workers share that configuration, account, and persistent rollout/state storage. Do not create a separate profile or copy credentials to hide workers.
+ 
+ ChatGPT login uses the account's Codex plan. API-key login uses OpenAI API billing. Let the user choose the intended method, and follow the official auth guide for API-key setup outside the conversation. Never print a key, credential cache, or full authentication response. The bundled runner reports safe status and method fields.
+ 
+diff --git a/skills/setup-pstack/scripts/detect.mjs b/skills/setup-pstack/scripts/detect.mjs
+index 5186a4a..64c95d3 100644
+--- a/skills/setup-pstack/scripts/detect.mjs
++++ b/skills/setup-pstack/scripts/detect.mjs
+@@ -5,7 +5,14 @@ import { constants } from 'node:fs';
+ import * as fs from 'node:fs/promises';
+ import path from 'node:path';
+ import { fileURLToPath } from 'node:url';
+-import { argumentsFor, claudeHome, inspect, run } from './state.mjs';
++import {
++  argumentsFor,
++  claudeHome,
++  codexWorkersFrom,
++  inspect,
++  run,
++  savedCodexWorkers,
++} from './state.mjs';
+ 
+ const runner = fileURLToPath(
+   new URL('../../poteto-mode/scripts/run-codex.mjs', import.meta.url),
+@@ -105,13 +112,14 @@ await run(async () => {
+       '--claude-home',
+       '--claude-executable',
+       '--codex-executable',
++      '--codex-workers',
+       '--cwd',
+       '--executors',
+     ],
+   );
+   if (options.help) {
+     process.stdout.write(
+-      'Usage: node detect.mjs detect|catalog [--claude-home ABS] [--claude-executable ABS] [--codex-executable ABS] [--cwd ABS] [--executors claude-code|claude-code,codex]\n',
++      'Usage: node detect.mjs detect|catalog [--claude-home ABS] [--claude-executable ABS] [--codex-executable ABS] [--codex-workers hidden|visible] [--cwd ABS] [--executors claude-code|claude-code,codex]\n',
+     );
+     return;
+   }
+@@ -176,9 +184,16 @@ await run(async () => {
+     },
+     execution: { verified: false },
+   };
++  const codexWorkers = options.codexWorkers
++    ? codexWorkersFrom(options)
++    : includeCodex
++      ? await savedCodexWorkers(home)
++      : undefined;
+   const args = [
+     runner,
+     options.command,
++    '--codex-workers',
++    codexWorkers,
+     ...(options.codexExecutable
+       ? ['--executable', options.codexExecutable]
+       : []),
+@@ -213,15 +228,28 @@ await run(async () => {
+       url: 'https://code.claude.com/docs/en/authentication',
+     });
+   if (includeCodex && !codex.cli?.available)
+-    guidance.push({
+-      executor: 'codex',
+-      action: 'install',
+-      runtime: 'codex-app-server',
+-      url: 'https://github.com/openai/codex/releases',
+-      detail:
+-        'During setup, install the complete matching-platform official codex-app-server package when needed and prepare PATH for this host and future workers. Recheck without overrides. --codex-executable ABS is only a per-call diagnostic override.',
+-      requiredFor: 'Codex workers only',
+-    });
++    guidance.push(
++      codexWorkers === 'visible'
++        ? {
++            executor: 'codex',
++            action: 'install',
++            runtime: 'codex',
++            command: 'npm i -g @openai/codex',
++            url: 'https://developers.openai.com/codex/cli',
++            detail:
++              'During setup, install the official Codex CLI when needed and keep codex on PATH for this host and future workers. Recheck without overrides. --codex-executable ABS is only a per-call diagnostic override.',
++            requiredFor: 'Codex workers only',
++          }
++        : {
++            executor: 'codex',
++            action: 'install',
++            runtime: 'codex-app-server',
++            url: 'https://github.com/openai/codex/releases',
++            detail:
++              'During setup, install the complete matching-platform official codex-app-server package when needed and prepare PATH for this host and future workers. Recheck without overrides. --codex-executable ABS is only a per-call diagnostic override.',
++            requiredFor: 'Codex workers only',
++          },
++    );
+   else if (includeCodex && codex.auth?.loggedIn === false)
+     guidance.push({
+       executor: 'codex',
+diff --git a/skills/setup-pstack/scripts/models.mjs b/skills/setup-pstack/scripts/models.mjs
+index be8c298..7efffdf 100644
+--- a/skills/setup-pstack/scripts/models.mjs
++++ b/skills/setup-pstack/scripts/models.mjs
+@@ -7,6 +7,7 @@ import {
+   argumentsFor,
+   atomicWrite,
+   claudeHome,
++  codexWorkersFrom,
+   hash,
+   inputJson,
+   inspect,
+@@ -116,6 +117,9 @@ export function normalizeConfig(input, previous, saved = false) {
+     : (input.budget ?? previous?.budget ?? 'large');
+   if (!Object.hasOwn(budgets, budget))
+     throw new Error('Unknown pstack budget.');
++  const codexWorkers = codexWorkersFrom({
++    codexWorkers: input.codexWorkers ?? previous?.codexWorkers,
++  });
+   const selected = input.roles ?? {};
+   if (!selected || typeof selected !== 'object' || Array.isArray(selected))
+     throw new Error('Model configuration roles must be an object.');
+@@ -145,6 +149,7 @@ export function normalizeConfig(input, previous, saved = false) {
+       schemaVersion: 1,
+       host: 'claude-code',
+       budget,
++      codexWorkers,
+       roles: normalized,
+     },
+     droppedRoles,
+diff --git a/skills/setup-pstack/scripts/state.mjs b/skills/setup-pstack/scripts/state.mjs
+index 04dc5c8..f91bcfd 100644
+--- a/skills/setup-pstack/scripts/state.mjs
++++ b/skills/setup-pstack/scripts/state.mjs
+@@ -9,8 +9,7 @@ export const jsonBytes = (value) =>
+ export const claudeHome = (selected) => {
+   const home =
+     selected ??
+-    process.env.CLAUDE_CONFIG_DIR ??
+-    path.join(os.homedir(), '.claude');
++    (process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'));
+   if (!path.isAbsolute(home))
+     throw new Error('Claude home must be an absolute path.');
+   return path.resolve(home);
+@@ -34,6 +33,26 @@ export async function snapshot(file) {
+   const bytes = await fs.readFile(file);
+   return { bytes, sha256: hash(bytes), mode: stat.mode & 0o777 };
+ }
++export function codexWorkersFrom(config) {
++  const codexWorkers = config?.codexWorkers ?? 'hidden';
++  if (!['hidden', 'visible'].includes(codexWorkers))
++    throw new Error('codexWorkers must be hidden or visible.');
++  return codexWorkers;
++}
++export async function savedCodexWorkers(home) {
++  const directory = path.join(home, 'pstack-cc');
++  await inspect(home, true);
++  await inspect(directory, true);
++  const saved = await snapshot(path.join(directory, 'models.json'));
++  if (!saved) return codexWorkersFrom();
++  let config;
++  try {
++    config = JSON.parse(saved.bytes.toString('utf8'));
++  } catch {
++    throw new Error('Model configuration is not valid JSON.');
++  }
++  return codexWorkersFrom(config);
++}
+ export async function inputJson(file, label) {
+   if (!file || !path.isAbsolute(file))
+     throw new Error(`${label} requires an absolute file path.`);

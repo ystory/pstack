@@ -7,6 +7,7 @@ import {
   argumentsFor,
   atomicWrite,
   claudeHome,
+  codexWorkersFrom,
   hash,
   inputJson,
   inspect,
@@ -116,6 +117,9 @@ export function normalizeConfig(input, previous, saved = false) {
     : (input.budget ?? previous?.budget ?? 'large');
   if (!Object.hasOwn(budgets, budget))
     throw new Error('Unknown pstack budget.');
+  const codexWorkers = codexWorkersFrom({
+    codexWorkers: input.codexWorkers ?? previous?.codexWorkers,
+  });
   const selected = input.roles ?? {};
   if (!selected || typeof selected !== 'object' || Array.isArray(selected))
     throw new Error('Model configuration roles must be an object.');
@@ -145,6 +149,7 @@ export function normalizeConfig(input, previous, saved = false) {
       schemaVersion: 1,
       host: 'claude-code',
       budget,
+      codexWorkers,
       roles: normalized,
     },
     droppedRoles,

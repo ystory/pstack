@@ -5,7 +5,14 @@ import { constants } from 'node:fs';
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { argumentsFor, claudeHome, inspect, run } from './state.mjs';
+import {
+  argumentsFor,
+  claudeHome,
+  codexWorkersFrom,
+  inspect,
+  run,
+  savedCodexWorkers,
+} from './state.mjs';
 
 const runner = fileURLToPath(
   new URL('../../poteto-mode/scripts/run-codex.mjs', import.meta.url),
@@ -105,13 +112,14 @@ await run(async () => {
       '--claude-home',
       '--claude-executable',
       '--codex-executable',
+      '--codex-workers',
       '--cwd',
       '--executors',
     ],
   );
   if (options.help) {
     process.stdout.write(
-      'Usage: node detect.mjs detect|catalog [--claude-home ABS] [--claude-executable ABS] [--codex-executable ABS] [--cwd ABS] [--executors claude-code|claude-code,codex]\n',
+      'Usage: node detect.mjs detect|catalog [--claude-home ABS] [--claude-executable ABS] [--codex-executable ABS] [--codex-workers hidden|visible] [--cwd ABS] [--executors claude-code|claude-code,codex]\n',
     );
     return;
   }
@@ -176,9 +184,16 @@ await run(async () => {
     },
     execution: { verified: false },
   };
+  const codexWorkers = options.codexWorkers
+    ? codexWorkersFrom(options)
+    : includeCodex
+      ? await savedCodexWorkers(home)
+      : undefined;
   const args = [
     runner,
     options.command,
+    '--codex-workers',
+    codexWorkers,
     ...(options.codexExecutable
       ? ['--executable', options.codexExecutable]
       : []),
@@ -213,15 +228,28 @@ await run(async () => {
       url: 'https://code.claude.com/docs/en/authentication',
     });
   if (includeCodex && !codex.cli?.available)
-    guidance.push({
-      executor: 'codex',
-      action: 'install',
-      runtime: 'codex-app-server',
-      url: 'https://github.com/openai/codex/releases',
-      detail:
-        'During setup, install the complete matching-platform official codex-app-server package when needed and prepare PATH for this host and future workers. Recheck without overrides. --codex-executable ABS is only a per-call diagnostic override.',
-      requiredFor: 'Codex workers only',
-    });
+    guidance.push(
+      codexWorkers === 'visible'
+        ? {
+            executor: 'codex',
+            action: 'install',
+            runtime: 'codex',
+            command: 'npm i -g @openai/codex',
+            url: 'https://developers.openai.com/codex/cli',
+            detail:
+              'During setup, install the official Codex CLI when needed and keep codex on PATH for this host and future workers. Recheck without overrides. --codex-executable ABS is only a per-call diagnostic override.',
+            requiredFor: 'Codex workers only',
+          }
+        : {
+            executor: 'codex',
+            action: 'install',
+            runtime: 'codex-app-server',
+            url: 'https://github.com/openai/codex/releases',
+            detail:
+              'During setup, install the complete matching-platform official codex-app-server package when needed and prepare PATH for this host and future workers. Recheck without overrides. --codex-executable ABS is only a per-call diagnostic override.',
+            requiredFor: 'Codex workers only',
+          },
+    );
   else if (includeCodex && codex.auth?.loggedIn === false)
     guidance.push({
       executor: 'codex',

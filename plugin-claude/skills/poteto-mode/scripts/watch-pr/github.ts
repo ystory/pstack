@@ -838,9 +838,9 @@ function restComment(value: Record<string, unknown>): Record<string, unknown> {
   };
 }
 
-// `gh pr view` finds a branch's PR through the branch's push remote, which is a
-// fork's owner for a fork PR. Without one, gh's {owner} placeholder names the
-// base repository's owner.
+// `gh pr view` finds a branch's PR through the branch's push remote, which
+// names a fork's owner for a fork PR. gh's {owner} placeholder names the base
+// repository's owner, so both heads are tried.
 async function pushHead(): Promise<string | null> {
   const branch = await run([
     "git",
@@ -859,7 +859,7 @@ async function pushHead(): Promise<string | null> {
   ]);
   const remoteName = remote.stdout.trim();
   if (remote.code !== 0 || !remoteName) return null;
-  const url = await run(["git", "remote", "get-url", remoteName]);
+  const url = await run(["git", "remote", "get-url", "--push", remoteName]);
   const owner = url.code === 0 ? parseRemote(url.stdout)?.owner : undefined;
   return owner === undefined ? null : `head=${owner}:${name}`;
 }
@@ -876,22 +876,28 @@ export class RestGitHubReader implements GhReads {
         number: pr,
       };
     }
-    const head = await pushHead();
-    const branchPulls = async (state: "open" | "all") =>
-      list(
-        await restGet(
-          "repos/{owner}/{repo}/pulls",
-          head === null ? "-F" : "-f",
-          head ?? "head={owner}:{branch}",
-          "-f",
-          `state=${state}`,
-          "-F",
-          `per_page=${REST_PAGE_SIZE}`
-        ),
-        "current PRs"
-      ).map((item, index) => record(item, `current PRs[${index}]`));
-    const pull =
-      (await branchPulls("open"))[0] ?? (await branchPulls("all"))[0];
+    const push = await pushHead();
+    const heads: (readonly [string, string])[] = [
+      ...(push === null ? [] : [["-f", push] as const]),
+      ["-F", "head={owner}:{branch}"],
+    ];
+    let pull: Record<string, unknown> | undefined;
+    search: for (const state of ["open", "all"])
+      for (const [flag, head] of heads) {
+        pull = list(
+          await restGet(
+            "repos/{owner}/{repo}/pulls",
+            flag,
+            head,
+            "-f",
+            `state=${state}`,
+            "-F",
+            `per_page=${REST_PAGE_SIZE}`
+          ),
+          "current PRs"
+        ).map((item, index) => record(item, `current PRs[${index}]`))[0];
+        if (pull !== undefined) break search;
+      }
     if (pull === undefined)
       throw new WatcherQueryError({
         kind: "command-exit",

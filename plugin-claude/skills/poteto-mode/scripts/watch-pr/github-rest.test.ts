@@ -401,7 +401,7 @@ describe("REST fallback after GitHub refuses GraphQL", () => {
     });
   });
 
-  it("finds a fork branch's PR under its push remote's owner", async () => {
+  it("tries the push remote's owner, then the base owner, for a branch's PR", async () => {
     const checkout = join(directory, "checkout");
     mkdirSync(checkout);
     const git = (...args: string[]) =>
@@ -422,28 +422,48 @@ describe("REST fallback after GitHub refuses GraphQL", () => {
       "initial"
     );
     git("remote", "add", "origin", "https://github.com/owner/repo.git");
-    git("remote", "add", "fork", "git@github.com:someone/repo.git");
+    git("remote", "add", "fork", "https://github.com/owner/repo.git");
+    git(
+      "remote",
+      "set-url",
+      "--push",
+      "fork",
+      "git@github.com:someone/repo.git"
+    );
     git("config", "branch.feature.pushRemote", "fork");
     process.chdir(checkout);
+    const lookup = "^api --method GET repos/\\{owner\\}/\\{repo\\}/pulls";
+    const fork = `${lookup} -f head=someone:feature`;
+    const base = `${lookup} -F head=\\{owner\\}:\\{branch\\}`;
+    const pr = (number: number, state: string) => ({
+      number,
+      state,
+      html_url: `https://github.com/owner/repo/pull/${number}`,
+    });
     routes([
       ...refusedCli,
-      {
-        match:
-          "^api --method GET repos/\\{owner\\}/\\{repo\\}/pulls -f head=someone:feature -f state=open",
-        stdout: [
-          {
-            number: 11,
-            state: "open",
-            html_url: "https://github.com/owner/repo/pull/11",
-          },
-        ],
-      },
+      { match: `${fork} -f state=open`, stdout: [pr(11, "open")] },
     ]);
-    expect(await new GhGitHubReader().currentPr(null)).toEqual({
-      owner: "owner",
-      repo: "repo",
-      number: parsePrNumber(11),
-    });
+    expect((await new GhGitHubReader().currentPr(null)).number).toBe(
+      parsePrNumber(11)
+    );
+    routes([
+      ...refusedCli,
+      { match: `${fork} -f state=open`, stdout: [] },
+      { match: `${base} -f state=open`, stdout: [pr(12, "open")] },
+    ]);
+    expect((await new GhGitHubReader().currentPr(null)).number).toBe(
+      parsePrNumber(12)
+    );
+    routes([
+      ...refusedCli,
+      { match: `${fork} -f state=open`, stdout: [] },
+      { match: `${base} -f state=open`, stdout: [] },
+      { match: `${fork} -f state=all`, stdout: [pr(13, "closed")] },
+    ]);
+    expect((await new GhGitHubReader().currentPr(null)).number).toBe(
+      parsePrNumber(13)
+    );
   });
 
   it("fails closed when a REST thread has no comments", async () => {

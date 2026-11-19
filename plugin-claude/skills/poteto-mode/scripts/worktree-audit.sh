@@ -66,14 +66,17 @@ elif raw=$(gh pr list --author "@me" --state all --limit 1000 \
 	printf '%s' "$raw" | jq '[.[] | {number, state: (.state | ascii_downcase), head: .headRefName}]' > "$prs" 2>/dev/null
 elif me=$(gh api user --jq .login 2>/dev/null) && [ -n "$me" ] && rest_prs=$(mktemp); then
 	# gh pr needs GraphQL, which some hosts (Claude cloud sessions) refuse. REST
-	# has no author filter, so look up each worktree branch's PRs and keep yours.
+	# has no author filter, so look up each worktree branch's PRs, from the base
+	# repository and from your fork, and keep yours.
 	trap 'rm -f "$prs" "$rest_prs"' EXIT
 	git -c core.quotePath=false worktree list --porcelain | sed -n 's|^branch refs/heads/||p' | while read -r b; do
-		gh api --method GET 'repos/{owner}/{repo}/pulls' -F head="{owner}:$b" -f state=all -F per_page=100 \
-			--jq '[.[] | {number, state: (if .merged_at then "merged" else .state end), head: .head.ref, login: .user.login}]' \
-			</dev/null 2>/dev/null || echo "warn: could not read PR state for $b; verify before pruning" >&2
+		for head in "{owner}:$b" "$me:$b"; do
+			gh api --paginate --method GET 'repos/{owner}/{repo}/pulls' -F head="$head" -f state=all -F per_page=100 \
+				--jq '[.[] | {number, state: (if .merged_at then "merged" else .state end), head: .head.ref, login: .user.login}]' \
+				</dev/null 2>/dev/null || echo "warn: could not read PR state for $head; verify before pruning" >&2
+		done
 	done > "$rest_prs"
-	jq -s --arg me "$me" '[add // [] | .[] | select(.login == $me) | {number, state, head}]' \
+	jq -s --arg me "$me" '[add // [] | .[] | select(.login == $me) | {number, state, head}] | unique_by(.number) | sort_by(-.number)' \
 		"$rest_prs" > "$prs" 2>/dev/null
 fi
 [ -s "$prs" ] || echo "[]" > "$prs"

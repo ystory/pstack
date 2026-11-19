@@ -31,3 +31,4 @@ shared/0006-worktree-dependency-state.patch
 0025-cloud-sessions-guide-version.patch
 0026-github-rest-fallback.patch
 0027-github-rest-fallback-version.patch
+0028-github-rest-fallback-review.patch

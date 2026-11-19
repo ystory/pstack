@@ -31,4 +31,4 @@ Elsewhere these steps need GraphQL. Report the step as blocked rather than skipp
 - REST has no review decision. Each reviewer's latest undismissed approval or change request counts, so a change request blocks even where branch protection requires no review.
 - Only the head commit's checks are read, so the status table never shows `was ✅`.
 
-`scripts/worktree-audit.sh` reads PR state through REST after `gh pr list` fails. It looks up each worktree branch's PRs, keeps yours, and warns about a branch it could not read.
+`scripts/worktree-audit.sh` reads PR state through REST after `gh pr list` fails. It looks up each worktree branch's PRs from the base repository and from your fork, keeps yours, and warns about a lookup that failed.

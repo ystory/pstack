@@ -27,3 +27,5 @@ shared/0006-worktree-dependency-state.patch
 0021-worktree-dependency-state-version.patch
 0022-codex-worker-visibility.patch
 0023-codex-worker-visibility-version.patch
+0024-cloud-sessions-guide.patch
+0025-cloud-sessions-guide-version.patch

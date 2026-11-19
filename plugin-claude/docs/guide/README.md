@@ -4,7 +4,7 @@ pstack works best when you stop micromanaging the agent. You describe what you w
 
 Here's what you'll learn:
 
-1. [Set up pstack](./01-setup.md). Install the plugin and pick your models.
+1. [Set up pstack](./01-setup.md). Install the plugin and pick your models. For Claude Project threads and other cloud sessions, also [run pstack in Claude cloud sessions](./cloud-sessions.md).
 2. [Route work through `/pstack-cc:poteto-mode`](./02-poteto-mode.md). Give it a goal and watch it pick a playbook.
 3. [Understand the code](./03-understand.md). A read-only investigation, then `/pstack-cc:how`, `/pstack-cc:why`, `/pstack-cc:teach`, and `/pstack-cc:recall` before you edit anything.
 4. [Design the change](./04-design.md). `/pstack-cc:architect`, `/pstack-cc:arena`, `/pstack-cc:swarm`, `/pstack-cc:interrogate`, prototypes, and plans before code locks in a shape.

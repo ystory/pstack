@@ -1,0 +1,139 @@
+diff --git a/docs/guide/cloud-sessions.md b/docs/guide/cloud-sessions.md
+index af9bcb8..ad95aed 100644
+--- a/docs/guide/cloud-sessions.md
++++ b/docs/guide/cloud-sessions.md
+@@ -130,12 +130,17 @@ A ready container reports `cli.workers` as `visible`, `cli.available` as `true`,
+ 
+ The session's GitHub proxy refuses GraphQL, so `gh pr` commands fail there with `GitHub GraphQL is not available from Claude Code sessions`. REST still works through `gh api`. The PR watcher and the worktree audit switch to REST by themselves. The Opening a PR, Shipping, and Babysit playbooks send the agent to the matching REST routes in [GitHub REST fallback](../../skills/poteto-mode/references/github-rest.md). Pushes and PR writes reach only the repositories attached to the session.
+ 
++## Long runs and saved files
++
++The container is reclaimed after the session goes idle, and a later message or wake can start a fresh one. Session timers from CronCreate or `/loop`, background tasks, unpushed commits, worktrees, and files outside the shared folder do not carry over. In a cloud session, pstack's long runs arm server-side wakes, such as PR activity subscriptions and scheduled messages. In a Claude Project, they keep the run's task store, decision trail, and resume note under `/mnt/project-files/pstack/`. Outside a Project, they commit that state to the run's pushed branch or post it on the PR. [Claude cloud sessions](../../skills/poteto-mode/references/claude-cloud.md) has the rules.
++
+ ## When something is missing
+ 
+ - **No `/pstack-cc:` commands.** The plugin was installed after Claude started, or the setup script failed before the install. Fix the script and start a new session.
+ - **Detection reports `standalone-app-server` with `ENOENT`.** The saved file has no `codexWorkers`, so it means `hidden`. Save `visible`.
+ - **Detection reports `auth.loggedIn` as `false`.** The link points at a file that does not exist yet, or the login expired. Repeat the sign-in steps above from the `rm`.
+ - **A `gh pr` command fails with HTTP 403.** GitHub refused GraphQL. Use its REST route from [GitHub REST fallback](../../skills/poteto-mode/references/github-rest.md).
++- **A long run stopped waking, or a resumed run lost its notes.** The run used a session timer or a container-local file, and a new container dropped it. Check that the session runs pstack 0.1.0-dev.42 or later, then resume from the pushed branch and `/mnt/project-files/pstack/`.
+ - **A Codex host is refused.** Add the host to **Allowed domains**. Leave the network level at **Limited** unless the work needs more.
+ 
+ Back to [Set up pstack](01-setup.md).
+diff --git a/skills/poteto-mode/playbooks/autopilot-full.md b/skills/poteto-mode/playbooks/autopilot-full.md
+index ad895ed..ec9b257 100644
+--- a/skills/poteto-mode/playbooks/autopilot-full.md
++++ b/skills/poteto-mode/playbooks/autopilot-full.md
+@@ -7,7 +7,7 @@ Read [Claude Code execution](../references/execution.md) and resolve `feature, r
+ A verdict covers one patch and green CI covers one head. Step 4 runs a full swarm once, and again only for a major change. The patch-id rule in `playbooks/shipping.md` can carry a lane's result, and every new head needs its own green CI.
+ 
+ 1. **The operator's gates come first.** The grant covers only the queue's items, so items the operator names as theirs and PRs outside the queue stop at merge-ready. A request to state the plan is not a go.
+-2. **Spawn one owner per PR, and keep its work where a replacement can find it.** Resolve, create, and record one absolute local task-store path before spawning owners or arming a heartbeat. Use the caller's explicit path or `<project>/.local/pstack/orchestrate/<project-slug>/`. Pass that same path in every owner, replacement, and resume brief and the heartbeat prompt. Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). Each owner is an independent worker in an exclusive worktree that builds, opens its PR per `playbooks/opening-a-pr.md`, proves the change on the real artifact, babysits to green per `playbooks/babysit.md`, and merges once steps 4 and 5 clear it. Where that playbook says to report a rebase, the owner rebases its own branch and publishes it with `git push --force-with-lease`.
++2. **Spawn one owner per PR, and keep its work where a replacement can find it.** Resolve, create, and record one absolute local task-store path before spawning owners or arming a heartbeat. Use the caller's explicit path or `<project>/.local/pstack/orchestrate/<project-slug>/`. In a Claude cloud session, use the durable location from [Claude cloud sessions](../references/claude-cloud.md) instead of `.local/`. Pass that same path in every owner, replacement, and resume brief and the heartbeat prompt. Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). Each owner is an independent worker in an exclusive worktree that builds, opens its PR per `playbooks/opening-a-pr.md`, proves the change on the real artifact, babysits to green per `playbooks/babysit.md`, and merges once steps 4 and 5 clear it. Where that playbook says to report a rebase, the owner rebases its own branch and publishes it with `git push --force-with-lease`.
+ 
+    Open the PR early so CI and bots run alongside the work. The code is ready only after the slop-strip (the bundled **deslop** skill) and the `/no-comments` pass, so the full swarm runs on finished code. Then rebase onto current trunk and report the code-ready head before self-proof, so verification runs on the base the patch lands on. Report every later head, and merge-ready once self-proof, CI, and babysit are done. Fix rounds stay on that base unless trunk conflicts, breaks CI, or lands a known concurrent change to the same files, because each rebase restarts CI. Run the repo's checks for the touched paths on the committed head before the code-ready push and before a later push that needs a verifier.
+ 
+diff --git a/skills/poteto-mode/playbooks/pause-safely.md b/skills/poteto-mode/playbooks/pause-safely.md
+index 934c361..5083c2a 100644
+--- a/skills/poteto-mode/playbooks/pause-safely.md
++++ b/skills/poteto-mode/playbooks/pause-safely.md
+@@ -6,7 +6,7 @@ Use [Claude Code execution](../references/execution.md) for worker identities an
+ 
+ 1. Stop at a safe boundary. Finish the current atomic step or back out of it. Start nothing new, and cancel any nested subagents.
+ 2. Take no irreversible action to pause. No PR and no push unless you already had one out.
+-3. Make the work durable. Commit uncommitted edits as one clear `wip:` commit on the current branch so nothing is lost. If the tree is broken, say so in the commit body in one line.
+-4. Write the resume note off-context. Capture intent, what you were doing, progress and what's verified, current state, next steps, key files, and gotchas. For the compaction trigger write it to a file like `/tmp/<slug>-resume.md`. If a show-me-your-work trail exists, point at it instead of duplicating it.
++3. Make the work durable. Commit uncommitted edits as one clear `wip:` commit on the current branch so nothing is lost. If the tree is broken, say so in the commit body in one line. In a Claude cloud session, an unpushed commit dies with the container. Unless the run already pushes its branch, also save the `wip:` commit as `git format-patch` output, with any untracked files it left out, in the durable location from [Claude cloud sessions](../references/claude-cloud.md).
++4. Write the resume note off-context. Capture intent, what you were doing, progress and what's verified, current state, next steps, key files, and gotchas. For the compaction trigger write it to a file like `/tmp/<slug>-resume.md`. In a Claude cloud session, write it to the durable location instead. If a show-me-your-work trail exists, point at it instead of duplicating it.
+ 
+ **Reply:** where you are in the loop, what's on disk versus still in your head (paths, no diff dumps), the commits you made and whether the tree is clean, and the first action on resume. This is a pause, not a final report.
+diff --git a/skills/poteto-mode/references/claude-cloud.md b/skills/poteto-mode/references/claude-cloud.md
+new file mode 100644
+index 0000000..0ea33a1
+--- /dev/null
++++ b/skills/poteto-mode/references/claude-cloud.md
+@@ -0,0 +1,35 @@
++# Claude cloud sessions
++
++`CLAUDE_CODE_REMOTE=true` marks a Claude cloud session. A Claude Project thread also has the project's shared folder at `/mnt/project-files/`. Without that environment value, nothing in this file applies.
++
++## What a new container loses
++
++The container is reclaimed after the session goes idle, and a later wake can start on a fresh container. These do not carry over:
++
++- Files outside the durable location below, including `.local/`, the work dir, and `/tmp/`.
++- Commits that were not pushed.
++- Worktrees and the dependencies installed in them.
++- Background Bash tasks, such as Codex worker runs and `scripts/watch-pr/watch-pr`.
++- Session schedules from CronCreate or `/loop`.
++
++## Arm wakes on the server
++
++Use the server-side wake controls that the session exposes. Tool names vary by host, so the names below are examples:
++
++- For PR, CI, and review events, subscribe to the PR's activity, such as with `subscribe_pr_activity`.
++- For the fallback heartbeat, schedule a one-shot wake, such as with `send_later`. Arm the next one on each tick, at the cadence the workflow would have used.
++- For recurring work that must run with no session, create a cloud routine or trigger, such as with `create_trigger`.
++
++Verify each wake you create and record its ID in the run's task store. Point each wake at the tick instructions in the durable location. A watcher inside the session can wait for an event within one active turn, but it is never the only wake of a long run. If the session exposes no wake that outlives the container, report that gap before you claim a wake is armed. When the run stops, delete or unsubscribe each recorded wake by its ID.
++
++## Keep state in a durable location
++
++The durable location holds the run's task store, decision trail, resume note, tick instructions, and any receipt that a later tick or reviewer needs. In a Claude Project, it is one subdirectory per run, such as `/mnt/project-files/pstack/<project-slug>/<run-slug>/`. Outside a Project, it is the run's pushed branch or its PR. Commit that state to the branch, or post it on the PR.
++
++Push each finished unit before you end a turn or arm a wake.
++
++On every wake, rebuild from the durable location and the pushed branches. Fetch, recreate each worktree at its pushed head, and prepare its dependencies per [Worktree dependency and build state](worktree-setup.md). Never assume that a local file or process survived.
++
++## Share the Project folder safely
++
++Other threads write to the same folder, and the last write wins. Write only in the run's own subdirectory, and re-read a file before you append to it. The folder does not keep `600` permissions, so never write credentials or secrets there.
+diff --git a/skills/poteto-mode/references/claude-wakeups.md b/skills/poteto-mode/references/claude-wakeups.md
+index 05e657d..a6e78fa 100644
+--- a/skills/poteto-mode/references/claude-wakeups.md
++++ b/skills/poteto-mode/references/claude-wakeups.md
+@@ -4,15 +4,15 @@ Use the original workflow's predicate, event wake, fallback heartbeat, drain, an
+ 
+ ## Arm and resume
+ 
+-Record the done predicate, authorized scope, standing orders, branch and head, decision trail, and resume point in the run's local project store. Resolve all installed playbook and helper paths from the loaded skill. Read current project-owned skills from their owning source, rather than assuming the repository contains this plugin.
++Record the done predicate, authorized scope, standing orders, branch and head, decision trail, and resume point in the run's local project store. In a Claude cloud session, keep that store in the durable location from [Claude cloud sessions](claude-cloud.md). Resolve all installed playbook and helper paths from the loaded skill. Read current project-owned skills from their owning source, rather than assuming the repository contains this plugin.
+ 
+ For an event, use an actual event subscription when offered. A native background Agent or Bash command can run the bundled `scripts/watch-pr/watch-pr` for GitHub, or an Origin watch command, and return when its event occurs. The parent collects that result and checks forge state before acting. Launch once and retain its task identity. Do not add a second coordinator sleep loop. Use available PR-event subscriptions, owner completion, and its existing checkpoints there.
+ 
+-For the fallback heartbeat or work without an event, use the session's native CronCreate or `/loop` scheduling controls. Include concrete tick instructions and file pointers. Verify the created schedule, cadence, ID, and expiry. [Claude Code scheduled tasks](https://code.claude.com/docs/en/scheduled-tasks) distinguish session schedules from Desktop and cloud schedules. A session timer requires the session and machine. It does not become a durable cloud routine. For work that must survive independently, use an available Desktop or cloud scheduler with its own supported configuration and record that identity. Report a missing required capability before claiming a wake is armed.
++For the fallback heartbeat or work without an event, use the session's native CronCreate or `/loop` scheduling controls. Include concrete tick instructions and file pointers. Verify the created schedule, cadence, ID, and expiry. [Claude Code scheduled tasks](https://code.claude.com/docs/en/scheduled-tasks) distinguish session schedules from Desktop and cloud schedules. A session timer requires the session and machine. It does not become a durable cloud routine. For work that must survive independently, use an available Desktop or cloud scheduler with its own supported configuration and record that identity. Report a missing required capability before claiming a wake is armed. In a Claude cloud session, session schedules and background watchers die with the container, so arm the server-side wakes from [Claude cloud sessions](claude-cloud.md).
+ 
+ ## Tick and stop
+ 
+-Re-read the store and playbook. Check the predicate on the real artifact, inspect actual agent and command states, drain terminal reports, act, and rearm after the workflow's push waves or verdicts. A child completion event does not establish CI success. Update the user for meaningful changes, completion, failures, or required decisions. Keep quiet ticks in the run's trail.
++In a Claude cloud session, a wake may land on a fresh container, so first rebuild the run per [Claude cloud sessions](claude-cloud.md). Re-read the store and playbook. Check the predicate on the real artifact, inspect actual agent and command states, drain terminal reports, act, and rearm after the workflow's push waves or verdicts. A child completion event does not establish CI success. Update the user for meaningful changes, completion, failures, or required decisions. Keep quiet ticks in the run's trail.
+ 
+ When the predicate passes or the user pauses, stop the run's active watcher and delete its native schedule by ID. Keep evidence and the resume note. After a restart, inspect actual live task identities before reattaching. Replace missing workers with fresh consolidated briefs. Restore wakeups only for a run the user asked to continue. Never infer that a process survived from a saved checkpoint.
+ 
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 530ee60..1ab4d39 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -86,7 +86,7 @@ Use the exposed native messaging control, such as `SendMessage`, for a running C
+ 
+ Wait for all required terminal results before synthesis. Before you retry or replace a worker that stopped before its result, read [Continuing a stopped worker](continuation.md). Account for every seat and apply only the calling workflow's failure or dropout rule. The parent reviews diffs and reruns load-bearing claims. Never accept an author summary as a non-author verdict.
+ 
+-Read [Claude Code wakeups](claude-wakeups.md) for repeated watchers and schedules, and [Claude history](../../recall/references/claude-history.md) for transcripts. Use native TodoWrite or task tools when offered, otherwise maintain the workflow's list in its local tracker. Inspect the live schemas rather than assuming a Project store or a PR-event subscription exists.
++Read [Claude Code wakeups](claude-wakeups.md) for repeated watchers and schedules, and [Claude history](../../recall/references/claude-history.md) for transcripts. In a Claude cloud session, follow [Claude cloud sessions](claude-cloud.md) for wakes and for any work or evidence that must outlive the turn. Use native TodoWrite or task tools when offered, otherwise maintain the workflow's list in its local tracker. Inspect the live schemas rather than assuming a Project store or a PR-event subscription exists.
+ 
+ For another pstack skill, use its complete supplied body or Read its installed `SKILL.md`, then follow it. Most pstack skills are explicit-only, so the Skill tool may refuse them. User invocation is `/pstack-cc:<name>`. User-authored skills live in `.claude/skills/` or `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/`. Follow [skill authoring](skill-authoring.md) for a create-skill reference. Use native AskUserQuestion when available, or a plain question when it is absent.
+ 
+diff --git a/skills/show-me-your-work/SKILL.md b/skills/show-me-your-work/SKILL.md
+index db23a6d..cf2d901 100644
+--- a/skills/show-me-your-work/SKILL.md
++++ b/skills/show-me-your-work/SKILL.md
+@@ -45,7 +45,7 @@ A run is one agent conversation, including its later turns and any summary of it
+ 
+ ## Where it lives
+ 
+-By default the log is a working artifact, not committed. Keep it at `decisions.tsv` in the work dir, or `.audit/<task-slug>.tsv` when several efforts run at once, and leave it out of git.
++By default the log is a working artifact, not committed. Keep it at `decisions.tsv` in the work dir, or `.audit/<task-slug>.tsv` when several efforts run at once, and leave it out of git. In a Claude cloud session, keep it in the durable location from [Claude cloud sessions](../poteto-mode/references/claude-cloud.md) instead, because the work dir disappears with the container.
+ 
+ Commit it only when the work is ambitious enough that a reviewer needs the trail to trust the result.
+ 

@@ -35,3 +35,5 @@ shared/0006-worktree-dependency-state.patch
 0029-github-rest-fallback-ssh-alias.patch
 0030-github-rest-fallback-push-owner.patch
 0031-github-rest-fallback-push-url.patch
+0032-claude-cloud-state.patch
+0033-claude-cloud-state-version.patch

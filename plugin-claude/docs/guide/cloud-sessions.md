@@ -130,12 +130,17 @@ A ready container reports `cli.workers` as `visible`, `cli.available` as `true`,
 
 The session's GitHub proxy refuses GraphQL, so `gh pr` commands fail there with `GitHub GraphQL is not available from Claude Code sessions`. REST still works through `gh api`. The PR watcher and the worktree audit switch to REST by themselves. The Opening a PR, Shipping, and Babysit playbooks send the agent to the matching REST routes in [GitHub REST fallback](../../skills/poteto-mode/references/github-rest.md). Pushes and PR writes reach only the repositories attached to the session.
 
+## Long runs and saved files
+
+The container is reclaimed after the session goes idle, and a later message or wake can start a fresh one. Session timers from CronCreate or `/loop`, background tasks, unpushed commits, worktrees, and files outside the shared folder do not carry over. In a cloud session, pstack's long runs arm server-side wakes, such as PR activity subscriptions and scheduled messages. In a Claude Project, they keep the run's task store, decision trail, and resume note under `/mnt/project-files/pstack/`. Outside a Project, they commit that state to the run's pushed branch or post it on the PR. [Claude cloud sessions](../../skills/poteto-mode/references/claude-cloud.md) has the rules.
+
 ## When something is missing
 
 - **No `/pstack-cc:` commands.** The plugin was installed after Claude started, or the setup script failed before the install. Fix the script and start a new session.
 - **Detection reports `standalone-app-server` with `ENOENT`.** The saved file has no `codexWorkers`, so it means `hidden`. Save `visible`.
 - **Detection reports `auth.loggedIn` as `false`.** The link points at a file that does not exist yet, or the login expired. Repeat the sign-in steps above from the `rm`.
 - **A `gh pr` command fails with HTTP 403.** GitHub refused GraphQL. Use its REST route from [GitHub REST fallback](../../skills/poteto-mode/references/github-rest.md).
+- **A long run stopped waking, or a resumed run lost its notes.** The run used a session timer or a container-local file, and a new container dropped it. Check that the session runs pstack 0.1.0-dev.42 or later, then resume from the pushed branch and `/mnt/project-files/pstack/`.
 - **A Codex host is refused.** Add the host to **Allowed domains**. Leave the network level at **Limited** unless the work needs more.
 
 Back to [Set up pstack](01-setup.md).

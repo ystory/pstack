@@ -72,7 +72,7 @@ index 79de1e3..31e0c30 100644
        "reason": "Retain the accepted immutable-bundle bootstrap, watcher, plan checker or project-scoped history adaptation."
 diff --git a/skills/poteto-mode/references/github-rest.md b/skills/poteto-mode/references/github-rest.md
 new file mode 100644
-index 0000000..d7fda8b
+index 0000000..cfe1361
 --- /dev/null
 +++ b/skills/poteto-mode/references/github-rest.md
 @@ -0,0 +1,34 @@
@@ -80,18 +80,18 @@ index 0000000..d7fda8b
 +
 +Some hosts refuse GitHub GraphQL with HTTP 403 but allow REST. Claude cloud sessions are one: their proxy answers `GitHub GraphQL is not available from Claude Code sessions`. `gh pr`, `gh issue`, and `gh api graphql` need GraphQL, so they fail there. Keep using `gh pr` wherever it works. When one fails with that refusal, run the matching REST route through `gh api` instead. Inside a checkout, `gh api` fills `{owner}` and `{repo}` from the repository, as `gh pr` does.
 +
-+| Step                      | `gh pr`                                                  | REST through `gh api`                                                                                              |
-+| ------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-+| Open a ready PR           | `gh pr create --base B --head H --title T --body-file F` | `gh api repos/{owner}/{repo}/pulls -f base=B -f head=H -f title=T -F body=@F`                                      |
-+| Find a branch's PR        | `gh pr view` or `gh pr list --head H`                    | `gh api --method GET repos/{owner}/{repo}/pulls -F head={owner}:H -f state=all`                                    |
-+| Read state                | `gh pr view N --json state,mergedAt,baseRefName`         | `gh api repos/{owner}/{repo}/pulls/N --jq '{state, merged_at, base: .base.ref, head: .head.sha, mergeable_state}'` |
-+| Retarget                  | `gh pr edit N --base B`                                  | `gh api --method PATCH repos/{owner}/{repo}/pulls/N -f base=B`                                                     |
-+| Merge                     | `gh pr merge N --squash`                                 | `gh api --method PUT repos/{owner}/{repo}/pulls/N/merge -f merge_method=squash -f sha=S`                           |
-+| Read checks               | `gh pr checks N`                                         | `gh api repos/{owner}/{repo}/commits/S/check-runs` and `gh api repos/{owner}/{repo}/commits/S/status`              |
-+| Comment on the PR         | `gh pr comment N --body-file F`                          | `gh api repos/{owner}/{repo}/issues/N/comments -F body=@F`                                                         |
-+| Reply to a review comment | (already REST)                                           | `gh api --method POST repos/{owner}/{repo}/pulls/N/comments/C/replies -F body=@F`                                  |
++| Step                      | `gh pr`                                                  | REST through `gh api`                                                                                                       |
++| ------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
++| Open a ready PR           | `gh pr create --base B --head H --title T --body-file F` | `gh api repos/{owner}/{repo}/pulls -f base=B -f head=H -f title=T -F body=@F`                                               |
++| Find a branch's PR        | `gh pr view` or `gh pr list --head H`                    | `gh api --method GET repos/{owner}/{repo}/pulls -F head={owner}:H -f state=all`                                             |
++| Read state                | `gh pr view N --json state,mergedAt,baseRefName`         | `gh api repos/{owner}/{repo}/pulls/N --jq '{state, merged_at, base: .base.ref, head: .head.sha, mergeable_state}'`          |
++| Retarget                  | `gh pr edit N --base B`                                  | `gh api --method PATCH repos/{owner}/{repo}/pulls/N -f base=B`                                                              |
++| Merge                     | `gh pr merge N --squash`                                 | `gh api --method PUT repos/{owner}/{repo}/pulls/N/merge -f merge_method=squash -f sha=S`                                    |
++| Read checks               | `gh pr checks N`                                         | `gh api --paginate repos/{owner}/{repo}/commits/S/check-runs` and `gh api --paginate repos/{owner}/{repo}/commits/S/status` |
++| Comment on the PR         | `gh pr comment N --body-file F`                          | `gh api repos/{owner}/{repo}/issues/N/comments -F body=@F`                                                                  |
++| Reply to a review comment | (already REST)                                           | `gh api --method POST repos/{owner}/{repo}/pulls/N/comments/C/replies -F body=@F`                                           |
 +
-+`S` is the head SHA. Pass the SHA the verdict covers to the merge route, so GitHub refuses the merge with 409 when the head moved. Read the PR back after every merge, as with `gh pr merge`.
++`S` is the head SHA. Read every page of the check routes, since a failing check can sit past the first page. `{owner}` in a branch lookup is the base repository's owner; for a branch pushed to a fork, put the fork's owner there. Pass the SHA the verdict covers to the merge route, so GitHub refuses the merge with 409 when the head moved. The merge route merges directly and never enters a merge queue, so on a branch that requires one, report the merge step as blocked. Read the PR back after every merge, as with `gh pr merge`.
 +
 +REST has no review-thread resolution, auto-merge, or ready-for-review route. Claude cloud's proxy adds them on `api.github.com`, keyed by a thread's first comment ID:
 +
@@ -106,18 +106,25 @@ index 0000000..d7fda8b
 +
 +- A review thread's `id` is the REST ID of its first comment, which the reply and resolve routes above take.
 +- Check results come from the head commit's check runs and statuses, labeled `graphql-rollup`.
-+- REST has no review decision. A reviewer's latest change request blocks until that reviewer approves or the review is dismissed, even where branch protection requires no review.
++- REST has no review decision. Each reviewer's latest undismissed approval or change request counts, so a change request blocks even where branch protection requires no review.
 +- Only the head commit's checks are read, so the status table never shows `was ✅`.
 +
-+`scripts/worktree-audit.sh` reads PR state through REST after `gh pr list` fails. REST has no author filter, so it reads the 1,000 newest PRs and keeps yours.
++`scripts/worktree-audit.sh` reads PR state through REST after `gh pr list` fails. It looks up each worktree branch's PRs, keeps yours, and warns about a branch it could not read.
 diff --git a/skills/poteto-mode/scripts/watch-pr/github-rest.test.ts b/skills/poteto-mode/scripts/watch-pr/github-rest.test.ts
 new file mode 100644
-index 0000000..f584780
+index 0000000..fbc3951
 --- /dev/null
 +++ b/skills/poteto-mode/scripts/watch-pr/github-rest.test.ts
-@@ -0,0 +1,449 @@
+@@ -0,0 +1,525 @@
 +import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
++import { execFileSync } from "node:child_process";
++import {
++  mkdirSync,
++  mkdtempSync,
++  readFileSync,
++  rmSync,
++  writeFileSync,
++} from "node:fs";
 +import { tmpdir } from "node:os";
 +import { join } from "node:path";
 +import {
@@ -149,9 +156,12 @@ index 0000000..f584780
 +
 +let directory = "";
 +let originalPath = "";
++let originalCwd = "";
 +beforeEach(() => {
 +  directory = mkdtempSync(join(tmpdir(), "watch-pr-rest-"));
 +  originalPath = process.env.PATH ?? "";
++  originalCwd = process.cwd();
++  process.chdir(directory);
 +  writeFileSync(
 +    join(directory, "gh"),
 +    `#!${process.execPath}
@@ -172,6 +182,7 @@ index 0000000..f584780
 +  process.env.PATH = `${directory}:${originalPath}`;
 +});
 +afterEach(() => {
++  process.chdir(originalCwd);
 +  process.env.PATH = originalPath;
 +  rmSync(directory, { recursive: true, force: true });
 +});
@@ -259,7 +270,6 @@ index 0000000..f584780
 +        body: "old",
 +        created_at: "2026-11-18T00:00:00Z",
 +        path: "src/b.ts",
-+        line: null,
 +        user: { login: "carol" },
 +      },
 +    ],
@@ -363,25 +373,25 @@ index 0000000..f584780
 +    expect(made.every((call) => !call.includes("{owner}"))).toBe(true);
 +  });
 +
-+  it("keeps the gh failure and skips REST when GraphQL was not refused", async () => {
-+    routes([
-+      {
-+        match: "^pr view",
-+        stderr: "HTTP 502: Bad Gateway (https://api.github.com/graphql)",
-+        code: 1,
-+      },
-+      { match: "^api ", stdout: pull },
-+    ]);
-+    const error = await new GhGitHubReader()
-+      .pullRequest(context)
-+      .catch((caught: unknown) => caught);
-+    expect(error).toBeInstanceOf(WatcherQueryError);
-+    expect((error as WatcherQueryError).failure).toMatchObject({
-+      kind: "command-exit",
-+      detail: "HTTP 502: Bad Gateway (https://api.github.com/graphql)",
++  for (const detail of [
++    "HTTP 502: Bad Gateway (https://api.github.com/graphql)",
++    "HTTP 403: API rate limit exceeded for user ID 1. (https://api.github.com/graphql)",
++  ])
++    it(`keeps the gh failure and skips REST after: ${detail}`, async () => {
++      routes([
++        { match: "^pr view", stderr: detail, code: 1 },
++        { match: "^api ", stdout: pull },
++      ]);
++      const error = await new GhGitHubReader()
++        .pullRequest(context)
++        .catch((caught: unknown) => caught);
++      expect(error).toBeInstanceOf(WatcherQueryError);
++      expect((error as WatcherQueryError).failure).toMatchObject({
++        kind: "command-exit",
++        detail,
++      });
++      expect(calls().filter((call) => call.startsWith("api "))).toEqual([]);
 +    });
-+    expect(calls().filter((call) => call.startsWith("api "))).toEqual([]);
-+  });
 +
 +  it("reports an empty REST check list as unavailable checks", async () => {
 +    routes([
@@ -468,18 +478,14 @@ index 0000000..f584780
 +    ]);
 +  });
 +
-+  it("infers the current branch's PR through gh's repository placeholders", async () => {
++  it("infers the current branch's open PR through gh's repository placeholders", async () => {
++    const placeholders =
++      "^api --method GET repos/\\{owner\\}/\\{repo\\}/pulls -F head=\\{owner\\}:\\{branch\\}";
 +    routes([
 +      ...refusedCli,
 +      {
-+        match:
-+          "^api --method GET repos/\\{owner\\}/\\{repo\\}/pulls -F head=\\{owner\\}:\\{branch\\} -f state=all",
++        match: `${placeholders} -f state=open`,
 +        stdout: [
-+          {
-+            number: 7,
-+            state: "closed",
-+            html_url: "https://github.com/owner/repo/pull/7",
-+          },
 +          {
 +            number: 9,
 +            state: "open",
@@ -492,6 +498,70 @@ index 0000000..f584780
 +    expect(
 +      await resolveContext({ reader, owner: null, repo: null, pr: null })
 +    ).toEqual({ owner: "owner", repo: "repo", number: parsePrNumber(9) });
++    routes([
++      ...refusedCli,
++      { match: `${placeholders} -f state=open`, stdout: [] },
++      {
++        match: `${placeholders} -f state=all`,
++        stdout: [
++          {
++            number: 7,
++            state: "closed",
++            html_url: "https://github.com/owner/repo/pull/7",
++          },
++        ],
++      },
++    ]);
++    expect(await reader.currentPr(null)).toEqual({
++      owner: "owner",
++      repo: "repo",
++      number: parsePrNumber(7),
++    });
++  });
++
++  it("finds a fork branch's PR under its push remote's owner", async () => {
++    const checkout = join(directory, "checkout");
++    mkdirSync(checkout);
++    const git = (...args: string[]) =>
++      execFileSync("git", ["-C", checkout, ...args], { stdio: "ignore" });
++    git("init", "-q");
++    git("checkout", "-q", "-b", "feature");
++    git(
++      "-c",
++      "user.name=test",
++      "-c",
++      "user.email=test@example.invalid",
++      "-c",
++      "commit.gpgsign=false",
++      "commit",
++      "-q",
++      "--allow-empty",
++      "-m",
++      "initial"
++    );
++    git("remote", "add", "origin", "https://github.com/owner/repo.git");
++    git("remote", "add", "fork", "git@github.com:someone/repo.git");
++    git("config", "branch.feature.pushRemote", "fork");
++    process.chdir(checkout);
++    routes([
++      ...refusedCli,
++      {
++        match:
++          "^api --method GET repos/\\{owner\\}/\\{repo\\}/pulls -f head=someone:feature -f state=open",
++        stdout: [
++          {
++            number: 11,
++            state: "open",
++            html_url: "https://github.com/owner/repo/pull/11",
++          },
++        ],
++      },
++    ]);
++    expect(await new GhGitHubReader().currentPr(null)).toEqual({
++      owner: "owner",
++      repo: "repo",
++      number: parsePrNumber(11),
++    });
 +  });
 +
 +  it("fails closed when a REST thread has no comments", async () => {
@@ -552,11 +622,17 @@ index 0000000..f584780
 +    ).toBe("APPROVED");
 +    expect(
 +      restReviewDecision([
-+        { user: { login: "a" }, state: "CHANGES_REQUESTED" },
 +        { user: { login: "a" }, state: "DISMISSED" },
 +        { user: { login: "b" }, state: "APPROVED" },
 +      ])
 +    ).toBe("APPROVED");
++    expect(
++      restReviewDecision([
++        { user: { login: "a" }, state: "CHANGES_REQUESTED" },
++        { user: { login: "a" }, state: "DISMISSED" },
++        { user: { login: "b" }, state: "APPROVED" },
++      ])
++    ).toBe("CHANGES_REQUESTED");
 +    expect(
 +      restReviewDecision([
 +        { user: { login: "a" }, state: "APPROVED" },
@@ -566,7 +642,7 @@ index 0000000..f584780
 +  });
 +});
 diff --git a/skills/poteto-mode/scripts/watch-pr/github.ts b/skills/poteto-mode/scripts/watch-pr/github.ts
-index 123a33b..99bd12c 100644
+index 123a33b..09211b3 100644
 --- a/skills/poteto-mode/scripts/watch-pr/github.ts
 +++ b/skills/poteto-mode/scripts/watch-pr/github.ts
 @@ -455,7 +455,7 @@ function graphqlArgs(
@@ -578,7 +654,7 @@ index 123a33b..99bd12c 100644
    async originRepo(): Promise<T.Repository | null> {
      const result = await run(["git", "remote", "get-url", "origin"]);
      return result.code === 0 ? parseRemote(result.stdout) : null;
-@@ -724,3 +724,358 @@ export async function discoverStack(
+@@ -724,3 +724,387 @@ export async function discoverStack(
  ): Promise<T.NonEmpty<T.PrContext>> {
    return orderStack(context, await reader.openPullRequests(context));
  }
@@ -661,8 +737,9 @@ index 123a33b..99bd12c 100644
 +  return "SUCCESS";
 +}
 +// REST has no review decision. A reviewer's latest approval or change request
-+// counts until it is dismissed, so a change request blocks even where branch
-+// protection requires no review.
++// that is not dismissed counts, so a change request blocks even where branch
++// protection requires no review. Dismissal rewrites only that review's state,
++// so an older undismissed request from the same reviewer still counts.
 +export function restReviewDecision(
 +  reviews: readonly unknown[]
 +): T.ReviewDecision {
@@ -677,7 +754,6 @@ index 123a33b..99bd12c 100644
 +    );
 +    if (state === "APPROVED" || state === "CHANGES_REQUESTED")
 +      latest.set(login, state);
-+    else if (state === "DISMISSED") latest.delete(login);
 +  }
 +  const states = [...latest.values()];
 +  if (states.includes("CHANGES_REQUESTED")) return "CHANGES_REQUESTED";
@@ -688,12 +764,38 @@ index 123a33b..99bd12c 100644
 +    body: value.body,
 +    createdAt: value.created_at,
 +    path: value.path,
-+    line: value.line,
++    line: value.line ?? null,
 +    author:
 +      value.user === null
 +        ? null
 +        : { login: record(value.user, "review comment.user").login },
 +  };
++}
++
++// `gh pr view` finds a branch's PR through the branch's push remote, which is a
++// fork's owner for a fork PR. Without one, gh's {owner} placeholder names the
++// base repository's owner.
++async function pushHead(): Promise<string | null> {
++  const branch = await run([
++    "git",
++    "symbolic-ref",
++    "--quiet",
++    "--short",
++    "HEAD",
++  ]);
++  const name = branch.stdout.trim();
++  if (branch.code !== 0 || !name) return null;
++  const remote = await run([
++    "git",
++    "for-each-ref",
++    "--format=%(push:remotename)",
++    `refs/heads/${name}`,
++  ]);
++  const remoteName = remote.stdout.trim();
++  if (remote.code !== 0 || !remoteName) return null;
++  const url = await run(["git", "remote", "get-url", remoteName]);
++  const owner = url.code === 0 ? parseRemote(url.stdout)?.owner : undefined;
++  return owner === undefined ? null : `head=${owner}:${name}`;
 +}
 +
 +export class RestGitHubReader implements GhReads {
@@ -708,19 +810,22 @@ index 123a33b..99bd12c 100644
 +        number: pr,
 +      };
 +    }
-+    const pulls = list(
-+      await restGet(
-+        "repos/{owner}/{repo}/pulls",
-+        "-F",
-+        "head={owner}:{branch}",
-+        "-f",
-+        "state=all",
-+        "-F",
-+        `per_page=${REST_PAGE_SIZE}`
-+      ),
-+      "current PRs"
-+    ).map((item, index) => record(item, `current PRs[${index}]`));
-+    const pull = pulls.find((item) => item.state === "open") ?? pulls[0];
++    const head = await pushHead();
++    const branchPulls = async (state: "open" | "all") =>
++      list(
++        await restGet(
++          "repos/{owner}/{repo}/pulls",
++          head === null ? "-F" : "-f",
++          head ?? "head={owner}:{branch}",
++          "-f",
++          `state=${state}`,
++          "-F",
++          `per_page=${REST_PAGE_SIZE}`
++        ),
++        "current PRs"
++      ).map((item, index) => record(item, `current PRs[${index}]`));
++    const pull =
++      (await branchPulls("open"))[0] ?? (await branchPulls("all"))[0];
 +    if (pull === undefined)
 +      throw new WatcherQueryError({
 +        kind: "command-exit",
@@ -877,7 +982,7 @@ index 123a33b..99bd12c 100644
 +const graphqlRefused = (failure: T.QueryFailure): boolean =>
 +  failure.kind === "command-exit" &&
 +  /\b403\b/.test(failure.detail) &&
-+  /graphql/i.test(failure.detail);
++  /graphql is not available/i.test(failure.detail);
 +
 +export class GhGitHubReader implements T.GitHubReader {
 +  readonly #cli = new GhCliGitHubReader();
@@ -938,10 +1043,10 @@ index 123a33b..99bd12c 100644
 +  }
 +}
 diff --git a/skills/poteto-mode/scripts/worktree-audit.sh b/skills/poteto-mode/scripts/worktree-audit.sh
-index 6d2e745..056ce6b 100755
+index 6d2e745..90f8282 100755
 --- a/skills/poteto-mode/scripts/worktree-audit.sh
 +++ b/skills/poteto-mode/scripts/worktree-audit.sh
-@@ -53,10 +53,10 @@ esac
+@@ -53,8 +53,8 @@ esac
  git rev-parse --verify --quiet "$base^{commit}" >/dev/null 2>&1 || { echo "error: base ref not found: $base" >&2; exit 1; }
  
  # PR state by branch, fetched once as [{number, state, head}] with a lowercase
@@ -950,29 +1055,23 @@ index 6d2e745..056ce6b 100755
 +# state. Origin when its CLI can read this repo's PRs, otherwise gh, then gh's
 +# REST routes. Empty when none can.
  prs=$(mktemp)
--trap 'rm -f "$prs"' EXIT
-+trap 'rm -f "$prs" "$prs.rest"' EXIT
+ trap 'rm -f "$prs"' EXIT
  if command -v origin >/dev/null 2>&1 \
- 	&& raw=$(origin pr list --author "@me" --state all --limit 1000 \
- 		--json number,status,headRef 2>/dev/null); then
-@@ -64,6 +64,20 @@ if command -v origin >/dev/null 2>&1 \
+@@ -64,6 +64,17 @@ if command -v origin >/dev/null 2>&1 \
  elif raw=$(gh pr list --author "@me" --state all --limit 1000 \
  	--json number,state,headRefName 2>/dev/null); then
  	printf '%s' "$raw" | jq '[.[] | {number, state: (.state | ascii_downcase), head: .headRefName}]' > "$prs" 2>/dev/null
-+elif me=$(gh api user --jq .login 2>/dev/null) && [ -n "$me" ]; then
++elif me=$(gh api user --jq .login 2>/dev/null) && [ -n "$me" ] && rest_prs=$(mktemp); then
 +	# gh pr needs GraphQL, which some hosts (Claude cloud sessions) refuse. REST
-+	# has no author filter, so read the 1000 newest PRs and keep the user's.
-+	page=1
-+	while [ "$page" -le 10 ] && raw=$(gh api --method GET 'repos/{owner}/{repo}/pulls' \
-+		-f state=all -F per_page=100 -F page="$page" \
-+		--jq '[.[] | {number, state, merged_at, head: .head.ref, login: .user.login}]' 2>/dev/null); do
-+		printf '%s\n' "$raw" >> "$prs.rest"
-+		[ "$(printf '%s' "$raw" | jq length 2>/dev/null)" = 100 ] || break
-+		page=$((page + 1))
-+	done
-+	[ -s "$prs.rest" ] && jq -s --arg me "$me" '[add // [] | .[] | select(.login == $me)
-+		| {number, state: (if .merged_at then "merged" else .state end), head}]' \
-+		"$prs.rest" > "$prs" 2>/dev/null
++	# has no author filter, so look up each worktree branch's PRs and keep yours.
++	trap 'rm -f "$prs" "$rest_prs"' EXIT
++	git -c core.quotePath=false worktree list --porcelain | sed -n 's|^branch refs/heads/||p' | while read -r b; do
++		gh api --method GET 'repos/{owner}/{repo}/pulls' -F head="{owner}:$b" -f state=all -F per_page=100 \
++			--jq '[.[] | {number, state: (if .merged_at then "merged" else .state end), head: .head.ref, login: .user.login}]' \
++			</dev/null 2>/dev/null || echo "warn: could not read PR state for $b; verify before pruning" >&2
++	done > "$rest_prs"
++	jq -s --arg me "$me" '[add // [] | .[] | select(.login == $me) | {number, state, head}]' \
++		"$rest_prs" > "$prs" 2>/dev/null
  fi
  [ -s "$prs" ] || echo "[]" > "$prs"
  

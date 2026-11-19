@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -31,9 +38,12 @@ interface Route {
 
 let directory = "";
 let originalPath = "";
+let originalCwd = "";
 beforeEach(() => {
   directory = mkdtempSync(join(tmpdir(), "watch-pr-rest-"));
   originalPath = process.env.PATH ?? "";
+  originalCwd = process.cwd();
+  process.chdir(directory);
   writeFileSync(
     join(directory, "gh"),
     `#!${process.execPath}
@@ -54,6 +64,7 @@ process.exit(2);
   process.env.PATH = `${directory}:${originalPath}`;
 });
 afterEach(() => {
+  process.chdir(originalCwd);
   process.env.PATH = originalPath;
   rmSync(directory, { recursive: true, force: true });
 });
@@ -141,7 +152,6 @@ const restSnapshot: readonly Route[] = [
         body: "old",
         created_at: "2026-11-18T00:00:00Z",
         path: "src/b.ts",
-        line: null,
         user: { login: "carol" },
       },
     ],
@@ -245,25 +255,25 @@ describe("REST fallback after GitHub refuses GraphQL", () => {
     expect(made.every((call) => !call.includes("{owner}"))).toBe(true);
   });
 
-  it("keeps the gh failure and skips REST when GraphQL was not refused", async () => {
-    routes([
-      {
-        match: "^pr view",
-        stderr: "HTTP 502: Bad Gateway (https://api.github.com/graphql)",
-        code: 1,
-      },
-      { match: "^api ", stdout: pull },
-    ]);
-    const error = await new GhGitHubReader()
-      .pullRequest(context)
-      .catch((caught: unknown) => caught);
-    expect(error).toBeInstanceOf(WatcherQueryError);
-    expect((error as WatcherQueryError).failure).toMatchObject({
-      kind: "command-exit",
-      detail: "HTTP 502: Bad Gateway (https://api.github.com/graphql)",
+  for (const detail of [
+    "HTTP 502: Bad Gateway (https://api.github.com/graphql)",
+    "HTTP 403: API rate limit exceeded for user ID 1. (https://api.github.com/graphql)",
+  ])
+    it(`keeps the gh failure and skips REST after: ${detail}`, async () => {
+      routes([
+        { match: "^pr view", stderr: detail, code: 1 },
+        { match: "^api ", stdout: pull },
+      ]);
+      const error = await new GhGitHubReader()
+        .pullRequest(context)
+        .catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(WatcherQueryError);
+      expect((error as WatcherQueryError).failure).toMatchObject({
+        kind: "command-exit",
+        detail,
+      });
+      expect(calls().filter((call) => call.startsWith("api "))).toEqual([]);
     });
-    expect(calls().filter((call) => call.startsWith("api "))).toEqual([]);
-  });
 
   it("reports an empty REST check list as unavailable checks", async () => {
     routes([
@@ -350,18 +360,14 @@ describe("REST fallback after GitHub refuses GraphQL", () => {
     ]);
   });
 
-  it("infers the current branch's PR through gh's repository placeholders", async () => {
+  it("infers the current branch's open PR through gh's repository placeholders", async () => {
+    const placeholders =
+      "^api --method GET repos/\\{owner\\}/\\{repo\\}/pulls -F head=\\{owner\\}:\\{branch\\}";
     routes([
       ...refusedCli,
       {
-        match:
-          "^api --method GET repos/\\{owner\\}/\\{repo\\}/pulls -F head=\\{owner\\}:\\{branch\\} -f state=all",
+        match: `${placeholders} -f state=open`,
         stdout: [
-          {
-            number: 7,
-            state: "closed",
-            html_url: "https://github.com/owner/repo/pull/7",
-          },
           {
             number: 9,
             state: "open",
@@ -374,6 +380,70 @@ describe("REST fallback after GitHub refuses GraphQL", () => {
     expect(
       await resolveContext({ reader, owner: null, repo: null, pr: null })
     ).toEqual({ owner: "owner", repo: "repo", number: parsePrNumber(9) });
+    routes([
+      ...refusedCli,
+      { match: `${placeholders} -f state=open`, stdout: [] },
+      {
+        match: `${placeholders} -f state=all`,
+        stdout: [
+          {
+            number: 7,
+            state: "closed",
+            html_url: "https://github.com/owner/repo/pull/7",
+          },
+        ],
+      },
+    ]);
+    expect(await reader.currentPr(null)).toEqual({
+      owner: "owner",
+      repo: "repo",
+      number: parsePrNumber(7),
+    });
+  });
+
+  it("finds a fork branch's PR under its push remote's owner", async () => {
+    const checkout = join(directory, "checkout");
+    mkdirSync(checkout);
+    const git = (...args: string[]) =>
+      execFileSync("git", ["-C", checkout, ...args], { stdio: "ignore" });
+    git("init", "-q");
+    git("checkout", "-q", "-b", "feature");
+    git(
+      "-c",
+      "user.name=test",
+      "-c",
+      "user.email=test@example.invalid",
+      "-c",
+      "commit.gpgsign=false",
+      "commit",
+      "-q",
+      "--allow-empty",
+      "-m",
+      "initial"
+    );
+    git("remote", "add", "origin", "https://github.com/owner/repo.git");
+    git("remote", "add", "fork", "git@github.com:someone/repo.git");
+    git("config", "branch.feature.pushRemote", "fork");
+    process.chdir(checkout);
+    routes([
+      ...refusedCli,
+      {
+        match:
+          "^api --method GET repos/\\{owner\\}/\\{repo\\}/pulls -f head=someone:feature -f state=open",
+        stdout: [
+          {
+            number: 11,
+            state: "open",
+            html_url: "https://github.com/owner/repo/pull/11",
+          },
+        ],
+      },
+    ]);
+    expect(await new GhGitHubReader().currentPr(null)).toEqual({
+      owner: "owner",
+      repo: "repo",
+      number: parsePrNumber(11),
+    });
   });
 
   it("fails closed when a REST thread has no comments", async () => {
@@ -434,11 +504,17 @@ describe("REST mappings", () => {
     ).toBe("APPROVED");
     expect(
       restReviewDecision([
-        { user: { login: "a" }, state: "CHANGES_REQUESTED" },
         { user: { login: "a" }, state: "DISMISSED" },
         { user: { login: "b" }, state: "APPROVED" },
       ])
     ).toBe("APPROVED");
+    expect(
+      restReviewDecision([
+        { user: { login: "a" }, state: "CHANGES_REQUESTED" },
+        { user: { login: "a" }, state: "DISMISSED" },
+        { user: { login: "b" }, state: "APPROVED" },
+      ])
+    ).toBe("CHANGES_REQUESTED");
     expect(
       restReviewDecision([
         { user: { login: "a" }, state: "APPROVED" },

@@ -56,7 +56,7 @@ git rev-parse --verify --quiet "$base^{commit}" >/dev/null 2>&1 || { echo "error
 # state. Origin when its CLI can read this repo's PRs, otherwise gh, then gh's
 # REST routes. Empty when none can.
 prs=$(mktemp)
-trap 'rm -f "$prs" "$prs.rest"' EXIT
+trap 'rm -f "$prs"' EXIT
 if command -v origin >/dev/null 2>&1 \
 	&& raw=$(origin pr list --author "@me" --state all --limit 1000 \
 		--json number,status,headRef 2>/dev/null); then
@@ -64,20 +64,17 @@ if command -v origin >/dev/null 2>&1 \
 elif raw=$(gh pr list --author "@me" --state all --limit 1000 \
 	--json number,state,headRefName 2>/dev/null); then
 	printf '%s' "$raw" | jq '[.[] | {number, state: (.state | ascii_downcase), head: .headRefName}]' > "$prs" 2>/dev/null
-elif me=$(gh api user --jq .login 2>/dev/null) && [ -n "$me" ]; then
+elif me=$(gh api user --jq .login 2>/dev/null) && [ -n "$me" ] && rest_prs=$(mktemp); then
 	# gh pr needs GraphQL, which some hosts (Claude cloud sessions) refuse. REST
-	# has no author filter, so read the 1000 newest PRs and keep the user's.
-	page=1
-	while [ "$page" -le 10 ] && raw=$(gh api --method GET 'repos/{owner}/{repo}/pulls' \
-		-f state=all -F per_page=100 -F page="$page" \
-		--jq '[.[] | {number, state, merged_at, head: .head.ref, login: .user.login}]' 2>/dev/null); do
-		printf '%s\n' "$raw" >> "$prs.rest"
-		[ "$(printf '%s' "$raw" | jq length 2>/dev/null)" = 100 ] || break
-		page=$((page + 1))
-	done
-	[ -s "$prs.rest" ] && jq -s --arg me "$me" '[add // [] | .[] | select(.login == $me)
-		| {number, state: (if .merged_at then "merged" else .state end), head}]' \
-		"$prs.rest" > "$prs" 2>/dev/null
+	# has no author filter, so look up each worktree branch's PRs and keep yours.
+	trap 'rm -f "$prs" "$rest_prs"' EXIT
+	git -c core.quotePath=false worktree list --porcelain | sed -n 's|^branch refs/heads/||p' | while read -r b; do
+		gh api --method GET 'repos/{owner}/{repo}/pulls' -F head="{owner}:$b" -f state=all -F per_page=100 \
+			--jq '[.[] | {number, state: (if .merged_at then "merged" else .state end), head: .head.ref, login: .user.login}]' \
+			</dev/null 2>/dev/null || echo "warn: could not read PR state for $b; verify before pruning" >&2
+	done > "$rest_prs"
+	jq -s --arg me "$me" '[add // [] | .[] | select(.login == $me) | {number, state, head}]' \
+		"$rest_prs" > "$prs" 2>/dev/null
 fi
 [ -s "$prs" ] || echo "[]" > "$prs"
 

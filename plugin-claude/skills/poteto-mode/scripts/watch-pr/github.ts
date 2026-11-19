@@ -803,8 +803,9 @@ export function restRollupState(
   return "SUCCESS";
 }
 // REST has no review decision. A reviewer's latest approval or change request
-// counts until it is dismissed, so a change request blocks even where branch
-// protection requires no review.
+// that is not dismissed counts, so a change request blocks even where branch
+// protection requires no review. Dismissal rewrites only that review's state,
+// so an older undismissed request from the same reviewer still counts.
 export function restReviewDecision(
   reviews: readonly unknown[]
 ): T.ReviewDecision {
@@ -819,7 +820,6 @@ export function restReviewDecision(
     );
     if (state === "APPROVED" || state === "CHANGES_REQUESTED")
       latest.set(login, state);
-    else if (state === "DISMISSED") latest.delete(login);
   }
   const states = [...latest.values()];
   if (states.includes("CHANGES_REQUESTED")) return "CHANGES_REQUESTED";
@@ -830,12 +830,38 @@ function restComment(value: Record<string, unknown>): Record<string, unknown> {
     body: value.body,
     createdAt: value.created_at,
     path: value.path,
-    line: value.line,
+    line: value.line ?? null,
     author:
       value.user === null
         ? null
         : { login: record(value.user, "review comment.user").login },
   };
+}
+
+// `gh pr view` finds a branch's PR through the branch's push remote, which is a
+// fork's owner for a fork PR. Without one, gh's {owner} placeholder names the
+// base repository's owner.
+async function pushHead(): Promise<string | null> {
+  const branch = await run([
+    "git",
+    "symbolic-ref",
+    "--quiet",
+    "--short",
+    "HEAD",
+  ]);
+  const name = branch.stdout.trim();
+  if (branch.code !== 0 || !name) return null;
+  const remote = await run([
+    "git",
+    "for-each-ref",
+    "--format=%(push:remotename)",
+    `refs/heads/${name}`,
+  ]);
+  const remoteName = remote.stdout.trim();
+  if (remote.code !== 0 || !remoteName) return null;
+  const url = await run(["git", "remote", "get-url", remoteName]);
+  const owner = url.code === 0 ? parseRemote(url.stdout)?.owner : undefined;
+  return owner === undefined ? null : `head=${owner}:${name}`;
 }
 
 export class RestGitHubReader implements GhReads {
@@ -850,19 +876,22 @@ export class RestGitHubReader implements GhReads {
         number: pr,
       };
     }
-    const pulls = list(
-      await restGet(
-        "repos/{owner}/{repo}/pulls",
-        "-F",
-        "head={owner}:{branch}",
-        "-f",
-        "state=all",
-        "-F",
-        `per_page=${REST_PAGE_SIZE}`
-      ),
-      "current PRs"
-    ).map((item, index) => record(item, `current PRs[${index}]`));
-    const pull = pulls.find((item) => item.state === "open") ?? pulls[0];
+    const head = await pushHead();
+    const branchPulls = async (state: "open" | "all") =>
+      list(
+        await restGet(
+          "repos/{owner}/{repo}/pulls",
+          head === null ? "-F" : "-f",
+          head ?? "head={owner}:{branch}",
+          "-f",
+          `state=${state}`,
+          "-F",
+          `per_page=${REST_PAGE_SIZE}`
+        ),
+        "current PRs"
+      ).map((item, index) => record(item, `current PRs[${index}]`));
+    const pull =
+      (await branchPulls("open"))[0] ?? (await branchPulls("all"))[0];
     if (pull === undefined)
       throw new WatcherQueryError({
         kind: "command-exit",
@@ -1019,7 +1048,7 @@ export class RestGitHubReader implements GhReads {
 const graphqlRefused = (failure: T.QueryFailure): boolean =>
   failure.kind === "command-exit" &&
   /\b403\b/.test(failure.detail) &&
-  /graphql/i.test(failure.detail);
+  /graphql is not available/i.test(failure.detail);
 
 export class GhGitHubReader implements T.GitHubReader {
   readonly #cli = new GhCliGitHubReader();

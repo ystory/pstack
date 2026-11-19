@@ -132,7 +132,7 @@ The session's GitHub proxy refuses GraphQL, so `gh pr` commands fail there with 
 
 ## Long runs and saved files
 
-The container is reclaimed after the session goes idle, and a later message or wake can start a fresh one. Session timers from CronCreate or `/loop`, background tasks, unpushed commits, worktrees, and files outside the shared folder do not carry over. In a cloud session, pstack's long runs arm server-side wakes, such as PR activity subscriptions and scheduled messages. In a Claude Project, they keep the run's task store, decision trail, and resume note under `/mnt/project-files/pstack/`. Outside a Project, they commit that state to the run's pushed branch or post it on the PR. [Claude cloud sessions](../../skills/poteto-mode/references/claude-cloud.md) has the rules.
+The container is reclaimed after the session goes idle, and a later message or wake can start a fresh one. Session timers from CronCreate or `/loop`, background tasks, unpushed commits, worktrees, and files outside the shared folder do not carry over. In a cloud session, pstack's long runs arm server-side wakes, such as PR activity subscriptions and scheduled messages. In a Claude Project, they keep the run's task store, decision trail, and resume note under `/mnt/project-files/pstack/`. Outside a Project, only pushed commits and notes on the run's PR survive, so they post that state as comments on the PR. A run with neither a Project folder nor a push it may make says in its reply that its work lives only in the container. [Claude cloud sessions](../../skills/poteto-mode/references/claude-cloud.md) has the rules.
 
 ## When something is missing
 
@@ -140,7 +140,7 @@ The container is reclaimed after the session goes idle, and a later message or w
 - **Detection reports `standalone-app-server` with `ENOENT`.** The saved file has no `codexWorkers`, so it means `hidden`. Save `visible`.
 - **Detection reports `auth.loggedIn` as `false`.** The link points at a file that does not exist yet, or the login expired. Repeat the sign-in steps above from the `rm`.
 - **A `gh pr` command fails with HTTP 403.** GitHub refused GraphQL. Use its REST route from [GitHub REST fallback](../../skills/poteto-mode/references/github-rest.md).
-- **A long run stopped waking, or a resumed run lost its notes.** The run used a session timer or a container-local file, and a new container dropped it. Check that the session runs pstack 0.1.0-dev.42 or later, then resume from the pushed branch and `/mnt/project-files/pstack/`.
+- **A long run stopped waking, or a resumed run lost its notes.** The run used a session timer or a container-local file, and a new container dropped it. Check that the session runs pstack 0.1.0-dev.42 or later, then resume from the pushed branch and `/mnt/project-files/pstack/`, or from the notes on the run's PR outside a Project.
 - **A Codex host is refused.** Add the host to **Allowed domains**. Leave the network level at **Limited** unless the work needs more.
 
 Back to [Set up pstack](01-setup.md).

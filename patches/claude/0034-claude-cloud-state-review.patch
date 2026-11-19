@@ -1,0 +1,110 @@
+diff --git a/docs/guide/cloud-sessions.md b/docs/guide/cloud-sessions.md
+index ad95aed..c7cb590 100644
+--- a/docs/guide/cloud-sessions.md
++++ b/docs/guide/cloud-sessions.md
+@@ -132,7 +132,7 @@ The session's GitHub proxy refuses GraphQL, so `gh pr` commands fail there with
+ 
+ ## Long runs and saved files
+ 
+-The container is reclaimed after the session goes idle, and a later message or wake can start a fresh one. Session timers from CronCreate or `/loop`, background tasks, unpushed commits, worktrees, and files outside the shared folder do not carry over. In a cloud session, pstack's long runs arm server-side wakes, such as PR activity subscriptions and scheduled messages. In a Claude Project, they keep the run's task store, decision trail, and resume note under `/mnt/project-files/pstack/`. Outside a Project, they commit that state to the run's pushed branch or post it on the PR. [Claude cloud sessions](../../skills/poteto-mode/references/claude-cloud.md) has the rules.
++The container is reclaimed after the session goes idle, and a later message or wake can start a fresh one. Session timers from CronCreate or `/loop`, background tasks, unpushed commits, worktrees, and files outside the shared folder do not carry over. In a cloud session, pstack's long runs arm server-side wakes, such as PR activity subscriptions and scheduled messages. In a Claude Project, they keep the run's task store, decision trail, and resume note under `/mnt/project-files/pstack/`. Outside a Project, only pushed commits and notes on the run's PR survive, so they post that state as comments on the PR. A run with neither a Project folder nor a push it may make says in its reply that its work lives only in the container. [Claude cloud sessions](../../skills/poteto-mode/references/claude-cloud.md) has the rules.
+ 
+ ## When something is missing
+ 
+@@ -140,7 +140,7 @@ The container is reclaimed after the session goes idle, and a later message or w
+ - **Detection reports `standalone-app-server` with `ENOENT`.** The saved file has no `codexWorkers`, so it means `hidden`. Save `visible`.
+ - **Detection reports `auth.loggedIn` as `false`.** The link points at a file that does not exist yet, or the login expired. Repeat the sign-in steps above from the `rm`.
+ - **A `gh pr` command fails with HTTP 403.** GitHub refused GraphQL. Use its REST route from [GitHub REST fallback](../../skills/poteto-mode/references/github-rest.md).
+-- **A long run stopped waking, or a resumed run lost its notes.** The run used a session timer or a container-local file, and a new container dropped it. Check that the session runs pstack 0.1.0-dev.42 or later, then resume from the pushed branch and `/mnt/project-files/pstack/`.
++- **A long run stopped waking, or a resumed run lost its notes.** The run used a session timer or a container-local file, and a new container dropped it. Check that the session runs pstack 0.1.0-dev.42 or later, then resume from the pushed branch and `/mnt/project-files/pstack/`, or from the notes on the run's PR outside a Project.
+ - **A Codex host is refused.** Add the host to **Allowed domains**. Leave the network level at **Limited** unless the work needs more.
+ 
+ Back to [Set up pstack](01-setup.md).
+diff --git a/skills/poteto-mode/playbooks/autopilot-full.md b/skills/poteto-mode/playbooks/autopilot-full.md
+index ec9b257..086f833 100644
+--- a/skills/poteto-mode/playbooks/autopilot-full.md
++++ b/skills/poteto-mode/playbooks/autopilot-full.md
+@@ -7,7 +7,7 @@ Read [Claude Code execution](../references/execution.md) and resolve `feature, r
+ A verdict covers one patch and green CI covers one head. Step 4 runs a full swarm once, and again only for a major change. The patch-id rule in `playbooks/shipping.md` can carry a lane's result, and every new head needs its own green CI.
+ 
+ 1. **The operator's gates come first.** The grant covers only the queue's items, so items the operator names as theirs and PRs outside the queue stop at merge-ready. A request to state the plan is not a go.
+-2. **Spawn one owner per PR, and keep its work where a replacement can find it.** Resolve, create, and record one absolute local task-store path before spawning owners or arming a heartbeat. Use the caller's explicit path or `<project>/.local/pstack/orchestrate/<project-slug>/`. In a Claude cloud session, use the durable location from [Claude cloud sessions](../references/claude-cloud.md) instead of `.local/`. Pass that same path in every owner, replacement, and resume brief and the heartbeat prompt. Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). Each owner is an independent worker in an exclusive worktree that builds, opens its PR per `playbooks/opening-a-pr.md`, proves the change on the real artifact, babysits to green per `playbooks/babysit.md`, and merges once steps 4 and 5 clear it. Where that playbook says to report a rebase, the owner rebases its own branch and publishes it with `git push --force-with-lease`.
++2. **Spawn one owner per PR, and keep its work where a replacement can find it.** Resolve, create, and record one absolute local task-store path before spawning owners or arming a heartbeat. Use the caller's explicit path or `<project>/.local/pstack/orchestrate/<project-slug>/`. Pass that same path in every owner, replacement, and resume brief and the heartbeat prompt. In a Claude cloud session, keep the task store in the durable location from [Claude cloud sessions](../references/claude-cloud.md) instead of `.local/`. Pass its folder path or PR comment URL in place of the absolute local task-store path in every owner, replacement, and resume brief and in the heartbeat prompt. Resolve the forge once for the program. GitHub CLI (`gh`) is the default. If `command -v origin` succeeds and Origin can resolve the repository, use `origin pr` for every PR operation. Otherwise stay on `gh` and record the fallback. Never require Graphite (`gt`). Each owner is an independent worker in an exclusive worktree that builds, opens its PR per `playbooks/opening-a-pr.md`, proves the change on the real artifact, babysits to green per `playbooks/babysit.md`, and merges once steps 4 and 5 clear it. Where that playbook says to report a rebase, the owner rebases its own branch and publishes it with `git push --force-with-lease`.
+ 
+    Open the PR early so CI and bots run alongside the work. The code is ready only after the slop-strip (the bundled **deslop** skill) and the `/no-comments` pass, so the full swarm runs on finished code. Then rebase onto current trunk and report the code-ready head before self-proof, so verification runs on the base the patch lands on. Report every later head, and merge-ready once self-proof, CI, and babysit are done. Fix rounds stay on that base unless trunk conflicts, breaks CI, or lands a known concurrent change to the same files, because each rebase restarts CI. Run the repo's checks for the touched paths on the committed head before the code-ready push and before a later push that needs a verifier.
+ 
+diff --git a/skills/poteto-mode/playbooks/pause-safely.md b/skills/poteto-mode/playbooks/pause-safely.md
+index 5083c2a..91c56b9 100644
+--- a/skills/poteto-mode/playbooks/pause-safely.md
++++ b/skills/poteto-mode/playbooks/pause-safely.md
+@@ -6,7 +6,7 @@ Use [Claude Code execution](../references/execution.md) for worker identities an
+ 
+ 1. Stop at a safe boundary. Finish the current atomic step or back out of it. Start nothing new, and cancel any nested subagents.
+ 2. Take no irreversible action to pause. No PR and no push unless you already had one out.
+-3. Make the work durable. Commit uncommitted edits as one clear `wip:` commit on the current branch so nothing is lost. If the tree is broken, say so in the commit body in one line. In a Claude cloud session, an unpushed commit dies with the container. Unless the run already pushes its branch, also save the `wip:` commit as `git format-patch` output, with any untracked files it left out, in the durable location from [Claude cloud sessions](../references/claude-cloud.md).
++3. Make the work durable. Commit uncommitted edits as one clear `wip:` commit on the current branch so nothing is lost. If the tree is broken, say so in the commit body in one line. In a Claude cloud session, an unpushed commit dies with the container. Unless the run already pushes its branch, save every unpushed commit as `git format-patch` output in the durable location from [Claude cloud sessions](../references/claude-cloud.md). Start the range at the last pushed commit, or at the base when nothing was pushed. Save the untracked files that the commits left out in the same place. When the run has no durable location, say in the reply that its work lives only in this container and is lost once the session goes idle.
+ 4. Write the resume note off-context. Capture intent, what you were doing, progress and what's verified, current state, next steps, key files, and gotchas. For the compaction trigger write it to a file like `/tmp/<slug>-resume.md`. In a Claude cloud session, write it to the durable location instead. If a show-me-your-work trail exists, point at it instead of duplicating it.
+ 
+ **Reply:** where you are in the loop, what's on disk versus still in your head (paths, no diff dumps), the commits you made and whether the tree is clean, and the first action on resume. This is a pause, not a final report.
+diff --git a/skills/poteto-mode/playbooks/shipping.md b/skills/poteto-mode/playbooks/shipping.md
+index 6212415..5e72ef7 100644
+--- a/skills/poteto-mode/playbooks/shipping.md
++++ b/skills/poteto-mode/playbooks/shipping.md
+@@ -8,7 +8,7 @@ Read [Claude Code execution](../references/execution.md) and resolve `swarm work
+ 2. **Land only the contiguous verified run rooted at the bottom.** Walk up from the lowest unmerged PR and stop at the first one without `PASS` or `PASS+NOTES`. The PRs below it are the run, and the top one is the ceiling. A verified PR above an unverified one waits, because it cannot land without the code below it. One whose branch neither holds nor needs that code can move onto trunk and land on its own. It needs a fresh verdict first, because its old one ran with that code beneath it and trunk does not have it.
+ 3. **Re-check that the verdicts still describe the code.** A verdict covers a patch, and a chain rebase moves every PR above it to a new SHA without failing any check. Compare `git patch-id` at the verdict SHA with the current head before trusting an older verdict. When the patches differ only in tests, docs, or lint config, a lane's result stands if what it ran builds the same at both SHAs apart from noise. Noise is a difference that also shows up between two builds of the verdict SHA, or an embedded commit SHA. Report each kind of noise with its files, so a reader can check the call. The change itself still gets fresh checks and a review, because the old verdict never saw it. A lane with no build output, such as a dev server, cannot show this, so rerun it, and re-verify anything else that drifted.
+ 4. **Land bottom-up, one PR at a time.** Always merge the run's lowest unmerged PR, with `origin pr merge <pr>` or `gh pr merge <pr> --squash`. On Origin the plain command also merges every PR below the one you name, and on GitHub a PR whose base is still its parent's branch merges into that branch, not trunk. Read the PR back for the result (`origin pr view <pr>` or `gh pr view <pr> --json state,mergedAt,baseRefName`), because a merge command can report success when a merge queue only queued the PR, and a requested auto-merge is not a merge. A landed PR reads merged with trunk as its base, not its parent's branch. Arm `--auto` (Origin merge-when-ready or GitHub auto-merge) only on a PR whose verdict covers its current head, because it lands whatever head is ready. After a merge lands, retarget the PR whose base was the merged branch to trunk (`origin pr edit <pr> --base <trunk>` or `gh pr edit <pr> --base <trunk>`), move its patch onto the merge result, and push with `--force-with-lease`. The verdict covers the patch, not its commits, so step 3's patch-id rule decides whether the verdict survives. Merge it once its checks pass and its verdict survives.
+-5. **Leave the stack alone while it lands.** Step 4's move of the next PR is the only change to a branch or base, because a merge lands whatever its branch and base hold at that moment, verdict or not. On GitHub, watch the run with `scripts/watch-pr/watch-pr --queued-stack` under `/loop` until it reports `COMPLETE` at the ceiling. Pass the run's PR numbers, bottom-to-top, in `--stack-prs`, and pass the same list each time you restart the watcher. On Origin, re-read the current PR with `origin pr view <pr> --checks` each time `origin pr checks <pr> --watch` returns, until the ceiling reads merged. A base that moves to trunk when its parent merges is expected, not damage to repair. If a merge stalls, find out why before you change anything.
++5. **Leave the stack alone while it lands.** Step 4's move of the next PR is the only change to a branch or base, because a merge lands whatever its branch and base hold at that moment, verdict or not. On GitHub, watch the run with `scripts/watch-pr/watch-pr --queued-stack` under `/loop` until it reports `COMPLETE` at the ceiling. In a Claude cloud session, subscribe to PR activity on the run's PRs, arm a one-shot heartbeat per [Claude cloud sessions](../references/claude-cloud.md), and run the same watcher on each wake instead of under `/loop`. Pass the run's PR numbers, bottom-to-top, in `--stack-prs`, and pass the same list each time you restart the watcher. On Origin, re-read the current PR with `origin pr view <pr> --checks` each time `origin pr checks <pr> --watch` returns, until the ceiling reads merged. A base that moves to trunk when its parent merges is expected, not damage to repair. If a merge stalls, find out why before you change anything.
+ 6. **Stop at the ceiling.** Extending the run takes new verdicts, so it is a new pass through step 1.
+ 
+ **Reply:** the verified run and its ceiling, each PR's verdict and who produced it, what landed and how you confirmed it, and what the next gap needs.
+diff --git a/skills/poteto-mode/references/claude-cloud.md b/skills/poteto-mode/references/claude-cloud.md
+index 0ea33a1..59a8558 100644
+--- a/skills/poteto-mode/references/claude-cloud.md
++++ b/skills/poteto-mode/references/claude-cloud.md
+@@ -24,9 +24,16 @@ Verify each wake you create and record its ID in the run's task store. Point eac
+ 
+ ## Keep state in a durable location
+ 
+-The durable location holds the run's task store, decision trail, resume note, tick instructions, and any receipt that a later tick or reviewer needs. In a Claude Project, it is one subdirectory per run, such as `/mnt/project-files/pstack/<project-slug>/<run-slug>/`. Outside a Project, it is the run's pushed branch or its PR. Commit that state to the branch, or post it on the PR.
++The durable location holds the run's task store, decision trail, resume note, tick instructions, and any receipt that a later tick or reviewer needs.
+ 
+-Push each finished unit before you end a turn or arm a wake.
++- In a Claude Project, the durable location is one subdirectory per run, such as `/mnt/project-files/pstack/<project-slug>/<run-slug>/`.
++- Outside a Project, only what reaches the remote survives: pushed commits, and notes posted on the run's PR. The durable location is the run's PR. Post one comment per note, edit that comment in place, and read it back through `gh api`.
++
++Wherever a workflow passes a local store path, pass the durable location instead. That is the run's folder path in a Project, or the note's PR comment URL outside one.
++
++When the run has no durable location and may not push to make one, say so in the reply. Its work then lives only in this container and is lost once the session goes idle.
++
++When the run already pushes its branch, push each finished unit before you end a turn or arm a wake.
+ 
+ On every wake, rebuild from the durable location and the pushed branches. Fetch, recreate each worktree at its pushed head, and prepare its dependencies per [Worktree dependency and build state](worktree-setup.md). Never assume that a local file or process survived.
+ 
+diff --git a/skills/poteto-mode/references/claude-wakeups.md b/skills/poteto-mode/references/claude-wakeups.md
+index a6e78fa..9b44222 100644
+--- a/skills/poteto-mode/references/claude-wakeups.md
++++ b/skills/poteto-mode/references/claude-wakeups.md
+@@ -14,7 +14,7 @@ For the fallback heartbeat or work without an event, use the session's native Cr
+ 
+ In a Claude cloud session, a wake may land on a fresh container, so first rebuild the run per [Claude cloud sessions](claude-cloud.md). Re-read the store and playbook. Check the predicate on the real artifact, inspect actual agent and command states, drain terminal reports, act, and rearm after the workflow's push waves or verdicts. A child completion event does not establish CI success. Update the user for meaningful changes, completion, failures, or required decisions. Keep quiet ticks in the run's trail.
+ 
+-When the predicate passes or the user pauses, stop the run's active watcher and delete its native schedule by ID. Keep evidence and the resume note. After a restart, inspect actual live task identities before reattaching. Replace missing workers with fresh consolidated briefs. Restore wakeups only for a run the user asked to continue. Never infer that a process survived from a saved checkpoint.
++When the predicate passes or the user pauses, stop the run's active watcher and delete its native schedule by ID. In a Claude cloud session, also cancel each server-side wake recorded per [Claude cloud sessions](claude-cloud.md). Keep evidence and the resume note. After a restart, inspect actual live task identities before reattaching. Replace missing workers with fresh consolidated briefs. Restore wakeups only for a run the user asked to continue. Never infer that a process survived from a saved checkpoint.
+ 
+ ## Webhooks and routines
+ 
+diff --git a/skills/show-me-your-work/SKILL.md b/skills/show-me-your-work/SKILL.md
+index cf2d901..eaf1754 100644
+--- a/skills/show-me-your-work/SKILL.md
++++ b/skills/show-me-your-work/SKILL.md
+@@ -45,7 +45,7 @@ A run is one agent conversation, including its later turns and any summary of it
+ 
+ ## Where it lives
+ 
+-By default the log is a working artifact, not committed. Keep it at `decisions.tsv` in the work dir, or `.audit/<task-slug>.tsv` when several efforts run at once, and leave it out of git. In a Claude cloud session, keep it in the durable location from [Claude cloud sessions](../poteto-mode/references/claude-cloud.md) instead, because the work dir disappears with the container.
++By default the log is a working artifact, not committed. Keep it at `decisions.tsv` in the work dir, or `.audit/<task-slug>.tsv` when several efforts run at once, and leave it out of git. In a Claude cloud session, keep it in the durable location from [Claude cloud sessions](../poteto-mode/references/claude-cloud.md) instead, because the work dir disappears with the container. Outside a Claude Project, that means a note posted on the PR, not a commit, so the rule below still decides when to commit it.
+ 
+ Commit it only when the work is ambitious enough that a reviewer needs the trail to trust the result.
+ 

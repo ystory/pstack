@@ -24,9 +24,16 @@ Verify each wake you create and record its ID in the run's task store. Point eac
 
 ## Keep state in a durable location
 
-The durable location holds the run's task store, decision trail, resume note, tick instructions, and any receipt that a later tick or reviewer needs. In a Claude Project, it is one subdirectory per run, such as `/mnt/project-files/pstack/<project-slug>/<run-slug>/`. Outside a Project, it is the run's pushed branch or its PR. Commit that state to the branch, or post it on the PR.
+The durable location holds the run's task store, decision trail, resume note, tick instructions, and any receipt that a later tick or reviewer needs.
 
-Push each finished unit before you end a turn or arm a wake.
+- In a Claude Project, the durable location is one subdirectory per run, such as `/mnt/project-files/pstack/<project-slug>/<run-slug>/`.
+- Outside a Project, only what reaches the remote survives: pushed commits, and notes posted on the run's PR. The durable location is the run's PR. Post one comment per note, edit that comment in place, and read it back through `gh api`.
+
+Wherever a workflow passes a local store path, pass the durable location instead. That is the run's folder path in a Project, or the note's PR comment URL outside one.
+
+When the run has no durable location and may not push to make one, say so in the reply. Its work then lives only in this container and is lost once the session goes idle.
+
+When the run already pushes its branch, push each finished unit before you end a turn or arm a wake.
 
 On every wake, rebuild from the durable location and the pushed branches. Fetch, recreate each worktree at its pushed head, and prepare its dependencies per [Worktree dependency and build state](worktree-setup.md). Never assume that a local file or process survived.
 

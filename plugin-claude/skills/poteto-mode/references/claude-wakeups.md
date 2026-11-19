@@ -14,7 +14,7 @@ For the fallback heartbeat or work without an event, use the session's native Cr
 
 In a Claude cloud session, a wake may land on a fresh container, so first rebuild the run per [Claude cloud sessions](claude-cloud.md). Re-read the store and playbook. Check the predicate on the real artifact, inspect actual agent and command states, drain terminal reports, act, and rearm after the workflow's push waves or verdicts. A child completion event does not establish CI success. Update the user for meaningful changes, completion, failures, or required decisions. Keep quiet ticks in the run's trail.
 
-When the predicate passes or the user pauses, stop the run's active watcher and delete its native schedule by ID. Keep evidence and the resume note. After a restart, inspect actual live task identities before reattaching. Replace missing workers with fresh consolidated briefs. Restore wakeups only for a run the user asked to continue. Never infer that a process survived from a saved checkpoint.
+When the predicate passes or the user pauses, stop the run's active watcher and delete its native schedule by ID. In a Claude cloud session, also cancel each server-side wake recorded per [Claude cloud sessions](claude-cloud.md). Keep evidence and the resume note. After a restart, inspect actual live task identities before reattaching. Replace missing workers with fresh consolidated briefs. Restore wakeups only for a run the user asked to continue. Never infer that a process survived from a saved checkpoint.
 
 ## Webhooks and routines
 

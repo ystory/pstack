@@ -1,0 +1,71 @@
+diff --git a/skills/poteto-mode/references/github-rest.md b/skills/poteto-mode/references/github-rest.md
+index 5264b0e..41225b4 100644
+--- a/skills/poteto-mode/references/github-rest.md
++++ b/skills/poteto-mode/references/github-rest.md
+@@ -30,5 +30,6 @@ Elsewhere these steps need GraphQL. Report the step as blocked rather than skipp
+ - Check results come from the head commit's check runs and statuses, labeled `graphql-rollup`.
+ - REST has no review decision. Each reviewer's latest undismissed approval or change request counts, so a change request blocks even where branch protection requires no review.
+ - Only the head commit's checks are read, so the status table never shows `was ✅`.
++- Without `--pr`, it looks for the branch's PR under the push remote's owner, then the base owner, open PRs first. It stops and asks for `--pr` when the push URL is not a plain GitHub URL, such as an SSH host alias.
+ 
+ `scripts/worktree-audit.sh` reads PR state through REST after `gh pr list` fails. It looks up each worktree branch's PRs from the base repository and from your fork, keeps yours, and warns about a lookup that failed.
+diff --git a/skills/poteto-mode/scripts/watch-pr/github-rest.test.ts b/skills/poteto-mode/scripts/watch-pr/github-rest.test.ts
+index d571470..eb517ce 100644
+--- a/skills/poteto-mode/scripts/watch-pr/github-rest.test.ts
++++ b/skills/poteto-mode/scripts/watch-pr/github-rest.test.ts
+@@ -471,14 +471,10 @@ describe("REST fallback after GitHub refuses GraphQL", () => {
+       "fork",
+       "git@github-work:someone/repo.git"
+     );
+-    git("remote", "set-url", "fork", "https://github.com/other/repo.git");
+-    routes([
+-      ...refusedCli,
+-      { match: `${fork} -f state=open`, stdout: [pr(14, "open")] },
+-    ]);
+-    expect((await new GhGitHubReader().currentPr(null)).number).toBe(
+-      parsePrNumber(14)
+-    );
++    routes([...refusedCli]);
++    await expect(new GhGitHubReader().currentPr(null)).rejects.toMatchObject({
++      failure: { kind: "invalid-context-url", retryable: false },
++    });
+   });
+ 
+   it("fails closed when a REST thread has no comments", async () => {
+diff --git a/skills/poteto-mode/scripts/watch-pr/github.ts b/skills/poteto-mode/scripts/watch-pr/github.ts
+index c817625..824a5de 100644
+--- a/skills/poteto-mode/scripts/watch-pr/github.ts
++++ b/skills/poteto-mode/scripts/watch-pr/github.ts
+@@ -840,7 +840,9 @@ function restComment(value: Record<string, unknown>): Record<string, unknown> {
+ 
+ // `gh pr view` finds a branch's PR through the branch's push remote, which
+ // names a fork's owner for a fork PR. gh's {owner} placeholder names the base
+-// repository's owner, so both heads are tried.
++// repository's owner, so both heads are tried. A push URL that is not a plain
++// GitHub URL, such as an SSH host alias, names no owner this can trust, so the
++// lookup stops rather than guess.
+ async function pushHead(): Promise<string | null> {
+   const branch = await run([
+     "git",
+@@ -861,12 +863,15 @@ async function pushHead(): Promise<string | null> {
+   if (remote.code !== 0 || !remoteName) return null;
+   const url = await run(["git", "remote", "get-url", "--push", remoteName]);
+   if (url.code !== 0) return null;
+-  // An SSH host alias such as git@github-work:owner/repo.git still names the
+-  // push destination's owner in its path.
+-  const owner =
+-    parseRemote(url.stdout)?.owner ??
+-    /^[^@/:]+@[^/:]+:([^/]+)\/[^/]+$/.exec(url.stdout.trim())?.[1];
+-  return owner === undefined ? null : `head=${owner}:${name}`;
++  const owner = parseRemote(url.stdout)?.owner;
++  if (owner === undefined)
++    throw new WatcherQueryError({
++      kind: "invalid-context-url",
++      retryable: false,
++      rawValue: url.stdout.trim(),
++      detail: `cannot tell which GitHub owner ${remoteName} pushes ${name} to (${url.stdout.trim()}); pass --pr`,
++    });
++  return `head=${owner}:${name}`;
+ }
+ 
+ export class RestGitHubReader implements GhReads {

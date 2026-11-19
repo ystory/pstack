@@ -34,3 +34,4 @@ shared/0006-worktree-dependency-state.patch
 0028-github-rest-fallback-review.patch
 0029-github-rest-fallback-ssh-alias.patch
 0030-github-rest-fallback-push-owner.patch
+0031-github-rest-fallback-push-url.patch

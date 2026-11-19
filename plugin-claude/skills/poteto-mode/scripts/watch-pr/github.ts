@@ -840,7 +840,9 @@ function restComment(value: Record<string, unknown>): Record<string, unknown> {
 
 // `gh pr view` finds a branch's PR through the branch's push remote, which
 // names a fork's owner for a fork PR. gh's {owner} placeholder names the base
-// repository's owner, so both heads are tried.
+// repository's owner, so both heads are tried. A push URL that is not a plain
+// GitHub URL, such as an SSH host alias, names no owner this can trust, so the
+// lookup stops rather than guess.
 async function pushHead(): Promise<string | null> {
   const branch = await run([
     "git",
@@ -861,12 +863,15 @@ async function pushHead(): Promise<string | null> {
   if (remote.code !== 0 || !remoteName) return null;
   const url = await run(["git", "remote", "get-url", "--push", remoteName]);
   if (url.code !== 0) return null;
-  // An SSH host alias such as git@github-work:owner/repo.git still names the
-  // push destination's owner in its path.
-  const owner =
-    parseRemote(url.stdout)?.owner ??
-    /^[^@/:]+@[^/:]+:([^/]+)\/[^/]+$/.exec(url.stdout.trim())?.[1];
-  return owner === undefined ? null : `head=${owner}:${name}`;
+  const owner = parseRemote(url.stdout)?.owner;
+  if (owner === undefined)
+    throw new WatcherQueryError({
+      kind: "invalid-context-url",
+      retryable: false,
+      rawValue: url.stdout.trim(),
+      detail: `cannot tell which GitHub owner ${remoteName} pushes ${name} to (${url.stdout.trim()}); pass --pr`,
+    });
+  return `head=${owner}:${name}`;
 }
 
 export class RestGitHubReader implements GhReads {

@@ -30,5 +30,6 @@ Elsewhere these steps need GraphQL. Report the step as blocked rather than skipp
 - Check results come from the head commit's check runs and statuses, labeled `graphql-rollup`.
 - REST has no review decision. Each reviewer's latest undismissed approval or change request counts, so a change request blocks even where branch protection requires no review.
 - Only the head commit's checks are read, so the status table never shows `was ✅`.
+- Without `--pr`, it looks for the branch's PR under the push remote's owner, then the base owner, open PRs first. It stops and asks for `--pr` when the push URL is not a plain GitHub URL, such as an SSH host alias.
 
 `scripts/worktree-audit.sh` reads PR state through REST after `gh pr list` fails. It looks up each worktree branch's PRs from the base repository and from your fork, keeps yours, and warns about a lookup that failed.

@@ -471,14 +471,10 @@ describe("REST fallback after GitHub refuses GraphQL", () => {
       "fork",
       "git@github-work:someone/repo.git"
     );
-    git("remote", "set-url", "fork", "https://github.com/other/repo.git");
-    routes([
-      ...refusedCli,
-      { match: `${fork} -f state=open`, stdout: [pr(14, "open")] },
-    ]);
-    expect((await new GhGitHubReader().currentPr(null)).number).toBe(
-      parsePrNumber(14)
-    );
+    routes([...refusedCli]);
+    await expect(new GhGitHubReader().currentPr(null)).rejects.toMatchObject({
+      failure: { kind: "invalid-context-url", retryable: false },
+    });
   });
 
   it("fails closed when a REST thread has no comments", async () => {

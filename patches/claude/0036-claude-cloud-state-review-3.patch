@@ -1,0 +1,59 @@
+diff --git a/docs/guide/cloud-sessions.md b/docs/guide/cloud-sessions.md
+index d9f7413..a7b77fb 100644
+--- a/docs/guide/cloud-sessions.md
++++ b/docs/guide/cloud-sessions.md
+@@ -132,7 +132,7 @@ The session's GitHub proxy refuses GraphQL, so `gh pr` commands fail there with
+ 
+ ## Long runs and saved files
+ 
+-The container is reclaimed after the session goes idle, and a later message or wake can start a fresh one. Session timers from CronCreate or `/loop`, background tasks, unpushed commits, worktrees, and files outside the shared folder do not carry over. In a cloud session, pstack's long runs arm server-side wakes, such as PR activity subscriptions and scheduled messages. In a Claude Project, they keep the run's task store, decision trail, and resume note under `/mnt/project-files/pstack/`. Outside a Project, only pushed commits and notes on the run's PR survive, so they post that state as comments on the PR. A run with neither a Project folder nor a PR of its own says in its reply that its work lives only in the container. [Claude cloud sessions](../../skills/poteto-mode/references/claude-cloud.md) has the rules.
++The container is reclaimed after the session goes idle, and a later message or wake can start a fresh one. Session timers from CronCreate or `/loop`, background tasks, unpushed commits, worktrees, and files outside the shared folder do not carry over. In a cloud session, pstack's long runs arm server-side wakes, such as PR activity subscriptions and scheduled messages. In a Claude Project, they keep the run's task store, decision trail, and resume note under `/mnt/project-files/pstack/`. Outside a Project, only pushed commits and notes on the run's PR survive, so they post that state as comments on the PR. A run with neither a Project folder nor a PR of its own says in its reply that its task store and notes live only in the container. [Claude cloud sessions](../../skills/poteto-mode/references/claude-cloud.md) has the rules.
+ 
+ ## When something is missing
+ 
+diff --git a/skills/poteto-mode/playbooks/autopilot-full.md b/skills/poteto-mode/playbooks/autopilot-full.md
+index 86eec4d..f9bd631 100644
+--- a/skills/poteto-mode/playbooks/autopilot-full.md
++++ b/skills/poteto-mode/playbooks/autopilot-full.md
+@@ -11,7 +11,7 @@ A verdict covers one patch and green CI covers one head. Step 4 runs a full swar
+ 
+    Open the PR early so CI and bots run alongside the work. The code is ready only after the slop-strip (the bundled **deslop** skill) and the `/no-comments` pass, so the full swarm runs on finished code. Then rebase onto current trunk and report the code-ready head before self-proof, so verification runs on the base the patch lands on. Report every later head, and merge-ready once self-proof, CI, and babysit are done. Fix rounds stay on that base unless trunk conflicts, breaks CI, or lands a known concurrent change to the same files, because each rebase restarts CI. Run the repo's checks for the touched paths on the committed head before the code-ready push and before a later push that needs a verifier.
+ 
+-   Assume the worker process dies. Soon after starting, push and start a decision trail in that resolved local task store per the **show-me-your-work** skill, then push each finished unit before you start the next. Whoever spawns a subagent records its id, state, and a stuck-after runtime from past runs of its kind in that store, so the root can probe it if the parent dies. Force-push only your own branch, with `--force-with-lease` pinned to the SHA you last pushed or took over, and on any push you did not make, stop and report to the root.
++   Assume the worker process dies. Soon after starting, push and start a decision trail in that resolved task store per the **show-me-your-work** skill, then push each finished unit before you start the next. Whoever spawns a subagent records its id, state, and a stuck-after runtime from past runs of its kind in that store, so the root can probe it if the parent dies. Force-push only your own branch, with `--force-with-lease` pinned to the SHA you last pushed or took over, and on any push you did not make, stop and report to the root.
+ 3. **Run owners in parallel off trunk, never stacked,** so each PR lands on its own.
+ 4. **Swarm-verify once.** A full swarm runs once, at the code-ready head. Another full swarm runs only for new behavior, a redesign, or a large new diff. A rebase, a merge-conflict resolution, or a minor fix gets a single verifier at the new head, and a wording-only change gets none. Fan out independent verifiers at the code-ready SHA per the **swarm** skill. They re-run the gates, prove the load-bearing behavior live on the real surface through its control skill (such as `control-ui` or `control-cli` from `cursor-team-kit`) or a named driver, and audit the diff. The verdict is not clean without the live lane, or before you audit the merge-ready report's receipts, because no lane trusts a claim it has not checked.
+ 
+diff --git a/skills/poteto-mode/references/claude-cloud.md b/skills/poteto-mode/references/claude-cloud.md
+index 982df07..7fcaf97 100644
+--- a/skills/poteto-mode/references/claude-cloud.md
++++ b/skills/poteto-mode/references/claude-cloud.md
+@@ -31,7 +31,7 @@ The durable location holds the run's task store, decision trail, resume note, ti
+ 
+ Wherever a workflow passes a local store path, pass the durable location instead. That is the run's folder path in a Project, or the note's PR comment URL outside one.
+ 
+-When the run has no durable location, say so in the reply. Its work then lives only in this container and is lost once the session goes idle.
++When the run has no durable location, say so in the reply. Its task store, decision trail, and notes then live only in this container and are lost once the session goes idle. Pushed commits still survive.
+ 
+ When the run already pushes its branch, push each finished unit before you end a turn or arm a wake.
+ 
+diff --git a/skills/poteto-mode/references/claude-wakeups.md b/skills/poteto-mode/references/claude-wakeups.md
+index 9b44222..e041724 100644
+--- a/skills/poteto-mode/references/claude-wakeups.md
++++ b/skills/poteto-mode/references/claude-wakeups.md
+@@ -8,13 +8,13 @@ Record the done predicate, authorized scope, standing orders, branch and head, d
+ 
+ For an event, use an actual event subscription when offered. A native background Agent or Bash command can run the bundled `scripts/watch-pr/watch-pr` for GitHub, or an Origin watch command, and return when its event occurs. The parent collects that result and checks forge state before acting. Launch once and retain its task identity. Do not add a second coordinator sleep loop. Use available PR-event subscriptions, owner completion, and its existing checkpoints there.
+ 
+-For the fallback heartbeat or work without an event, use the session's native CronCreate or `/loop` scheduling controls. Include concrete tick instructions and file pointers. Verify the created schedule, cadence, ID, and expiry. [Claude Code scheduled tasks](https://code.claude.com/docs/en/scheduled-tasks) distinguish session schedules from Desktop and cloud schedules. A session timer requires the session and machine. It does not become a durable cloud routine. For work that must survive independently, use an available Desktop or cloud scheduler with its own supported configuration and record that identity. Report a missing required capability before claiming a wake is armed. In a Claude cloud session, session schedules and background watchers die with the container, so arm the server-side wakes from [Claude cloud sessions](claude-cloud.md).
++For the fallback heartbeat or work without an event, use the session's native CronCreate or `/loop` scheduling controls. Include concrete tick instructions and file pointers. Verify the created schedule, cadence, ID, and expiry. [Claude Code scheduled tasks](https://code.claude.com/docs/en/scheduled-tasks) distinguish session schedules from Desktop and cloud schedules. A session timer requires the session and machine. It does not become a durable cloud routine. For work that must survive independently, use an available Desktop or cloud scheduler with its own supported configuration and record that identity. Report a missing required capability before claiming a wake is armed. In a Claude cloud session, session schedules and background watchers die with the container, so arm the server-side wakes from [Claude cloud sessions](claude-cloud.md) instead of CronCreate or `/loop`.
+ 
+ ## Tick and stop
+ 
+ In a Claude cloud session, a wake may land on a fresh container, so first rebuild the run per [Claude cloud sessions](claude-cloud.md). Re-read the store and playbook. Check the predicate on the real artifact, inspect actual agent and command states, drain terminal reports, act, and rearm after the workflow's push waves or verdicts. A child completion event does not establish CI success. Update the user for meaningful changes, completion, failures, or required decisions. Keep quiet ticks in the run's trail.
+ 
+-When the predicate passes or the user pauses, stop the run's active watcher and delete its native schedule by ID. In a Claude cloud session, also cancel each server-side wake recorded per [Claude cloud sessions](claude-cloud.md). Keep evidence and the resume note. After a restart, inspect actual live task identities before reattaching. Replace missing workers with fresh consolidated briefs. Restore wakeups only for a run the user asked to continue. Never infer that a process survived from a saved checkpoint.
++When the predicate passes or the user pauses, stop the run's active watcher and delete its native schedule by ID. In a Claude cloud session, the schedules to delete are the server-side wakes recorded per [Claude cloud sessions](claude-cloud.md). Keep evidence and the resume note. After a restart, inspect actual live task identities before reattaching. Replace missing workers with fresh consolidated briefs. Restore wakeups only for a run the user asked to continue. Never infer that a process survived from a saved checkpoint.
+ 
+ ## Webhooks and routines
+ 

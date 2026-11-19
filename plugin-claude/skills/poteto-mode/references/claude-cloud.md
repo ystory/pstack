@@ -31,7 +31,7 @@ The durable location holds the run's task store, decision trail, resume note, ti
 
 Wherever a workflow passes a local store path, pass the durable location instead. That is the run's folder path in a Project, or the note's PR comment URL outside one.
 
-When the run has no durable location, say so in the reply. Its work then lives only in this container and is lost once the session goes idle.
+When the run has no durable location, say so in the reply. Its task store, decision trail, and notes then live only in this container and are lost once the session goes idle. Pushed commits still survive.
 
 When the run already pushes its branch, push each finished unit before you end a turn or arm a wake.
 

@@ -42,7 +42,7 @@ Swap in the real paths, skills, and done checks. Informal wording works.
 
 ## Away and back
 
-- `/pstack-cc:poteto-mode im going to bed. <goal> in a fresh worktree off <base>. done means <checks>. keep a decision log. don't ask me before committing. /loop until done. if you're truly stuck after a few hours, stop and write up why.`
+- `/pstack-cc:poteto-mode im going to bed. <goal> in a fresh worktree off <base>. done means <checks>. keep a decision log. don't ask me before committing. /loop until done. if you're truly stuck after a few hours, stop and write up why.` In a Claude cloud session, `/loop` stops with the container, so see [Before stepping away](prompting.md#before-stepping-away).
 - `/pstack-cc:show-me-your-work catch me up on what you did last night.` Read its Attention section first.
 - `/pstack-cc:ketchup` catches you up on this chat since your last message and lists every call that waits on you.
 - `/pstack-cc:poteto-mode full autopilot on this queue. each item is independent.`

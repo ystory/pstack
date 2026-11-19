@@ -126,11 +126,16 @@ node "$(find ~/.claude/plugins/cache/pstack-cc -name run-codex.mjs | sort -V | t
 
 A ready container reports `cli.workers` as `visible`, `cli.available` as `true`, and `auth.loggedIn` as `true`. Then run the first task from [Set up pstack](01-setup.md#run-your-first-task).
 
+## Open, watch, and land PRs
+
+The session's GitHub proxy refuses GraphQL, so `gh pr` commands fail there with `GitHub GraphQL is not available from Claude Code sessions`. REST still works through `gh api`. The PR watcher and the worktree audit switch to REST by themselves. The Opening a PR, Shipping, and Babysit playbooks send the agent to the matching REST routes in [GitHub REST fallback](../../skills/poteto-mode/references/github-rest.md). Pushes and PR writes reach only the repositories attached to the session.
+
 ## When something is missing
 
 - **No `/pstack-cc:` commands.** The plugin was installed after Claude started, or the setup script failed before the install. Fix the script and start a new session.
 - **Detection reports `standalone-app-server` with `ENOENT`.** The saved file has no `codexWorkers`, so it means `hidden`. Save `visible`.
 - **Detection reports `auth.loggedIn` as `false`.** The link points at a file that does not exist yet, or the login expired. Repeat the sign-in steps above from the `rm`.
+- **A `gh pr` command fails with HTTP 403.** GitHub refused GraphQL. Use its REST route from [GitHub REST fallback](../../skills/poteto-mode/references/github-rest.md).
 - **A Codex host is refused.** Add the host to **Allowed domains**. Leave the network level at **Limited** unless the work needs more.
 
 Back to [Set up pstack](01-setup.md).

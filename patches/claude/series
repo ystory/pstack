@@ -29,3 +29,9 @@ shared/0006-worktree-dependency-state.patch
 0023-codex-worker-visibility-version.patch
 0024-cloud-sessions-guide.patch
 0025-cloud-sessions-guide-version.patch
+0026-github-rest-fallback.patch
+0027-github-rest-fallback-version.patch
+0028-github-rest-fallback-review.patch
+0029-github-rest-fallback-ssh-alias.patch
+0030-github-rest-fallback-push-owner.patch
+0031-github-rest-fallback-push-url.patch

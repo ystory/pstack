@@ -53,8 +53,8 @@ esac
 git rev-parse --verify --quiet "$base^{commit}" >/dev/null 2>&1 || { echo "error: base ref not found: $base" >&2; exit 1; }
 
 # PR state by branch, fetched once as [{number, state, head}] with a lowercase
-# state. Origin when its CLI can read this repo's PRs, otherwise gh. Empty when
-# neither can.
+# state. Origin when its CLI can read this repo's PRs, otherwise gh, then gh's
+# REST routes. Empty when none can.
 prs=$(mktemp)
 trap 'rm -f "$prs"' EXIT
 if command -v origin >/dev/null 2>&1 \
@@ -64,6 +64,20 @@ if command -v origin >/dev/null 2>&1 \
 elif raw=$(gh pr list --author "@me" --state all --limit 1000 \
 	--json number,state,headRefName 2>/dev/null); then
 	printf '%s' "$raw" | jq '[.[] | {number, state: (.state | ascii_downcase), head: .headRefName}]' > "$prs" 2>/dev/null
+elif me=$(gh api user --jq .login 2>/dev/null) && [ -n "$me" ] && rest_prs=$(mktemp); then
+	# gh pr needs GraphQL, which some hosts (Claude cloud sessions) refuse. REST
+	# has no author filter, so look up each worktree branch's PRs, from the base
+	# repository and from your fork, and keep yours.
+	trap 'rm -f "$prs" "$rest_prs"' EXIT
+	git -c core.quotePath=false worktree list --porcelain | sed -n 's|^branch refs/heads/||p' | while read -r b; do
+		for head in "{owner}:$b" "$me:$b"; do
+			gh api --paginate --method GET 'repos/{owner}/{repo}/pulls' -F head="$head" -f state=all -F per_page=100 \
+				--jq '[.[] | {number, state: (if .merged_at then "merged" else .state end), head: .head.ref, login: .user.login}]' \
+				</dev/null 2>/dev/null || echo "warn: could not read PR state for $head; verify before pruning" >&2
+		done
+	done > "$rest_prs"
+	jq -s --arg me "$me" '[add // [] | .[] | select(.login == $me) | {number, state, head}] | unique_by(.number) | sort_by(.state != "open", -.number)' \
+		"$rest_prs" > "$prs" 2>/dev/null
 fi
 [ -s "$prs" ] || echo "[]" > "$prs"
 

@@ -1,5 +1,5 @@
 diff --git a/.cursor-plugin/plugin.json b/.cursor-plugin/plugin.json
-index 37a0bef..3a17a49 100644
+index b166870..3a17a49 100644
 --- a/.cursor-plugin/plugin.json
 +++ b/.cursor-plugin/plugin.json
 @@ -1,13 +1,13 @@
@@ -7,7 +7,7 @@ index 37a0bef..3a17a49 100644
 -	"name": "pstack",
 +	"name": "pstack-codex",
  	"displayName": "pstack",
--	"version": "0.15.43",
+-	"version": "0.15.46",
 +	"version": "0.1.0-dev.0",
  	"description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
  	"author": {
@@ -48,7 +48,7 @@ index 0000000..aeaee7a
 +
 +You can choose model roles and connected tools, limit the context supplied to a task, change tool permissions, remove local run files, and uninstall the plugin. Use the relevant provider's controls for information already sent to that service. For questions about this notice, contact the maintainers through [GitHub issues](https://github.com/ystory/pstack/issues); keep private task data and credentials out of public reports.
 diff --git a/README.md b/README.md
-index e5d3e49..6f79631 100644
+index e9d3993..6f79631 100644
 --- a/README.md
 +++ b/README.md
 @@ -1,8 +1,12 @@
@@ -113,7 +113,7 @@ index e5d3e49..6f79631 100644
 -new here? the [pstack guide](./docs/guide/README.md) walks you through a first real task, from setup and prompting through verification and overnight runs. stuck, or unsure which skill fits? ask [`/poteto-help`](./skills/poteto-help/SKILL.md).
 +new here? the [pstack guide](./docs/guide/README.md) walks you through a first real task, from setup and prompting through verification and overnight runs. stuck, or unsure which skill fits? ask [`$pstack-codex:poteto-help`](./skills/poteto-help/SKILL.md).
  
--that's it. the other skills are situational, and the mode skill uses them for you as needed. out of the box, code delegates (feature, refactoring, bug fix, perf, hillclimb), prose, and judgment go to opus 5.5 at xhigh, and no role runs above xhigh. outside a review panel, fable 5.2 runs only when you name it or after two opus 5.5 runs of the same brief fail. the default panel is fable 5.2 / opus 5.5 / gemini 4 carbon. [`/setup-pstack`](./skills/setup-pstack/SKILL.md) changes any of it.
+-that's it. the other skills are situational, and the mode skill uses them for you as needed. out of the box, code delegates (feature, refactoring, bug fix, perf, hillclimb), prose, and judgment go to opus 5.5 at xhigh, and no role runs above xhigh. outside a review panel, fable 5.2 runs only when you name it or after two opus 5.5 runs of the same brief fail. the default panel is fable 5.2 / opus 5.5 / gemini 4 neon. [`/setup-pstack`](./skills/setup-pstack/SKILL.md) changes any of it.
 +The other skills are situational. The mode skill uses them as the task needs. Missing roles inherit the native parent, while accepted saved choices retain their exact executor, model, and effort.
  
  ## usage
@@ -456,14 +456,14 @@ index 0000000..e030790
 +OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 +SOFTWARE.
 diff --git a/plugin.json b/plugin.json
-index c4d2488..13a04dc 100644
+index fce40ca..13a04dc 100644
 --- a/plugin.json
 +++ b/plugin.json
 @@ -1,13 +1,13 @@
  {
    "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
 -  "name": "pstack",
--  "version": "0.15.43",
+-  "version": "0.15.46",
 +  "name": "pstack-codex",
 +  "version": "0.1.0-dev.20",
    "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",

@@ -1233,7 +1233,7 @@ index 17422b9..1d99da6 100644
  
  Next: [Set up pstack](./01-setup.md).
 diff --git a/docs/harness/claude-code.md b/docs/harness/claude-code.md
-index 0f12039..76835e8 100644
+index 2a59bc8..76835e8 100644
 --- a/docs/harness/claude-code.md
 +++ b/docs/harness/claude-code.md
 @@ -1,68 +1,7 @@
@@ -1285,7 +1285,7 @@ index 0f12039..76835e8 100644
 -Claude Code loads every `.md` file in `~/.claude/rules/` into each new session, so `setup-pstack` writes its rule there. Follow its steps with these changes:
 -
 -- Detect. The detected models are the `model` values that the `Agent` tool schema lists, each with an effort from its `effort` values. Write a real model as `<model> <effort>`, such as `opus xhigh`. The effort is the last token, so the budget step works as written.
--- Defaults. Map each default slug with the rows above: `claude-opus-5-5-xhigh-fast` is `opus xhigh`, `claude-opus-5-5-high-fast` is `opus high`, `claude-fable-5-2-high` is `fable high`, and `gemini-4-carbon-high` is `inherit-parent`.
+-- Defaults. Map each default slug with the rows above: `claude-opus-5-5-xhigh-fast` is `opus xhigh`, `claude-opus-5-5-high-fast` is `opus high`, `claude-fable-5-2-high` is `fable high`, and `gemini-4-neon-xhigh` is `inherit-parent`.
 -- Write. Write `~/.claude/rules/pstack-models.md` with no frontmatter, then the comment lines, the `# budget` line, and one line per role from step 5. Overwrite the whole file. Never put the role lines in `CLAUDE.md` or `AGENTS.md`.
 -
 -## Paths

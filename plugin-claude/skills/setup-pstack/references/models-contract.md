@@ -47,7 +47,7 @@ The retired keys `how explorer`, `how explainer`, `why investigators`, `why synt
 
 A saved `"budget": "unlimited"` value also keeps working. Read, resolve, and budget treat it as `"large"` and report `{ "from": "unlimited", "to": "large" }` in `replacedBudget`, or `null` when no saved budget was replaced. The next write saves `"large"` unless its input names another accepted budget, and reports the replacement in `replacedBudget`. Any other unknown budget fails validation.
 
-Each role has a starting effort. `swarm workers`, the two panels (`arena runners`, `interrogate reviewers`), and `arena cross-judge pool` start at `high`. The other five roles start at `xhigh`. No role runs above `xhigh`. A budget moves every starting effort by steps on the ladder `low`, `medium`, `high`, `xhigh`. `large` keeps it, `medium` lowers it one step, and `small` lowers it two steps. A target stays at the bottom of the ladder. That result is the role's target effort.
+Each role has a starting effort. `swarm workers`, the two panels (`arena runners`, `interrogate reviewers`), and `arena cross-judge pool` start at `high`. The other five roles start at `xhigh`. An explicitly selected Gemini 4 Neon panel or cross-judge entry starts at `xhigh` before the budget adjustment. The preview keeps its exact model ID. No role runs above `xhigh`. A budget moves every starting effort by steps on the ladder `low`, `medium`, `high`, `xhigh`. `large` keeps it, `medium` lowers it one step, and `small` lowers it two steps. A target stays at the bottom of the ladder. That result is the role's target effort.
 
 Write rejects any exact entry whose `reasoningEffort` is above `xhigh` (`max` or `ultra`), across all executors. Read and resolve still load a saved entry above `xhigh` unchanged.
 

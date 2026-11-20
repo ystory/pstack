@@ -1,0 +1,10 @@
+diff --git a/skills/poteto-mode/references/claude-projects.md b/skills/poteto-mode/references/claude-projects.md
+index 68e3fed..e88180a 100644
+--- a/skills/poteto-mode/references/claude-projects.md
++++ b/skills/poteto-mode/references/claude-projects.md
+@@ -63,4 +63,4 @@ One pinned commit gives the coordinator and every thread the same playbooks.
+ - In a cloud session, the environment's setup script installs pstack. Pin that install to one commit, per [Run pstack in Claude cloud sessions](../../../docs/guide/cloud-sessions.md#install-pstack-in-the-setup-script).
+ - A thread that runs on the person's computer uses that computer's install and its saved role choices. Install the same commit there. Keep the role choices the same on both sides, except for a role whose executor one side lacks.
+ - A coordinator with no installed plugin reads these files from a clone at the pinned commit, not from the default branch.
+-- Where a playbook tells a run to read the playbook again from trunk, read the installed copy. A long run then stays on the pinned commit.
++- Where a playbook tells a run to read the playbook again from trunk, read the installed copy. The run then follows the environment's pin and not trunk. A wake on a fresh container reads the commit that its setup script installed, so a pin that changed while the run was idle changes what the run reads.

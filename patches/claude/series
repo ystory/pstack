@@ -41,3 +41,5 @@ shared/0006-worktree-dependency-state.patch
 0035-claude-cloud-state-review-2.patch
 0036-claude-cloud-state-review-3.patch
 0037-claude-cloud-state-review-4.patch
+0038-claude-projects.patch
+0039-claude-projects-version.patch

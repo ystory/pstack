@@ -1,6 +1,6 @@
 # Run pstack in Claude cloud sessions
 
-A Claude Project thread or a Claude Code session on the web can run in a cloud container instead of on your computer. This page sets up pstack there, with Claude workers and optional Codex workers. A local thread that runs on your computer through Remote Control uses that computer's pstack setup, and nothing here applies to it.
+A Claude Project thread or a Claude Code session on the web can run in a cloud container instead of on your computer. This page sets up pstack there, with Claude workers and optional Codex workers. A local thread that runs on your computer through Remote Control uses that computer's pstack setup. Only the note on running the same commit applies to it.
 
 Read [Set up pstack](01-setup.md) first. The models, roles, and first task work the same way in the cloud. What changes is where the plugin, its saved choices, and the Codex login come from.
 
@@ -86,14 +86,30 @@ ln -sf /opt/node24/bin/codex "$BIN/codex"
 mkdir -p /root/.codex
 ln -sfn /mnt/project-files/.codex-cloud/auth.json /root/.codex/auth.json
 
-# pstack
+# pstack, pinned to one commit
+PSTACK_COMMIT=FULL_COMMIT_SHA
 if ! claude plugin list 2>/dev/null | grep -q 'pstack-cc@pstack-cc'; then
-  claude plugin marketplace add https://github.com/ystory/pstack.git
+  claude plugin marketplace add "https://github.com/ystory/pstack.git#$PSTACK_COMMIT"
   claude plugin install pstack-cc@pstack-cc
 fi
 ```
 
-Each new container installs the default branch as it is at that moment, so new sessions pick up pstack updates without a script change. A session that is already running keeps the version it started with.
+Replace `FULL_COMMIT_SHA` with the full SHA of the pstack commit that every session runs. The `#` suffix pins the marketplace to that commit. To update pstack, change the SHA in the script. A session that is already running keeps the version it started with.
+
+Do not leave the suffix out. An unpinned install takes the default branch as it is when the container is prepared, and the environment can start later sessions from that prepared container. One session observed on 2026-11-20 ran an install made the day before, two commits behind the default branch.
+
+To run the same commit on your computer, pin the marketplace there too:
+
+```sh
+claude plugin uninstall pstack-cc@pstack-cc
+claude plugin marketplace remove pstack-cc
+claude plugin marketplace add "https://github.com/ystory/pstack.git#FULL_COMMIT_SHA"
+claude plugin install pstack-cc@pstack-cc
+```
+
+Your saved model choices survive these commands. Start a new session, then run `/pstack-cc:setup-pstack` once so the registered agents come from the new version.
+
+In a Claude Project, the coordinator and every thread read the same playbooks only when they run the same commit, per [Claude Projects](../../skills/poteto-mode/references/claude-projects.md).
 
 ## Save your model choices in the script
 

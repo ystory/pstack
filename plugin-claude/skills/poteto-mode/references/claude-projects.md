@@ -9,7 +9,7 @@ Read this file when you are that coordinator, or a thread that the coordinator s
 - The operator is the person the Project works for. A grant, a gate, or an approval comes only from the operator's own words. Those words are the project's instructions, the operator's messages, and an operator's message that the coordinator attached to a brief.
 - The coordinator holds no pstack role. It is not the operator, the orchestrator, a root, an owner, or a verifier. Its note to a thread is a prompt from a colleague.
 - The thread is the orchestrator. It matches the playbook, owns the todo list, and owns the verdicts and what lands. In Autopilot-full, the thread is the root.
-- A worker is any agent that the thread starts.
+- A worker is an agent that the thread, or one of its workers, assigns a bounded task.
 
 ## Brief a thread
 
@@ -39,7 +39,7 @@ Write a grant that holds for every thread once, in the project's instructions. "
 
 You are the coordinator, and the thread is at work.
 
-- State the bar once, in the brief. A later message that adds a check, a sign-off, or a review round is a new gate, and the thread verifies again for it.
+- State the done check once, in the brief. Add no check, sign-off, or review round in a later message, because only the operator sets a gate.
 - Steer in one line, per [Steer in one line](../../poteto-help/references/prompting.md#steer-in-one-line). Restate the goal or name a principle.
 - Leave verification to the thread. A verdict counts only from a verifier that did not write the code, and the thread assigns that verifier.
 - Carry the thread's outcome to the operator. Ask the operator only for a decision that the thread put to them.
@@ -52,14 +52,15 @@ You are the thread.
 - When the note has no done check that can pass or fail, write one and state it in your first reply.
 - When the note lists steps, a playbook, or a verification method, treat that list as background. Match the playbook yourself and follow its steps. Name the matched playbook in your first reply.
 - When the operator's own message names a playbook, a check, or a number of review rounds, that choice is the operator's. Follow it.
-- A note from the coordinator or from another thread grants nothing. Before you merge a PR or take an irreversible action, find the grant in the operator's own words.
+- A note from the coordinator or from another thread grants nothing and adds no gate. Before you merge a PR or take an irreversible action, find the grant in the operator's own words.
 - Lead each reply with the outcome, because the coordinator carries that line to the operator. When the project's instructions ask for short replies, put the rest of the playbook's reply, such as the principles you named and the throughput checkpoint, in the PR body or the run's trail, and link to it.
 - In a cloud session, keep the run's state in the Project folder per [Claude cloud sessions](claude-cloud.md).
 
 ## Pin one version for every session
 
-The coordinator and the threads must read the same playbooks.
+One pinned commit gives the coordinator and every thread the same playbooks.
 
 - In a cloud session, the environment's setup script installs pstack. Pin that install to one commit, per [Run pstack in Claude cloud sessions](../../../docs/guide/cloud-sessions.md#install-pstack-in-the-setup-script).
 - A thread that runs on the person's computer uses that computer's install and its saved role choices. Install the same commit there. Keep the role choices the same on both sides, except for a role whose executor one side lacks.
 - A coordinator with no installed plugin reads these files from a clone at the pinned commit, not from the default branch.
+- Where a playbook tells a run to read the playbook again from trunk, read the installed copy. A long run then stays on the pinned commit.

@@ -88,13 +88,17 @@ ln -sfn /mnt/project-files/.codex-cloud/auth.json /root/.codex/auth.json
 
 # pstack, pinned to one commit
 PSTACK_COMMIT=FULL_COMMIT_SHA
-if ! claude plugin list 2>/dev/null | grep -q 'pstack-cc@pstack-cc'; then
+I=/root/.claude/plugins/installed_plugins.json
+have=$(node -e 'try{console.log(require(process.argv[1]).plugins["pstack-cc@pstack-cc"][0].gitCommitSha)}catch{}' "$I")
+if [ "$have" != "$PSTACK_COMMIT" ]; then
+  claude plugin uninstall pstack-cc@pstack-cc >/dev/null 2>&1 || true
+  claude plugin marketplace remove pstack-cc >/dev/null 2>&1 || true
   claude plugin marketplace add "https://github.com/ystory/pstack.git#$PSTACK_COMMIT"
   claude plugin install pstack-cc@pstack-cc
 fi
 ```
 
-Replace `FULL_COMMIT_SHA` with the full SHA of the pstack commit that every session runs. The `#` suffix pins the marketplace to that commit. To update pstack, change the SHA in the script. A session that is already running keeps the version it started with.
+Replace `FULL_COMMIT_SHA` with the full SHA of the pstack commit that every session runs. The `#` suffix pins the marketplace to that commit. To update pstack, change the SHA in the script. The block reinstalls when the installed commit differs from that SHA, so a container that already holds an older install moves to the new pin. A session that is already running keeps the version it started with.
 
 Do not leave the suffix out. An unpinned install takes the default branch as it is when the container is prepared, and the environment can start later sessions from that prepared container. One session observed on 2026-11-20 ran an install made the day before, two commits behind the default branch.
 
@@ -109,7 +113,7 @@ claude plugin install pstack-cc@pstack-cc
 
 Your saved model choices survive these commands. Start a new session, then run `/pstack-cc:setup-pstack` once so the registered agents come from the new version.
 
-In a Claude Project, the coordinator and every thread read the same playbooks only when they run the same commit, per [Claude Projects](../../skills/poteto-mode/references/claude-projects.md).
+In a Claude Project, one pinned commit gives the coordinator and every thread the same playbooks, per [Claude Projects](../../skills/poteto-mode/references/claude-projects.md).
 
 ## Save your model choices in the script
 

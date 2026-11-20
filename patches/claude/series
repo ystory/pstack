@@ -45,3 +45,5 @@ shared/0006-worktree-dependency-state.patch
 0039-claude-projects-version.patch
 0040-claude-projects-review.patch
 0041-claude-projects-review-2.patch
+0042-upstream-0-15-46-refresh.patch
+shared/0007-neon-panel-budget.patch

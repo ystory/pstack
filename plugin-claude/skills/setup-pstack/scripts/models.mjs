@@ -36,6 +36,7 @@ import {
   agyEntry,
   agyCapability,
   agyEfforts,
+  isNeonPanelSeat,
 } from '../../poteto-mode/scripts/agy-capabilities.mjs';
 
 const nativeAliases = new Set([
@@ -423,7 +424,9 @@ async function main(options) {
     for (const [role, value] of Object.entries(config.roles))
       for (const [index, entry] of entriesFor(value).entries()) {
         if (typeof entry === 'string' || aliases.has(entry.model)) continue;
-        const target = targetEffort(role, options.budget);
+        const target = isNeonPanelSeat(entry, roles[role].kind)
+          ? namedEffort(options.budget)
+          : targetEffort(role, options.budget);
         const supported = detected.get(keyFor(entry)) ?? [];
         const ladder = entry.executor === 'antigravity' ? agyEfforts : efforts;
         const resolved = ladder

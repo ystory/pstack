@@ -17,7 +17,7 @@ const agyEntry = {
   model: 'gemini-fixture',
   reasoningEffort: 'xhigh',
 };
-const fixedEntry = { ...agyEntry, model: 'gemini-fixture-xhigh' };
+const fixedEntry = { ...agyEntry, model: 'gemini-4-neon-xhigh' };
 const source = {
   kind: 'host',
   description: 'Synthetic agy catalog. Only the labeled variant is available.',
@@ -204,15 +204,27 @@ for (const host of ['codex', 'claude-code']) {
         (entry: { model: string }) => entry.model === 'inherit-parent',
       ),
     );
-    const preview = call(
-      'budget',
-      homeFlag,
-      root,
-      '--budget',
-      'small',
-      '--catalog',
-      combinedFile,
+    const budgetPreview = (budget: string) =>
+      call(
+        'budget',
+        homeFlag,
+        root,
+        '--budget',
+        budget,
+        '--catalog',
+        combinedFile,
+      );
+    const large = budgetPreview('large');
+    assert.deepEqual(large.needsChoice, []);
+    assert.equal(
+      large.config.roles['arena runners'][0].reasoningEffort,
+      'high',
     );
+    assert.deepEqual(large.config.roles['arena runners'][1], fixedEntry);
+    const medium = budgetPreview('medium');
+    assert.equal(medium.needsChoice.length, 1);
+    assert.equal(medium.needsChoice[0].targetReasoningEffort, 'high');
+    const preview = budgetPreview('small');
     const scalar = preview.config.roles['feature, refactoring'];
     assert.equal(
       (host === 'codex' ? scalar[0] : scalar).reasoningEffort,
@@ -231,6 +243,7 @@ for (const host of ['codex', 'claude-code']) {
     );
     assert.equal(preview.needsChoice.length, 1);
     assert.equal(preview.needsChoice[0].model, fixedEntry.model);
+    assert.equal(preview.needsChoice[0].targetReasoningEffort, 'medium');
     const file = path.join(
       root,
       host === 'codex' ? 'pstack-codex' : 'pstack-cc',

@@ -70,7 +70,7 @@ Use a budget already specified in the conversation. Otherwise show the saved bud
 - `medium` names `high` reasoning.
 - `small` names `medium` reasoning.
 
-Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below each role's target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
+Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below each role's target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. An explicitly selected Gemini 4 Neon panel or cross-judge entry starts at `xhigh` before the budget adjustment. The preview keeps its exact model ID. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
 
 Show every role's current and proposed executor, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices at `xhigh` or below, plus `inherit-parent` and `auto`. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
 

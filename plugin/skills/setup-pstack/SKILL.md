@@ -53,7 +53,7 @@ Use an already specified budget. Otherwise offer these three budgets, and name t
 - `medium` names `high` reasoning.
 - `small` names `medium` reasoning.
 
-`scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_JSON` previews supported efforts for saved choices. It preserves model IDs, executors, ordered duplicates, and aliases. Choose the highest supported effort at or below the role's target. The preview does not write. Parent aliases keep the parent's actual model and effort. Task-level effort adjustments apply to exact model selections.
+`scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_JSON` previews supported efforts for saved choices. It preserves model IDs, executors, ordered duplicates, and aliases. Choose the highest supported effort at or below the role's target. The preview does not write. An explicitly selected Gemini 4 Neon panel or cross-judge entry starts at `xhigh` before the budget adjustment. The preview keeps its exact model ID. Parent aliases keep the parent's actual model and effort. Task-level effort adjustments apply to exact model selections.
 
 Keep these role names, initial counts, and starting efforts:
 

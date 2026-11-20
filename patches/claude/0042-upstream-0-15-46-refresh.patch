@@ -1,0 +1,61 @@
+diff --git a/.claude-plugin/plugin.json b/.claude-plugin/plugin.json
+index 798f9c6..72a6b13 100644
+--- a/.claude-plugin/plugin.json
++++ b/.claude-plugin/plugin.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "pstack-cc",
+-  "version": "0.1.0-dev.43",
++  "version": "0.1.0-dev.44",
+   "description": "Unofficial Claude Code adaptation of Lauren Tan's pstack with setup-selected Claude and Codex workers.",
+   "author": {
+     "name": "pstack contributors"
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 875b0d6..2e4f0b2 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -70,7 +70,7 @@ Use a budget already specified in the conversation. Otherwise show the saved bud
+ - `medium` names `high` reasoning.
+ - `small` names `medium` reasoning.
+ 
+-Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below each role's target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
++Run `scripts/models.mjs budget --budget LABEL --catalog ABSOLUTE_CATALOG` to preview the highest supported effort at or below each role's target. It retains exact model IDs, executors, role shapes, list order, duplicates, and aliases. Parent aliases keep the actual parent's settings. Resolve unsupported saved choices before saving. An explicitly selected Gemini 4 Neon panel or cross-judge entry starts at `xhigh` before the budget adjustment. The preview keeps its exact model ID. Do not persist unresolved proposal slots. A user may leave roles unconfigured after seeing their parent fallback.
+ 
+ Show every role's current and proposed executor, exact model, and effort. Ask whether to accept the proposal or change specific roles. Offer the detected choices at `xhigh` or below, plus `inherit-parent` and `auto`. Honor choices already authorized in the conversation. A user can choose one available model for several roles without editing each role manually.
+ 
+diff --git a/skills/setup-pstack/references/models-contract.md b/skills/setup-pstack/references/models-contract.md
+index 33ae0cf..dda4e09 100644
+--- a/skills/setup-pstack/references/models-contract.md
++++ b/skills/setup-pstack/references/models-contract.md
+@@ -47,7 +47,7 @@ The retired keys `how explorer`, `how explainer`, `why investigators`, `why synt
+ 
+ A saved `"budget": "unlimited"` value also keeps working. Read, resolve, and budget treat it as `"large"` and report `{ "from": "unlimited", "to": "large" }` in `replacedBudget`, or `null` when no saved budget was replaced. The next write saves `"large"` unless its input names another accepted budget, and reports the replacement in `replacedBudget`. Any other unknown budget fails validation.
+ 
+-Each role has a starting effort. `swarm workers`, the two panels (`arena runners`, `interrogate reviewers`), and `arena cross-judge pool` start at `high`. The other five roles start at `xhigh`. No role runs above `xhigh`. A budget moves every starting effort by steps on the ladder `low`, `medium`, `high`, `xhigh`. `large` keeps it, `medium` lowers it one step, and `small` lowers it two steps. A target stays at the bottom of the ladder. That result is the role's target effort.
++Each role has a starting effort. `swarm workers`, the two panels (`arena runners`, `interrogate reviewers`), and `arena cross-judge pool` start at `high`. The other five roles start at `xhigh`. An explicitly selected Gemini 4 Neon panel or cross-judge entry starts at `xhigh` before the budget adjustment. The preview keeps its exact model ID. No role runs above `xhigh`. A budget moves every starting effort by steps on the ladder `low`, `medium`, `high`, `xhigh`. `large` keeps it, `medium` lowers it one step, and `small` lowers it two steps. A target stays at the bottom of the ladder. That result is the role's target effort.
+ 
+ Write rejects any exact entry whose `reasoningEffort` is above `xhigh` (`max` or `ultra`), across all executors. Read and resolve still load a saved entry above `xhigh` unchanged.
+ 
+diff --git a/skills/setup-pstack/scripts/models.mjs b/skills/setup-pstack/scripts/models.mjs
+index 7efffdf..37866b4 100644
+--- a/skills/setup-pstack/scripts/models.mjs
++++ b/skills/setup-pstack/scripts/models.mjs
+@@ -36,6 +36,7 @@ import {
+   agyEntry,
+   agyCapability,
+   agyEfforts,
++  isNeonPanelSeat,
+ } from '../../poteto-mode/scripts/agy-capabilities.mjs';
+ 
+ const nativeAliases = new Set([
+@@ -423,7 +424,9 @@ async function main(options) {
+     for (const [role, value] of Object.entries(config.roles))
+       for (const [index, entry] of entriesFor(value).entries()) {
+         if (typeof entry === 'string' || aliases.has(entry.model)) continue;
+-        const target = targetEffort(role, options.budget);
++        const target = isNeonPanelSeat(entry, roles[role].kind)
++          ? namedEffort(options.budget)
++          : targetEffort(role, options.budget);
+         const supported = detected.get(keyFor(entry)) ?? [];
+         const ladder = entry.executor === 'antigravity' ? agyEfforts : efforts;
+         const resolved = ladder

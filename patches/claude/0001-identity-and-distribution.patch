@@ -23,14 +23,14 @@ index 0000000..6f664bb
 +}
 diff --git a/.cursor-plugin/plugin.json b/.cursor-plugin/plugin.json
 deleted file mode 100644
-index 37a0bef..0000000
+index b166870..0000000
 --- a/.cursor-plugin/plugin.json
 +++ /dev/null
 @@ -1,31 +0,0 @@
 -{
 -	"name": "pstack",
 -	"displayName": "pstack",
--	"version": "0.15.43",
+-	"version": "0.15.46",
 -	"description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
 -	"author": {
 -		"name": "Lauren Tan"
@@ -59,7 +59,7 @@ index 37a0bef..0000000
 -	"agents": "./agents/"
 -}
 diff --git a/README.md b/README.md
-index e5d3e49..2053e4f 100644
+index e9d3993..2053e4f 100644
 --- a/README.md
 +++ b/README.md
 @@ -1,290 +1,43 @@
@@ -109,7 +109,7 @@ index e5d3e49..2053e4f 100644
 -
 -new here? the [pstack guide](./docs/guide/README.md) walks you through a first real task, from setup and prompting through verification and overnight runs. stuck, or unsure which skill fits? ask [`/poteto-help`](./skills/poteto-help/SKILL.md).
 -
--that's it. the other skills are situational, and the mode skill uses them for you as needed. out of the box, code delegates (feature, refactoring, bug fix, perf, hillclimb), prose, and judgment go to opus 5.5 at xhigh, and no role runs above xhigh. outside a review panel, fable 5.2 runs only when you name it or after two opus 5.5 runs of the same brief fail. the default panel is fable 5.2 / opus 5.5 / gemini 4 carbon. [`/setup-pstack`](./skills/setup-pstack/SKILL.md) changes any of it.
+-that's it. the other skills are situational, and the mode skill uses them for you as needed. out of the box, code delegates (feature, refactoring, bug fix, perf, hillclimb), prose, and judgment go to opus 5.5 at xhigh, and no role runs above xhigh. outside a review panel, fable 5.2 runs only when you name it or after two opus 5.5 runs of the same brief fail. the default panel is fable 5.2 / opus 5.5 / gemini 4 neon. [`/setup-pstack`](./skills/setup-pstack/SKILL.md) changes any of it.
 -
 -## usage
 -
@@ -405,14 +405,14 @@ index 0000000..e030790
 +SOFTWARE.
 diff --git a/plugin.json b/plugin.json
 deleted file mode 100644
-index c4d2488..0000000
+index fce40ca..0000000
 --- a/plugin.json
 +++ /dev/null
 @@ -1,21 +0,0 @@
 -{
 -  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
 -  "name": "pstack",
--  "version": "0.15.43",
+-  "version": "0.15.46",
 -  "description": "if you want to go fast, go deep first. pstack helps you write less, but higher quality code. rigorous agent workflows you can parallelize with confidence.",
 -  "author": {
 -    "name": "Lauren Tan"

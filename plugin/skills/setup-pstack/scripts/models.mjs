@@ -13,6 +13,7 @@ import {
   agyEntry,
   agyCapability,
   agyEfforts,
+  isNeonPanelSeat,
 } from '../../poteto-mode/scripts/agy-capabilities.mjs';
 
 const roles = {
@@ -381,9 +382,11 @@ function applyBudget(config, budget, catalog) {
   const mapped = structuredClone(config);
   mapped.budget = budget;
   for (const [role, entries] of Object.entries(mapped.roles)) {
-    const target = targetEffort(role, budget);
     entries.forEach((entry, index) => {
       if (aliases.has(entry.model)) return;
+      const target = isNeonPanelSeat(entry, roles[role].kind)
+        ? namedEffort(budget)
+        : targetEffort(role, budget);
       const supported = detected.get(modelKey(entry)) ?? [];
       const ladder =
         executorFor(entry) === 'antigravity' ? agyEfforts : efforts;

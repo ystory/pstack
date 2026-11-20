@@ -5,6 +5,14 @@ import path from 'node:path';
 export const AGY_MINIMUM_VERSION = '1.5.8';
 export const agyEfforts = ['low', 'medium', 'high', 'xhigh', 'max'];
 
+export function isNeonPanelSeat(entry, roleKind) {
+  return (
+    roleKind !== 'scalar' &&
+    entry.executor === 'antigravity' &&
+    /^gemini-4-neon(?:-(?:low|medium|high|xhigh))?$/.test(entry.model)
+  );
+}
+
 const aliases = new Set([
   'auto',
   'inherit-parent',

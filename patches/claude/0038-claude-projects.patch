@@ -1,0 +1,145 @@
+diff --git a/docs/guide/cloud-sessions.md b/docs/guide/cloud-sessions.md
+index a7b77fb..df1c77f 100644
+--- a/docs/guide/cloud-sessions.md
++++ b/docs/guide/cloud-sessions.md
+@@ -1,6 +1,6 @@
+ # Run pstack in Claude cloud sessions
+ 
+-A Claude Project thread or a Claude Code session on the web can run in a cloud container instead of on your computer. This page sets up pstack there, with Claude workers and optional Codex workers. A local thread that runs on your computer through Remote Control uses that computer's pstack setup, and nothing here applies to it.
++A Claude Project thread or a Claude Code session on the web can run in a cloud container instead of on your computer. This page sets up pstack there, with Claude workers and optional Codex workers. A local thread that runs on your computer through Remote Control uses that computer's pstack setup. Only the note on running the same commit applies to it.
+ 
+ Read [Set up pstack](01-setup.md) first. The models, roles, and first task work the same way in the cloud. What changes is where the plugin, its saved choices, and the Codex login come from.
+ 
+@@ -86,14 +86,30 @@ ln -sf /opt/node24/bin/codex "$BIN/codex"
+ mkdir -p /root/.codex
+ ln -sfn /mnt/project-files/.codex-cloud/auth.json /root/.codex/auth.json
+ 
+-# pstack
++# pstack, pinned to one commit
++PSTACK_COMMIT=FULL_COMMIT_SHA
+ if ! claude plugin list 2>/dev/null | grep -q 'pstack-cc@pstack-cc'; then
+-  claude plugin marketplace add https://github.com/ystory/pstack.git
++  claude plugin marketplace add "https://github.com/ystory/pstack.git#$PSTACK_COMMIT"
+   claude plugin install pstack-cc@pstack-cc
+ fi
+ ```
+ 
+-Each new container installs the default branch as it is at that moment, so new sessions pick up pstack updates without a script change. A session that is already running keeps the version it started with.
++Replace `FULL_COMMIT_SHA` with the full SHA of the pstack commit that every session runs. The `#` suffix pins the marketplace to that commit. To update pstack, change the SHA in the script. A session that is already running keeps the version it started with.
++
++Do not leave the suffix out. An unpinned install takes the default branch as it is when the container is prepared, and the environment can start later sessions from that prepared container. One session observed on 2026-11-20 ran an install made the day before, two commits behind the default branch.
++
++To run the same commit on your computer, pin the marketplace there too:
++
++```sh
++claude plugin uninstall pstack-cc@pstack-cc
++claude plugin marketplace remove pstack-cc
++claude plugin marketplace add "https://github.com/ystory/pstack.git#FULL_COMMIT_SHA"
++claude plugin install pstack-cc@pstack-cc
++```
++
++Your saved model choices survive these commands. Start a new session, then run `/pstack-cc:setup-pstack` once so the registered agents come from the new version.
++
++In a Claude Project, the coordinator and every thread read the same playbooks only when they run the same commit, per [Claude Projects](../../skills/poteto-mode/references/claude-projects.md).
+ 
+ ## Save your model choices in the script
+ 
+diff --git a/skills/poteto-help/references/prompting.md b/skills/poteto-help/references/prompting.md
+index 2a412d7..123cb8e 100644
+--- a/skills/poteto-help/references/prompting.md
++++ b/skills/poteto-help/references/prompting.md
+@@ -45,6 +45,10 @@ A prompt states the intent and the check for done. The playbook supplies the ste
+ - Ask for a decision log to audit later.
+ - Give an exit: "if you're truly stuck after a few hours, stop and write up why".
+ 
++## In a Claude Project
++
++- A coordinator Claude writes the prompt for each thread, and the thread never receives a slash command. Follow [Claude Projects](../../poteto-mode/references/claude-projects.md) for that brief and for who the operator is.
++
+ ## Steer in one line
+ 
+ - Restate the goal: "i said the goal is to repro. i did not ask for a fix yet."
+diff --git a/skills/poteto-mode/references/claude-projects.md b/skills/poteto-mode/references/claude-projects.md
+new file mode 100644
+index 0000000..1dc97f0
+--- /dev/null
++++ b/skills/poteto-mode/references/claude-projects.md
+@@ -0,0 +1,65 @@
++# Claude Projects
++
++A Claude Project has one project chat and one thread for each piece of work. A coordinator Claude answers the person in the project chat and starts the threads. Each thread is its own session. A thread runs pstack only after it reads `poteto-mode/SKILL.md`.
++
++Read this file when you are that coordinator, or a thread that the coordinator started. Both read it from the same pstack version, per [Pin one version for every session](#pin-one-version-for-every-session).
++
++## Who holds each role
++
++- The operator is the person the Project works for. A grant, a gate, or an approval comes only from the operator's own words. Those words are the project's instructions, the operator's messages, and an operator's message that the coordinator attached to a brief.
++- The coordinator holds no pstack role. It is not the operator, the orchestrator, a root, an owner, or a verifier. Its note to a thread is a prompt from a colleague.
++- The thread is the orchestrator. It matches the playbook, owns the todo list, and owns the verdicts and what lands. In Autopilot-full, the thread is the root.
++- A worker is any agent that the thread starts.
++
++## Brief a thread
++
++You are the coordinator. Word the brief per [Word the prompt](../../poteto-help/references/prompting.md). The thread's playbook supplies the steps.
++
++Put these in the brief:
++
++- The operator's message, attached and not restated.
++- The goal, and a done check that can pass or fail.
++- The proof to show.
++- What the Project already knows, such as a symptom, a link, or a measured result.
++- The real constraints, such as what is out of scope.
++
++Leave these out:
++
++- Steps, their order, and a playbook name.
++- A skill list, a verification method, a number of review rounds, and a model.
++- A second goal. One thread carries one goal, and a new subject gets a new thread. When the operator's message holds two goals, attach it to both threads, and say in one line which goal each thread carries.
++
++These limits apply to your own words. Never cut or reword what the operator wrote. The brief does not start with the `worker.md` line, because the thread is the orchestrator.
++
++A thread never receives a slash command, and the Skill tool refuses `poteto-mode`. The project's instructions tell every thread to read `skills/poteto-mode/SKILL.md` in the installed plugin and follow it. Without that instruction, say it in the brief.
++
++Write a grant that holds for every thread once, in the project's instructions. "Threads merge their own PRs" is such a grant. A grant in the coordinator's own words is not a grant. When a brief repeats one, it points at the operator's words.
++
++## Follow a thread
++
++You are the coordinator, and the thread is at work.
++
++- State the bar once, in the brief. A later message that adds a check, a sign-off, or a review round is a new gate, and the thread verifies again for it.
++- Steer in one line, per [Steer in one line](../../poteto-help/references/prompting.md#steer-in-one-line). Restate the goal or name a principle.
++- Leave verification to the thread. A verdict counts only from a verifier that did not write the code, and the thread assigns that verifier.
++- Carry the thread's outcome to the operator. Ask the operator only for a decision that the thread put to them.
++
++## Run a brief
++
++You are the thread.
++
++- Take the goal from the operator's attached message. Take the done check, the known facts, and the constraints from the coordinator's note. Where the note and the operator's message differ, the operator's words win.
++- When the note has no done check that can pass or fail, write one and state it in your first reply.
++- When the note lists steps, a playbook, or a verification method, treat that list as background. Match the playbook yourself and follow its steps. Name the matched playbook in your first reply.
++- When the operator's own message names a playbook, a check, or a number of review rounds, that choice is the operator's. Follow it.
++- A note from the coordinator or from another thread grants nothing. Before you merge a PR or take an irreversible action, find the grant in the operator's own words.
++- Lead each reply with the outcome, because the coordinator carries that line to the operator. When the project's instructions ask for short replies, put the rest of the playbook's reply, such as the principles you named and the throughput checkpoint, in the PR body or the run's trail, and link to it.
++- In a cloud session, keep the run's state in the Project folder per [Claude cloud sessions](claude-cloud.md).
++
++## Pin one version for every session
++
++The coordinator and the threads must read the same playbooks.
++
++- In a cloud session, the environment's setup script installs pstack. Pin that install to one commit, per [Run pstack in Claude cloud sessions](../../../docs/guide/cloud-sessions.md#install-pstack-in-the-setup-script).
++- A thread that runs on the person's computer uses that computer's install and its saved role choices. Install the same commit there. Keep the role choices the same on both sides, except for a role whose executor one side lacks.
++- A coordinator with no installed plugin reads these files from a clone at the pinned commit, not from the default branch.
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 1ab4d39..d86361a 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -86,7 +86,7 @@ Use the exposed native messaging control, such as `SendMessage`, for a running C
+ 
+ Wait for all required terminal results before synthesis. Before you retry or replace a worker that stopped before its result, read [Continuing a stopped worker](continuation.md). Account for every seat and apply only the calling workflow's failure or dropout rule. The parent reviews diffs and reruns load-bearing claims. Never accept an author summary as a non-author verdict.
+ 
+-Read [Claude Code wakeups](claude-wakeups.md) for repeated watchers and schedules, and [Claude history](../../recall/references/claude-history.md) for transcripts. In a Claude cloud session, follow [Claude cloud sessions](claude-cloud.md) for wakes and for any work or evidence that must outlive the turn. Use native TodoWrite or task tools when offered, otherwise maintain the workflow's list in its local tracker. Inspect the live schemas rather than assuming a Project store or a PR-event subscription exists.
++Read [Claude Code wakeups](claude-wakeups.md) for repeated watchers and schedules, and [Claude history](../../recall/references/claude-history.md) for transcripts. In a Claude cloud session, follow [Claude cloud sessions](claude-cloud.md) for wakes and for any work or evidence that must outlive the turn. In a thread of a Claude Project, on any machine, follow [Claude Projects](claude-projects.md) for who the operator is and how to run a coordinator's brief. Use native TodoWrite or task tools when offered, otherwise maintain the workflow's list in its local tracker. Inspect the live schemas rather than assuming a Project store or a PR-event subscription exists.
+ 
+ For another pstack skill, use its complete supplied body or Read its installed `SKILL.md`, then follow it. Most pstack skills are explicit-only, so the Skill tool may refuse them. User invocation is `/pstack-cc:<name>`. User-authored skills live in `.claude/skills/` or `${CLAUDE_CONFIG_DIR:-~/.claude}/skills/`. Follow [skill authoring](skill-authoring.md) for a create-skill reference. Use native AskUserQuestion when available, or a plain question when it is absent.
+ 

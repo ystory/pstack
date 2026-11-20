@@ -45,6 +45,10 @@ A prompt states the intent and the check for done. The playbook supplies the ste
 - Ask for a decision log to audit later.
 - Give an exit: "if you're truly stuck after a few hours, stop and write up why".
 
+## In a Claude Project
+
+- A coordinator Claude writes the prompt for each thread, and the thread never receives a slash command. Follow [Claude Projects](../../poteto-mode/references/claude-projects.md) for that brief and for who the operator is.
+
 ## Steer in one line
 
 - Restate the goal: "i said the goal is to repro. i did not ask for a fix yet."

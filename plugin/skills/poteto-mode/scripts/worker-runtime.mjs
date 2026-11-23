@@ -284,7 +284,7 @@ export const STDIN_END_GRACE_MS = 1_000;
 export const SIGTERM_GRACE_MS = 3_000;
 /** Bound kernel kill completion, so a process stuck on a hung drive cannot hang the stop. */
 export const GROUP_REAP_TIMEOUT_MS = 1_500;
-/** Longest a supervisor waits, after its provider exits, to relay output still in the pipes. */
+/** Orca's supervisor drains relayed output for this long; it stays in the owner's budget. */
 export const OUTPUT_DRAIN_TIMEOUT_MS = 1_000;
 /** The owner waits out the supervisor's whole ladder before forcing the group itself. */
 export const SUPERVISOR_MAX_STOP_MS =
@@ -334,6 +334,10 @@ class SupervisedChild extends EventEmitter {
         );
     });
     raw.on('error', (error) => this.emit('error', error));
+    // Exit 127 may be a provider that never started, which only close can tell.
+    raw.once('exit', (code, signal) => {
+      if (code !== 127) this.emit('exit', code, signal);
+    });
     // Close follows the IPC channel's close, so every report has arrived by then.
     raw.once('close', (code, signal) => {
       if (this.#spawnError) {
@@ -343,7 +347,7 @@ class SupervisedChild extends EventEmitter {
         this.emit('close', errno ? -errno : code, null);
         return;
       }
-      if (raw.pid !== undefined) this.emit('exit', code, signal);
+      if (code === 127) this.emit('exit', code, signal);
       this.emit('close', code, signal);
     });
   }
@@ -431,7 +435,6 @@ export function spawnSupervised(
       stdinEndGraceMs: STDIN_END_GRACE_MS,
       sigtermGraceMs: SIGTERM_GRACE_MS,
       groupReapTimeoutMs: GROUP_REAP_TIMEOUT_MS,
-      outputDrainTimeoutMs: OUTPUT_DRAIN_TIMEOUT_MS,
       nodeEnv,
     }),
   ).toString('base64');

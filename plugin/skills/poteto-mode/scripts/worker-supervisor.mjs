@@ -2,7 +2,9 @@
 // (POSIX_PROVIDER_SUPERVISOR_SCRIPT), run as a file. worker-runtime.mjs starts it
 // detached; it starts the provider in its own process group and stops that group
 // when its owner dies. It reports the provider's pid, or why it never started,
-// over the IPC channel.
+// over the IPC channel. Unlike Orca's, it relays only stdin: the provider writes
+// to the owner's stdout and stderr directly, so the owner reads the provider's
+// end of output when it happens rather than when this supervisor exits.
 import { spawn } from 'node:child_process';
 import { closeSync, openSync } from 'node:fs';
 
@@ -44,7 +46,7 @@ try {
   child = spawn(providerCommand, providerArgs, {
     cwd: spec.cwd,
     env: childEnv,
-    stdio: [spec.stdin, 'pipe', 'pipe', reportShield],
+    stdio: [spec.stdin, 'inherit', 'inherit', reportShield],
     detached: true,
   });
 } catch (error) {
@@ -54,6 +56,11 @@ try {
 try {
   closeSync(reportShield);
 } catch {}
+// Release this pid's copies of the owner's output pipes; /dev/null keeps the slots taken.
+for (const fd of [1, 2]) {
+  closeSync(fd);
+  openSync('/dev/null', 'w');
+}
 // A spawn that failed without a pid reports through its 'error' event below.
 if (child?.pid) {
   try {
@@ -136,50 +143,20 @@ if (spec.lifetime !== 'one-shot') {
   process.stdin.once('end', scheduleOwnerShutdown);
   process.stdin.once('close', scheduleOwnerShutdown);
 }
-if (child?.pid) {
-  if (child.stdin) {
-    process.stdin.pipe(child.stdin);
-    // A provider that stops reading must fail the owner's write as a direct pipe would.
-    child.stdin.on('error', () => process.stdin.destroy());
-  }
-  child.stdout.pipe(process.stdout);
-  child.stderr.pipe(process.stderr);
-  // A dead owner's stdout pipe raises EPIPE; unhandled, it would end this pid before the group.
-  for (const stream of [
-    ...(child.stdin ? [process.stdin, child.stdin] : []),
-    process.stdout,
-    process.stderr,
-    child.stdout,
-    child.stderr,
-  ])
+if (child?.stdin) {
+  process.stdin.pipe(child.stdin);
+  // A provider that stops reading must fail the owner's write as a direct pipe would.
+  child.stdin.on('error', () => process.stdin.destroy());
+  // A dead owner's pipe raises EPIPE; unhandled, it would end this pid before the group.
+  for (const stream of [process.stdin, child.stdin])
     stream.on('error', () => {});
 }
-// Exit can land before the provider's last output is relayed; a one-shot's answer is that output.
-const drainProviderOutput = () => {
-  const ended = (stream) =>
-    stream.readableEnded || stream.destroyed
-      ? null
-      : new Promise((resolve) => {
-          stream.once('end', resolve);
-          stream.once('close', resolve);
-        });
-  const flushed = (stream) =>
-    new Promise((resolve) => stream.write('', resolve));
-  const drained = Promise.all([child.stdout, child.stderr].map(ended)).then(
-    () => Promise.all([process.stdout, process.stderr].map(flushed)),
-  );
-  return Promise.race([
-    drained,
-    new Promise((resolve) => setTimeout(resolve, spec.outputDrainTimeoutMs)),
-  ]);
-};
 const reapProviderExit = async (code, signal) => {
   if (settling) return;
   settling = true;
   clearInterval(timer);
   if (ownerShutdownTimer) clearTimeout(ownerShutdownTimer);
   if (!(await reapOwnedProviderGroup())) return process.exit(1);
-  await drainProviderOutput();
   finishWithProviderOutcome(code, signal);
 };
 // An owner that is gone gets the close its owner would have asked for, made here on its behalf.

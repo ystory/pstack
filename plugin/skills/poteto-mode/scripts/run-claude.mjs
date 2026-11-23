@@ -247,6 +247,23 @@ function activityText({ name, input = {} }) {
   return `tool: ${name}`;
 }
 
+// The receipt's stop, from the first matching piece of evidence.
+function claudeStop({ signal, permissionMode, denials, succeeded, failure }) {
+  if (signal) return ['interrupted', 'signal', signal];
+  // Orca claude-full-access-refusal.ts:52-66 and claude-permission-mode-ladder.ts:47-74:
+  // a first root init outside the launched mode is Claude's refusal of that mode.
+  if (permissionMode !== null && permissionMode !== 'auto')
+    return [
+      'error',
+      'permission-mode',
+      `Claude started in ${permissionMode} mode instead of auto`,
+    ];
+  if (denials.length)
+    return ['permission', 'permission-denied', 'permission denial'];
+  if (succeeded) return ['completed', 'completed', 'completed'];
+  return ['error', 'failed', failure];
+}
+
 function markdownBody(text) {
   return text.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
 }
@@ -390,6 +407,7 @@ async function run(options) {
   let resultEvent = null;
   let sessionId = null;
   let observedModel = null;
+  let rootInit = null;
   let parseError = null;
   const event = (line) => {
     if (!line.trim()) return;
@@ -402,6 +420,18 @@ async function run(options) {
         typeof value.model === 'string'
       )
         observedModel = value.model;
+      // Orca claude-structured-session-acquisition.ts:98-101 and claude-turn-opening.ts:44-46.
+      if (
+        value.type === 'system' &&
+        value.subtype === 'init' &&
+        typeof value.parent_tool_use_id !== 'string'
+      )
+        rootInit ??= {
+          permissionMode:
+            typeof value.permissionMode === 'string' && value.permissionMode
+              ? value.permissionMode
+              : null,
+        };
       if (value.type === 'assistant')
         for (const block of value.message?.content ?? [])
           if (block?.type === 'tool_use')
@@ -457,26 +487,25 @@ async function run(options) {
     resultEvent?.subtype === 'success' &&
     resultEvent.is_error !== true;
   const status = signal ? 'interrupted' : succeeded ? 'completed' : 'failed';
-  const [kind, code, cause] = signal
-    ? ['interrupted', 'signal', signal]
-    : denials.length
-      ? ['permission', 'permission-denied', 'permission denial']
-      : succeeded
-        ? ['completed', 'completed', 'completed']
-        : [
-            'error',
-            'failed',
-            spawnError ??
-              parseError ??
-              resultEvent?.subtype ??
-              `exit ${completion.exitCode}`,
-          ];
+  const observedPermissionMode = rootInit?.permissionMode ?? null;
+  const [kind, code, cause] = claudeStop({
+    signal,
+    permissionMode: observedPermissionMode,
+    denials,
+    succeeded,
+    failure:
+      spawnError ??
+      parseError ??
+      resultEvent?.subtype ??
+      `exit ${completion.exitCode}`,
+  });
   const receipt = {
     ...request,
     pid: child.providerPid,
     ...completion,
     sessionId,
     observedModel,
+    observedPermissionMode,
     result: typeof resultEvent?.result === 'string' ? resultEvent.result : null,
     resultEvent,
     status,

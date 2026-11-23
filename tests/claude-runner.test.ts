@@ -41,6 +41,7 @@ const streamBytes = [
     type: 'system',
     subtype: 'init',
     model: 'claude-opus-5-5',
+    permissionMode: 'auto',
     session_id: sessionId,
     tools: ['Read', 'Write', 'Bash'],
     plugins: [{ name: 'existing-user-plugin' }],
@@ -135,6 +136,8 @@ if (args[0] === '--version') {
     const model = args[args.indexOf('--model') + 1];
     const events = ${JSON.stringify(streamBytes)}.split('\\n').map(line => JSON.parse(line));
     for (const value of events) value.session_id = sid;
+    if (scenario === 'refused-auto') events[0].permissionMode = 'default';
+    if (scenario === 'missing-permission-mode') delete events[0].permissionMode;
     if (scenario === 'missing-model') delete events[0].model;
     else events[0].model = scenario === 'mismatched-model' ? 'claude-other-fixture-20300101' : model;
     const bytes = Buffer.from(events.map(value => JSON.stringify(value)).join('\\n'));
@@ -891,4 +894,38 @@ test('a stream from another conversation is not continuable', async (t) => {
   const receipt = JSON.parse(result.stdout);
   assert.notEqual(receipt.sessionId, receipt.requestedSessionId);
   assert.equal(receipt.stop.continuable, false);
+});
+
+test('a run Claude started outside auto mode stops with permission-mode', async (t) => {
+  const f = await fixture(t);
+  const refused = f.invoke(f.runArgs, undefined, {
+    PSTACK_FAKE_SCENARIO: 'refused-auto',
+  });
+  assert.equal(refused.status, 0, refused.stderr);
+  const receipt = JSON.parse(refused.stdout);
+  assert.equal(receipt.observedPermissionMode, 'default');
+  assert.equal(receipt.stop.kind, 'error');
+  assert.equal(receipt.stop.code, 'permission-mode');
+  assert.match(receipt.stop.cause, /default mode instead of auto/);
+  const events = (await readFile(path.join(f.runDir, 'events.jsonl'), 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert.equal(events.at(-1).code, 'permission-mode');
+
+  for (const [scenario, observed] of [
+    [undefined, 'auto'],
+    ['missing-permission-mode', null],
+  ] as const) {
+    const g = await fixture(t);
+    const result = g.invoke(
+      g.runArgs,
+      undefined,
+      scenario ? { PSTACK_FAKE_SCENARIO: scenario } : {},
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const ran = JSON.parse(result.stdout);
+    assert.equal(ran.observedPermissionMode, observed);
+    assert.equal(ran.stop.code, 'completed');
+  }
 });

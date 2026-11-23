@@ -1,9 +1,12 @@
 // Shared worker runner runtime. Redaction, the child environment, and the
 // supervised spawn follow Orca 84f67831; see each section for its source.
+import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const STOP_KINDS = [
   'completed',
@@ -272,4 +275,171 @@ export function stopRun(runDir, stop) {
     kind: stop.kind,
     code: stop.code,
   });
+}
+
+// Orca provider-process-supervisor.ts and provider-process-close.ts.
+/** Time the provider gets to exit on its own after its stdin ends, before SIGTERM. */
+export const STDIN_END_GRACE_MS = 1_000;
+/** Time the provider group gets to flush and exit after SIGTERM, before SIGKILL. */
+export const SIGTERM_GRACE_MS = 3_000;
+/** Bound kernel kill completion, so a process stuck on a hung drive cannot hang the stop. */
+export const GROUP_REAP_TIMEOUT_MS = 1_500;
+/** Longest a supervisor waits, after its provider exits, to relay output still in the pipes. */
+export const OUTPUT_DRAIN_TIMEOUT_MS = 1_000;
+/** The owner waits out the supervisor's whole ladder before forcing the group itself. */
+export const SUPERVISOR_MAX_STOP_MS =
+  STDIN_END_GRACE_MS +
+  SIGTERM_GRACE_MS +
+  GROUP_REAP_TIMEOUT_MS +
+  OUTPUT_DRAIN_TIMEOUT_MS;
+const FORCED_EXIT_MS = 1_000;
+// User Node startup options belong to the provider, not the supervisor.
+const PROVIDER_ONLY_NODE_ENV_KEYS = [
+  'NODE_OPTIONS',
+  'NODE_REPL_EXTERNAL_MODULE',
+];
+const SUPERVISOR = fileURLToPath(
+  new URL('./worker-supervisor.mjs', import.meta.url),
+);
+
+const waitFor = (promise, ms) =>
+  Promise.race([
+    promise.then(() => true),
+    new Promise((resolve) => setTimeout(resolve, ms, false).unref()),
+  ]);
+
+/** Behaves like the direct ChildProcess, except that pid and signals are the supervisor's. */
+class SupervisedChild extends EventEmitter {
+  #raw;
+  #lifetime;
+  #spawnError = null;
+  /** The provider's pid, which is also its process group, once the supervisor reports it. */
+  providerPid = null;
+  stopReason = null;
+
+  constructor(raw, lifetime) {
+    super();
+    this.#raw = raw;
+    this.#lifetime = lifetime;
+    this.stdin = raw.stdin;
+    this.stdout = raw.stdout;
+    this.stderr = raw.stderr;
+    raw.on('message', (message) => {
+      if (Number.isSafeInteger(message?.providerPid))
+        this.providerPid = message.providerPid;
+      if (message?.spawnError)
+        this.#spawnError = Object.assign(
+          new Error(message.spawnError.message),
+          { code: message.spawnError.code },
+        );
+    });
+    raw.on('error', (error) => this.emit('error', error));
+    // Close follows the IPC channel's close, so every report has arrived by then.
+    raw.once('close', (code, signal) => {
+      if (this.#spawnError) {
+        // A provider that never started looks like Node's own failed spawn.
+        const errno = os.constants.errno[this.#spawnError.code];
+        this.emit('error', this.#spawnError);
+        this.emit('close', errno ? -errno : code, null);
+        return;
+      }
+      if (raw.pid !== undefined) this.emit('exit', code, signal);
+      this.emit('close', code, signal);
+    });
+  }
+
+  get pid() {
+    return this.#raw.pid;
+  }
+  get exitCode() {
+    return this.#raw.exitCode;
+  }
+  get signalCode() {
+    return this.#raw.signalCode;
+  }
+  get killed() {
+    return this.#raw.killed;
+  }
+  kill(signal = 'SIGTERM') {
+    return this.#raw.kill(signal);
+  }
+
+  /** Ends stdin, then lets the supervisor run its ladder; forces the group only if it outlives it. */
+  async stop(reason) {
+    this.stopReason ??= reason;
+    const raw = this.#raw;
+    if (
+      raw.pid === undefined ||
+      raw.exitCode !== null ||
+      raw.signalCode !== null
+    )
+      return;
+    const exited = new Promise((resolve) => raw.once('exit', resolve));
+    try {
+      raw.stdin?.end();
+    } catch {}
+    // Only a session reads its stdin end as a close request.
+    if (this.#lifetime === 'one-shot') raw.kill('SIGTERM');
+    if (await waitFor(exited, SUPERVISOR_MAX_STOP_MS)) return;
+    try {
+      if (this.providerPid) process.kill(-this.providerPid, 'SIGKILL');
+    } catch {}
+    raw.kill('SIGKILL');
+    await waitFor(exited, FORCED_EXIT_MS);
+  }
+}
+
+/**
+ * spawn() for a provider CLI, run under worker-supervisor.mjs on POSIX. lifetime
+ * 'session' treats the end of stdin as a close request; 'one-shot' treats it as
+ * the end of the input, so only stop() or the owner's death stops the provider.
+ */
+export function spawnSupervised(
+  command,
+  args,
+  { lifetime = 'session', ...options } = {},
+) {
+  if (process.platform === 'win32') {
+    const child = spawn(command, args, options);
+    return Object.assign(child, {
+      providerPid: child.pid ?? null,
+      stopReason: null,
+      async stop(reason) {
+        child.stopReason ??= reason;
+        child.stdin?.end();
+        child.kill();
+      },
+    });
+  }
+  const {
+    cwd = process.cwd(),
+    env = process.env,
+    stdio = ['pipe', 'pipe', 'pipe'],
+  } = options;
+  const supervisorEnv = { ...env };
+  const nodeEnv = {};
+  for (const key of PROVIDER_ONLY_NODE_ENV_KEYS) {
+    if (supervisorEnv[key] !== undefined) nodeEnv[key] = supervisorEnv[key];
+    delete supervisorEnv[key];
+  }
+  supervisorEnv.PSTACK_WORKER_SUPERVISOR_SPEC = Buffer.from(
+    JSON.stringify({
+      cwd,
+      ownerPid: process.pid,
+      lifetime,
+      stdin: stdio[0] === 'ignore' ? 'ignore' : 'pipe',
+      stdinEndGraceMs: STDIN_END_GRACE_MS,
+      sigtermGraceMs: SIGTERM_GRACE_MS,
+      groupReapTimeoutMs: GROUP_REAP_TIMEOUT_MS,
+      outputDrainTimeoutMs: OUTPUT_DRAIN_TIMEOUT_MS,
+      nodeEnv,
+    }),
+  ).toString('base64');
+  const raw = spawn(process.execPath, [SUPERVISOR, command, ...args], {
+    cwd,
+    env: supervisorEnv,
+    stdio: [stdio[0], stdio[1], stdio[2], 'ipc'],
+    detached: true,
+  });
+  return new SupervisedChild(raw, lifetime);
 }

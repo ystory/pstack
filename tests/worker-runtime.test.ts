@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { existsSync } from 'node:fs';
 import {
   mkdir,
   mkdtemp,
@@ -6,6 +9,7 @@ import {
   readdir,
   realpath,
   rm,
+  writeFile,
 } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -179,4 +183,180 @@ test('startRun registers each run once and opens its event log', async (t) => {
     ],
   );
   assert.throws(() => runtime.appendEvent(runDir, 'question', 'later'));
+});
+
+// Like the supervisor, count EPERM as present: macOS reports it for a group of unreaped zombies.
+const alive = (pid: number, group = false) => {
+  try {
+    process.kill(group ? -pid : pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH';
+  }
+};
+
+async function waitUntil(check: () => boolean, ms: number) {
+  const deadline = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > deadline) return false;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return true;
+}
+
+async function supervisedFixture(t: TestContext) {
+  const root = await temporary(t);
+  // A provider and its descendant that both ignore SIGTERM, so only the ladder's SIGKILL ends them.
+  const provider = path.join(root, 'provider.mjs');
+  await writeFile(
+    provider,
+    `import { spawn } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+process.on('SIGTERM', () => {});
+const descendant = spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"], { stdio: 'ignore' });
+writeFileSync(process.argv[2], String(descendant.pid));
+setInterval(() => {}, 1000);
+`,
+  );
+  const owner = path.join(root, 'owner.mjs');
+  await writeFile(
+    owner,
+    `import { spawnSupervised } from ${JSON.stringify(path.join(scripts, 'worker-runtime.mjs'))};
+const [lifetime, provider, pidFile] = process.argv.slice(2);
+const child = spawnSupervised(process.execPath, [provider, pidFile], { lifetime });
+child.on('error', () => {});
+child.stdout.resume();
+child.stderr.resume();
+const ready = setInterval(() => {
+  if (!child.providerPid) return;
+  clearInterval(ready);
+  console.log(JSON.stringify({ providerPid: child.providerPid, supervisorPid: child.pid }));
+}, 10);
+`,
+  );
+  return { root, provider, owner };
+}
+
+test('the supervisor runs its whole ladder on the provider group after its owner is SIGKILLed', async (t) => {
+  const f = await supervisedFixture(t);
+  const ladder = async (lifetime: string, minimumMs: number) => {
+    const pidFile = path.join(f.root, `${lifetime}.pid`);
+    const owner = spawn(
+      process.execPath,
+      [f.owner, lifetime, f.provider, pidFile],
+      {
+        stdio: ['ignore', 'pipe', 'inherit'],
+      },
+    );
+    const [line] = (await once(owner.stdout, 'data')) as [Buffer];
+    const { providerPid, supervisorPid } = JSON.parse(line.toString());
+    assert.ok(await waitUntil(() => existsSync(pidFile), 5000));
+    const descendant = Number(await readFile(pidFile, 'utf8'));
+    owner.kill('SIGKILL');
+    const killedAt = Date.now();
+    assert.ok(
+      await waitUntil(
+        () => !alive(providerPid, true),
+        runtime.SUPERVISOR_MAX_STOP_MS + 1000,
+      ),
+      `${lifetime} provider group outlived the ladder`,
+    );
+    const elapsed = Date.now() - killedAt;
+    assert.ok(
+      elapsed >= minimumMs,
+      `${lifetime} group was killed before its grace: ${elapsed} ms`,
+    );
+    assert.equal(alive(descendant), false);
+    assert.ok(await waitUntil(() => !alive(supervisorPid), 2000));
+  };
+  // A session gets its stdin-end grace before SIGTERM; a one-shot goes straight to SIGTERM.
+  await Promise.all([
+    ladder(
+      'session',
+      runtime.STDIN_END_GRACE_MS + runtime.SIGTERM_GRACE_MS - 500,
+    ),
+    ladder('one-shot', runtime.SIGTERM_GRACE_MS - 500),
+  ]);
+});
+
+test('a provider that never starts fails like a direct spawn', async (t) => {
+  const root = await temporary(t);
+  const child = runtime.spawnSupervised(path.join(root, 'missing-cli'), [], {
+    lifetime: 'one-shot',
+  });
+  const events: string[] = [];
+  child.on('exit', () => events.push('exit'));
+  // Node emits close in the same tick as error, so both listeners go on first.
+  const errored = new Promise<NodeJS.ErrnoException>((resolve) =>
+    child.once('error', resolve),
+  );
+  const closed = new Promise((resolve) =>
+    child.once('close', (...args: unknown[]) => resolve(args)),
+  );
+  const error = await errored;
+  const [code, signal] = (await closed) as [number, null];
+  assert.equal(error.code, 'ENOENT');
+  assert.match(error.message, /missing-cli ENOENT/);
+  assert.deepEqual(
+    [code, signal, events],
+    [-os.constants.errno.ENOENT, null, []],
+  );
+  assert.equal(child.providerPid, null);
+});
+
+test('a supervised provider relays its output and exit status and takes its helpers with it', async (t) => {
+  const root = await temporary(t);
+  const pidFile = path.join(root, 'helper.pid');
+  const child = runtime.spawnSupervised(
+    process.execPath,
+    [
+      '-e',
+      `const helper = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+helper.unref();
+require('node:fs').writeFileSync(process.argv[1], String(helper.pid));
+let input = '';
+process.stdin.on('data', (bytes) => { input += bytes; });
+process.stdin.on('end', () => {
+  process.stdout.write('read ' + input);
+  process.stderr.write('diagnostic');
+  process.exitCode = 3;
+});`,
+      pidFile,
+    ],
+    { lifetime: 'one-shot' },
+  );
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (bytes: Buffer) => (stdout += bytes));
+  child.stderr.on('data', (bytes: Buffer) => (stderr += bytes));
+  child.stdin.end('task');
+  const [exit] = await Promise.all([once(child, 'exit'), once(child, 'close')]);
+  assert.deepEqual(exit, [3, null]);
+  assert.deepEqual([stdout, stderr], ['read task', 'diagnostic']);
+  assert.ok(Number.isSafeInteger(child.providerPid));
+  assert.notEqual(child.providerPid, child.pid);
+  assert.equal(alive(child.providerPid, true), false);
+  assert.equal(alive(Number(await readFile(pidFile, 'utf8'))), false);
+});
+
+test('stop ends a one-shot provider through the supervisor and reports the signal', async (t) => {
+  await temporary(t);
+  const child = runtime.spawnSupervised(
+    process.execPath,
+    [
+      '-e',
+      "process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1000)",
+    ],
+    { lifetime: 'one-shot', stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  child.stdout.resume();
+  child.stderr.resume();
+  assert.ok(await waitUntil(() => child.providerPid !== null, 5000));
+  const closed = once(child, 'close');
+  const startedAt = Date.now();
+  await child.stop('deadline');
+  assert.deepEqual(await closed, [null, 'SIGTERM']);
+  assert.ok(Date.now() - startedAt < runtime.SIGTERM_GRACE_MS);
+  assert.equal(child.stopReason, 'deadline');
+  assert.equal(alive(child.providerPid, true), false);
 });

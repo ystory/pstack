@@ -634,6 +634,24 @@ test('a run whose registry cannot be written still runs and records why', async 
   assert.match(receipt.registry.error, /ENOTDIR/);
 });
 
+test('a run records its turn completion between its start and stop events', async (t) => {
+  const f = await fixture(t);
+  assert.equal(f.invoke(f.runArgs).status, 0);
+  const events = (await readFile(path.join(f.runDir, 'events.jsonl'), 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert.deepEqual(
+    events.map(({ type, status }) => [type, status]),
+    [
+      ['started', undefined],
+      ['activity', undefined],
+      ['turn-completed', 'success'],
+      ['stopped', undefined],
+    ],
+  );
+});
+
 test('a child startup failure returns a receipt without fabricating a result', async (t) => {
   const f = await fixture(t);
   await writeFile(f.executable, '#!/nonexistent/pstack-test-interpreter\n');

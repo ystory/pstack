@@ -870,6 +870,25 @@ test('a failed turn keeps provider credentials out of every receipt copy of its 
   );
 });
 
+test('a run records its turn completion between its start and stop events', async (t) => {
+  const f = await fixture(t);
+  assert.equal(f.run('events').status, 0);
+  const events = (
+    await readFile(path.join(f.root, 'events', 'events.jsonl'), 'utf8')
+  )
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert.deepEqual(
+    events.map(({ type, status }) => [type, status]),
+    [
+      ['started', undefined],
+      ['turn-completed', 'completed'],
+      ['stopped', undefined],
+    ],
+  );
+});
+
 test('a retried Codex error stays out of the receipt and a final one is kept', async (t) => {
   const f = await fixture(t);
   assert.equal(f.run('retried', 'RETRY').status, 0);

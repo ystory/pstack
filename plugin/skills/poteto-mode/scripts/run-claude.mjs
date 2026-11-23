@@ -29,6 +29,7 @@ import {
   startRun,
   stopRecord,
   stopRun,
+  turnCompleted,
   writeOnce,
 } from './worker-runtime.mjs';
 
@@ -502,7 +503,10 @@ async function run(options) {
         for (const block of value.message?.content ?? [])
           if (block?.type === 'tool_use')
             recordActivity(runDir, activityText(block));
-      if (value.type === 'result') resultEvent = value;
+      if (value.type === 'result') {
+        resultEvent = value;
+        turnCompleted(runDir, value.subtype);
+      }
     } catch (error) {
       parseError ??= error.message;
     }

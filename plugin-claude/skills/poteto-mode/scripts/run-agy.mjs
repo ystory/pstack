@@ -21,6 +21,7 @@ import {
   startRun,
   stopRecord,
   stopRun,
+  turnCompleted,
   writeOnce,
 } from './worker-runtime.mjs';
 
@@ -853,6 +854,7 @@ function streamParser(options, prior) {
     } else if (value.event === 'result') {
       count++;
       const terminal = value.result;
+      turnCompleted(options.runDir, terminal?.status);
       result = terminal;
       const recovered =
         terminal?.status === 'ERROR' &&

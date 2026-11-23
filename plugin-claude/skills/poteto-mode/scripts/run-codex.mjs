@@ -16,6 +16,7 @@ import {
   startRun,
   stopRecord,
   stopRun,
+  turnCompleted,
   writeOnce,
 } from './worker-runtime.mjs';
 
@@ -575,7 +576,10 @@ async function run(options, server) {
       const activity = activityText(message.params.item);
       if (activity) recordActivity(directory, activity);
     }
-    if (message.method === 'turn/completed') terminal = message.params.turn;
+    if (message.method === 'turn/completed') {
+      terminal = message.params.turn;
+      turnCompleted(directory, terminal?.status);
+    }
     if (
       message.method === 'item/autoApprovalReview/completed' &&
       message.params.review?.status === 'denied'

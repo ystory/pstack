@@ -403,6 +403,13 @@ export function recordActivity(runDir, text) {
   appendEvent(runDir, 'activity', text);
 }
 
+/** The CLI ended a turn; status is its own word for how, such as completed or SUCCESS. */
+export function turnCompleted(runDir, status) {
+  appendEvent(runDir, 'turn-completed', 'turn completed', {
+    status: status ?? null,
+  });
+}
+
 export function stopRun(runDir, stop) {
   appendEvent(runDir, 'stopped', `stopped: ${stop.kind} (${stop.code})`, {
     kind: stop.kind,

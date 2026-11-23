@@ -894,6 +894,26 @@ test('agy keeps provider credentials out of the receipt copies of a native error
   }
 });
 
+test('agy records its turn completion between its start and stop events', async (t) => {
+  const f = await fixture(t);
+  const run = await f.invoke();
+  assert.equal(run.code, 0, run.stderr);
+  const events = (await readFile(path.join(run.runDir, 'events.jsonl'), 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert.deepEqual(
+    events
+      .filter(({ type }) => type !== 'activity')
+      .map(({ type, status }) => [type, status]),
+    [
+      ['started', undefined],
+      ['turn-completed', 'SUCCESS'],
+      ['stopped', undefined],
+    ],
+  );
+});
+
 test('agy interrupted runs keep a continuable conversation and continue it', async (t) => {
   const f = await fixture(t);
   for (const [extra, signal, code, cause] of [

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
 import {
@@ -359,4 +359,147 @@ test('stop ends a one-shot provider through the supervisor and reports the signa
   assert.ok(Date.now() - startedAt < runtime.SIGTERM_GRACE_MS);
   assert.equal(child.stopReason, 'deadline');
   assert.equal(alive(child.providerPid, true), false);
+});
+
+const workers = path.join(scripts, 'workers.mjs');
+
+async function exitedPid() {
+  const child = spawn(process.execPath, ['-e', '']);
+  await once(child, 'close');
+  return child.pid!;
+}
+
+test('status derives running, finished, and lost runs from their run directories', async (t) => {
+  const root = await temporary(t);
+  const state = path.join(root, 'state');
+  await mkdir(path.join(state, 'runs'), { recursive: true });
+  const sleeper = spawn(process.execPath, [
+    '-e',
+    'setInterval(() => {}, 1000)',
+  ]);
+  t.after(() => sleeper.kill());
+  const deadPid = await exitedPid();
+  const register = async (
+    runId: string,
+    cwd: string,
+    pid: number,
+    receipt?: object,
+  ) => {
+    const runDir = path.join(root, runId);
+    await mkdir(runDir, { recursive: true });
+    if (receipt)
+      await writeFile(
+        path.join(runDir, 'result.json'),
+        JSON.stringify(receipt),
+      );
+    await writeFile(
+      path.join(state, 'runs', `${runId}.json`),
+      JSON.stringify({
+        runId,
+        runDir,
+        executor: 'codex',
+        model: 'model-fixture',
+        effort: null,
+        cwd,
+        label: runId,
+        pid,
+        startedAt: '2026-11-23T00:00:00.000Z',
+      }),
+    );
+  };
+  const project = path.join(root, 'project');
+  await register('a-running', path.join(project, 'worktree'), sleeper.pid!);
+  await register('b-completed', project, deadPid, {
+    stop: { kind: 'completed', code: 'completed' },
+  });
+  await register('c-failed', project, deadPid, {
+    stop: { kind: 'error', code: 'usage-limit' },
+  });
+  await register('d-lost', project, deadPid);
+  await register('e-elsewhere', path.join(root, 'other'), deadPid);
+  const status = (...args: string[]) => {
+    const result = spawnSync(process.execPath, [workers, 'status', ...args], {
+      encoding: 'utf8',
+      env: { ...process.env, PSTACK_STATE_HOME: state },
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout;
+  };
+  const states = (output: string) =>
+    JSON.parse(output).map(({ runId, state, code }: Record<string, string>) => [
+      runId,
+      state,
+      code,
+    ]);
+  assert.deepEqual(states(status('--cwd', project, '--json')), [
+    ['a-running', 'running', null],
+    ['b-completed', 'completed', 'completed'],
+    ['c-failed', 'error', 'usage-limit'],
+    ['d-lost', 'lost', null],
+  ]);
+  assert.equal(states(status('--cwd', project, '--all', '--json')).length, 5);
+  assert.deepEqual(
+    status('--cwd', project)
+      .trim()
+      .split('\n')
+      .map((line) => line.split('\t')[0]),
+    ['running', 'completed', 'error (usage-limit)', 'lost'],
+  );
+});
+
+test('follow streams each new event and exits on the receipt or a lost runner', async (t) => {
+  const root = await temporary(t);
+  const runDir = path.join(root, 'run');
+  await mkdir(runDir);
+  const follower = spawn(
+    process.execPath,
+    [workers, 'follow', '--run-dir', runDir],
+    {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  const lines: string[] = [];
+  let buffered = '';
+  follower.stdout.on('data', (bytes: Buffer) => {
+    buffered += bytes;
+    const parts = buffered.split('\n');
+    buffered = parts.pop()!;
+    lines.push(...parts);
+  });
+  const shown = (count: number) => waitUntil(() => lines.length >= count, 5000);
+  runtime.appendEvent(runDir, 'started', 'started codex model-fixture', {
+    pid: process.pid,
+  });
+  assert.ok(await shown(1));
+  runtime.recordActivity(runDir, 'running: pnpm test');
+  assert.ok(await shown(2));
+  runtime.stopRun(runDir, { kind: 'completed', code: 'completed' });
+  await writeFile(path.join(runDir, 'result.json'), '{}');
+  const [code] = await once(follower, 'close');
+  assert.equal(code, 0);
+  assert.deepEqual(lines, [
+    'started codex model-fixture',
+    'running: pnpm test',
+    'stopped: completed (completed)',
+  ]);
+
+  const lostDir = path.join(root, 'lost');
+  await mkdir(lostDir);
+  const deadPid = await exitedPid();
+  runtime.appendEvent(lostDir, 'started', 'started claude-code model', {
+    pid: deadPid,
+  });
+  const lost = spawnSync(
+    process.execPath,
+    [workers, 'follow', '--run-dir', lostDir],
+    {
+      encoding: 'utf8',
+      timeout: 10_000,
+    },
+  );
+  assert.equal(lost.status, 1, lost.stderr);
+  assert.deepEqual(lost.stdout.trim().split('\n'), [
+    'started claude-code model',
+    `lost: runner ${deadPid} exited without result.json`,
+  ]);
 });

@@ -45,9 +45,9 @@ const launchModelFor = (model, effort) => {
 };
 // Orca antigravity-dialect.ts:151-159. agy retries an empty model reply and sends the
 // retry notice each time; the failure notices end a turn as failed.
-const retryNotice = /^\s*⚠ (Model produced invalid output\.)\s*$/;
+const retryNotice = /^\s*\u26a0 (Model produced invalid output\.)\s*$/;
 const turnFailureNotice =
-  /^\s*(?:⚠ (?:UNAUTHENTICATED \(code 401\)|agent executor error): [^\n]*|API key not valid\. Please pass a valid API key\.|Agent execution error: failed to create Gemini client: [^\n]*|Agent connection was lost and could not be re-established: Failed to rebuild agent: [\s\S]*)\s*$/;
+  /^\s*(?:\u26a0 (?:UNAUTHENTICATED \(code 401\)|agent executor error): [^\n]*|API key not valid\. Please pass a valid API key\.|Agent execution error: failed to create Gemini client: [^\n]*|Agent connection was lost and could not be re-established: Failed to rebuild agent: [\s\S]*)\s*$/;
 const answerOf = (response) =>
   response
     .split('\n')
@@ -299,9 +299,13 @@ async function ownedProcess(executable, args, options) {
     cause ??= kind;
     if (child?.pid && !stopping) {
       stopping = true;
-      // A cancellation lets agy end its turn first; the supervisor then runs the
-      // stop ladder on the provider group.
-      void (cancellations.includes(kind) ? cancelTurn() : Promise.resolve())
+      // A cancelled turn gets to end first; the supervisor then runs the stop
+      // ladder on the provider group.
+      void (
+        hasInput && cancellations.includes(kind)
+          ? cancelTurn()
+          : Promise.resolve()
+      )
         .then(() => child.stop(kind === 'interrupted' ? 'SIGINT' : 'SIGTERM'))
         .then(() =>
           later(() => {

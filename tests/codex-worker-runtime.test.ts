@@ -105,7 +105,7 @@ lines.on('line', (line) => {
   break;
  }
  case 'thread/approveGuardianDeniedAction': if (process.env.FAKE_REJECT_APPROVAL) { send({id:request.id,error:{code:-32600,message:'approval rejected'}}); break; } respond(request,{}); break;
- case 'turn/interrupt': clearTimeout(timer); if (process.env.FAKE_IGNORE_INTERRUPT) break; respond(request,{}); notify('turn/completed',{threadId,turn:{id:turnId,status:'interrupted'}}); break;
+ case 'turn/interrupt': clearTimeout(timer); if (process.env.FAKE_IGNORE_INTERRUPT) break; if (process.env.FAKE_INTERRUPT_NOT_RUNNING) { send({id:request.id,error:{code:-32600,message:'no active turn to interrupt'}}); break; } respond(request,{}); notify('turn/completed',{threadId,turn:{id:turnId,status:'interrupted'}}); break;
  default: send({id:request.id,error:{code:-32601,message:'unexpected '+request.method}});
  }
 });
@@ -980,30 +980,44 @@ test('a resume that opens no thread or another thread is not continuable', async
   }
 });
 
-for (const { prompt, signal, turnKnown, startPending } of [
+for (const { prompt, signal, turnKnown, startPending, reply, outcome } of [
   {
     prompt: 'WAIT',
     signal: 'SIGTERM',
     turnKnown: true,
     startPending: false,
+    reply: {},
+    outcome: 'acknowledged',
+  },
+  {
+    prompt: 'GONE WAIT',
+    signal: 'SIGTERM',
+    turnKnown: true,
+    startPending: false,
+    reply: { FAKE_INTERRUPT_NOT_RUNNING: '1' },
+    outcome: 'not-running',
   },
   {
     prompt: 'EARLY WAIT',
     signal: 'SIGINT',
     turnKnown: true,
     startPending: true,
+    reply: { FAKE_IGNORE_INTERRUPT: '1' },
+    outcome: 'timed-out',
   },
   {
     prompt: 'NO_ID WAIT',
     signal: 'SIGINT',
     turnKnown: false,
     startPending: true,
+    reply: {},
+    outcome: null,
   },
 ] as const)
   test(`signal cancels the active turn and closes its process for ${prompt}`, async (t) => {
     const f = await fixture(t),
       child = f.start('cancelled', {
-        FAKE_IGNORE_INTERRUPT: '1',
+        ...reply,
         FAKE_HOLD_TURN_STARTED: turnKnown ? '' : '1',
         FAKE_HOLD_TURN_RESPONSE: startPending ? '1' : '',
       });
@@ -1071,7 +1085,9 @@ for (const { prompt, signal, turnKnown, startPending } of [
         (event) => event.request?.method === 'turn/interrupt',
       );
     assert.equal(interrupts.length, turnKnown ? 1 : 0);
+    assert.equal(receipt.interrupt?.outcome ?? null, outcome);
     if (turnKnown) {
+      assert.equal(receipt.interrupt.turnId, receipt.turnId);
       assert.equal(receipt.turnId, `turn-${receipt.process.pid}`);
       assert.equal(interrupts[0].request.params.threadId, receipt.threadId);
       assert.equal(interrupts[0].request.params.turnId, receipt.turnId);

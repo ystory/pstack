@@ -475,6 +475,7 @@ async function run(options, server) {
     terminal = null;
   const threadSettings = { model: null, effort: null };
   const deniedReviews = [];
+  let interrupt = null;
   const child = { pid: null, exitCode: null, signal: null, closed: false };
   let provider = null;
   const supervisedSpawn = (...spawnArgs) =>
@@ -566,6 +567,7 @@ async function run(options, server) {
             event: approval,
           })),
       prompt,
+      onInterrupt: (outcome) => (interrupt = outcome),
       onDiagnostic: diagnostic,
       onProgress: (update) => {
         if (typeof update === 'object') {
@@ -655,6 +657,7 @@ async function run(options, server) {
     error: redactError(failure ?? result?.error ?? terminal?.error ?? null),
     exitCode,
     signal,
+    interrupt: redactError(interrupt),
     process: child,
     startedAt,
     finishedAt: new Date().toISOString(),

@@ -473,6 +473,10 @@ for (const mode of [
     assert.equal(run.receipt.result, null);
     assert.ok(run.receipt.error);
     assert.equal(run.receipt.process.closed, true);
+    assert.equal(
+      run.receipt.stop.kind,
+      run.receipt.inputSent ? 'error' : 'not-started',
+    );
     if (['wrong-model', 'wrong-cwd', 'no-init'].includes(mode)) {
       assert.equal(run.receipt.inputSent, false);
       assert.equal(
@@ -802,6 +806,51 @@ test('agy keeps a native ERROR terminal result and its usage in the failed recei
   assert.equal(resumed.receipt.terminalResult.num_turns, 2);
 });
 
+test('agy names the stop code from AGY_ERROR status and code before sign-in wording', async (t) => {
+  const f = await fixture(t);
+  for (const [mode, stderr, kind, code] of [
+    [
+      'failure',
+      'AGY_ERROR: {"status":"RESOURCE_EXHAUSTED","error_code":429}',
+      'error',
+      'usage-limit',
+    ],
+    [
+      'failure',
+      'AGY_ERROR: {"status":"unauthenticated"}',
+      'error',
+      'not-signed-in',
+    ],
+    ['failure', 'AGY_ERROR: {"error_code":403}', 'error', 'model-unavailable'],
+    [
+      'failure',
+      'not logged in\n[agy] AGY_ERROR: {"error_code":503}',
+      'error',
+      'provider',
+    ],
+    ['failure', 'AGY_ERROR: {"short_error":"boom"}', 'error', 'failed'],
+    [
+      'no-init',
+      'Authentication required. Please visit the URL',
+      'not-started',
+      'not-signed-in',
+    ],
+  ] as const) {
+    const run = await f.invoke(mode, [], 'run', { AGY_FIXTURE_STDERR: stderr });
+    const diagnostic = `${stderr} ${JSON.stringify(run.receipt?.stop)}`;
+    assert.notEqual(run.code, 0, diagnostic);
+    assert.equal(run.receipt.stop.kind, kind, diagnostic);
+    assert.equal(run.receipt.stop.code, code, diagnostic);
+    const events = (
+      await readFile(path.join(run.runDir, 'events.jsonl'), 'utf8')
+    )
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    assert.deepEqual(events.at(-1).code, code);
+  }
+});
+
 test('agy completes a turn whose native ERROR result carries a recovered model error and a zero exit', async (t) => {
   const f = await fixture(t);
   const run = await f.invoke('recovered-error');
@@ -1012,6 +1061,11 @@ test(
         const pid = Number(await readFile(run.childPid, 'utf8'));
         assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
       }
+      assert.deepEqual(
+        [run.receipt.stop.kind, run.receipt.stop.code],
+        [mode === 'init-hang' ? 'not-started' : 'interrupted', 'deadline'],
+        diagnostic,
+      );
     }
     for (const [signal, status, code] of [
       ['SIGINT', 'interrupted', 130],

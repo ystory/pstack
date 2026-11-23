@@ -79,6 +79,8 @@ if (args[0] === '--version') {
     );
   leaveDescendant();
 } else {
+  if (process.env.AGY_FIXTURE_STDERR)
+    process.stderr.write(`${process.env.AGY_FIXTURE_STDERR}\n`);
   const nativeId = args.includes('--conversation')
     ? option('--conversation')
     : '917f82bf-4fe5-46b9-8c4a-58663982aa01';

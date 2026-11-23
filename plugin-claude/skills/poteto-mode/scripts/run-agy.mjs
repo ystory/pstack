@@ -610,7 +610,67 @@ const interruptionCauses = {
   terminated: ['signal', 'SIGTERM'],
 };
 
-function stopFor(receipt) {
+// Orca src/main/rate-limits/providers/antigravity/antigravity-usage-error.ts:5-88, with
+// each failure kind named by its stop code. Structured AGY_ERROR lines outrank prose.
+const agyErrorPrefix = 'AGY_ERROR:';
+const agyErrorCodes = [
+  [
+    'not-signed-in',
+    (status, code) => status === 'UNAUTHENTICATED' || code === 401,
+  ],
+  // Orca's no-subscription: authenticated, but not entitled to what was asked for.
+  [
+    'model-unavailable',
+    (status, code) => status === 'PERMISSION_DENIED' || code === 403,
+  ],
+  [
+    'usage-limit',
+    (status, code) => status === 'RESOURCE_EXHAUSTED' || code === 429,
+  ],
+  ['provider', (_, code) => code !== null && code >= 500 && code < 600],
+];
+const signedOutPhrases = [
+  'not logged into antigravity',
+  'not logged in',
+  'not signed in',
+  'not authenticated',
+  'not-authenticated',
+  'unauthenticated',
+  'run agy login',
+  'please sign in',
+  'please log in',
+  'sign in to antigravity',
+  'no credentials',
+  'authentication required',
+];
+
+function failureCode(diagnostics) {
+  for (const line of diagnostics.split('\n')) {
+    const index = line.indexOf(agyErrorPrefix);
+    const payload =
+      index === -1 ? '' : line.slice(index + agyErrorPrefix.length).trim();
+    if (!payload.startsWith('{')) continue;
+    let error;
+    try {
+      error = JSON.parse(payload);
+    } catch {
+      continue;
+    }
+    const status =
+      typeof error?.status === 'string' ? error.status.toUpperCase() : '';
+    const code =
+      typeof error?.error_code === 'number' ? error.error_code : null;
+    const match = agyErrorCodes.find(([, applies]) => applies(status, code));
+    if (match) return match[0];
+  }
+  const lowered = diagnostics.toLowerCase();
+  return signedOutPhrases.some((phrase) => lowered.includes(phrase))
+    ? 'not-signed-in'
+    : 'failed';
+}
+
+// A run whose task input never reached agy has not started, whatever stopped it.
+function stopFor(receipt, diagnostics) {
   const [kind, code, cause] =
     receipt.status in interruptionCauses
       ? ['interrupted', ...interruptionCauses[receipt.status]]
@@ -618,9 +678,13 @@ function stopFor(receipt) {
         ? ['completed', 'completed', 'completed']
         : receipt.status === 'unsupported-auth'
           ? ['not-started', 'unsupported-auth', receipt.error]
-          : ['error', 'failed', receipt.error ?? receipt.status];
+          : [
+              'error',
+              failureCode(diagnostics),
+              receipt.error ?? receipt.status,
+            ];
   return stopRecord({
-    kind,
+    kind: kind === 'completed' || receipt.inputSent ? kind : 'not-started',
     code,
     cause,
     continuable: conversationVerified(receipt, {
@@ -628,6 +692,24 @@ function stopFor(receipt) {
       cwd: receipt.cwd,
     }),
   });
+}
+
+async function tail(file, bytes = 64 * 1024) {
+  let handle;
+  try {
+    handle = await fs.open(file);
+  } catch (error) {
+    if (error.code === 'ENOENT') return '';
+    throw error;
+  }
+  try {
+    const { size } = await handle.stat();
+    const buffer = Buffer.alloc(Math.min(size, bytes));
+    await handle.read(buffer, 0, buffer.length, size - buffer.length);
+    return buffer.toString('utf8');
+  } finally {
+    await handle.close();
+  }
 }
 
 async function priorFor(options, auth) {
@@ -1048,7 +1130,10 @@ async function execute(options) {
       !error && evidence.terminalResult?.status === 'ERROR'
         ? evidence.terminalResult.error
         : null;
-    receipt.stop = stopFor(receipt);
+    receipt.stop = stopFor(
+      receipt,
+      `${await tail(stderrPath)}\n${evidence.terminalResult?.error ?? ''}`,
+    );
     stopRun(options.runDir, receipt.stop);
   }
   await fs.writeFile(resultPath, json(receipt), { flag: 'wx', mode: 0o600 });

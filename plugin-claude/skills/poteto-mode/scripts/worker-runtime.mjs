@@ -315,6 +315,8 @@ class SupervisedChild extends EventEmitter {
   #spawnError = null;
   /** The provider's pid, which is also its process group, once the supervisor reports it. */
   providerPid = null;
+  /** Whether the supervisor killed descendants that outlived the provider; null until it reports. */
+  descendantsReaped = null;
   stopReason = null;
 
   constructor(raw, lifetime) {
@@ -327,6 +329,8 @@ class SupervisedChild extends EventEmitter {
     raw.on('message', (message) => {
       if (Number.isSafeInteger(message?.providerPid))
         this.providerPid = message.providerPid;
+      if (typeof message?.descendantsReaped === 'boolean')
+        this.descendantsReaped = message.descendantsReaped;
       if (message?.spawnError)
         this.#spawnError = Object.assign(
           new Error(message.spawnError.message),

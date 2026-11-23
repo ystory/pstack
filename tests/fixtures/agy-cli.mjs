@@ -79,6 +79,8 @@ if (args[0] === '--version') {
     );
   leaveDescendant();
 } else {
+  if (process.env.AGY_FIXTURE_STDERR)
+    process.stderr.write(`${process.env.AGY_FIXTURE_STDERR}\n`);
   const nativeId = args.includes('--conversation')
     ? option('--conversation')
     : '917f82bf-4fe5-46b9-8c4a-58663982aa01';
@@ -155,12 +157,21 @@ if (args[0] === '--version') {
           },
         },
       });
+  const responses = {
+    empty: ' \n ',
+    'retry-notice':
+      '⚠ Model produced invalid output.\n⚠ Model produced invalid output.\nfresh answer 한글 🥔',
+    'retry-only': '⚠ Model produced invalid output.\n',
+    'failure-notice': '⚠ agent executor error: model request failed\n',
+    'rebuild-notice':
+      'Agent connection was lost and could not be re-established: Failed to rebuild agent: no session\nretry later',
+  };
   const result = {
     event: 'result',
     result: {
       conversation_id: mode === 'wrong-result-id' ? 'wrong' : conversationId,
       status: 'SUCCESS',
-      response: mode === 'empty' ? ' \n ' : 'fresh answer 한글 🥔',
+      response: responses[mode] ?? 'fresh answer 한글 🥔',
       num_turns: args.includes('--conversation') && mode !== 'stale' ? 2 : 1,
       usage: { input_tokens: 22, output_tokens: 4, total_tokens: 26 },
     },
@@ -209,7 +220,13 @@ if (args[0] === '--version') {
   if (mode === 'error-then-success')
     emit({ event: 'error', error: 'original native failure' });
   if (
-    ['hang', 'late-success', 'descendant', 'pipe-descendant'].includes(mode)
+    [
+      'hang',
+      'late-success',
+      'descendant',
+      'pipe-descendant',
+      'slow-cancel',
+    ].includes(mode)
   ) {
     let descendant;
     if (mode === 'descendant' || mode === 'pipe-descendant') {
@@ -225,8 +242,9 @@ if (args[0] === '--version') {
       );
       writeFileSync(process.env.AGY_CHILD_PID, String(descendant.pid));
     }
-    const stop = async () => {
-      trace({ stopped: true });
+    const stop = async (signal) => {
+      trace({ stopped: signal, at: Date.now() });
+      if (mode === 'slow-cancel' && signal === 'SIGINT') return;
       if (mode === 'late-success') emit(result);
       if (descendant) {
         descendant.kill('SIGTERM');

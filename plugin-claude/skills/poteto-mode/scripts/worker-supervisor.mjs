@@ -2,7 +2,8 @@
 // (POSIX_PROVIDER_SUPERVISOR_SCRIPT), run as a file. worker-runtime.mjs starts it
 // detached; it starts the provider in its own process group and stops that group
 // when its owner dies. It reports the provider's pid, or why it never started,
-// over the IPC channel. Unlike Orca's, it relays only stdin: the provider writes
+// over the IPC channel, and as it exits, whether it killed descendants that
+// outlived the provider. Unlike Orca's, it relays only stdin: the provider writes
 // to the owner's stdout and stderr directly, so the owner reads the provider's
 // end of output when it happens rather than when this supervisor exits.
 import { spawn } from 'node:child_process';
@@ -67,9 +68,10 @@ function releaseFd(fd, flags) {
 releaseFd(1, 'w');
 releaseFd(2, 'w');
 // A spawn that failed without a pid reports through its 'error' event below.
+// The channel stays open for the descendants report sent just before exit.
 if (child?.pid) {
   try {
-    process.send({ providerPid: child.pid }, disconnect);
+    process.send({ providerPid: child.pid });
   } catch {
     disconnect();
   }
@@ -78,6 +80,8 @@ let timer;
 let ownerShutdownTimer;
 let settling = false;
 let providerExited = false;
+// Orca warns when a descendant outlives its exited root (claude-stream-json-connection.ts:286-289).
+let descendantsReaped = false;
 const providerGroupExists = () => {
   if (!child?.pid) return false;
   try {
@@ -108,10 +112,18 @@ const reapOwnedProviderGroup = async () => {
   return waitForProviderGroupExit(spec.groupReapTimeoutMs);
 };
 const finishWithProviderOutcome = (code, signal) => {
-  if (!signal) return process.exit(code ?? 1);
-  // Re-raise with the default action; this supervisor's own handler would swallow it.
-  process.removeAllListeners(signal);
-  process.kill(process.pid, signal);
+  const finish = () => {
+    if (!signal) return process.exit(code ?? 1);
+    // Re-raise with the default action; this supervisor's own handler would swallow it.
+    process.removeAllListeners(signal);
+    process.kill(process.pid, signal);
+  };
+  // A dead owner's closed channel hands the callback its error, which changes nothing here.
+  try {
+    process.send({ descendantsReaped }, finish);
+  } catch {
+    finish();
+  }
 };
 // Every stop is the same: SIGTERM the group, SIGKILL it after its grace, and exit
 // only once it is gone. Whoever stops this pid judges the provider by it, so a dead
@@ -127,7 +139,11 @@ function stopProviderGroup(receivedSignal) {
   // A one-shot's helpers die with it once it has exited; a session's keep the grace to clean up.
   const graceOver = () => spec.lifetime === 'one-shot' && providerExited;
   void waitForProviderGroupExit(spec.sigtermGraceMs, graceOver)
-    .then((exited) => exited || reapOwnedProviderGroup())
+    .then((exited) => {
+      if (exited) return true;
+      descendantsReaped = providerExited;
+      return reapOwnedProviderGroup();
+    })
     .then((reaped) => {
       if (!reaped) return process.exit(1);
       finishWithProviderOutcome(137, receivedSignal);
@@ -165,6 +181,7 @@ const reapProviderExit = async (code, signal) => {
   settling = true;
   clearInterval(timer);
   if (ownerShutdownTimer) clearTimeout(ownerShutdownTimer);
+  descendantsReaped = providerGroupExists();
   if (!(await reapOwnedProviderGroup())) return process.exit(1);
   finishWithProviderOutcome(code, signal);
 };

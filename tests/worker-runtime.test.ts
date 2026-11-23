@@ -302,6 +302,7 @@ test('a provider that never starts fails like a direct spawn', async (t) => {
     [-os.constants.errno.ENOENT, null, []],
   );
   assert.equal(child.providerPid, null);
+  assert.equal(child.descendantsReaped, null);
 });
 
 test('a supervised provider relays its output and exit status and takes its helpers with it', async (t) => {
@@ -339,6 +340,32 @@ process.stdin.on('end', () => {
   assert.equal(alive(Number(await readFile(pidFile, 'utf8'))), false);
 });
 
+test('the supervisor reports whether it killed descendants that outlived the provider', async (t) => {
+  const root = await temporary(t);
+  const pidFile = path.join(root, 'helper.pid');
+  for (const [script, reaped] of [
+    [
+      `const helper = require('node:child_process').spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+helper.unref();
+require('node:fs').writeFileSync(process.argv[1], String(helper.pid));`,
+      true,
+    ],
+    ['', false],
+  ] as const) {
+    const child = runtime.spawnSupervised(
+      process.execPath,
+      ['-e', script, pidFile],
+      { lifetime: 'one-shot', stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    child.stdout.resume();
+    child.stderr.resume();
+    assert.equal(child.descendantsReaped, null);
+    await once(child, 'close');
+    assert.equal(child.descendantsReaped, reaped);
+  }
+  assert.equal(alive(Number(await readFile(pidFile, 'utf8'))), false);
+});
+
 test('stop ends a one-shot provider through the supervisor and reports the signal', async (t) => {
   await temporary(t);
   for (const [reason, signal] of [
@@ -362,6 +389,7 @@ test('stop ends a one-shot provider through the supervisor and reports the signa
     assert.deepEqual(await closed, [null, signal]);
     assert.ok(Date.now() - startedAt < runtime.SIGTERM_GRACE_MS);
     assert.equal(child.stopReason, reason);
+    assert.equal(child.descendantsReaped, false);
     assert.equal(alive(child.providerPid, true), false);
   }
 });

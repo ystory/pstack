@@ -31,6 +31,28 @@ const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const descendantExitGraceMs = 3000;
+// Orca's ACP stop sends session/cancel and gives the turn this long to end before it
+// closes the process (acp-structured-session-adapter-deps.ts:19-20). Headless agy's
+// cancel is SIGINT.
+const cancelGraceMs = 4000;
+const cancellations = ['interrupted', 'terminated', 'timed-out'];
+// agy runs its default model for a leveled ID whose level conflicts with --effort, so
+// launch the family ID (agent-session-option-catalog-antigravity.ts:5-23).
+const levelSuffix = /^(.+)-(none|minimal|low|medium|high|xhigh|max)$/;
+const launchModelFor = (model, effort) => {
+  const match = levelSuffix.exec(model);
+  return match && match[2] !== effort ? match[1] : model;
+};
+// Orca antigravity-dialect.ts:151-159. agy retries an empty model reply and sends the
+// retry notice each time; the failure notices end a turn as failed.
+const retryNotice = /^\s*\u26a0 (Model produced invalid output\.)\s*$/;
+const turnFailureNotice =
+  /^\s*(?:\u26a0 (?:UNAUTHENTICATED \(code 401\)|agent executor error): [^\n]*|API key not valid\. Please pass a valid API key\.|Agent execution error: failed to create Gemini client: [^\n]*|Agent connection was lost and could not be re-established: Failed to rebuild agent: [\s\S]*)\s*$/;
+const answerOf = (response) =>
+  response
+    .split('\n')
+    .filter((line) => !retryNotice.test(line))
+    .join('\n');
 const contains = (root, target) =>
   target === root || target.startsWith(`${root}${path.sep}`);
 const uuid = (value) =>
@@ -107,6 +129,7 @@ function optionsFor(argv) {
       model: options.model,
       reasoningEffort: options.effort,
     });
+    options.launchModel = launchModelFor(options.model, options.effort);
   }
   return options;
 }
@@ -252,24 +275,46 @@ async function ownedProcess(executable, args, options) {
     timers.add(timer);
     return timer;
   };
-  let settle;
+  let settle, markExited;
   const completion = new Promise((resolve) => {
     settle = resolve;
   });
+  const exited = new Promise((resolve) => {
+    markExited = resolve;
+  });
+  const cancelTurn = async () => {
+    if (!child.providerPid || code !== null || signal !== null) return;
+    try {
+      process.kill(child.providerPid, 'SIGINT');
+    } catch (error) {
+      if (error.code !== 'ESRCH') cleanupErrors.add(error.message);
+    }
+    await new Promise((resolve) => {
+      later(resolve, cancelGraceMs);
+      void exited.then(resolve);
+    });
+  };
   const fail = (message, kind = 'failed') => {
     firstError ??= message;
     cause ??= kind;
     if (child?.pid && !stopping) {
       stopping = true;
-      // The supervisor runs the stop ladder on the provider group.
-      void child.stop(kind === 'interrupted' ? 'SIGINT' : 'SIGTERM').then(() =>
-        later(() => {
-          child.stdin?.destroy();
-          child.stdout.destroy();
-          child.stderr.destroy();
-          settle();
-        }, 200),
-      );
+      // A cancelled turn gets to end first; the supervisor then runs the stop
+      // ladder on the provider group.
+      void (
+        hasInput && cancellations.includes(kind)
+          ? cancelTurn()
+          : Promise.resolve()
+      )
+        .then(() => child.stop(kind === 'interrupted' ? 'SIGINT' : 'SIGTERM'))
+        .then(() =>
+          later(() => {
+            child.stdin?.destroy();
+            child.stdout.destroy();
+            child.stderr.destroy();
+            settle();
+          }, 200),
+        );
     }
   };
   const send = () => {
@@ -327,6 +372,7 @@ async function ownedProcess(executable, args, options) {
     child.once('exit', (exitCode, exitSignal) => {
       code = exitCode;
       signal = exitSignal;
+      markExited();
       if (code !== 0 || signal) fail(`agy exited ${code ?? signal}.`);
       later(() => {
         if (!closed) fail('Owned CLI exited with open descendant pipes.');
@@ -380,6 +426,7 @@ async function ownedProcess(executable, args, options) {
         signal,
         closed,
         groupClosed: !alive(),
+        descendantsReaped: child.descendantsReaped,
         cleanupErrors: [...cleanupErrors],
         shutdown: closed && !firstError ? 'orderly' : 'terminated',
       },
@@ -391,8 +438,22 @@ async function ownedProcess(executable, args, options) {
   }
 }
 
+// Workers use subscription login or ADC. agy's modelProvider setting selects the
+// Gemini API-key route instead, so no catalog or worker starts under it.
+function authStop(auth) {
+  if (auth.method !== 'gemini-api-key') return null;
+  return stopRecord({
+    kind: 'not-started',
+    code: 'unsupported-auth',
+    cause:
+      '"modelProvider": "gemini" in ~/.gemini/antigravity-cli/settings.json selects the Gemini API-key route, which workers do not use. Workers use subscription login or ADC.',
+    continuable: false,
+  });
+}
+
 async function detect(options) {
   const auth = await inheritedAgyAuth();
+  const stop = authStop(auth);
   let executable;
   try {
     executable = await executablePath(options.executable);
@@ -407,6 +468,7 @@ async function detect(options) {
       available: false,
       compatible: false,
       auth,
+      stop,
       modelExecutionVerified: false,
     };
   }
@@ -467,6 +529,7 @@ async function detect(options) {
       Object.values(requiredOptions).every(Boolean) &&
       effortSyntax.length > 0,
     auth,
+    stop,
     modelExecutionVerified: false,
     probeError: versionProbe.error ?? helpProbe.error ?? null,
     probeCause: versionProbe.cause ?? helpProbe.cause ?? null,
@@ -551,22 +614,106 @@ const interruptionCauses = {
   terminated: ['signal', 'SIGTERM'],
 };
 
-function stopFor(receipt) {
+// Orca src/main/rate-limits/providers/antigravity/antigravity-usage-error.ts:5-88, with
+// each failure kind named by its stop code. Structured AGY_ERROR lines outrank prose.
+const agyErrorPrefix = 'AGY_ERROR:';
+const agyErrorCodes = [
+  [
+    'not-signed-in',
+    (status, code) => status === 'UNAUTHENTICATED' || code === 401,
+  ],
+  // Orca's no-subscription: authenticated, but not entitled to what was asked for.
+  [
+    'model-unavailable',
+    (status, code) => status === 'PERMISSION_DENIED' || code === 403,
+  ],
+  [
+    'usage-limit',
+    (status, code) => status === 'RESOURCE_EXHAUSTED' || code === 429,
+  ],
+  ['provider', (_, code) => code !== null && code >= 500 && code < 600],
+];
+const signedOutPhrases = [
+  'not logged into antigravity',
+  'not logged in',
+  'not signed in',
+  'not authenticated',
+  'not-authenticated',
+  'unauthenticated',
+  'run agy login',
+  'please sign in',
+  'please log in',
+  'sign in to antigravity',
+  'no credentials',
+  'authentication required',
+];
+
+function failureCode(diagnostics) {
+  for (const line of diagnostics.split('\n')) {
+    const index = line.indexOf(agyErrorPrefix);
+    const payload =
+      index === -1 ? '' : line.slice(index + agyErrorPrefix.length).trim();
+    if (!payload.startsWith('{')) continue;
+    let error;
+    try {
+      error = JSON.parse(payload);
+    } catch {
+      continue;
+    }
+    const status =
+      typeof error?.status === 'string' ? error.status.toUpperCase() : '';
+    const code =
+      typeof error?.error_code === 'number' ? error.error_code : null;
+    const match = agyErrorCodes.find(([, applies]) => applies(status, code));
+    if (match) return match[0];
+  }
+  const lowered = diagnostics.toLowerCase();
+  return signedOutPhrases.some((phrase) => lowered.includes(phrase))
+    ? 'not-signed-in'
+    : 'failed';
+}
+
+// A run whose task input never reached agy has not started, whatever stopped it.
+function stopFor(receipt, diagnostics) {
   const [kind, code, cause] =
     receipt.status in interruptionCauses
       ? ['interrupted', ...interruptionCauses[receipt.status]]
       : receipt.status === 'completed'
         ? ['completed', 'completed', 'completed']
-        : ['error', 'failed', receipt.error ?? receipt.status];
+        : receipt.status === 'unsupported-auth'
+          ? ['not-started', 'unsupported-auth', receipt.error]
+          : [
+              'error',
+              failureCode(diagnostics),
+              receipt.error ?? receipt.status,
+            ];
   return stopRecord({
-    kind,
+    kind: kind === 'completed' || receipt.inputSent ? kind : 'not-started',
     code,
     cause,
     continuable: conversationVerified(receipt, {
-      model: receipt.requested?.model,
+      model: receipt.launchModel,
       cwd: receipt.cwd,
     }),
   });
+}
+
+async function tail(file, bytes = 64 * 1024) {
+  let handle;
+  try {
+    handle = await fs.open(file);
+  } catch (error) {
+    if (error.code === 'ENOENT') return '';
+    throw error;
+  }
+  try {
+    const { size } = await handle.stat();
+    const buffer = Buffer.alloc(Math.min(size, bytes));
+    await handle.read(buffer, 0, buffer.length, size - buffer.length);
+    return buffer.toString('utf8');
+  } finally {
+    await handle.close();
+  }
 }
 
 async function priorFor(options, auth) {
@@ -603,7 +750,12 @@ async function priorFor(options, auth) {
     throw new Error(
       'Resume requires verified closed owned process and process group.',
     );
-  if (!conversationVerified(prior, options))
+  if (
+    !conversationVerified(prior, {
+      model: options.launchModel,
+      cwd: options.cwd,
+    })
+  )
     throw new Error(
       'Resume receipt lacks exact conversation identity evidence.',
     );
@@ -659,7 +811,10 @@ function streamParser(options, prior) {
         throw new Error(
           'Init conversation ID does not match the exact requested conversation.',
         );
-      if (init.init?.model !== options.model || init.init?.cwd !== options.cwd)
+      if (
+        init.init?.model !== options.launchModel ||
+        init.init?.cwd !== options.cwd
+      )
         throw new Error('Init model or cwd does not match the exact request.');
       ready();
     } else if (value.event === 'step_update') {
@@ -710,10 +865,14 @@ function streamParser(options, prior) {
         terminal.is_error === true ||
         terminal.success === false ||
         typeof terminal.response !== 'string' ||
-        !terminal.response.trim()
+        !answerOf(terminal.response).trim()
       )
         throw new Error(
           'Missing matching current-turn SUCCESS terminal result and nonempty response.',
+        );
+      if (turnFailureNotice.test(answerOf(terminal.response)))
+        throw new Error(
+          `agy ended the turn with a failure notice: ${answerOf(terminal.response).trim()}`,
         );
       if (
         !Number.isSafeInteger(terminal.num_turns) ||
@@ -794,6 +953,7 @@ async function execute(options) {
     label: options.label ?? null,
     executable,
     requested: options.requested ?? null,
+    launchModel: options.launchModel ?? null,
     auth,
     authMode: auth.method,
     permissions: 'all-native-tools-auto-approved',
@@ -826,6 +986,11 @@ async function execute(options) {
   try {
     stdoutFd = openSync(stdoutPath, 'wx', 0o600);
     stderrFd = openSync(stderrPath, 'wx', 0o600);
+    const refused = authStop(auth);
+    if (refused)
+      throw Object.assign(new Error(refused.cause), {
+        kind: 'unsupported-auth',
+      });
     runtime = await detect({ executable });
     if (!runtime.compatible) {
       const rejected = new Error(
@@ -862,7 +1027,7 @@ async function execute(options) {
         '--output-format',
         'stream-json',
         '--model',
-        options.model,
+        options.launchModel,
         '--effort',
         options.effort,
         '--dangerously-skip-permissions',
@@ -901,10 +1066,11 @@ async function execute(options) {
       throw new Error('Owned process closure is unconfirmed.');
     if (context) {
       request.finalPath = path.join(options.runDir, 'final.txt');
-      await fs.writeFile(request.finalPath, evidence.terminalResult.response, {
-        flag: 'wx',
-        mode: 0o600,
-      });
+      await fs.writeFile(
+        request.finalPath,
+        answerOf(evidence.terminalResult.response),
+        { flag: 'wx', mode: 0o600 },
+      );
     }
     if (!context) {
       catalog = {
@@ -941,13 +1107,16 @@ async function execute(options) {
       signal: null,
       closed: true,
       groupClosed: true,
+      descendantsReaped: null,
       shutdown: 'not-started',
     },
     ...evidence,
     effectiveEffort: null,
     inputSent: outcome?.inputSent ?? false,
     identityBeforeInput: outcome?.identityBeforeInput ?? false,
-    result: error ? null : (evidence.terminalResult?.response ?? null),
+    result: error
+      ? null
+      : answerOf(evidence.terminalResult?.response ?? '') || null,
     usage: evidence.terminalResult?.usage
       ? {
           scope: 'conversation-cumulative',
@@ -965,7 +1134,10 @@ async function execute(options) {
       !error && evidence.terminalResult?.status === 'ERROR'
         ? evidence.terminalResult.error
         : null;
-    receipt.stop = stopFor(receipt);
+    receipt.stop = stopFor(
+      receipt,
+      `${await tail(stderrPath)}\n${evidence.terminalResult?.error ?? ''}`,
+    );
     stopRun(options.runDir, receipt.stop);
   }
   await fs.writeFile(resultPath, json(receipt), { flag: 'wx', mode: 0o600 });
@@ -985,7 +1157,7 @@ try {
   else if (options.command === 'detect') {
     const result = await detect(options);
     console.log(JSON.stringify(result));
-    if (!result.compatible) process.exitCode = 1;
+    if (!result.compatible || result.stop) process.exitCode = 1;
   } else await execute(options);
 } catch (error) {
   console.error(error.message);

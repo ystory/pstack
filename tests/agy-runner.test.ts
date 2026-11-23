@@ -307,6 +307,7 @@ test('agy sends one official user event with complete context, role body, exact 
     assert.equal(run.receipt.effectiveEffort, null);
     assert.equal(run.receipt.usage.scope, 'conversation-cumulative');
     assert.equal(run.receipt.process.shutdown, 'orderly');
+    assert.equal(run.receipt.process.descendantsReaped, false);
     const prompt = await readFile(path.join(run.runDir, 'prompt.txt'), 'utf8');
     for (const body of [
       'Complete instruction\r\n',
@@ -367,6 +368,41 @@ test('agy sends one official user event with complete context, role body, exact 
   }
 });
 
+test('agy launches the family ID when the model level conflicts with the effort and records both IDs', async (t) => {
+  const f = await fixture(t);
+  for (const [requested, effort, launched] of [
+    ['gemini-3.8-flash-low', 'high', 'gemini-3.8-flash'],
+    ['gemini-3.8-flash-low', 'low', 'gemini-3.8-flash-low'],
+    ['claude-fixture-20261115', 'high', 'claude-fixture-20261115'],
+  ] as const) {
+    const run = await f.invoke('normal', [
+      '--model',
+      requested,
+      '--effort',
+      effort,
+    ]);
+    assert.equal(run.code, 0, run.stderr);
+    assert.equal(run.receipt.requested.model, requested);
+    assert.equal(run.receipt.requested.reasoningEffort, effort);
+    assert.equal(run.receipt.launchModel, launched);
+    assert.equal(run.receipt.observedModel, launched);
+    const args = run.receipt.args;
+    assert.equal(args[args.indexOf('--model') + 1], launched);
+    assert.equal(args[args.indexOf('--effort') + 1], effort);
+    assert.equal(run.receipt.stop.continuable, true);
+    const resumed = await f.invoke('normal', [
+      '--model',
+      requested,
+      '--effort',
+      effort,
+      '--resume',
+      path.join(run.runDir, 'result.json'),
+    ]);
+    assert.equal(resumed.code, 0, resumed.stderr);
+    assert.equal(resumed.receipt.launchModel, launched);
+  }
+});
+
 test('agy catalog preserves exact sanitized ID/label provenance without a model prompt or invented effort matrix', async (t) => {
   const f = await fixture(t);
   const run = await f.invoke('normal', [], 'catalog');
@@ -418,6 +454,9 @@ for (const mode of [
   'truncated-utf8',
   'failure',
   'empty',
+  'retry-only',
+  'failure-notice',
+  'rebuild-notice',
   'error-then-success',
   'duplicate-result',
   'late-error',
@@ -434,6 +473,10 @@ for (const mode of [
     assert.equal(run.receipt.result, null);
     assert.ok(run.receipt.error);
     assert.equal(run.receipt.process.closed, true);
+    assert.equal(
+      run.receipt.stop.kind,
+      run.receipt.inputSent ? 'error' : 'not-started',
+    );
     if (['wrong-model', 'wrong-cwd', 'no-init'].includes(mode)) {
       assert.equal(run.receipt.inputSent, false);
       assert.equal(
@@ -443,6 +486,10 @@ for (const mode of [
     }
     if (mode === 'error-then-success')
       assert.match(run.receipt.error, /original native failure/);
+    if (mode.endsWith('-notice')) {
+      assert.match(run.receipt.error, /failure notice/);
+      assert.equal(run.receipt.terminalResult.status, 'SUCCESS');
+    }
     if (mode === 'bad-utf8')
       assert.ok(
         (await readFile(path.join(run.runDir, 'stdout.jsonl'))).includes(0xc3),
@@ -587,26 +634,6 @@ test('agy receipts name the inherited auth method from agy settings and environm
   };
   const cases: [string | null, Record<string, string>, Auth][] = [
     [
-      JSON.stringify({ modelProvider: 'gemini', unrelated }),
-      { GEMINI_API_KEY: key, AGY_ADC_AUTH: 'true' },
-      {
-        method: 'gemini-api-key',
-        modelProvider: 'gemini',
-        geminiApiKeyPresent: true,
-        verified: false,
-      },
-    ],
-    [
-      JSON.stringify({ modelProvider: 'gemini' }),
-      {},
-      {
-        method: 'gemini-api-key',
-        modelProvider: 'gemini',
-        geminiApiKeyPresent: false,
-        verified: false,
-      },
-    ],
-    [
       null,
       { AGY_ADC_AUTH: 'true', GEMINI_API_KEY: key },
       {
@@ -643,6 +670,7 @@ test('agy receipts name the inherited auth method from agy settings and environm
     const detected = await f.invoke('normal', [], 'detect', env);
     assert.equal(detected.code, 0, detected.stderr);
     assert.deepEqual(detected.receipt.auth, expected);
+    assert.equal(detected.receipt.stop, null);
     const runs = [
       await f.invoke('normal', [], 'catalog', env),
       await f.invoke('normal', [], 'run', env),
@@ -666,6 +694,53 @@ test('agy receipts name the inherited auth method from agy settings and environm
       ])
         for (const secret of [key, unrelated])
           assert.equal(text.includes(secret), false);
+    }
+  }
+});
+
+test('agy refuses the Gemini API-key route in detect, catalog and run without launching a worker', async (t) => {
+  const f = await fixture(t);
+  const key = 'fixture-gemini-key-value-never-recorded';
+  const settings = path.join(f.home, '.gemini/antigravity-cli/settings.json');
+  await mkdir(path.dirname(settings), { recursive: true });
+  await writeFile(settings, JSON.stringify({ modelProvider: 'gemini' }));
+  for (const env of [{ GEMINI_API_KEY: key, AGY_ADC_AUTH: 'true' }, {}]) {
+    const detected = await f.invoke('normal', [], 'detect', env);
+    assert.notEqual(detected.code, 0);
+    assert.equal(detected.receipt.compatible, true);
+    assert.equal(detected.receipt.auth.modelProvider, 'gemini');
+    assert.equal(detected.receipt.stop.code, 'unsupported-auth');
+    assert.match(detected.receipt.stop.cause, /"modelProvider": "gemini"/);
+    for (const command of ['catalog', 'run']) {
+      const run = await f.invoke('normal', [], command, env);
+      assert.notEqual(run.code, 0);
+      assert.equal(run.receipt.status, 'unsupported-auth');
+      assert.match(run.receipt.error, /settings\.json/);
+      assert.equal(run.receipt.inputSent, false);
+      await assert.rejects(readFile(run.trace), { code: 'ENOENT' });
+      for (const text of [run.stdout, detected.stdout])
+        assert.equal(text.includes(key), false);
+      if (command === 'run') {
+        assert.deepEqual(run.receipt.stop, {
+          kind: 'not-started',
+          code: 'unsupported-auth',
+          cause: run.receipt.error,
+          continuable: false,
+        });
+        const events = (
+          await readFile(path.join(run.runDir, 'events.jsonl'), 'utf8')
+        )
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line));
+        assert.deepEqual(
+          events.map((event) => [event.type, event.code]),
+          [
+            ['started', undefined],
+            ['stopped', 'unsupported-auth'],
+          ],
+        );
+      }
     }
   }
 });
@@ -731,6 +806,51 @@ test('agy keeps a native ERROR terminal result and its usage in the failed recei
   assert.equal(resumed.receipt.terminalResult.num_turns, 2);
 });
 
+test('agy names the stop code from AGY_ERROR status and code before sign-in wording', async (t) => {
+  const f = await fixture(t);
+  for (const [mode, stderr, kind, code] of [
+    [
+      'failure',
+      'AGY_ERROR: {"status":"RESOURCE_EXHAUSTED","error_code":429}',
+      'error',
+      'usage-limit',
+    ],
+    [
+      'failure',
+      'AGY_ERROR: {"status":"unauthenticated"}',
+      'error',
+      'not-signed-in',
+    ],
+    ['failure', 'AGY_ERROR: {"error_code":403}', 'error', 'model-unavailable'],
+    [
+      'failure',
+      'not logged in\n[agy] AGY_ERROR: {"error_code":503}',
+      'error',
+      'provider',
+    ],
+    ['failure', 'AGY_ERROR: {"short_error":"boom"}', 'error', 'failed'],
+    [
+      'no-init',
+      'Authentication required. Please visit the URL',
+      'not-started',
+      'not-signed-in',
+    ],
+  ] as const) {
+    const run = await f.invoke(mode, [], 'run', { AGY_FIXTURE_STDERR: stderr });
+    const diagnostic = `${stderr} ${JSON.stringify(run.receipt?.stop)}`;
+    assert.notEqual(run.code, 0, diagnostic);
+    assert.equal(run.receipt.stop.kind, kind, diagnostic);
+    assert.equal(run.receipt.stop.code, code, diagnostic);
+    const events = (
+      await readFile(path.join(run.runDir, 'events.jsonl'), 'utf8')
+    )
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    assert.deepEqual(events.at(-1).code, code);
+  }
+});
+
 test('agy completes a turn whose native ERROR result carries a recovered model error and a zero exit', async (t) => {
   const f = await fixture(t);
   const run = await f.invoke('recovered-error');
@@ -770,6 +890,22 @@ test('agy interrupted runs keep a continuable conversation and continue it', asy
     assert.equal(resumed.receipt.conversationId, run.receipt.conversationId);
     assert.equal(resumed.receipt.stop.kind, 'completed');
   }
+});
+
+test('agy leaves retry notices out of the answer and keeps them in the native result', async (t) => {
+  const f = await fixture(t);
+  const run = await f.invoke('retry-notice');
+  assert.equal(run.code, 0, run.stderr);
+  assert.equal(run.receipt.status, 'completed');
+  assert.equal(run.receipt.result, 'fresh answer 한글 🥔');
+  assert.equal(
+    await readFile(path.join(run.runDir, 'final.txt'), 'utf8'),
+    'fresh answer 한글 🥔',
+  );
+  assert.match(
+    run.receipt.terminalResult.response,
+    /^⚠ Model produced invalid output\.\n/,
+  );
 });
 
 test('agy tool errors return to the worker and do not fail the run', async (t) => {
@@ -874,8 +1010,43 @@ test('agy rejects stale and mismatched resumed streams and retains their consume
 });
 
 test(
+  'agy cancels a turn with SIGINT and gives the CLI 4 s to end it before the stop ladder',
+  { timeout: 30000 },
+  async (t) => {
+    const f = await fixture(t);
+    const stops = async (trace: string) =>
+      (await readFile(trace, 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+        .filter((event) => 'stopped' in event);
+    for (const [extra, signal] of [
+      [['--timeout-ms', '350'], undefined],
+      [[], 'SIGTERM'],
+    ] as const) {
+      const prompt = await f.invoke('hang', [...extra], 'run', {}, signal);
+      assert.deepEqual(
+        (await stops(prompt.trace)).map((event) => event.stopped),
+        ['SIGINT'],
+      );
+      assert.equal(prompt.receipt.process.groupClosed, true);
+    }
+    const slow = await f.invoke('slow-cancel', ['--timeout-ms', '350']);
+    const [interrupt, terminate] = await stops(slow.trace);
+    assert.deepEqual(
+      [interrupt.stopped, terminate.stopped],
+      ['SIGINT', 'SIGTERM'],
+    );
+    const grace = terminate.at - interrupt.at;
+    assert.ok(grace >= 3900 && grace < 6000, `grace ${grace} ms`);
+    assert.equal(slow.receipt.status, 'timed-out');
+    assert.equal(slow.receipt.process.groupClosed, true);
+  },
+);
+
+test(
   'agy timeout and SIGINT/SIGTERM override late success and terminate the owned process tree',
-  { timeout: 15000 },
+  { timeout: 30000 },
   async (t) => {
     const f = await fixture(t);
     for (const mode of ['hang', 'late-success', 'descendant', 'init-hang']) {
@@ -890,6 +1061,11 @@ test(
         const pid = Number(await readFile(run.childPid, 'utf8'));
         assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
       }
+      assert.deepEqual(
+        [run.receipt.stop.kind, run.receipt.stop.code],
+        [mode === 'init-hang' ? 'not-started' : 'interrupted', 'deadline'],
+        diagnostic,
+      );
     }
     for (const [signal, status, code] of [
       ['SIGINT', 'interrupted', 130],
@@ -1083,6 +1259,7 @@ test(
       assert.equal(receipt.process.exitCode, 0, diagnostic);
       assert.equal(receipt.process.groupClosed, true, diagnostic);
       assert.equal(receipt.process.shutdown, 'orderly', diagnostic);
+      assert.equal(receipt.process.descendantsReaped, true, diagnostic);
       const pid = Number(await readFile(run.childPid, 'utf8'));
       assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
     }

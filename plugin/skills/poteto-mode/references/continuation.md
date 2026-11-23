@@ -16,11 +16,12 @@ When two continuations for the same cause stop again, stop retrying. Follow the 
 
 ## Read the stop
 
-Runner receipts record `stop.kind`, `stop.cause`, and `stop.continuable`. A native worker's stop arrives as the host's task notice.
+Runner receipts record `stop.kind`, `stop.code`, `stop.cause`, and `stop.continuable`. `stop.code` is the typed cause. A native worker's stop arrives as the host's task notice.
 
 - `interrupted`. Something outside the worker ended it, such as a deadline, a signal, a task stop, a session or host stop, or a usage limit. Continue it once the cause is gone.
 - `permission`. The executor's own approval refused an action, such as a denied Codex review. Show the user the refused action and continue only after the user's explicit approval in chat. Do not grant permissions one by one on your own.
-- `error`. The executor reported an error. Read `stop.cause`. A rate limit, a quota limit, or a dropped connection continues after it clears. A tool or model error follows the calling workflow's retry by cause.
+- `error`. The executor reported an error. Read `stop.code` and `stop.cause`. A rate limit, a quota limit, or a dropped connection continues after it clears. A tool or model error follows the calling workflow's retry by cause.
+- `not-started`. The task input never reached the worker, so the worker holds no work to continue. Read `stop.code` and fix that cause, such as a missing sign-in or an unsupported authentication route. Then give the consolidated brief to a fresh worker.
 - `completed`. Review the result under the calling workflow. New work that needs this worker's state continues it under the costly-state exception.
 
 ## Write the continuation

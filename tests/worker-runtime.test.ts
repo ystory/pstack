@@ -533,6 +533,8 @@ test('status derives running, finished, and lost runs from their run directories
   };
   const project = path.join(root, 'project');
   await register('a-running', path.join(project, 'worktree'), sleeper.pid!);
+  runtime.appendEvent(path.join(root, 'a-running'), 'started', 'started codex');
+  runtime.recordActivity(path.join(root, 'a-running'), 'running: pwd');
   await register('b-completed', project, deadPid, {
     stop: { kind: 'completed', code: 'completed' },
   });
@@ -562,6 +564,14 @@ test('status derives running, finished, and lost runs from their run directories
     ['d-lost', 'lost', null],
   ]);
   assert.equal(states(status('--cwd', project, '--all', '--json')).length, 5);
+  const [running, completed] = JSON.parse(status('--cwd', project, '--json'));
+  assert.equal(running.lastEvent.type, 'activity');
+  assert.equal(running.lastEvent.text, 'running: pwd');
+  assert.equal(completed.lastEvent, null);
+  assert.equal(
+    status('--cwd', project).split('\n')[0]!.split('\t')[4],
+    'running: pwd',
+  );
   assert.deepEqual(
     status('--cwd', project)
       .trim()

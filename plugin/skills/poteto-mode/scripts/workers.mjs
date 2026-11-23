@@ -8,9 +8,9 @@ const usage = `Usage: node workers.mjs status [--cwd DIR] [--all] [--json]
        node workers.mjs follow --run-dir DIR
 
 status lists the runs registered for DIR (default: the current directory) and
-the directories inside it, or every run with --all. A run is running while its
-runner lives without result.json, lost when the runner died without one, and
-otherwise its receipt's stop kind.
+the directories inside it, or every run with --all, each with its last event.
+A run is running while its runner lives without result.json, lost when the
+runner died without one, and otherwise its receipt's stop kind.
 follow prints each new event of one run and exits when result.json appears,
 or with status 1 when the runner died without writing it.`;
 
@@ -74,6 +74,25 @@ function runState(entry) {
   };
 }
 
+// The run's last whole event line, read from the end of its event log.
+function lastEvent(runDir) {
+  let fd;
+  try {
+    fd = fs.openSync(path.join(runDir, 'events.jsonl'), 'r');
+    const { size } = fs.fstatSync(fd);
+    const bytes = Buffer.alloc(Math.min(size, 64 * 1024));
+    fs.readSync(fd, bytes, 0, bytes.length, size - bytes.length);
+    const { ts, type, text } = JSON.parse(
+      bytes.toString('utf8').trimEnd().split('\n').at(-1),
+    );
+    return { ts, type, text };
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
 const inside = (root, target) => {
   const relative = path.relative(root, target);
   return (
@@ -110,7 +129,11 @@ function status(options) {
     .filter(
       (entry) => options.all || roots.some((root) => inside(root, entry.cwd)),
     )
-    .map((entry) => ({ ...entry, ...runState(entry) }));
+    .map((entry) => ({
+      ...entry,
+      ...runState(entry),
+      lastEvent: lastEvent(entry.runDir),
+    }));
   if (options.json) return console.log(JSON.stringify(listed, null, 2));
   if (!listed.length) return console.log('No worker runs.');
   for (const run of listed)
@@ -122,6 +145,7 @@ function status(options) {
         run.executor,
         run.model,
         run.label ?? '-',
+        run.lastEvent?.text ?? '-',
         run.runDir,
       ].join('\t'),
     );

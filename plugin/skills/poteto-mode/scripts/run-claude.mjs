@@ -269,8 +269,9 @@ function activityText({ name, input = {} }) {
 
 // Orca claude-stream-json-exit-error.ts:45-58: the exit status, then stderr's
 // last lines, dropping the fragment a full tail starts with. Whole redacted
-// lines are kept from the end while they fit a stop cause.
-function exitText({ exitCode, signal }, stderrTail) {
+// lines are kept from the end while they fit a stop cause with its after line,
+// such as why stdout did not parse.
+function exitText({ exitCode, signal }, stderrTail, after = null) {
   const detail = (
     stderrTail.length >= STDERR_TAIL_MAX_CHARS
       ? stderrTail.slice(stderrTail.indexOf('\n') + 1)
@@ -283,10 +284,14 @@ function exitText({ exitCode, signal }, stderrTail) {
         ? ''
         : `(code ${exitCode})`;
   const head = `claude stream-json exited${how ? ` ${how}` : ''}`;
+  const tail = after ? `\n${redact(after, Infinity)}` : '';
   let lines = redact(detail, Infinity);
-  while (head.length + 2 + lines.length > 2000 && lines.includes('\n'))
+  while (
+    head.length + 2 + lines.length + tail.length > 2000 &&
+    lines.includes('\n')
+  )
     lines = lines.slice(lines.indexOf('\n') + 1);
-  return lines ? `${head}: ${lines}` : head;
+  return `${lines ? `${head}: ${lines}` : head}${tail}`;
 }
 
 // The receipt's stop, from the first matching piece of evidence. received is a
@@ -621,11 +626,17 @@ async function run(options) {
     terminalReason,
     denials,
     succeeded,
+    // Without a result, stderr's last lines name the failure ahead of a parse error.
     failure:
       spawnError ??
-      parseError ??
-      resultEvent?.subtype ??
-      exitText(completion, stderrTail),
+      (resultEvent && (parseError ?? resultEvent.subtype)) ??
+      exitText(
+        completion,
+        stderrTail,
+        !resultEvent && parseError
+          ? `stdout was not stream-json: ${parseError}`
+          : null,
+      ),
   });
   const resultCopy = receiptResult(resultEvent);
   const receipt = {

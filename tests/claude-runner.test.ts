@@ -137,6 +137,10 @@ if (args[0] === '--version') {
     process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, result: 'Original authentication failure', session_id: sid}) + '\\n');
     process.stderr.write('original stderr\\n');
     process.exitCode = 7;
+  } else if (scenario === 'malformed-stderr') {
+    process.stdout.write('unexpected stdout\\n');
+    process.stderr.write('Failed to load model file\\n');
+    process.exitCode = 2;
   } else if (scenario === 'other-missing') {
     process.stderr.write('No conversation found with session ID: 00000000-0000-4000-8000-000000000042\\n');
     process.stdout.write(JSON.stringify({type: 'result', subtype: process.env.PSTACK_FAKE_SUBTYPE ?? 'success', is_error: process.env.PSTACK_FAKE_SUBTYPE !== undefined, result: 'resumed answer', session_id: sid}) + '\\n');
@@ -1213,6 +1217,20 @@ test("another conversation's missing notice never marks a resume missing-session
       JSON.parse(failed.stdout).stop.continuable,
     ],
     ['failed', true],
+  );
+});
+
+test("a run with malformed output and no result names stderr's diagnosis before the parse error", async (t) => {
+  const f = await fixture(t);
+  const result = f.invoke(f.runArgs, undefined, {
+    PSTACK_FAKE_SCENARIO: 'malformed-stderr',
+  });
+  assert.equal(result.status, 2, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.match(receipt.parseError, /not valid JSON/);
+  assert.equal(
+    receipt.stop.cause,
+    `claude stream-json exited (code 2): Failed to load model file\nstdout was not stream-json: ${receipt.parseError}`,
   );
 });
 

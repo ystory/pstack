@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { constants, createWriteStream } from 'node:fs';
 import {
   access,
@@ -325,7 +326,11 @@ async function run(options) {
     '--permission-mode',
     'auto',
   ];
+  // Orca claude-structured-launch-resolution.ts:170-177, 288-290: a fresh
+  // conversation is named before spawn, so its identity never rests on the stream.
+  const requestedSessionId = options.resume ? null : randomUUID();
   if (options.resume) args.push('--resume', options.resume);
+  else args.push('--session-id', requestedSessionId);
   for (const tool of new Set(options.allowedTool)) {
     args.push('--allowedTools', tool);
   }
@@ -339,6 +344,7 @@ async function run(options) {
     modelSelection: 'explicit',
     reasoningEffort: options.effort ?? null,
     resumeSessionId: options.resume ?? null,
+    requestedSessionId,
     context: context.map(({ kind, path: sourcePath }) => ({
       kind,
       path: sourcePath,
@@ -369,7 +375,7 @@ async function run(options) {
       cwd,
       label: request.label,
     },
-    options.resume ? { sessionId: options.resume } : {},
+    { sessionId: options.resume ?? requestedSessionId },
   );
   const child = spawnSupervised(executable, args, {
     cwd,
@@ -475,7 +481,16 @@ async function run(options) {
     resultEvent,
     status,
     stop: {
-      ...stopRecord({ kind, code, cause, continuable: sessionId !== null }),
+      // Orca claude-structured-session-acquisition.ts:88-94 trusts only frames of the
+      // conversation it named.
+      ...stopRecord({
+        kind,
+        code,
+        cause,
+        continuable:
+          sessionId !== null &&
+          sessionId === (options.resume ?? requestedSessionId),
+      }),
       ...(denials.length ? { permissionDenials: denials } : {}),
     },
     spawnError,

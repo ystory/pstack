@@ -117,21 +117,24 @@ if (args[0] === '--version') {
     inheritedMarker: process.env.PSTACK_FAKE_INHERITED_MARKER,
   }));
   const scenario = process.env.PSTACK_FAKE_SCENARIO;
+  const named = (flag) => args.includes(flag) ? args[args.indexOf(flag) + 1] : null;
+  const sid = scenario === 'foreign-session' ? '00000000-0000-4000-8000-000000000000' : named('--session-id') ?? named('--resume');
   if (scenario === 'signal') process.kill(process.pid, 'SIGTERM');
   else if (scenario === 'error') {
-    process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, result: 'Original authentication failure', session_id: '${sessionId}'}) + '\\n');
+    process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, result: 'Original authentication failure', session_id: sid}) + '\\n');
     process.stderr.write('original stderr\\n');
     process.exitCode = 7;
   } else if (scenario === 'malformed') {
     process.stdout.write(Buffer.from([0xff, 0x0a]));
     process.stdout.write('not JSON\\n');
   } else if (scenario === 'denied') {
-    process.stdout.write(JSON.stringify({type: 'result', subtype: 'success', is_error: false, result: 'Read was denied.', session_id: '${sessionId}', permission_denials: [{tool_name: 'Read', tool_use_id: 'toolu_denied', tool_input: {file_path: '/outside/secret.txt'}}]}) + '\\n');
+    process.stdout.write(JSON.stringify({type: 'result', subtype: 'success', is_error: false, result: 'Read was denied.', session_id: sid, permission_denials: [{tool_name: 'Read', tool_use_id: 'toolu_denied', tool_input: {file_path: '/outside/secret.txt'}}]}) + '\\n');
   } else if (scenario === 'missing-result') {
-    process.stdout.write(JSON.stringify({type: 'system', subtype: 'init', session_id: '${sessionId}'}) + '\\n');
+    process.stdout.write(JSON.stringify({type: 'system', subtype: 'init', session_id: sid}) + '\\n');
   } else {
     const model = args[args.indexOf('--model') + 1];
     const events = ${JSON.stringify(streamBytes)}.split('\\n').map(line => JSON.parse(line));
+    for (const value of events) value.session_id = sid;
     if (scenario === 'missing-model') delete events[0].model;
     else events[0].model = scenario === 'mismatched-model' ? 'claude-other-fixture-20300101' : model;
     const bytes = Buffer.from(events.map(value => JSON.stringify(value)).join('\\n'));
@@ -383,6 +386,11 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
   assert.equal(result.status, 0, result.stderr || result.error?.message);
   const receipt = JSON.parse(result.stdout);
   const call = JSON.parse(await readFile(f.callPath, 'utf8'));
+  const named = receipt.requestedSessionId;
+  assert.match(
+    named,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
   assert.equal(call.cwd, f.cwd);
   assert.equal(receipt.cwd, f.cwd);
   assert.equal(call.inheritedMarker, 'existing environment preserved');
@@ -397,6 +405,8 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
     '--verbose',
     '--permission-mode',
     'auto',
+    '--session-id',
+    named,
     '--allowedTools',
     'Bash(node --test index.test.mjs)',
     '--allowedTools',
@@ -407,10 +417,10 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
   assert.ok(call.input.includes(f.roleBody));
   assert.ok(!call.input.includes('model: upstream-model'));
   assert.ok(call.input.endsWith(task));
-  assert.equal(receipt.sessionId, sessionId);
+  assert.equal(receipt.sessionId, named);
   assert.equal(receipt.observedModel, 'claude-opus-5-5');
   assert.equal(receipt.result, finalEvent.result);
-  assert.deepEqual(receipt.resultEvent, finalEvent);
+  assert.deepEqual(receipt.resultEvent, { ...finalEvent, session_id: named });
   assert.equal(receipt.exitCode, 0);
   assert.equal(receipt.signal, null);
   assert.equal(receipt.status, 'completed');
@@ -425,7 +435,7 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
   assert.ok(Number.isInteger(receipt.pid));
   assert.deepEqual(
     await readFile(receipt.stdoutPath),
-    Buffer.from(streamBytes),
+    Buffer.from(streamBytes.replaceAll(sessionId, named)),
   );
   assert.equal(
     await readFile(receipt.stderrPath, 'utf8'),
@@ -630,7 +640,7 @@ test('a missing final result preserves session evidence and returns failure', as
   assert.equal(result.status, 1, result.stderr);
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.exitCode, 0);
-  assert.equal(receipt.sessionId, sessionId);
+  assert.equal(receipt.sessionId, receipt.requestedSessionId);
   assert.equal(receipt.resultEvent, null);
 });
 
@@ -844,4 +854,41 @@ test('Claude transport injects its receiving executor and the bundled shared con
     call.input.indexOf('Shared receiving fixture context.') <
       call.input.indexOf('## Assigned task'),
   );
+});
+
+test('a fresh run names its session before spawning and a resume does not', async (t) => {
+  const f = await fixture(t);
+  const fresh = f.invoke(f.runArgs);
+  assert.equal(fresh.status, 0, fresh.stderr);
+  const receipt = JSON.parse(fresh.stdout);
+  const request = JSON.parse(await readFile(receipt.requestPath, 'utf8'));
+  const call = JSON.parse(await readFile(f.callPath, 'utf8'));
+  assert.equal(request.requestedSessionId, receipt.requestedSessionId);
+  assert.equal(
+    call.args[call.args.indexOf('--session-id') + 1],
+    request.requestedSessionId,
+  );
+  const [startedLine] = (
+    await readFile(path.join(f.runDir, 'events.jsonl'), 'utf8')
+  ).split('\n');
+  const started = JSON.parse(startedLine!);
+  assert.equal(started.sessionId, request.requestedSessionId);
+  assert.equal(receipt.stop.continuable, true);
+
+  const g = await fixture(t);
+  const resumed = g.invoke([...g.runArgs, '--resume', sessionId]);
+  assert.equal(resumed.status, 0, resumed.stderr);
+  const resumeCall = JSON.parse(await readFile(g.callPath, 'utf8'));
+  assert.ok(!resumeCall.args.includes('--session-id'));
+  assert.equal(JSON.parse(resumed.stdout).requestedSessionId, null);
+});
+
+test('a stream from another conversation is not continuable', async (t) => {
+  const f = await fixture(t);
+  const result = f.invoke(f.runArgs, undefined, {
+    PSTACK_FAKE_SCENARIO: 'foreign-session',
+  });
+  const receipt = JSON.parse(result.stdout);
+  assert.notEqual(receipt.sessionId, receipt.requestedSessionId);
+  assert.equal(receipt.stop.continuable, false);
 });

@@ -1,0 +1,275 @@
+// Shared worker runner runtime. Redaction, the child environment, and the
+// supervised spawn follow Orca 84f67831; see each section for its source.
+import { randomBytes } from 'node:crypto';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+
+export const STOP_KINDS = [
+  'completed',
+  'interrupted',
+  'error',
+  'permission',
+  'not-started',
+];
+export const STOP_CODES = [
+  'completed',
+  'signal',
+  'deadline',
+  'usage-limit',
+  'not-signed-in',
+  'model-unavailable',
+  'provider',
+  'missing-session',
+  'permission-mode',
+  'permission-denied',
+  'unsupported-auth',
+  'failed',
+];
+export const EVENT_TYPES = ['started', 'activity', 'turn-completed', 'stopped'];
+
+// Orca src/shared/observability/redactor.ts and credential-assignment-redaction.ts.
+const PROVIDER_PATTERNS = [
+  { tag: 'anthropic-key', re: /sk-ant-[a-zA-Z0-9_-]{40,}/g },
+  { tag: 'openai-key', re: /sk-(?:proj-)?[a-zA-Z0-9_-]{32,}/g },
+  { tag: 'github-token', re: /gh[pousr]_[A-Za-z0-9]{36,}/g },
+  { tag: 'github-token', re: /github_pat_[A-Za-z0-9_]{22,}/g },
+  { tag: 'aws-access-key-id', re: /AKIA[0-9A-Z]{16}/g },
+  {
+    tag: 'aws-secret-access-key',
+    re: /aws_secret_access_key\s*[:=]\s*[A-Za-z0-9/+=]{40}/gi,
+  },
+  {
+    tag: 'jwt',
+    re: /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
+  },
+  { tag: 'slack-token', re: /xox[baprsoe]-[A-Za-z0-9-]{10,}/g },
+  {
+    tag: 'pem',
+    re: /-----BEGIN [A-Z ]+-----[\s\S]*?(?:-----END [A-Z ]+-----|(?![\s\S]))/g,
+  },
+];
+const STANDALONE_BEARER = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
+const URL_USERINFO = /(https?:\/\/)([^/@\s]+)@/g;
+const ENV_LINE =
+  /^[^\S\r\n\u2028\u2029]*([A-Z_][A-Z0-9_]*)[^\S\r\n\u2028\u2029]*=[^\S\r\n\u2028\u2029]*\S.*/gm;
+const CREDENTIAL_ASSIGNMENT =
+  /(?<![\w-])(?:\\?["'])?([\w-]+)(?:\\?["'])?\s*[:=]\s*/g;
+const CREDENTIAL_NAME =
+  /(?:apikey|token|secret|password|bearer|authorization|privkey|privatekey|secretkey)$/i;
+const BARE_CREDENTIAL_NAME =
+  /^(?:api[-_]?key|token|secret|password|bearer|authorization)$/i;
+const AUTH_SCHEME = /(?:Basic|Bearer|Token)[^\S\r\n\u2028\u2029]+/iy;
+const LINE_END = /[\r\n\u2028\u2029]/;
+
+function credentialValueSpan(input, start) {
+  const escaped = input[start] === '\\' && /["']/.test(input[start + 1] ?? '');
+  const quote = input[start + (escaped ? 1 : 0)];
+  if (quote !== '"' && quote !== "'") {
+    AUTH_SCHEME.lastIndex = start;
+    let end = AUTH_SCHEME.test(input) ? AUTH_SCHEME.lastIndex : start;
+    while (end < input.length && !/\s/.test(input[end])) end++;
+    return { end, quoteSize: 0, closed: false };
+  }
+  const quoteSize = escaped ? 2 : 1;
+  let end = start + quoteSize;
+  while (end < input.length && !LINE_END.test(input[end])) {
+    let slashes = 0;
+    while (input[end] === '\\') {
+      slashes++;
+      end++;
+    }
+    if (
+      input[end] === quote &&
+      (escaped ? slashes % 4 === 1 : slashes % 2 === 0)
+    )
+      return { end: end + 1, quoteSize, closed: true };
+    if (end < input.length && !LINE_END.test(input[end])) end++;
+  }
+  return { end, quoteSize, closed: false };
+}
+
+function redactCredentialAssignments(input) {
+  const parts = [];
+  let copiedThrough = 0;
+  CREDENTIAL_ASSIGNMENT.lastIndex = 0;
+  for (
+    let match = CREDENTIAL_ASSIGNMENT.exec(input);
+    match;
+    match = CREDENTIAL_ASSIGNMENT.exec(input)
+  ) {
+    if (!CREDENTIAL_NAME.test(match[1].replace(/[-_]/g, ''))) continue;
+    const start = CREDENTIAL_ASSIGNMENT.lastIndex;
+    const span = credentialValueSpan(input, start);
+    const quote = input.slice(start, start + span.quoteSize);
+    const preserveLabel = !BARE_CREDENTIAL_NAME.test(match[1]);
+    parts.push(
+      input.slice(copiedThrough, match.index),
+      preserveLabel ? input.slice(match.index, start) + quote : '',
+      '[redacted:labeled-kv]',
+      preserveLabel && span.closed ? quote : '',
+    );
+    copiedThrough = span.end;
+    CREDENTIAL_ASSIGNMENT.lastIndex = span.end;
+  }
+  if (parts.length === 0) return input;
+  parts.push(input.slice(copiedThrough));
+  return parts.join('');
+}
+
+function redactString(input) {
+  let out = input;
+  for (const { tag, re } of PROVIDER_PATTERNS)
+    out = out.replace(re, `[redacted:${tag}]`);
+  out = redactCredentialAssignments(out).replace(
+    STANDALONE_BEARER,
+    '[redacted:labeled-kv]',
+  );
+  out = out.replace(URL_USERINFO, '$1[redacted]@');
+  return out.replace(ENV_LINE, '$1=[redacted:env-value]');
+}
+
+// Orca worker-turn-stop-wording.ts: a provider's stderr can be long, and its end names the failure.
+export function redact(text, max = 2000) {
+  const masked = redactString(String(text));
+  return masked.length > max ? `…${masked.slice(-(max - 1))}` : masked;
+}
+
+// Strings in a structured error, such as an RPC error object, redacted in place of the original.
+export function redactError(value) {
+  if (typeof value === 'string') return redact(value);
+  if (Array.isArray(value)) return value.map(redactError);
+  if (value && typeof value === 'object')
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, redactError(entry)]),
+    );
+  return value;
+}
+
+function eventText(text, max = 200) {
+  const line = redactString(String(text)).replace(/\s+/g, ' ').trim();
+  return line.length > max ? `${line.slice(0, max - 1)}…` : line;
+}
+
+export function stopRecord({ kind, code, cause, continuable }) {
+  if (!STOP_KINDS.includes(kind))
+    throw new TypeError(`Unknown stop kind ${kind}.`);
+  if (!STOP_CODES.includes(code))
+    throw new TypeError(`Unknown stop code ${code}.`);
+  return { kind, code, cause: redact(cause), continuable };
+}
+
+// Orca src/shared/agent-launch/startup/parent-agent-session-env.ts: the launching
+// session's identity, messaging access and runtime selection stay with that session.
+export const PARENT_AGENT_SESSION_ENV_KEYS = [
+  'CLAUDECODE',
+  'CLAUDE_CODE_CHILD_SESSION',
+  'CLAUDE_CODE_SESSION_ID',
+  'CLAUDE_CODE_BRIDGE_SESSION_ID',
+  'CLAUDE_CODE_HOST_SESSION_ID',
+  'CLAUDE_CODE_SESSION_ATTENDED',
+  'CLAUDE_CODE_MESSAGING_SOCKET',
+  'CLAUDE_CODE_MESSAGING_TOKEN',
+  'CLAUDE_CODE_EXECPATH',
+  'CLAUDE_CODE_ENTRYPOINT',
+  'CLAUDE_CODE_DESKTOP_APP_VERSION',
+  'CLAUDE_EFFORT',
+  'CLAUDE_PID',
+  'CLAUDE_AGENT_SDK_VERSION',
+  'CODEX_THREAD_ID',
+  'CODEX_SESSION_ID',
+  'CODEX_TOOL_CALL_ID',
+  'CODEX_VERSION',
+  'CODEX_CI',
+  'CODEX_PERMISSION_PROFILE',
+  'CODEX_APPLY_PATCH_PRESERVE_LINE_ENDINGS',
+  'CODEX_PLUGIN_METRICS_OUTPUT',
+  'CODEX_WINDOWS_REGISTERED_CORE',
+];
+
+export function childEnv(base, executor) {
+  const env = { ...base };
+  for (const key of PARENT_AGENT_SESSION_ENV_KEYS) delete env[key];
+  // Orca antigravity-acp-launch-spec.ts: an inherited Gemini key switches agy to
+  // key auth, and the background updater can replace agy mid-run.
+  if (executor === 'antigravity') {
+    delete env.GEMINI_API_KEY;
+    delete env.GOOGLE_API_KEY;
+    env.AGY_CLI_DISABLE_AUTO_UPDATE = 'true';
+  }
+  return env;
+}
+
+export function stateHome(env = process.env) {
+  if (env.PSTACK_STATE_HOME) return path.resolve(env.PSTACK_STATE_HOME);
+  return path.join(
+    env.XDG_STATE_HOME
+      ? path.resolve(env.XDG_STATE_HOME)
+      : path.join(os.homedir(), '.local/state'),
+    'pstack',
+  );
+}
+
+export function appendEvent(runDir, type, text, fields = {}) {
+  if (!EVENT_TYPES.includes(type))
+    throw new TypeError(`Unknown event type ${type}.`);
+  appendFileSync(
+    path.join(runDir, 'events.jsonl'),
+    `${JSON.stringify({ ts: new Date().toISOString(), type, text: eventText(text), ...fields })}\n`,
+  );
+}
+
+// Each run owns one registry file, written once, so concurrent runners never share a writer.
+export function registerRun(
+  { runDir, executor, model, effort = null, cwd, label = null, pid },
+  env = process.env,
+) {
+  const startedAt = new Date().toISOString();
+  const stamp = startedAt.replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+  const entry = {
+    runId: `${stamp}-${randomBytes(4).toString('hex')}`,
+    runDir,
+    executor,
+    model,
+    effort,
+    cwd,
+    label,
+    pid,
+    startedAt,
+  };
+  const runs = path.join(stateHome(env), 'runs');
+  mkdirSync(runs, { recursive: true, mode: 0o700 });
+  writeFileSync(
+    path.join(runs, `${entry.runId}.json`),
+    `${JSON.stringify(entry, null, 2)}\n`,
+    { flag: 'wx', mode: 0o600 },
+  );
+  return entry;
+}
+
+export function startRun(run, ids = {}, env = process.env) {
+  const entry = registerRun({ ...run, pid: process.pid }, env);
+  const { runId, startedAt, ...fields } = entry;
+  appendEvent(
+    entry.runDir,
+    'started',
+    `started ${entry.executor} ${entry.model}${entry.label ? `: ${entry.label}` : ''}`,
+    { ...fields, ...ids },
+  );
+  return entry;
+}
+
+export function recordActivity(runDir, text) {
+  try {
+    appendEvent(runDir, 'activity', text);
+  } catch {
+    // Activity is best effort; the run's own artifacts keep the full trace.
+  }
+}
+
+export function stopRun(runDir, stop) {
+  appendEvent(runDir, 'stopped', `stopped: ${stop.kind} (${stop.code})`, {
+    kind: stop.kind,
+    code: stop.code,
+  });
+}

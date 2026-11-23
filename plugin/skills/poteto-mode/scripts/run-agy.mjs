@@ -2,6 +2,7 @@
 import { createHash } from 'node:crypto';
 import { constants, openSync, closeSync, writeSync } from 'node:fs';
 import * as fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -39,6 +40,8 @@ const descendantExitGraceMs = 3000;
 // cancel is SIGINT.
 const cancelGraceMs = 4000;
 const cancellations = ['interrupted', 'terminated', 'timed-out'];
+// The first stop signal the runner received; its exit status follows it.
+let receivedSignal = null;
 // agy runs its default model for a leveled ID whose level conflicts with --effort, so
 // launch the family ID (agent-session-option-catalog-antigravity.ts:5-23).
 const levelSuffix = /^(.+)-(none|minimal|low|medium|high|xhigh|max)$/;
@@ -325,8 +328,14 @@ async function ownedProcess(executable, args, options) {
     sent = true;
     child.stdin.end(options.input);
   };
-  const interrupt = () => fail('Interrupted by SIGINT.', 'interrupted');
-  const terminate = () => fail('Interrupted by SIGTERM.', 'terminated');
+  const interrupt = () => {
+    receivedSignal ??= 'SIGINT';
+    fail('Interrupted by SIGINT.', 'interrupted');
+  };
+  const terminate = () => {
+    receivedSignal ??= 'SIGTERM';
+    fail('Interrupted by SIGTERM.', 'terminated');
+  };
   process.on('SIGINT', interrupt);
   process.on('SIGTERM', terminate);
   try {
@@ -1158,13 +1167,11 @@ async function execute(options) {
   }
   writeOnce(resultPath, json(receipt), 0o600);
   console.log(JSON.stringify(receipt));
-  process.exitCode = !error
-    ? 0
-    : status === 'interrupted'
-      ? 130
-      : status === 'terminated'
-        ? 143
-        : 1;
+  process.exitCode = receivedSignal
+    ? 128 + os.constants.signals[receivedSignal]
+    : error
+      ? 1
+      : 0;
 }
 
 try {

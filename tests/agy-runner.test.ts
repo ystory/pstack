@@ -1135,6 +1135,62 @@ test(
   },
 );
 
+test(
+  'a runner signalled after its deadline exits with that signal while the receipt keeps the deadline',
+  { timeout: 30000 },
+  async (t) => {
+    const f = await fixture(t);
+    const trace = path.join(f.root, 'late-signal.jsonl');
+    const runDir = path.join(f.root, 'late-signal');
+    const child = spawn(
+      process.execPath,
+      [
+        f.runner,
+        'run',
+        '--cwd',
+        f.cwd,
+        '--run-dir',
+        runDir,
+        '--model',
+        model,
+        '--effort',
+        'xhigh',
+        '--timeout-ms',
+        '350',
+        '--executable',
+        fake,
+      ],
+      {
+        env: {
+          ...process.env,
+          HOME: f.home,
+          AGY_FIXTURE: 'slow-cancel',
+          AGY_TRACE: trace,
+          PSTACK_STATE_HOME: path.join(f.root, 'state'),
+        },
+      },
+    );
+    child.stdin.end('Wait for the deadline.\n');
+    const deadline = Date.now() + 5000;
+    while (
+      !(await readFile(trace, 'utf8').catch(() => '')).includes('"stopped"')
+    ) {
+      assert.ok(Date.now() < deadline, 'the deadline never cancelled agy');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    child.kill('SIGINT');
+    const [code] = await once(child, 'close');
+    assert.equal(code, 130);
+    const receipt = JSON.parse(
+      await readFile(path.join(runDir, 'result.json'), 'utf8'),
+    );
+    assert.deepEqual(
+      [receipt.status, receipt.stop.kind, receipt.stop.code],
+      ['timed-out', 'interrupted', 'deadline'],
+    );
+  },
+);
+
 test('agy capabilities reject auth routes and aliases while preserving explicit source provenance', async () => {
   const modulePath = path.join(path.dirname(source), 'agy-capabilities.mjs');
   const { agyEntry, agyCapability, parseAgyModels } = await import(modulePath);

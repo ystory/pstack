@@ -11,6 +11,7 @@ import {
 } from 'node:fs/promises';
 import { finished } from 'node:stream/promises';
 import { StringDecoder } from 'node:string_decoder';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -648,15 +649,19 @@ async function run(options) {
   stopRun(runDir, receipt.stop);
   writeOnce(resultPath, `${JSON.stringify(receipt, null, 2)}\n`);
   console.log(JSON.stringify(receipt));
-  process.exitCode =
-    (completion.exitCode >= 0 ? completion.exitCode : null) ??
-    (completion.signal === 'SIGINT'
-      ? 130
-      : completion.signal === 'SIGTERM'
-        ? 143
-        : 1);
-  if (process.exitCode === 0 && (parseError || !resultEvent))
-    process.exitCode = 1;
+  // The receipt keeps the CLI's own exit; the runner's follows the signal that stopped it.
+  if (received) process.exitCode = 128 + os.constants.signals[received];
+  else {
+    process.exitCode =
+      (completion.exitCode >= 0 ? completion.exitCode : null) ??
+      (completion.signal === 'SIGINT'
+        ? 130
+        : completion.signal === 'SIGTERM'
+          ? 143
+          : 1);
+    if (process.exitCode === 0 && (parseError || !resultEvent))
+      process.exitCode = 1;
+  }
 }
 
 try {

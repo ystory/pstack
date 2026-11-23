@@ -791,10 +791,10 @@ async function cancelled(
   return { code, receipt: JSON.parse(stdout) };
 }
 
-test("a cancelled run records the CLI's own exit beside the stop signal", async (t) => {
+test("a cancelled run exits with the runner's signal and records the CLI's own exit", async (t) => {
   const f = await fixture(t);
   const { code, receipt } = await cancelled(f, 'cancel-exit');
-  assert.equal(code, 23);
+  assert.equal(code, 130);
   assert.deepEqual(
     [receipt.exitCode, receipt.signal, receipt.status],
     [23, null, 'interrupted'],

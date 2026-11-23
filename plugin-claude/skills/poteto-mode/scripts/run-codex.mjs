@@ -338,6 +338,55 @@ const noRollout = (failure, threadId) =>
   failure.data?.code === -32600 &&
   failure.message.endsWith(`no rollout found for thread id ${threadId}`);
 
+// Orca codex-structured-read-only.ts and codex-server-request-disposition.ts:
+// nobody watches a worker, so every blocking request gets a safe answer.
+const UNATTENDED_ANSWERS = new Map([
+  ['item/commandExecution/requestApproval', { result: { decision: 'decline' } }],
+  ['item/fileChange/requestApproval', { result: { decision: 'decline' } }],
+  [
+    'mcpServer/elicitation/request',
+    { result: { action: 'decline', content: null, _meta: null } },
+  ],
+  [
+    'item/tool/requestUserInput',
+    {
+      error: {
+        code: -32001,
+        message: 'Nobody is watching this worker to answer.',
+      },
+    },
+  ],
+  [
+    'item/permissions/requestApproval',
+    { result: { permissions: {}, scope: 'turn', strictAutoReview: true } },
+  ],
+  ['item/tool/call', { result: { contentItems: [], success: false } }],
+  ['applyPatchApproval', { result: { decision: 'abort' } }],
+  ['execCommandApproval', { result: { decision: 'abort' } }],
+  [
+    'account/chatgptAuthTokens/refresh',
+    {
+      error: {
+        code: -32001,
+        message: 'pstack cannot refresh app-server auth tokens',
+      },
+    },
+  ],
+  [
+    'attestation/generate',
+    {
+      error: { code: -32001, message: 'pstack did not negotiate attestation' },
+    },
+  ],
+]);
+const unattendedAnswer = (method) =>
+  UNATTENDED_ANSWERS.get(method) ?? {
+    error: {
+      code: -32000,
+      message: `pstack rejected unrecognized blocking request ${method}`,
+    },
+  };
+
 const snakeCase = (value) =>
   value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 
@@ -476,6 +525,7 @@ async function run(options, server) {
   const threadSettings = { model: null, effort: null };
   const deniedReviews = [];
   let interrupt = null;
+  const clientRequests = [];
   const child = { pid: null, exitCode: null, signal: null, closed: false };
   let provider = null;
   const supervisedSpawn = (...spawnArgs) =>
@@ -568,6 +618,11 @@ async function run(options, server) {
           })),
       prompt,
       onInterrupt: (outcome) => (interrupt = outcome),
+      answerServerRequest: ({ method }) => {
+        const answer = unattendedAnswer(method);
+        clientRequests.push({ method, answer });
+        return answer;
+      },
       onDiagnostic: diagnostic,
       onProgress: (update) => {
         if (typeof update === 'object') {
@@ -644,6 +699,7 @@ async function run(options, server) {
     threadSettings,
     approvedReview: request.approvedReview?.reviewId ?? null,
     deniedReviews,
+    clientRequests,
     status,
     stop: stopRecord({
       kind: stopKind,

@@ -46,6 +46,7 @@ lines.on('line', (line) => {
  const request = JSON.parse(line); log({request});
  const p = request.params;
  switch (request.method) {
+ case undefined: break;
  case 'initialize': if (process.env.FAKE_INSPECT_CASE === 'initialize-error') { send({id:request.id,error:{code:-32000,message:'initialize unavailable'}}); break; } if (!process.env.FAKE_HOLD_INITIALIZE) respond(request,{userAgent:'fixture'}); break;
  case 'initialized': break;
  case 'account/read':
@@ -95,6 +96,7 @@ lines.on('line', (line) => {
     notify('item/autoApprovalReview/completed',review('review-denied','denied',threadId));
     notify('item/autoApprovalReview/completed',review('review-other-thread','denied','other-thread'));
    }
+   if (prompt.includes('ASK')) JSON.parse(process.env.FAKE_SERVER_REQUESTS).forEach((method,index)=>send({id:'ask-'+index,method,params:{threadId,turnId}}));
    if (prompt.includes('RETRY')) notify('error',{threadId,turnId,willRetry:true,error:{message:'transient stream retry',codexErrorInfo:{responseStreamDisconnected:{httpStatusCode:502}},additionalDetails:null}});
    if (prompt.includes('FINAL_ERROR')) notify('error',{threadId,turnId,willRetry:false,error:{message:'final stream failure',codexErrorInfo:JSON.parse(process.env.FAKE_FINAL_ERROR_INFO ?? '"other"'),additionalDetails:null}});
    notify('item/completed',{threadId,turnId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'answer for '+threadId}});
@@ -900,6 +902,65 @@ test('only sign-out evidence stops a failed Codex turn as not-signed-in', async 
     assert.equal(receipt.stop.kind, 'error', name);
     assert.equal(receipt.stop.code, code, name);
   }
+});
+
+test('every Codex server request gets an unattended answer that the receipt records', async (t) => {
+  const f = await fixture(t);
+  const declined = { result: { decision: 'decline' } };
+  const aborted = { result: { decision: 'abort' } };
+  const refused = (code: number, message: string) => ({
+    error: { code, message },
+  });
+  const expected = [
+    ['item/commandExecution/requestApproval', declined],
+    ['item/fileChange/requestApproval', declined],
+    [
+      'mcpServer/elicitation/request',
+      { result: { action: 'decline', content: null, _meta: null } },
+    ],
+    [
+      'item/tool/requestUserInput',
+      refused(-32001, 'Nobody is watching this worker to answer.'),
+    ],
+    [
+      'item/permissions/requestApproval',
+      { result: { permissions: {}, scope: 'turn', strictAutoReview: true } },
+    ],
+    ['item/tool/call', { result: { contentItems: [], success: false } }],
+    ['applyPatchApproval', aborted],
+    ['execCommandApproval', aborted],
+    [
+      'account/chatgptAuthTokens/refresh',
+      refused(-32001, 'pstack cannot refresh app-server auth tokens'),
+    ],
+    [
+      'attestation/generate',
+      refused(-32001, 'pstack did not negotiate attestation'),
+    ],
+    [
+      'item/unknown/request',
+      refused(
+        -32000,
+        'pstack rejected unrecognized blocking request item/unknown/request',
+      ),
+    ],
+  ] as const;
+  const result = f.run('asked', 'ASK', [], {
+    FAKE_SERVER_REQUESTS: JSON.stringify(expected.map(([method]) => method)),
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = await f.receipt('asked');
+  assert.deepEqual(
+    receipt.clientRequests,
+    expected.map(([method, answer]) => ({ method, answer })),
+  );
+  const replies = (await f.events())
+    .filter((event) => String(event.request?.id).startsWith('ask-'))
+    .map(({ request: { id, ...answer } }) => [id, answer]);
+  assert.deepEqual(
+    replies,
+    expected.map(([, answer], index) => [`ask-${index}`, answer]),
+  );
 });
 
 test('parallel workers and interleaved exact continuation retain separate identities and outputs', async (t) => {

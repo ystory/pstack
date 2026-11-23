@@ -1,4 +1,4 @@
-// pstack-cc modified this file for direct worker execution, cancellation, and a caller-supplied spawn.
+// pstack-cc modified this file for direct worker execution, cancellation, a caller-supplied spawn, and caller-supplied server-request answers.
 /**
  * @typedef {Error & { data?: unknown, rpcCode?: number }} ProtocolError
  * @typedef {import("./app-server-protocol").AppServerMethod} AppServerMethod
@@ -159,10 +159,10 @@ class AppServerClientBase {
   }
 
   handleServerRequest(message) {
-    this.sendMessage({
-      id: message.id,
+    const answer = this.options.answerServerRequest?.(message) ?? {
       error: buildJsonRpcError(-32601, `Unsupported server request: ${message.method}`)
-    });
+    };
+    this.sendMessage({ id: message.id, ...answer });
   }
 
   handleExit(error) {

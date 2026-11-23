@@ -307,6 +307,7 @@ test('agy sends one official user event with complete context, role body, exact 
     assert.equal(run.receipt.effectiveEffort, null);
     assert.equal(run.receipt.usage.scope, 'conversation-cumulative');
     assert.equal(run.receipt.process.shutdown, 'orderly');
+    assert.equal(run.receipt.process.descendantsReaped, false);
     const prompt = await readFile(path.join(run.runDir, 'prompt.txt'), 'utf8');
     for (const body of [
       'Complete instruction\r\n',
@@ -1083,6 +1084,7 @@ test(
       assert.equal(receipt.process.exitCode, 0, diagnostic);
       assert.equal(receipt.process.groupClosed, true, diagnostic);
       assert.equal(receipt.process.shutdown, 'orderly', diagnostic);
+      assert.equal(receipt.process.descendantsReaped, true, diagnostic);
       const pid = Number(await readFile(run.childPid, 'utf8'));
       assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
     }

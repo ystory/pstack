@@ -457,7 +457,7 @@ require('node:fs').writeFileSync(process.argv[1], String(helper.pid));`,
   assert.equal(alive(Number(await readFile(pidFile, 'utf8'))), false);
 });
 
-test('stop ends a one-shot provider through the supervisor and reports the signal', async (t) => {
+test("stop ends a one-shot provider through the supervisor and close reports the provider's own exit", async (t) => {
   await temporary(t);
   for (const [reason, signal] of [
     ['deadline', 'SIGTERM'],
@@ -467,22 +467,46 @@ test('stop ends a one-shot provider through the supervisor and reports the signa
       process.execPath,
       [
         '-e',
-        "process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1000)",
+        "process.on('SIGTERM', () => process.exit(23)); console.log('ready'); setInterval(() => {}, 1000)",
       ],
       { lifetime: 'one-shot', stdio: ['ignore', 'pipe', 'pipe'] },
     );
-    child.stdout.resume();
     child.stderr.resume();
-    assert.ok(await waitUntil(() => child.providerPid !== null, 5000));
+    await once(child.stdout, 'data');
+    child.stdout.resume();
     const closed = once(child, 'close');
     const startedAt = Date.now();
     await child.stop(reason);
-    assert.deepEqual(await closed, [null, signal]);
+    assert.deepEqual(await closed, [23, null]);
+    // The supervisor itself exits as Orca's does, with the stop's signal.
+    assert.equal(child.signalCode, signal);
     assert.ok(Date.now() - startedAt < runtime.SIGTERM_GRACE_MS);
     assert.equal(child.stopReason, reason);
     assert.equal(child.descendantsReaped, false);
     assert.equal(alive(child.providerPid, true), false);
   }
+});
+
+test('a provider killed by a signal Node ignores reports that signal', async (t) => {
+  await temporary(t);
+  const child = runtime.spawnSupervised(
+    '/bin/sh',
+    ['-c', 'kill -PIPE $$'],
+    { lifetime: 'one-shot', stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  child.stdout.resume();
+  child.stderr.resume();
+  const [exit, close] = await Promise.all([
+    once(child, 'exit'),
+    once(child, 'close'),
+  ]);
+  assert.deepEqual(
+    [exit, close],
+    [
+      [null, 'SIGPIPE'],
+      [null, 'SIGPIPE'],
+    ],
+  );
 });
 
 const workers = path.join(scripts, 'workers.mjs');

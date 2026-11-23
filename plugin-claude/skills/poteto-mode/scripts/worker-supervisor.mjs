@@ -1,9 +1,11 @@
 // Orca 84f67831 src/main/provider-process/provider-process-supervisor.ts
 // (POSIX_PROVIDER_SUPERVISOR_SCRIPT), run as a file. worker-runtime.mjs starts it
 // detached; it starts the provider in its own process group and stops that group
-// when its owner dies. It reports the provider's pid, or why it never started,
-// over the IPC channel, and as it exits, whether it killed descendants that
-// outlived the provider. Unlike Orca's, it relays only stdin: the provider writes
+// when its owner dies. Over the IPC channel it reports the provider's pid, or why
+// it never started, the provider's own exit status, and as it exits, whether it
+// killed descendants that outlived the provider. This pid exits as Orca's does,
+// and a signal it re-raises can be one Node ignores, so only the report carries
+// the provider's outcome. Unlike Orca's, it relays only stdin: the provider writes
 // to the owner's stdout and stderr directly, so the owner reads the provider's
 // end of output when it happens rather than when this supervisor exits.
 import { spawn } from 'node:child_process';
@@ -23,23 +25,27 @@ for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP'])
 if (ownerGone()) process.exit(1);
 const childEnv = { ...process.env, ...spec.nodeEnv };
 delete childEnv.PSTACK_WORKER_SUPERVISOR_SPEC;
-const disconnect = () => {
+// A send to a dead owner hands its callback the error; without one, it would be
+// an uncaught error that ends this pid before the group.
+const report = (message, done = () => {}) => {
+  if (!process.connected) return done();
   try {
-    process.disconnect();
-  } catch {}
-};
-// The owner sees only this pid's exit; the report says the provider never started.
-const exitWithSpawnFailure = (error) => {
-  const spawnError = {
-    code: error?.code || 'UNKNOWN',
-    message: String(error?.message),
-  };
-  try {
-    process.send({ spawnError }, () => process.exit(127));
+    process.send(message, () => done());
   } catch {
-    process.exit(127);
+    done();
   }
 };
+// The owner sees only this pid's exit; the report says the provider never started.
+const exitWithSpawnFailure = (error) =>
+  report(
+    {
+      spawnError: {
+        code: error?.code || 'UNKNOWN',
+        message: String(error?.message),
+      },
+    },
+    () => process.exit(127),
+  );
 // Children inherit the IPC fd, so /dev/null takes that slot and only this pid holds the channel.
 const reportShield = openSync('/dev/null', 'r');
 let child;
@@ -69,13 +75,7 @@ releaseFd(1, 'w');
 releaseFd(2, 'w');
 // A spawn that failed without a pid reports through its 'error' event below.
 // The channel stays open for the descendants report sent just before exit.
-if (child?.pid) {
-  try {
-    process.send({ providerPid: child.pid });
-  } catch {
-    disconnect();
-  }
-}
+if (child?.pid) report({ providerPid: child.pid });
 let timer;
 let ownerShutdownTimer;
 let settling = false;
@@ -118,12 +118,7 @@ const finishWithProviderOutcome = (code, signal) => {
     process.removeAllListeners(signal);
     process.kill(process.pid, signal);
   };
-  // A dead owner's closed channel hands the callback its error, which changes nothing here.
-  try {
-    process.send({ descendantsReaped }, finish);
-  } catch {
-    finish();
-  }
+  report({ descendantsReaped }, finish);
 };
 // Every stop is the same: SIGTERM the group, SIGKILL it after its grace, and exit
 // only once it is gone. Whoever stops this pid judges the provider by it, so a dead
@@ -206,5 +201,6 @@ child?.once('error', (error) => {
 });
 child?.once('exit', (code, signal) => {
   providerExited = true;
+  report({ providerExit: { code, signal } });
   void reapProviderExit(code, signal);
 });

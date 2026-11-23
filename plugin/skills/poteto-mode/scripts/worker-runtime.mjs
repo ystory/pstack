@@ -448,11 +448,14 @@ const waitFor = (promise, ms) =>
     new Promise((resolve) => setTimeout(resolve, ms, false).unref()),
   ]);
 
-/** Behaves like the direct ChildProcess, except that pid and signals are the supervisor's. */
+/** Behaves like the direct ChildProcess, except that pid and signals are the
+ * supervisor's. exit and close carry the provider's own status when the
+ * supervisor reported it, and the supervisor's otherwise. */
 class SupervisedChild extends EventEmitter {
   #raw;
   #lifetime;
   #spawnError = null;
+  #exit = null;
   /** The provider's pid, which is also its process group, once the supervisor reports it. */
   providerPid = null;
   /** Whether the supervisor killed descendants that outlived the provider; null until it reports. */
@@ -471,6 +474,8 @@ class SupervisedChild extends EventEmitter {
         this.providerPid = message.providerPid;
       if (typeof message?.descendantsReaped === 'boolean')
         this.descendantsReaped = message.descendantsReaped;
+      if (message?.providerExit)
+        this.#emitExit(message.providerExit.code, message.providerExit.signal);
       if (message?.spawnError)
         this.#spawnError = Object.assign(
           new Error(message.spawnError.message),
@@ -478,10 +483,6 @@ class SupervisedChild extends EventEmitter {
         );
     });
     raw.on('error', (error) => this.emit('error', error));
-    // Exit 127 may be a provider that never started, which only close can tell.
-    raw.once('exit', (code, signal) => {
-      if (code !== 127) this.emit('exit', code, signal);
-    });
     // Close follows the IPC channel's close, so every report has arrived by then.
     raw.once('close', (code, signal) => {
       if (this.#spawnError) {
@@ -491,9 +492,15 @@ class SupervisedChild extends EventEmitter {
         this.emit('close', errno ? -errno : code, null);
         return;
       }
-      if (code === 127) this.emit('exit', code, signal);
-      this.emit('close', code, signal);
+      this.#emitExit(code, signal);
+      this.emit('close', ...this.#exit);
     });
+  }
+
+  #emitExit(code, signal) {
+    if (this.#exit) return;
+    this.#exit = [code, signal];
+    this.emit('exit', code, signal);
   }
 
   get pid() {

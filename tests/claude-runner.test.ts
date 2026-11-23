@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
-import { constants } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
+import { constants, existsSync } from 'node:fs';
 import {
   access,
   chmod,
@@ -124,6 +125,11 @@ if (args[0] === '--version') {
   const named = (flag) => args.includes(flag) ? args[args.indexOf(flag) + 1] : null;
   const sid = scenario === 'foreign-session' ? '00000000-0000-4000-8000-000000000000' : named('--session-id') ?? named('--resume');
   if (scenario === 'signal') process.kill(process.pid, 'SIGTERM');
+  else if (scenario === 'cancel-exit') {
+    for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(23));
+    writeFileSync(process.env.PSTACK_FAKE_READY, 'ready');
+    await new Promise(() => setInterval(() => {}, 1000));
+  }
   else if (scenario === 'error') {
     process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, result: 'Original authentication failure', session_id: sid}) + '\\n');
     process.stderr.write('original stderr\\n');
@@ -708,6 +714,45 @@ test('child termination preserves the signal and conventional process exit statu
   assert.equal(receipt.status, 'interrupted');
   assert.equal(receipt.stop.kind, 'interrupted');
   assert.equal(receipt.stop.cause, 'SIGTERM');
+});
+
+test("a cancelled run records the CLI's own exit beside the stop signal", async (t) => {
+  const f = await fixture(t);
+  const ready = path.join(f.root, 'ready');
+  const runner = spawn(
+    process.execPath,
+    [f.runner, ...f.runArgs, '--executable', f.executable],
+    {
+      cwd: f.root,
+      env: {
+        ...process.env,
+        PSTACK_FAKE_CALL_PATH: f.callPath,
+        PSTACK_FAKE_SCENARIO: 'cancel-exit',
+        PSTACK_FAKE_READY: ready,
+        PSTACK_STATE_HOME: path.join(f.root, 'state'),
+      },
+    },
+  );
+  let stdout = '';
+  runner.stdout.on('data', (bytes) => (stdout += bytes));
+  runner.stdin.end('Perform the assignment.');
+  const deadline = Date.now() + 5000;
+  while (!existsSync(ready)) {
+    assert.ok(Date.now() < deadline, 'the CLI never became ready');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  runner.kill('SIGINT');
+  const [code] = await once(runner, 'close');
+  const receipt = JSON.parse(stdout);
+  assert.equal(code, 23);
+  assert.deepEqual(
+    [receipt.exitCode, receipt.signal, receipt.status],
+    [23, null, 'interrupted'],
+  );
+  assert.deepEqual(
+    [receipt.stop.kind, receipt.stop.code, receipt.stop.cause],
+    ['interrupted', 'signal', 'SIGINT'],
+  );
 });
 
 test('permission denials mark a completed Claude run for an approved continuation', async (t) => {

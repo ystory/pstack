@@ -766,7 +766,8 @@ async function priorFor(options, auth) {
     throw new Error('Resume model and effort must be identical.');
   if (prior.cwd !== options.cwd)
     throw new Error('Resume requires the same canonical cwd.');
-  if (prior.authMode !== auth.method)
+  // An unsupported route refuses the run in its own receipt, as a fresh run does.
+  if (prior.authMode !== auth.method && !authStop(auth))
     throw new Error('Resume requires the same inherited auth method.');
   if (
     !prior.process?.closed ||

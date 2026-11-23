@@ -768,21 +768,31 @@ test('agy refuses the Gemini API-key route in detect, catalog and run without la
   }
 });
 
-test('agy resume rejects a prior receipt whose auth method differs from the inherited one', async (t) => {
+test('agy resume rejects a prior receipt whose auth method differs and refuses the API-key route in a receipt', async (t) => {
   const f = await fixture(t);
   const first = await f.invoke('normal', [], 'run', { AGY_ADC_AUTH: 'true' });
   assert.equal(first.receipt.authMode, 'adc');
   const prior = path.join(first.runDir, 'result.json');
-  const settings = path.join(f.home, '.gemini/antigravity-cli/settings.json');
-  await mkdir(path.dirname(settings), { recursive: true });
-  await writeFile(settings, JSON.stringify({ modelProvider: 'gemini' }));
-  const rejected = await f.invoke('normal', ['--resume', prior], 'run', {
-    AGY_ADC_AUTH: 'true',
-  });
+  const rejected = await f.invoke('normal', ['--resume', prior]);
   assert.notEqual(rejected.code, 0);
   assert.equal(rejected.receipt, null);
   assert.match(rejected.stderr, /same inherited auth/);
   await assert.rejects(readFile(rejected.trace), { code: 'ENOENT' });
+  const settings = path.join(f.home, '.gemini/antigravity-cli/settings.json');
+  await mkdir(path.dirname(settings), { recursive: true });
+  await writeFile(settings, JSON.stringify({ modelProvider: 'gemini' }));
+  const refused = await f.invoke('normal', ['--resume', prior], 'run', {
+    AGY_ADC_AUTH: 'true',
+  });
+  assert.notEqual(refused.code, 0);
+  assert.equal(refused.receipt.status, 'unsupported-auth');
+  assert.deepEqual(refused.receipt.stop, {
+    kind: 'not-started',
+    code: 'unsupported-auth',
+    cause: refused.receipt.error,
+    continuable: false,
+  });
+  await assert.rejects(readFile(refused.trace), { code: 'ENOENT' });
   await rm(settings);
   const resumed = await f.invoke('normal', ['--resume', prior], 'run', {
     AGY_ADC_AUTH: 'true',

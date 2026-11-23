@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { constants, createWriteStream } from 'node:fs';
 import {
@@ -23,6 +22,7 @@ import {
 } from './claude-capabilities.mjs';
 import {
   childEnv,
+  probeSupervised,
   recordActivity,
   redact,
   spawnSupervised,
@@ -145,9 +145,8 @@ async function executablePath(requested = 'claude') {
   throw new Error('claude was not found on PATH');
 }
 
-function cliText(executable, argument) {
-  const result = spawnSync(executable, [argument], {
-    encoding: 'utf8',
+async function cliText(executable, argument) {
+  const result = await probeSupervised(executable, [argument], {
     env: childEnv(process.env, EXECUTOR),
   });
   if (result.error) throw result.error;
@@ -183,11 +182,11 @@ async function detect(options) {
       ],
     };
   }
-  const versionText = cliText(executable, '--version').trim();
+  const versionText = (await cliText(executable, '--version')).trim();
   const version = versionText.match(/\b(\d+\.\d+\.\d+)\b/)?.[1];
   if (!version)
     throw new Error(`Unrecognized Claude Code version: ${versionText}`);
-  const help = cliText(executable, '--help');
+  const help = await cliText(executable, '--help');
   const requiredOptions = {
     print: help.includes('--print'),
     model: help.includes('--model'),
@@ -207,8 +206,7 @@ async function detect(options) {
   const effortSyntax = CLAUDE_CLI_EFFORTS.filter((effort) =>
     new RegExp(`\\b${effort}\\b`).test(effortHelp),
   );
-  const authResult = spawnSync(executable, ['auth', 'status'], {
-    encoding: 'utf8',
+  const authResult = await probeSupervised(executable, ['auth', 'status'], {
     timeout: 20_000,
     env: childEnv(process.env, EXECUTOR),
   });

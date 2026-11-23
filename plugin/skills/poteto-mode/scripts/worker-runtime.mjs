@@ -627,3 +627,41 @@ export function spawnSupervised(
   });
   return new SupervisedChild(raw, lifetime);
 }
+
+/** spawnSync's result for a short probe of a CLI, run supervised so that the
+ * probe dies with its owner instead of outliving a killed runner. */
+export function probeSupervised(
+  command,
+  args,
+  { cwd, env, timeout, maxBuffer = 1024 * 1024 } = {},
+) {
+  return new Promise((resolve) => {
+    const child = spawnSupervised(command, args, {
+      cwd,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      lifetime: 'one-shot',
+    });
+    const output = { stdout: '', stderr: '' };
+    let error = null;
+    const fail = (code) => {
+      error ??= Object.assign(new Error(`spawnSync ${command} ${code}`), {
+        code,
+      });
+      void child.stop('SIGTERM');
+    };
+    const timer = timeout ? setTimeout(fail, timeout, 'ETIMEDOUT') : null;
+    for (const name of ['stdout', 'stderr']) {
+      child[name].setEncoding('utf8');
+      child[name].on('data', (chunk) => {
+        output[name] += chunk;
+        if (output[name].length > maxBuffer) fail('ENOBUFS');
+      });
+    }
+    child.on('error', (spawnError) => (error ??= spawnError));
+    child.once('close', (status, signal) => {
+      clearTimeout(timer);
+      resolve({ status: error ? null : status, signal, ...output, error });
+    });
+  });
+}

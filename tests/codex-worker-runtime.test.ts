@@ -930,6 +930,32 @@ test('closing the client gives the server its stdin-end grace before any signal'
   );
 });
 
+test('a CLI probe dies with a runner that is killed while it runs', async (t) => {
+  const f = await fixture(t);
+  const probePid = path.join(f.root, 'probe.pid');
+  await writeFile(
+    f.executable,
+    `#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(probePid)}, String(process.pid));\nsetTimeout(() => {}, 20000);\n`,
+    { mode: 0o755 },
+  );
+  const runner = f.start('probe');
+  runner.stdin.end('Do the synthetic task.');
+  const until = async (check: () => Promise<boolean> | boolean) => {
+    const deadline = Date.now() + 5000;
+    while (!(await check())) {
+      if (Date.now() > deadline) return false;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return true;
+  };
+  assert.ok(
+    await until(() => readFile(probePid, 'utf8').then(Boolean, () => false)),
+  );
+  const pid = Number(await readFile(probePid, 'utf8'));
+  runner.kill('SIGKILL');
+  assert.ok(await until(() => !running(pid)), 'the probe outlived its runner');
+});
+
 test('a retried Codex error stays out of the receipt and a final one is kept', async (t) => {
   const f = await fixture(t);
   assert.equal(f.run('retried', 'RETRY').status, 0);

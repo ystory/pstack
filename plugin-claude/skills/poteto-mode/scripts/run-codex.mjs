@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { CodexAppServerClient } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs';
 import { runAppServerTurn } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs';
 import {
@@ -10,6 +9,7 @@ import {
 } from '../../setup-pstack/scripts/state.mjs';
 import {
   childEnv,
+  probeSupervised,
   recordActivity,
   redactValue,
   spawnSupervised,
@@ -155,21 +155,18 @@ async function serverCommand(options) {
   return { workers, kind: runtime.kind, executable, args: runtime.args };
 }
 
-function cliStatus(options, server) {
+async function cliStatus(options, server) {
   const cwd = options.cwd ?? process.cwd();
   const invoke = (args) =>
-    spawnSync(server.executable, args, {
+    probeSupervised(server.executable, args, {
       cwd,
       env: childEnv(process.env, EXECUTOR),
-      encoding: 'utf8',
       timeout: 10_000,
-      maxBuffer: 1024 * 1024,
-      windowsHide: true,
     });
-  const version = invoke(['--version']);
+  const version = await invoke(['--version']);
   const appServer =
     !version.error && version.status === 0
-      ? invoke([...server.args, '--help'])
+      ? await invoke([...server.args, '--help'])
       : null;
   const helpError =
     !appServer?.error && appServer?.status === 0
@@ -201,7 +198,7 @@ function cliStatus(options, server) {
 }
 
 async function inspect(options, server) {
-  const cli = cliStatus(options, server);
+  const cli = await cliStatus(options, server);
   const result = {
     schemaVersion: 1,
     cli,
@@ -600,7 +597,7 @@ async function run(options, server) {
     failure = null,
     runtime = null;
   try {
-    runtime = cliStatus(options, server);
+    runtime = await cliStatus(options, server);
     if (!runtime.available)
       throw new Error(
         runtimes[server.workers].unavailable.replace('ERROR', () => runtime.error),

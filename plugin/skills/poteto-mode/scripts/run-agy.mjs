@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { constants, openSync, closeSync, writeSync } from 'node:fs';
 import * as fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -13,6 +13,18 @@ import {
   supportedAgyVersion,
   parseAgyModels,
 } from './agy-capabilities.mjs';
+import {
+  childEnv,
+  recordActivity,
+  redact,
+  redactValue,
+  spawnSupervised,
+  startRun,
+  stopRecord,
+  stopRun,
+  turnCompleted,
+  writeOnce,
+} from './worker-runtime.mjs';
 
 const executor = 'antigravity';
 const pluginRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -23,6 +35,33 @@ const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const descendantExitGraceMs = 3000;
+// Orca's ACP stop sends session/cancel and gives the turn this long to end before it
+// closes the process (acp-structured-session-adapter-deps.ts:19-20). Headless agy's
+// cancel is SIGINT.
+const cancelGraceMs = 4000;
+const cancellations = ['interrupted', 'terminated', 'timed-out'];
+// The first stop signal the runner received; its exit status follows it.
+let receivedSignal = null;
+// agy runs its default model for a leveled ID whose level conflicts with --effort, so
+// launch the family ID (agent-session-option-catalog-antigravity.ts:5-23).
+const levelSuffix = /^(.+)-(none|minimal|low|medium|high|xhigh|max)$/;
+const launchModelFor = (model, effort) => {
+  const match = levelSuffix.exec(model);
+  return match && match[2] !== effort ? match[1] : model;
+};
+// Orca antigravity-dialect.ts:151-159. agy retries an empty model reply and sends the
+// retry notice each time; the failure notices end a turn as failed.
+const retryNotice = /^\s*\u26a0 (Model produced invalid output\.)\s*$/;
+const turnFailureNotice =
+  /^\s*(?:\u26a0 (?:UNAUTHENTICATED \(code 401\)|agent executor error): [^\n]*|API key not valid\. Please pass a valid API key\.|Agent execution error: failed to create Gemini client: [^\n]*|Agent connection was lost and could not be re-established: Failed to rebuild agent: [\s\S]*)\s*$/;
+// Orca antigravity-dialect.ts:160-161, 210-217: agy drops a conversation whose agent
+// it cannot rebuild, so later prompts find no session.
+const rebuildFailed = 'Failed to rebuild agent: ';
+const answerOf = (response) =>
+  response
+    .split('\n')
+    .filter((line) => !retryNotice.test(line))
+    .join('\n');
 const contains = (root, target) =>
   target === root || target.startsWith(`${root}${path.sep}`);
 const uuid = (value) =>
@@ -41,7 +80,7 @@ const capabilities = {
   osReadOnlyEnforcement: false,
 };
 const usage =
-  'Usage: run-agy.mjs detect [--executable ABS] | catalog --cwd ABS --run-dir ABS [--executable ABS] | run --cwd ABS --run-dir ABS --model EXACT_ID --effort LEVEL [--instruction ABS] [--skill ABS] [--role ABS] [--prompt-file ABS] [--resume ABS_PRIOR_RECEIPT] [--timeout-ms N] [--executable ABS]';
+  'Usage: run-agy.mjs detect [--executable ABS] | catalog --cwd ABS --run-dir ABS [--executable ABS] | run --cwd ABS --run-dir ABS --model EXACT_ID --effort LEVEL [--instruction ABS] [--skill ABS] [--role ABS] [--prompt-file ABS] [--resume ABS_PRIOR_RECEIPT] [--timeout-ms N] [--executable ABS] [--label TEXT]';
 
 function optionsFor(argv) {
   const options = {
@@ -64,6 +103,7 @@ function optionsFor(argv) {
     '--resume': 'resume',
     '--timeout-ms': 'timeoutMs',
     '--executable': 'executable',
+    '--label': 'label',
   };
   for (let index = 1; index < argv.length; index += 2) {
     const key = names[argv[index]],
@@ -98,6 +138,7 @@ function optionsFor(argv) {
       model: options.model,
       reasoningEffort: options.effort,
     });
+    options.launchModel = launchModelFor(options.model, options.effort);
   }
   return options;
 }
@@ -215,6 +256,8 @@ async function ownedProcess(executable, args, options) {
     signal = null;
   let closed = false,
     sent = false,
+    // A failed task write means agy did not read the whole task.
+    inputFailed = false,
     identityBeforeInput = false,
     output = '',
     diagnostics = '',
@@ -222,14 +265,14 @@ async function ownedProcess(executable, args, options) {
   const cleanupErrors = new Set();
   const sendSignal = (signal) => {
     try {
-      signalGroup(child?.pid, signal);
+      signalGroup(child?.providerPid, signal);
     } catch (error) {
       cleanupErrors.add(error.message);
     }
   };
   const alive = () => {
     try {
-      return groupExists(child?.pid);
+      return groupExists(child?.providerPid);
     } catch (error) {
       cleanupErrors.add(error.message);
       return true;
@@ -243,23 +286,46 @@ async function ownedProcess(executable, args, options) {
     timers.add(timer);
     return timer;
   };
-  let settle;
+  let settle, markExited;
   const completion = new Promise((resolve) => {
     settle = resolve;
   });
+  const exited = new Promise((resolve) => {
+    markExited = resolve;
+  });
+  const cancelTurn = async () => {
+    if (!child.providerPid || code !== null || signal !== null) return;
+    try {
+      process.kill(child.providerPid, 'SIGINT');
+    } catch (error) {
+      if (error.code !== 'ESRCH') cleanupErrors.add(error.message);
+    }
+    await new Promise((resolve) => {
+      later(resolve, cancelGraceMs);
+      void exited.then(resolve);
+    });
+  };
   const fail = (message, kind = 'failed') => {
     firstError ??= message;
     cause ??= kind;
     if (child?.pid && !stopping) {
       stopping = true;
-      sendSignal(kind === 'interrupted' ? 'SIGINT' : 'SIGTERM');
-      later(() => sendSignal('SIGKILL'), 400);
-      later(() => {
-        child.stdin?.destroy();
-        child.stdout.destroy();
-        child.stderr.destroy();
-        settle();
-      }, 1200);
+      // A cancelled turn gets to end first; the supervisor then runs the stop
+      // ladder on the provider group.
+      void (
+        hasInput && cancellations.includes(kind)
+          ? cancelTurn()
+          : Promise.resolve()
+      )
+        .then(() => child.stop(kind === 'interrupted' ? 'SIGINT' : 'SIGTERM'))
+        .then(() =>
+          later(() => {
+            child.stdin?.destroy();
+            child.stdout.destroy();
+            child.stderr.destroy();
+            settle();
+          }, 200),
+        );
     }
   };
   const send = () => {
@@ -267,21 +333,31 @@ async function ownedProcess(executable, args, options) {
     sent = true;
     child.stdin.end(options.input);
   };
-  const interrupt = () => fail('Interrupted by SIGINT.', 'interrupted');
-  const terminate = () => fail('Interrupted by SIGTERM.', 'terminated');
+  const interrupt = () => {
+    receivedSignal ??= 'SIGINT';
+    fail('Interrupted by SIGINT.', 'interrupted');
+  };
+  const terminate = () => {
+    receivedSignal ??= 'SIGTERM';
+    fail('Interrupted by SIGTERM.', 'terminated');
+  };
   process.on('SIGINT', interrupt);
   process.on('SIGTERM', terminate);
   try {
-    child = spawn(executable, args, {
+    child = spawnSupervised(executable, args, {
       cwd: options.cwd,
-      detached: true,
+      env: childEnv(process.env, executor),
       stdio: [hasInput ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+      lifetime: 'one-shot',
     });
     child.once('error', (error) => {
       fail(error.message);
       settle();
     });
-    child.stdin?.on('error', (error) => fail(`stdin: ${error.message}`));
+    child.stdin?.on('error', (error) => {
+      inputFailed = true;
+      fail(`stdin: ${error.message}`);
+    });
     child.stdout.on('error', (error) => fail(`stdout: ${error.message}`));
     child.stderr.on('error', (error) => fail(`stderr: ${error.message}`));
     child.stdout.on('data', (bytes) => {
@@ -316,6 +392,7 @@ async function ownedProcess(executable, args, options) {
     child.once('exit', (exitCode, exitSignal) => {
       code = exitCode;
       signal = exitSignal;
+      markExited();
       if (code !== 0 || signal) fail(`agy exited ${code ?? signal}.`);
       later(() => {
         if (!closed) fail('Owned CLI exited with open descendant pipes.');
@@ -361,16 +438,22 @@ async function ownedProcess(executable, args, options) {
       diagnostics,
       error: firstError,
       cause,
-      inputSent: sent,
+      inputSent: sent && !inputFailed,
       identityBeforeInput,
       process: {
-        pid: child.pid ?? null,
+        pid: child.providerPid,
         exitCode: code,
         signal,
         closed,
         groupClosed: !alive(),
+        descendantsReaped: child.descendantsReaped,
         cleanupErrors: [...cleanupErrors],
-        shutdown: closed && !firstError ? 'orderly' : 'terminated',
+        // Killed descendants leave the run complete, as Orca only warns of them,
+        // but the group did not empty on its own.
+        shutdown:
+          closed && !firstError && !child.descendantsReaped
+            ? 'orderly'
+            : 'terminated',
       },
     };
   } finally {
@@ -380,8 +463,22 @@ async function ownedProcess(executable, args, options) {
   }
 }
 
+// Workers use subscription login or ADC. agy's modelProvider setting selects the
+// Gemini API-key route instead, so no catalog or worker starts under it.
+function authStop(auth) {
+  if (auth.method !== 'gemini-api-key') return null;
+  return stopRecord({
+    kind: 'not-started',
+    code: 'unsupported-auth',
+    cause:
+      '"modelProvider": "gemini" in ~/.gemini/antigravity-cli/settings.json selects the Gemini API-key route, which workers do not use. Workers use subscription login or ADC.',
+    continuable: false,
+  });
+}
+
 async function detect(options) {
   const auth = await inheritedAgyAuth();
+  const stop = authStop(auth);
   let executable;
   try {
     executable = await executablePath(options.executable);
@@ -396,6 +493,7 @@ async function detect(options) {
       available: false,
       compatible: false,
       auth,
+      stop,
       modelExecutionVerified: false,
     };
   }
@@ -456,6 +554,7 @@ async function detect(options) {
       Object.values(requiredOptions).every(Boolean) &&
       effortSyntax.length > 0,
     auth,
+    stop,
     modelExecutionVerified: false,
     probeError: versionProbe.error ?? helpProbe.error ?? null,
     probeCause: versionProbe.cause ?? helpProbe.cause ?? null,
@@ -530,31 +629,117 @@ function conversationVerified(receipt, requested) {
     receipt.identityBeforeInput === true &&
     receipt.inputSent === true &&
     receipt.process?.closed === true &&
-    receipt.process.groupClosed === true
+    receipt.process.groupClosed === true &&
+    receipt.sessionLost !== true
   );
 }
 
 const interruptionCauses = {
-  'timed-out': 'deadline',
-  interrupted: 'SIGINT',
-  terminated: 'SIGTERM',
+  'timed-out': ['deadline', 'deadline'],
+  interrupted: ['signal', 'SIGINT'],
+  terminated: ['signal', 'SIGTERM'],
 };
 
-function stopFor(receipt) {
-  const [kind, cause] =
+// Orca src/main/rate-limits/providers/antigravity/antigravity-usage-error.ts:5-88, with
+// each failure kind named by its stop code. Structured AGY_ERROR lines outrank prose.
+const agyErrorPrefix = 'AGY_ERROR:';
+const agyErrorCodes = [
+  [
+    'not-signed-in',
+    (status, code) => status === 'UNAUTHENTICATED' || code === 401,
+  ],
+  // Orca's no-subscription: authenticated, but not entitled to what was asked for.
+  [
+    'model-unavailable',
+    (status, code) => status === 'PERMISSION_DENIED' || code === 403,
+  ],
+  [
+    'usage-limit',
+    (status, code) => status === 'RESOURCE_EXHAUSTED' || code === 429,
+  ],
+  ['provider', (_, code) => code !== null && code >= 500 && code < 600],
+];
+const signedOutPhrases = [
+  'not logged into antigravity',
+  'not logged in',
+  'not signed in',
+  'not authenticated',
+  'not-authenticated',
+  'unauthenticated',
+  'run agy login',
+  'please sign in',
+  'please log in',
+  'sign in to antigravity',
+  'no credentials',
+  'authentication required',
+];
+
+function failureCode(diagnostics) {
+  for (const line of diagnostics.split('\n')) {
+    const index = line.indexOf(agyErrorPrefix);
+    const payload =
+      index === -1 ? '' : line.slice(index + agyErrorPrefix.length).trim();
+    if (!payload.startsWith('{')) continue;
+    let error;
+    try {
+      error = JSON.parse(payload);
+    } catch {
+      continue;
+    }
+    const status =
+      typeof error?.status === 'string' ? error.status.toUpperCase() : '';
+    const code =
+      typeof error?.error_code === 'number' ? error.error_code : null;
+    const match = agyErrorCodes.find(([, applies]) => applies(status, code));
+    if (match) return match[0];
+  }
+  const lowered = diagnostics.toLowerCase();
+  return signedOutPhrases.some((phrase) => lowered.includes(phrase))
+    ? 'not-signed-in'
+    : 'failed';
+}
+
+// A run whose task input never reached agy has not started, whatever stopped it.
+function stopFor(receipt, diagnostics) {
+  const [kind, code, cause] =
     receipt.status in interruptionCauses
-      ? ['interrupted', interruptionCauses[receipt.status]]
+      ? ['interrupted', ...interruptionCauses[receipt.status]]
       : receipt.status === 'completed'
-        ? ['completed', 'completed']
-        : ['error', receipt.error ?? receipt.status];
-  return {
-    kind,
+        ? ['completed', 'completed', 'completed']
+        : receipt.status === 'unsupported-auth'
+          ? ['not-started', 'unsupported-auth', receipt.error]
+          : [
+              'error',
+              failureCode(diagnostics),
+              receipt.error ?? receipt.status,
+            ];
+  return stopRecord({
+    kind: kind === 'completed' || receipt.inputSent ? kind : 'not-started',
+    code,
     cause,
     continuable: conversationVerified(receipt, {
-      model: receipt.requested?.model,
+      model: receipt.launchModel,
       cwd: receipt.cwd,
     }),
-  };
+  });
+}
+
+async function tail(file, bytes = 64 * 1024) {
+  let handle;
+  try {
+    handle = await fs.open(file);
+  } catch (error) {
+    if (error.code === 'ENOENT') return '';
+    throw error;
+  }
+  try {
+    const { size } = await handle.stat();
+    const buffer = Buffer.alloc(Math.min(size, bytes));
+    await handle.read(buffer, 0, buffer.length, size - buffer.length);
+    return buffer.toString('utf8');
+  } finally {
+    await handle.close();
+  }
 }
 
 async function priorFor(options, auth) {
@@ -581,7 +766,8 @@ async function priorFor(options, auth) {
     throw new Error('Resume model and effort must be identical.');
   if (prior.cwd !== options.cwd)
     throw new Error('Resume requires the same canonical cwd.');
-  if (prior.authMode !== auth.method)
+  // An unsupported route refuses the run in its own receipt, as a fresh run does.
+  if (prior.authMode !== auth.method && !authStop(auth))
     throw new Error('Resume requires the same inherited auth method.');
   if (
     !prior.process?.closed ||
@@ -591,7 +777,14 @@ async function priorFor(options, auth) {
     throw new Error(
       'Resume requires verified closed owned process and process group.',
     );
-  if (!conversationVerified(prior, options))
+  // The prior run proves its identity with the ID it launched; a receipt from
+  // before launchModel launched its requested ID.
+  if (
+    !conversationVerified(prior, {
+      model: prior.launchModel ?? prior.requested?.model,
+      cwd: options.cwd,
+    })
+  )
     throw new Error(
       'Resume receipt lacks exact conversation identity evidence.',
     );
@@ -622,7 +815,11 @@ function streamParser(options, prior) {
     failedStep = null,
     toolErrors = [],
     userInput = false,
+    sessionLost = false,
+    // The raw native error line, which names its cause only for stopFor.
+    nativeError = '',
     count = 0;
+  const toolSteps = new Set();
   const line = (text, ready) => {
     if (!text.trim()) return;
     const value = JSON.parse(text);
@@ -633,8 +830,11 @@ function streamParser(options, prior) {
       typeof value.event !== 'string'
     )
       throw new Error('Expected an event-based stream object.');
-    if (value.event === 'error' || value.error || value.is_error === true)
+    if (value.event === 'error' || value.error || value.is_error === true) {
+      sessionLost ||= text.includes(rebuildFailed);
+      nativeError ||= text;
       throw new Error(`Native agy failure: ${JSON.stringify(value)}`);
+    }
     if (result) throw new Error('Stream continued after terminal result.');
     if (value.event === 'init') {
       if (init) throw new Error('Duplicate stream init.');
@@ -646,13 +846,20 @@ function streamParser(options, prior) {
         throw new Error(
           'Init conversation ID does not match the exact requested conversation.',
         );
-      if (init.init?.model !== options.model || init.init?.cwd !== options.cwd)
+      if (
+        init.init?.model !== options.launchModel ||
+        init.init?.cwd !== options.cwd
+      )
         throw new Error('Init model or cwd does not match the exact request.');
       ready();
     } else if (value.event === 'step_update') {
       if (!init || value.step_update?.conversation_id !== init.conversation_id)
         throw new Error('Step conversation ID disagrees with init.');
       const { step_type, state, tool_name, tool_info } = value.step_update;
+      if (step_type === 'tool' && !toolSteps.has(value.step_update.step_index)) {
+        toolSteps.add(value.step_update.step_index);
+        recordActivity(options.runDir, `tool: ${tool_name ?? tool_info?.name}`);
+      }
       if (
         ['ERROR', 'FAILED', 'CANCELLED', 'CANCELED', 'ABORTED'].includes(
           state,
@@ -679,6 +886,7 @@ function streamParser(options, prior) {
     } else if (value.event === 'result') {
       count++;
       const terminal = value.result;
+      turnCompleted(options.runDir, terminal?.status);
       result = terminal;
       const recovered =
         terminal?.status === 'ERROR' &&
@@ -693,11 +901,17 @@ function streamParser(options, prior) {
         terminal.is_error === true ||
         terminal.success === false ||
         typeof terminal.response !== 'string' ||
-        !terminal.response.trim()
+        !answerOf(terminal.response).trim()
       )
         throw new Error(
           'Missing matching current-turn SUCCESS terminal result and nonempty response.',
         );
+      if (turnFailureNotice.test(answerOf(terminal.response))) {
+        sessionLost = terminal.response.includes(rebuildFailed);
+        throw new Error(
+          `agy ended the turn with a failure notice: ${answerOf(terminal.response).trim()}`,
+        );
+      }
       if (
         !Number.isSafeInteger(terminal.num_turns) ||
         terminal.num_turns <= (prior?.numTurns ?? 0)
@@ -725,6 +939,7 @@ function streamParser(options, prior) {
       if (!init || !result || count !== 1)
         throw new Error('Stream lacks exactly one matching terminal result.');
     },
+    nativeError: () => nativeError,
     evidence() {
       return {
         conversationId: init?.conversation_id ?? null,
@@ -733,6 +948,7 @@ function streamParser(options, prior) {
         terminalResult: result,
         failedStep,
         toolErrors,
+        sessionLost,
       };
     },
   };
@@ -750,6 +966,19 @@ async function execute(options) {
     mode: 0o700,
   });
   await fs.mkdir(options.runDir, { mode: 0o700 });
+  const registry =
+    context &&
+    startRun(
+      {
+        runDir: options.runDir,
+        executor,
+        model: options.model,
+        effort: options.effort,
+        cwd: options.cwd,
+        label: options.label ?? null,
+      },
+      prior ? { sessionId: prior.conversationId } : {},
+    );
   const resultPath = path.join(options.runDir, 'result.json');
   const stdoutPath = path.join(
     options.runDir,
@@ -762,8 +991,10 @@ async function execute(options) {
     command: options.command,
     cwd: options.cwd,
     runDir: options.runDir,
+    label: options.label ?? null,
     executable,
     requested: options.requested ?? null,
+    launchModel: options.launchModel ?? null,
     auth,
     authMode: auth.method,
     permissions: 'all-native-tools-auto-approved',
@@ -791,11 +1022,17 @@ async function execute(options) {
     error = null,
     failureKind = null,
     evidence = {},
+    nativeError = '',
     catalog = null;
   let args = [];
   try {
     stdoutFd = openSync(stdoutPath, 'wx', 0o600);
     stderrFd = openSync(stderrPath, 'wx', 0o600);
+    const refused = authStop(auth);
+    if (refused)
+      throw Object.assign(new Error(refused.cause), {
+        kind: 'unsupported-auth',
+      });
     runtime = await detect({ executable });
     if (!runtime.compatible) {
       const rejected = new Error(
@@ -832,7 +1069,7 @@ async function execute(options) {
         '--output-format',
         'stream-json',
         '--model',
-        options.model,
+        options.launchModel,
         '--effort',
         options.effort,
         '--dangerously-skip-permissions',
@@ -865,16 +1102,20 @@ async function execute(options) {
       stdout: (bytes) => writeSync(stdoutFd, bytes),
       stderr: (bytes) => writeSync(stderrFd, bytes),
     });
-    if (parser) evidence = parser.evidence();
+    if (parser) {
+      evidence = parser.evidence();
+      nativeError = parser.nativeError();
+    }
     if (outcome.error) throw new Error(outcome.error);
     if (!outcome.process.closed || !outcome.process.groupClosed)
       throw new Error('Owned process closure is unconfirmed.');
     if (context) {
       request.finalPath = path.join(options.runDir, 'final.txt');
-      await fs.writeFile(request.finalPath, evidence.terminalResult.response, {
-        flag: 'wx',
-        mode: 0o600,
-      });
+      await fs.writeFile(
+        request.finalPath,
+        answerOf(evidence.terminalResult.response),
+        { flag: 'wx', mode: 0o600 },
+      );
     }
     if (!context) {
       catalog = {
@@ -903,7 +1144,7 @@ async function execute(options) {
     ...request,
     args,
     status,
-    error,
+    error: error && redact(error),
     runtime,
     process: outcome?.process ?? {
       pid: null,
@@ -911,13 +1152,21 @@ async function execute(options) {
       signal: null,
       closed: true,
       groupClosed: true,
+      descendantsReaped: null,
       shutdown: 'not-started',
     },
     ...evidence,
+    // The native terminal result's error is provider text, which can carry a credential.
+    terminalResult: evidence.terminalResult && {
+      ...evidence.terminalResult,
+      error: redactValue(evidence.terminalResult.error),
+    },
     effectiveEffort: null,
     inputSent: outcome?.inputSent ?? false,
     identityBeforeInput: outcome?.identityBeforeInput ?? false,
-    result: error ? null : (evidence.terminalResult?.response ?? null),
+    result: error
+      ? null
+      : answerOf(evidence.terminalResult?.response ?? '') || null,
     usage: evidence.terminalResult?.usage
       ? {
           scope: 'conversation-cumulative',
@@ -931,21 +1180,29 @@ async function execute(options) {
     completedAt: new Date().toISOString(),
   };
   if (context) {
+    receipt.registry = registry;
     receipt.recoveredError =
       !error && evidence.terminalResult?.status === 'ERROR'
-        ? evidence.terminalResult.error
+        ? redact(evidence.terminalResult.error)
         : null;
-    receipt.stop = stopFor(receipt);
+    // Orca classifies agy's own error text, wherever it arrives, by the same evidence.
+    receipt.stop = stopFor(
+      receipt,
+      [
+        await tail(stderrPath),
+        evidence.terminalResult?.error ?? '',
+        nativeError,
+      ].join('\n'),
+    );
+    stopRun(options.runDir, receipt.stop);
   }
-  await fs.writeFile(resultPath, json(receipt), { flag: 'wx', mode: 0o600 });
+  writeOnce(resultPath, json(receipt), 0o600);
   console.log(JSON.stringify(receipt));
-  process.exitCode = !error
-    ? 0
-    : status === 'interrupted'
-      ? 130
-      : status === 'terminated'
-        ? 143
-        : 1;
+  process.exitCode = receivedSignal
+    ? 128 + os.constants.signals[receivedSignal]
+    : error
+      ? 1
+      : 0;
 }
 
 try {
@@ -954,7 +1211,7 @@ try {
   else if (options.command === 'detect') {
     const result = await detect(options);
     console.log(JSON.stringify(result));
-    if (!result.compatible) process.exitCode = 1;
+    if (!result.compatible || result.stop) process.exitCode = 1;
   } else await execute(options);
 } catch (error) {
   console.error(error.message);

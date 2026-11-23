@@ -1,4 +1,4 @@
-// pstack-cc modified this file for direct worker execution, cancellation, and reviewed approvals.
+// pstack-cc modified this file for direct worker execution, cancellation, reviewed approvals, a caller's runtime probe, and unopened turns that end with a final error.
 /**
  * @typedef {import("./app-server-protocol").AppServerNotification} AppServerNotification
  * @typedef {import("./app-server-protocol").ReviewTarget} ReviewTarget
@@ -81,7 +81,9 @@ function buildResumeParams(threadId, cwd, options = {}) {
     model: options.model ?? null,
     approvalPolicy: options.approvalPolicy ?? "never",
     approvalsReviewer: options.approvalsReviewer,
-    sandbox: options.sandbox ?? "read-only"
+    sandbox: options.sandbox ?? "read-only",
+    // The turn needs no replay of the history, which is deprecated for paginated threads.
+    excludeTurns: true
   };
 }
 
@@ -317,6 +319,7 @@ function createTurnCaptureState(threadId, options = {}) {
     threadIds: new Set([threadId]),
     threadTurnIds: new Map(),
     threadLabels: new Map(),
+    openedTurnIds: new Set(),
     turnId: null,
     bufferedNotifications: [],
     completion,
@@ -509,6 +512,9 @@ function applyTurnNotification(state, message) {
     case "turn/started":
       registerThread(state, message.params.threadId);
       state.threadTurnIds.set(message.params.threadId, message.params.turn.id);
+      if ((message.params.threadId ?? null) === state.threadId) {
+        state.openedTurnIds.add(message.params.turn.id);
+      }
       if ((message.params.threadId ?? null) !== state.threadId) {
         state.activeSubagentTurns.add(message.params.threadId);
       }
@@ -539,8 +545,22 @@ function applyTurnNotification(state, message) {
       }
       break;
     case "error":
+      // Codex retries a stream error itself unless willRetry is false; only that one ends the turn.
+      if (message.params.willRetry !== false) {
+        emitProgress(state.onProgress, `Codex retrying: ${message.params.error.message}`);
+        break;
+      }
       state.error = message.params.error;
       emitProgress(state.onProgress, `Codex error: ${message.params.error.message}`, "failed");
+      // Orca codex-structured-turn-end-settlement.ts: a turn Codex never opened can end
+      // with only this final error, while an opened turn still sends turn/completed.
+      if (
+        message.params.threadId === state.threadId &&
+        message.params.turnId &&
+        !state.openedTurnIds.has(message.params.turnId)
+      ) {
+        completeTurn(state, { id: message.params.turnId, status: "failed", error: message.params.error });
+      }
       break;
     case "turn/completed":
       if ((message.params.threadId ?? null) !== state.threadId) {
@@ -560,6 +580,28 @@ function applyTurnNotification(state, message) {
   }
 }
 
+const TURN_INTERRUPT_GRACE_MS = 5_000;
+
+/** An acknowledgement confirms the turn stopped; -32600 means it was not running. */
+async function interruptTurn(client, threadId, turnId) {
+  let timer;
+  const timedOut = new Promise((resolve) => {
+    timer = setTimeout(resolve, TURN_INTERRUPT_GRACE_MS, { outcome: "timed-out", detail: null });
+  });
+  const reply = (async () => client.request("turn/interrupt", { threadId, turnId }))().then(
+    () => ({ outcome: "acknowledged", detail: null }),
+    (error) => ({
+      outcome: error?.rpcCode === -32600 ? "not-running" : error?.rpcCode === undefined ? "lost" : "refused",
+      detail: error instanceof Error ? error.message : String(error)
+    })
+  );
+  try {
+    return { turnId, ...(await Promise.race([reply, timedOut])) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function captureTurn(client, threadId, startRequest, options = {}) {
   const state = createTurnCaptureState(threadId, options);
   const previousHandler = client.notificationHandler;
@@ -571,7 +613,10 @@ async function captureTurn(client, threadId, startRequest, options = {}) {
     if (!options.signal?.aborted || state.completed || interruptRequested) return;
     interruptRequested = true;
     if (state.turnId) {
-      void client.request("turn/interrupt", { threadId: state.threadId, turnId: state.turnId }).catch(() => {});
+      // withDirectAppServer closes the server only after this settles.
+      client.turnInterrupt = interruptTurn(client, state.threadId, state.turnId).then((result) => {
+        options.onInterrupt?.(result);
+      });
     }
     const error = options.signal.reason ?? new Error("Codex turn aborted.");
     rejectAbort(error);
@@ -674,14 +719,19 @@ async function withAppServer(cwd, fn) {
 
 async function withDirectAppServer(cwd, fn, options = {}) {
   const client = await CodexAppServerClient.connect(cwd, { ...options, disableBroker: true });
-  const abort = () => { queueMicrotask(() => { void client.close(); }); };
+  // The microtask runs after captureTurn's abort listener has sent its turn interrupt.
+  const close = async () => {
+    await client.turnInterrupt;
+    await client.close();
+  };
+  const abort = () => { queueMicrotask(() => { void close(); }); };
   options.signal?.addEventListener("abort", abort);
   try {
     options.signal?.throwIfAborted();
     return await fn(client);
   } finally {
     options.signal?.removeEventListener("abort", abort);
-    await client.close();
+    await close();
   }
 }
 
@@ -1129,7 +1179,8 @@ export async function importExternalAgentSession(cwd, options = {}) {
 }
 
 export async function runAppServerTurn(cwd, options = {}) {
-  const availability = getCodexAvailability(cwd, options);
+  // A caller that probed the runtime under its own supervision passes that result.
+  const availability = options.availability ?? getCodexAvailability(cwd, options);
   if (!availability.available) {
     throw new Error(`Codex runtime unavailable: ${availability.detail}`);
   }
@@ -1151,6 +1202,9 @@ export async function runAppServerTurn(cwd, options = {}) {
         ephemeral: false
       });
       threadId = response.thread.id;
+      if (threadId !== options.resumeThreadId) {
+        throw new Error(`codex app-server resumed ${threadId} instead of ${options.resumeThreadId}`);
+      }
     } else {
       emitProgress(options.onProgress, "Starting Codex task thread.", "starting");
       const response = await startThread(client, cwd, {
@@ -1185,7 +1239,12 @@ export async function runAppServerTurn(cwd, options = {}) {
           effort: options.effort ?? null,
           outputSchema: options.outputSchema ?? null
         }),
-      { onProgress: options.onProgress, signal: options.signal, requireTerminalCompletion: options.direct === true }
+      {
+        onProgress: options.onProgress,
+        onInterrupt: options.onInterrupt,
+        signal: options.signal,
+        requireTerminalCompletion: options.direct === true
+      }
     );
 
     return {

@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { appendFileSync, closeSync, fstatSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  closeSync,
+  fstatSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { once } from 'node:events';
 
 const args = process.argv.slice(2);
@@ -79,6 +85,8 @@ if (args[0] === '--version') {
     );
   leaveDescendant();
 } else {
+  if (process.env.AGY_FIXTURE_STDERR)
+    process.stderr.write(`${process.env.AGY_FIXTURE_STDERR}\n`);
   const nativeId = args.includes('--conversation')
     ? option('--conversation')
     : '917f82bf-4fe5-46b9-8c4a-58663982aa01';
@@ -155,12 +163,51 @@ if (args[0] === '--version') {
           },
         },
       });
+  const responses = {
+    empty: ' \n ',
+    'retry-notice':
+      '⚠ Model produced invalid output.\n⚠ Model produced invalid output.\nfresh answer 한글 🥔',
+    'retry-only': '⚠ Model produced invalid output.\n',
+    'failure-notice': '⚠ agent executor error: model request failed\n',
+    'rebuild-notice':
+      'Agent connection was lost and could not be re-established: Failed to rebuild agent: no session\nretry later',
+  };
+  // scripts/check-agy-live.ts: read the pointer and its marker, answer with the
+  // marker, and recall it on resume without tools.
+  if (mode === 'live-marker') {
+    const cache = `${process.env.AGY_TRACE}.marker`;
+    let marker;
+    if (args.includes('--conversation')) marker = readFileSync(cache, 'utf8');
+    else {
+      const pointer = `${process.cwd()}/pointer.txt`;
+      const markerFile = readFileSync(pointer, 'utf8').trim();
+      marker = readFileSync(markerFile, 'utf8');
+      writeFileSync(cache, marker);
+      for (const [index, file] of [pointer, markerFile].entries())
+        emit({
+          event: 'step_update',
+          step_update: {
+            ...update.step_update,
+            step_index: index + 1,
+            step_type: 'tool',
+            tool_name: 'read_file',
+            tool_info: {
+              name: 'read_file',
+              parameters: { path: file },
+              output: readFileSync(file, 'utf8'),
+            },
+          },
+        });
+    }
+    responses[mode] =
+      `${process.env.AGY_LIVE_RETRY ? '⚠ Model produced invalid output.\n' : ''}${marker}`;
+  }
   const result = {
     event: 'result',
     result: {
       conversation_id: mode === 'wrong-result-id' ? 'wrong' : conversationId,
       status: 'SUCCESS',
-      response: mode === 'empty' ? ' \n ' : 'fresh answer 한글 🥔',
+      response: responses[mode] ?? 'fresh answer 한글 🥔',
       num_turns: args.includes('--conversation') && mode !== 'stale' ? 2 : 1,
       usage: { input_tokens: 22, output_tokens: 4, total_tokens: 26 },
     },
@@ -178,7 +225,9 @@ if (args[0] === '--version') {
     Object.assign(result.result, {
       status: 'ERROR',
       response: '',
-      error: 'Resource exhausted. Please try again later.',
+      error:
+        process.env.AGY_FIXTURE_TERMINAL_ERROR ??
+        'Resource exhausted. Please try again later.',
       finished_reason: 'error',
       usage: {
         input_tokens: 13417,
@@ -201,15 +250,26 @@ if (args[0] === '--version') {
     });
     Object.assign(result.result, {
       status: 'ERROR',
-      error: 'API error (attempt 1): Error 429, Status: RESOURCE_EXHAUSTED',
+      error:
+        process.env.AGY_FIXTURE_TERMINAL_ERROR ??
+        'API error (attempt 1): Error 429, Status: RESOURCE_EXHAUSTED',
       finished_reason: 'error',
     });
     if (mode === 'recovered-error-nonzero') process.exitCode = 3;
   }
   if (mode === 'error-then-success')
-    emit({ event: 'error', error: 'original native failure' });
+    emit({
+      event: 'error',
+      error: process.env.AGY_NATIVE_ERROR ?? 'original native failure',
+    });
   if (
-    ['hang', 'late-success', 'descendant', 'pipe-descendant'].includes(mode)
+    [
+      'hang',
+      'late-success',
+      'descendant',
+      'pipe-descendant',
+      'slow-cancel',
+    ].includes(mode)
   ) {
     let descendant;
     if (mode === 'descendant' || mode === 'pipe-descendant') {
@@ -225,8 +285,9 @@ if (args[0] === '--version') {
       );
       writeFileSync(process.env.AGY_CHILD_PID, String(descendant.pid));
     }
-    const stop = async () => {
-      trace({ stopped: true });
+    const stop = async (signal) => {
+      trace({ stopped: signal, at: Date.now() });
+      if (mode === 'slow-cancel' && signal === 'SIGINT') return;
       if (mode === 'late-success') emit(result);
       if (descendant) {
         descendant.kill('SIGTERM');

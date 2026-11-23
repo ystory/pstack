@@ -15,6 +15,7 @@ type Receipt = {
   status: string;
   error: string | null;
   requested: Entry;
+  launchModel: string;
   cwd: string;
   authMode: string;
   observedModel: string | null;
@@ -58,7 +59,7 @@ type ToolEvent = {
   };
 };
 
-const usage = `Usage: node scripts/check-agy-live.ts --evidence-dir ABS_NEW --fresh-runner ABS --resume-runner ABS --model EXACT_ID --effort LEVEL --inherited-auth gemini-api-key|adc|inherited-default [--executable ABS] [--timeout-ms N]`;
+const usage = `Usage: node scripts/check-agy-live.ts --evidence-dir ABS_NEW --fresh-runner ABS --resume-runner ABS --model EXACT_ID --effort LEVEL --inherited-auth adc|inherited-default [--executable ABS] [--timeout-ms N]`;
 const hash = (bytes: Buffer | string) =>
   createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
@@ -108,10 +109,14 @@ for (const flag of [
 ])
   if (options[flag] !== undefined)
     assert.ok(path.isAbsolute(options[flag]!), `${flag} must be absolute.`);
+// Workers refuse agy's Gemini API-key route, so the check cannot acknowledge it.
+assert.notEqual(
+  options['--inherited-auth'],
+  'gemini-api-key',
+  'Workers do not use the Gemini API-key route. Use subscription login or ADC.',
+);
 assert.ok(
-  ['gemini-api-key', 'adc', 'inherited-default'].includes(
-    options['--inherited-auth']!,
-  ),
+  ['adc', 'inherited-default'].includes(options['--inherited-auth']!),
   '--inherited-auth must acknowledge an already-authorized inherited method.',
 );
 const timeoutMs = Number(options['--timeout-ms'] ?? '120000');
@@ -279,6 +284,21 @@ async function launch(runner: string, name: string, args: string[]) {
   return JSON.parse(Buffer.concat(stdout).toString('utf8'));
 }
 
+// The runner's documented behavior (agy-execution.md): a leveled ID whose level
+// differs from the effort launches the family ID, and the answer leaves out agy's
+// retry notices that terminalResult.response keeps.
+const levelSuffix = /^(.+)-(none|minimal|low|medium|high|xhigh|max)$/;
+const retryNotice = /^\s*\u26a0 (Model produced invalid output\.)\s*$/;
+function launchModelFor({ model, reasoningEffort }: Entry) {
+  const level = levelSuffix.exec(model);
+  return level && level[2] !== reasoningEffort ? level[1]! : model;
+}
+const answerOf = (response: string) =>
+  response
+    .split('\n')
+    .filter((line) => !retryNotice.test(line))
+    .join('\n');
+
 async function completed(runDirectory: string, emitted: Receipt) {
   const receipt: Receipt = JSON.parse(
     await fs.readFile(path.join(runDirectory, 'result.json'), 'utf8'),
@@ -293,8 +313,10 @@ async function completed(runDirectory: string, emitted: Receipt) {
   assert.deepEqual(receipt.requested, entry);
   assert.equal(receipt.cwd, workspace);
   assert.equal(receipt.authMode, authMode);
-  assert.equal(receipt.observedModel, entry.model);
-  assert.equal(receipt.init.init.model, entry.model);
+  const launchModel = launchModelFor(entry);
+  assert.equal(receipt.launchModel, launchModel);
+  assert.equal(receipt.observedModel, launchModel);
+  assert.equal(receipt.init.init.model, launchModel);
   assert.equal(receipt.init.init.cwd, workspace);
   assert.equal(receipt.init.conversation_id, receipt.conversationId);
   assert.equal(receipt.terminalResult.conversation_id, receipt.conversationId);
@@ -314,12 +336,10 @@ async function completed(runDirectory: string, emitted: Receipt) {
   assert.equal(receipt.usage.scope, 'conversation-cumulative');
   assert.equal(receipt.usage.source, 'native-agy-result');
   assert.deepEqual(receipt.usage.value, receipt.terminalResult.usage);
-  assert.equal(receipt.terminalResult.response.trim(), marker);
-  assert.equal(receipt.result, receipt.terminalResult.response);
-  assert.equal(
-    await fs.readFile(receipt.finalPath, 'utf8'),
-    receipt.terminalResult.response,
-  );
+  const answer = answerOf(receipt.terminalResult.response);
+  assert.equal(answer.trim(), marker);
+  assert.equal(receipt.result, answer);
+  assert.equal(await fs.readFile(receipt.finalPath, 'utf8'), answer);
   return receipt;
 }
 async function completedTools(receipt: Receipt) {

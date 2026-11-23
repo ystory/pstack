@@ -1,13 +1,25 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { CodexAppServerClient } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs';
 import { runAppServerTurn } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs';
 import {
   claudeHome,
   savedCodexWorkers,
 } from '../../setup-pstack/scripts/state.mjs';
+import {
+  childEnv,
+  probeSupervised,
+  recordActivity,
+  redact,
+  redactValue,
+  spawnSupervised,
+  startRun,
+  stopRecord,
+  stopRun,
+  turnCompleted,
+  writeOnce,
+} from './worker-runtime.mjs';
 
 const EXECUTOR = 'codex';
 
@@ -16,9 +28,10 @@ const usage = `Usage: node run-codex.mjs detect [--executable ABS] [--codex-work
        node run-codex.mjs run --cwd ABS --run-dir ABS --model ID [--effort VALUE]
          [--instruction ABS ...] [--skill ABS ...] [--role ABS]
          [--resume EXACT_THREAD_ID] [--sandbox workspace-write|danger-full-access]
-         [--executable ABS] [--prompt-file ABS]
+         [--executable ABS] [--prompt-file ABS] [--label TEXT]
          [--approve-review REVIEW_ID --review-receipt ABS]
 Task text comes from --prompt-file or stdin. The run remains foreground until completion.
+--label names the run in workers.mjs status and the run's events.jsonl.
 The saved codexWorkers setting selects the server. --codex-workers overrides it
 for one detect or catalog probe.
 --approve-review records the user's approval of one denied review listed in the
@@ -44,6 +57,7 @@ function parse(argv) {
     'approve-review',
     'review-receipt',
     'codex-workers',
+    'label',
   ]);
   for (let index = 0; index < args.length; index += 1) {
     const name = args[index].slice(2);
@@ -142,20 +156,19 @@ async function serverCommand(options) {
   return { workers, kind: runtime.kind, executable, args: runtime.args };
 }
 
-function cliStatus(options, server) {
+// diagnostic receives the raw probe failure; the returned error is redacted.
+async function cliStatus(options, server, diagnostic = () => {}) {
   const cwd = options.cwd ?? process.cwd();
   const invoke = (args) =>
-    spawnSync(server.executable, args, {
+    probeSupervised(server.executable, args, {
       cwd,
-      encoding: 'utf8',
+      env: childEnv(process.env, EXECUTOR),
       timeout: 10_000,
-      maxBuffer: 1024 * 1024,
-      windowsHide: true,
     });
-  const version = invoke(['--version']);
+  const version = await invoke(['--version']);
   const appServer =
     !version.error && version.status === 0
-      ? invoke([...server.args, '--help'])
+      ? await invoke([...server.args, '--help'])
       : null;
   const helpError =
     !appServer?.error && appServer?.status === 0
@@ -163,6 +176,19 @@ function cliStatus(options, server) {
       : null;
   const supported =
     !appServer?.error && appServer?.status === 0 && helpError === null;
+  const error =
+    version.error?.message ??
+    appServer?.error?.message ??
+    (version.status !== 0
+      ? version.stderr.trim() ||
+        version.stdout.trim() ||
+        `exit ${version.status}`
+      : appServer?.status !== 0
+        ? appServer?.stderr.trim() ||
+          appServer?.stdout.trim() ||
+          `exit ${appServer?.status}`
+        : helpError);
+  if (error !== null) diagnostic({ event: 'cli-status', error });
   return {
     available: supported,
     workers: server.workers,
@@ -171,23 +197,12 @@ function cliStatus(options, server) {
     args: server.args,
     version: version.status === 0 ? version.stdout.trim() : null,
     appServer: supported,
-    error:
-      version.error?.message ??
-      appServer?.error?.message ??
-      (version.status !== 0
-        ? version.stderr.trim() ||
-          version.stdout.trim() ||
-          `exit ${version.status}`
-        : appServer?.status !== 0
-          ? appServer?.stderr.trim() ||
-            appServer?.stdout.trim() ||
-            `exit ${appServer?.status}`
-          : helpError),
+    error: error === null ? null : redact(error),
   };
 }
 
 async function inspect(options, server) {
-  const cli = cliStatus(options, server);
+  const cli = await cliStatus(options, server);
   const result = {
     schemaVersion: 1,
     cli,
@@ -210,6 +225,8 @@ async function inspect(options, server) {
       disableBroker: true,
       executable: server.executable,
       appServerArgs: server.args,
+      env: childEnv(process.env, EXECUTOR),
+      spawn: spawnSupervised,
     });
     const account = await client.request('account/read', {
       refreshToken: false,
@@ -283,6 +300,157 @@ function turnSettings(rolloutPath, turnId) {
   return settings;
 }
 
+function activityText(item) {
+  switch (item?.type) {
+    case 'commandExecution':
+      return `running: ${item.command}`;
+    case 'fileChange':
+      return `editing ${(item.changes ?? []).map((change) => change.path).join(', ')}`;
+    case 'mcpToolCall':
+      return `tool: ${item.server}/${item.tool}`;
+    case 'dynamicToolCall':
+      return `tool: ${item.tool}`;
+    case 'webSearch':
+      return `searching: ${item.query}`;
+    default:
+      return null;
+  }
+}
+
+// Orca codex-structured-thread-facts.ts: codexErrorInfo is a variant name or a
+// single-key object whose fields can carry the HTTP status.
+function errorInfo(error) {
+  const info = error?.codexErrorInfo;
+  if (typeof info === 'string' && info) return { error: info };
+  const [variant, fields] =
+    Object.entries(info && typeof info === 'object' ? info : {})[0] ?? [];
+  return variant ? { error: variant, status: fields?.httpStatusCode } : null;
+}
+const failureText = (error) =>
+  typeof error?.additionalDetails === 'string'
+    ? error.additionalDetails
+    : typeof error?.message === 'string'
+      ? error.message
+      : undefined;
+// The provider's words for a failure, as Orca's usage-limit and sign-in text joins them.
+function errorText(error) {
+  const message = typeof error?.message === 'string' ? error.message : null;
+  const details =
+    typeof error?.additionalDetails === 'string' ? error.additionalDetails : null;
+  return (
+    [message, details !== message ? details : null].filter(Boolean).join('\n') ||
+    null
+  );
+}
+
+// Orca codex-authentication-failure.ts: only the unauthorized variant, or an HTTP
+// failure carrying 401, proves sign-out.
+const HTTP_ERROR_KINDS = [
+  'httpConnectionFailed',
+  'responseStreamConnectionFailed',
+  'responseStreamDisconnected',
+  'responseTooManyFailedAttempts',
+];
+// Orca codex-turn-failures.ts:159-199 with codex-usage-limits.ts: the stop code a
+// failed turn's error proves. A final 'other' error that repeats the text of an
+// error Codex retried keeps that retry's variant.
+function codexStopCode(error, retry) {
+  let info = errorInfo(error);
+  if (
+    info?.error === 'other' &&
+    retry &&
+    failureText(error) !== undefined &&
+    failureText(error) === retry.text
+  )
+    info = retry.info;
+  if (!info) return 'failed';
+  if (
+    ['usageLimitExceeded', 'rateLimitExceeded'].includes(info.error) ||
+    (info.error === 'responseTooManyFailedAttempts' && info.status === 429)
+  )
+    return 'usage-limit';
+  if (
+    info.error === 'unauthorized' ||
+    (info.status === 401 && HTTP_ERROR_KINDS.includes(info.error))
+  )
+    return 'not-signed-in';
+  if (info.error === 'modelNotFound') return 'model-unavailable';
+  if (
+    ['serverOverloaded', 'flexUnavailable', 'policyCapacityUnavailable'].includes(
+      info.error,
+    )
+  )
+    return 'provider';
+  return 'failed';
+}
+
+// The turn's error, or the error notification that ended it, whichever proves a
+// code, names the stop; the cause is that error's text.
+function turnFailure(failure, errors, retry) {
+  const present = errors.filter(Boolean);
+  const proven = present.find((error) => codexStopCode(error, retry) !== 'failed');
+  return [
+    'error',
+    proven ? codexStopCode(proven, retry) : 'failed',
+    failure?.message ?? errorText(proven ?? present[0]) ?? 'failed',
+  ];
+}
+
+// Orca codex-structured-thread-open.ts: only this thread-specific resume refusal proves no rollout.
+const noRollout = (failure, threadId) =>
+  failure?.method === 'thread/resume' &&
+  failure.data?.code === -32600 &&
+  failure.message.endsWith(`no rollout found for thread id ${threadId}`);
+
+// Orca codex-structured-read-only.ts and codex-server-request-disposition.ts:
+// nobody watches a worker, so every blocking request gets a safe answer.
+const UNATTENDED_ANSWERS = new Map([
+  ['item/commandExecution/requestApproval', { result: { decision: 'decline' } }],
+  ['item/fileChange/requestApproval', { result: { decision: 'decline' } }],
+  [
+    'mcpServer/elicitation/request',
+    { result: { action: 'decline', content: null, _meta: null } },
+  ],
+  [
+    'item/tool/requestUserInput',
+    {
+      error: {
+        code: -32001,
+        message: 'Nobody is watching this worker to answer.',
+      },
+    },
+  ],
+  [
+    'item/permissions/requestApproval',
+    { result: { permissions: {}, scope: 'turn', strictAutoReview: true } },
+  ],
+  ['item/tool/call', { result: { contentItems: [], success: false } }],
+  ['applyPatchApproval', { result: { decision: 'abort' } }],
+  ['execCommandApproval', { result: { decision: 'abort' } }],
+  [
+    'account/chatgptAuthTokens/refresh',
+    {
+      error: {
+        code: -32001,
+        message: 'pstack cannot refresh app-server auth tokens',
+      },
+    },
+  ],
+  [
+    'attestation/generate',
+    {
+      error: { code: -32001, message: 'pstack did not negotiate attestation' },
+    },
+  ],
+]);
+const unattendedAnswer = (method) =>
+  UNATTENDED_ANSWERS.get(method) ?? {
+    error: {
+      code: -32000,
+      message: `pstack rejected unrecognized blocking request ${method}`,
+    },
+  };
+
 const snakeCase = (value) =>
   value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 
@@ -316,6 +484,10 @@ function approvedAssessment(options) {
       : value;
   return {
     id: review.reviewId,
+    // Orca codex-auto-review-denial.ts: the reviewed item, when the review names one.
+    ...(typeof review.targetItemId === 'string' && review.targetItemId.trim()
+      ? { target_item_id: review.targetItemId }
+      : {}),
     turn_id: review.turnId,
     started_at_ms: review.startedAtMs,
     completed_at_ms: review.completedAtMs,
@@ -369,6 +541,7 @@ async function run(options, server) {
     executor: EXECUTOR,
     runtime: server,
     cwd: options.cwd,
+    label: options.label ?? null,
     requested,
     resumeThreadId: options.resume ?? null,
     approvedReview: approval && {
@@ -387,6 +560,17 @@ async function run(options, server) {
   fs.writeFileSync(files.prompt, prompt, { flag: 'wx' });
   fs.writeFileSync(files.progress, '', { flag: 'wx' });
   fs.writeFileSync(files.diagnostics, '', { flag: 'wx' });
+  const registry = startRun(
+    {
+      runDir: directory,
+      executor: EXECUTOR,
+      model: options.model,
+      effort: options.effort ?? null,
+      cwd: options.cwd,
+      label: request.label,
+    },
+    options.resume ? { threadId: options.resume } : {},
+  );
   const controller = new AbortController();
   let signal = null;
   const stop = (value) => {
@@ -404,14 +588,35 @@ async function run(options, server) {
     terminal = null;
   const threadSettings = { model: null, effort: null };
   const deniedReviews = [];
+  let interrupt = null,
+    // The task reaches Codex in turn/start; a rejected or unsent request never delivered it.
+    inputSent = false;
+  // Retried errors by turn ID, so a late retry of another turn never names this one's stop.
+  const retries = new Map();
+  const clientRequests = [];
   const child = { pid: null, exitCode: null, signal: null, closed: false };
+  let provider = null,
+    providerClosed = null;
+  const supervisedSpawn = (...spawnArgs) => {
+    provider = spawnSupervised(...spawnArgs);
+    // Close carries the supervisor's last report, whether it killed descendants.
+    providerClosed = new Promise((resolve) => provider.once('close', resolve));
+    return provider;
+  };
+  // A turn can end in a notification, in turn/start's response, or in a final
+  // error; each ended turn gets one turn-completed event.
+  const endedTurns = new Set();
+  const endTurn = (turn) => {
+    if (!turn || endedTurns.has(turn.id)) return;
+    endedTurns.add(turn.id);
+    turnCompleted(directory, turn.status);
+  };
   const pending = new Map();
   const diagnostic = (event) => {
     fs.appendFileSync(
       files.diagnostics,
       JSON.stringify({ at: new Date().toISOString(), ...event }) + '\n',
     );
-    if (event.event === 'spawn') child.pid = event.pid;
     if (event.event === 'exit')
       Object.assign(child, {
         exitCode: event.code,
@@ -420,6 +625,8 @@ async function run(options, server) {
       });
     if (event.direction === 'send' && event.message.id !== undefined)
       pending.set(event.message.id, event.message.method);
+    if (event.direction === 'send' && event.message.method === 'turn/start')
+      inputSent = true;
     if (event.direction !== 'receive') return;
     let message;
     try {
@@ -430,18 +637,43 @@ async function run(options, server) {
     if (message.id !== undefined) {
       const method = pending.get(message.id);
       pending.delete(message.id);
-      if (['thread/start', 'thread/resume'].includes(method)) {
+      // A resume that opened another thread proves no identity to continue.
+      if (
+        method === 'thread/start' ||
+        (method === 'thread/resume' &&
+          message.result?.thread?.id === options.resume)
+      ) {
         threadId = message.result?.thread?.id ?? threadId;
         rolloutPath = message.result?.thread?.path ?? rolloutPath;
         threadSettings.model = message.result?.model ?? null;
         threadSettings.effort =
           message.result?.reasoningEffort ?? message.result?.effort ?? null;
       }
+      if (method === 'turn/start' && message.error) inputSent = false;
       if (method === 'turn/start') turnId = message.result?.turn?.id ?? turnId;
     }
     if (message.params?.threadId !== threadId) return;
     if (message.method === 'turn/started') turnId = message.params.turn.id;
-    if (message.method === 'turn/completed') terminal = message.params.turn;
+    // Orca codex-turn-failures.ts observeRetry: each turn's last retried error with a variant.
+    if (message.method === 'error' && message.params.willRetry !== false) {
+      const info = errorInfo(message.params.error);
+      const text = failureText(message.params.error);
+      if (
+        typeof message.params.turnId === 'string' &&
+        info &&
+        info.error !== 'other' &&
+        text !== undefined
+      )
+        retries.set(message.params.turnId, { info, text });
+    }
+    if (message.method === 'item/started') {
+      const activity = activityText(message.params.item);
+      if (activity) recordActivity(directory, activity);
+    }
+    if (message.method === 'turn/completed') {
+      terminal = message.params.turn;
+      endTurn(terminal);
+    }
     if (
       message.method === 'item/autoApprovalReview/completed' &&
       message.params.review?.status === 'denied'
@@ -457,15 +689,18 @@ async function run(options, server) {
     failure = null,
     runtime = null;
   try {
-    runtime = cliStatus(options, server);
+    runtime = await cliStatus(options, server, diagnostic);
     if (!runtime.available)
       throw new Error(
         runtimes[server.workers].unavailable.replace('ERROR', () => runtime.error),
       );
     result = await runAppServerTurn(options.cwd, {
       direct: true,
+      availability: { available: true, detail: runtime.version },
       executable: server.executable,
       appServerArgs: server.args,
+      env: childEnv(process.env, EXECUTOR),
+      spawn: supervisedSpawn,
       signal: controller.signal,
       model: options.model,
       effort: options.effort,
@@ -482,6 +717,12 @@ async function run(options, server) {
             event: approval,
           })),
       prompt,
+      onInterrupt: (outcome) => (interrupt = outcome),
+      answerServerRequest: ({ method }) => {
+        const answer = unattendedAnswer(method);
+        clientRequests.push({ method, answer });
+        return answer;
+      },
       onDiagnostic: diagnostic,
       onProgress: (update) => {
         if (typeof update === 'object') {
@@ -498,14 +739,18 @@ async function run(options, server) {
     turnId = result.turnId;
     finalText = result.finalMessage ?? finalText;
     terminal = result.turn;
+    endTurn(terminal);
   } catch (error) {
     failure = {
       message: error.message,
       code: error.code ?? null,
+      method: error.method ?? null,
       data: error.data ?? null,
       stack: error.stack,
     };
+    diagnostic({ event: 'failure', failure });
   } finally {
+    await providerClosed;
     process.removeListener('SIGINT', onInterrupt);
     process.removeListener('SIGTERM', onTerminate);
   }
@@ -515,15 +760,23 @@ async function run(options, server) {
       : !failure && result?.status === 0 && terminal?.status === 'completed'
         ? 'completed'
         : 'failed';
-  const [stopKind, stopCause] = signal
-    ? ['interrupted', signal]
+  const [stopKind, stopCode, stopCause] = signal
+    ? ['interrupted', 'signal', signal]
     : terminal?.status === 'interrupted'
-      ? ['interrupted', 'native']
+      ? ['interrupted', 'failed', 'native']
       : deniedReviews.length
-        ? ['permission', 'denied review']
+        ? ['permission', 'permission-denied', 'denied review']
         : status === 'completed'
-          ? ['completed', 'completed']
-          : ['error', failure?.message ?? 'failed'];
+          ? ['completed', 'completed', 'completed']
+          : noRollout(failure, options.resume)
+            ? ['error', 'missing-session', failure.message]
+            : turnFailure(
+                failure,
+                [terminal?.error, result?.error],
+                retries.get(turnId),
+              );
+  child.pid = provider?.providerPid ?? null;
+  child.descendantsReaped = provider?.descendantsReaped ?? null;
   const exitCode =
     signal === 'SIGINT'
       ? 130
@@ -537,6 +790,7 @@ async function run(options, server) {
     executor: EXECUTOR,
     runtime: runtime ?? server,
     cwd: options.cwd,
+    label: request.label,
     sandbox: request.sandbox,
     threadId,
     turnId,
@@ -546,25 +800,31 @@ async function run(options, server) {
     threadSettings,
     approvedReview: request.approvedReview?.reviewId ?? null,
     deniedReviews,
+    clientRequests,
+    registry,
     status,
-    stop: { kind: stopKind, cause: stopCause, continuable: threadId !== null },
+    inputSent,
+    stop: stopRecord({
+      kind: stopKind === 'completed' || inputSent ? stopKind : 'not-started',
+      code: stopCode,
+      cause: stopCause,
+      continuable: threadId !== null && inputSent,
+    }),
     resultStatus: result?.status ?? null,
     finalText,
-    turn: terminal,
-    error: failure ?? result?.error ?? terminal?.error ?? null,
+    turn: terminal && { ...terminal, error: redactValue(terminal.error) },
+    error: redactValue(failure ?? result?.error ?? terminal?.error ?? null),
     exitCode,
     signal,
+    interrupt: redactValue(interrupt),
     process: child,
     startedAt,
     finishedAt: new Date().toISOString(),
     files,
   };
   fs.writeFileSync(files.final, finalText, { flag: 'wx' });
-  const temporary = files.result + '.tmp';
-  fs.writeFileSync(temporary, JSON.stringify(receipt, null, 2) + '\n', {
-    flag: 'wx',
-  });
-  fs.renameSync(temporary, files.result);
+  stopRun(directory, receipt.stop);
+  writeOnce(files.result, JSON.stringify(receipt, null, 2) + '\n');
   process.exitCode = exitCode;
   return receipt;
 }

@@ -339,7 +339,7 @@ try {
     `#!${process.execPath}\n` +
       `const args = process.argv.slice(2);\n` +
       `if (args[0] === '--version') console.log('2.1.300 (Claude Code)');\n` +
-      `else if (args[0] === '--help') console.log('--print --model --effort low medium high xhigh max --output-format stream-json --verbose --resume --permission-mode (choices: "auto")');\n` +
+      `else if (args[0] === '--help') console.log('--print --model --effort low medium high xhigh max --output-format stream-json --verbose --resume --session-id --permission-mode (choices: "auto")');\n` +
       `else if (args[0] === 'auth') console.log(JSON.stringify({loggedIn:true,authMethod:'oauth_token'}));\n` +
       `else {\n` +
       `  process.stdin.resume();\n` +
@@ -347,8 +347,10 @@ try {
       `    require('node:fs').writeFileSync(${JSON.stringify(externalCapture)}, JSON.stringify(args));\n` +
       `    const index = args.indexOf('--model');\n` +
       `    const model = index < 0 ? null : args[index + 1];\n` +
-      `    console.log(JSON.stringify({type:'system',subtype:'init',model,session_id:'00000000-0000-4000-8000-000000000001'}));\n` +
-      `    console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,result:'packaged external transport received ' + model}));\n` +
+      `    const named = args.indexOf('--session-id') >= 0 ? args.indexOf('--session-id') : args.indexOf('--resume');\n` +
+      `    const session_id = named < 0 ? null : args[named + 1];\n` +
+      `    console.log(JSON.stringify({type:'system',subtype:'init',model,session_id}));\n` +
+      `    console.log(JSON.stringify({type:'result',subtype:'success',is_error:false,session_id,result:'packaged external transport received ' + model}));\n` +
       `  });\n` +
       `}\n`,
   );

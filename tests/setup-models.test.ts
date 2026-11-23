@@ -1407,8 +1407,9 @@ else {
     writeFileSync(${JSON.stringify(capture)}, JSON.stringify(args));
     const modelIndex = args.indexOf('--model');
     const model = modelIndex < 0 ? null : args[modelIndex + 1];
-    console.log(JSON.stringify({ type: 'system', subtype: 'init', model }));
-    console.log(JSON.stringify({ type: 'result', result: 'Fixture received ' + model }));
+    const session_id = args[args.indexOf('--session-id') + 1];
+    console.log(JSON.stringify({ type: 'system', subtype: 'init', session_id, model }));
+    console.log(JSON.stringify({ type: 'result', session_id, result: 'Fixture received ' + model }));
   });
 }
 `,
@@ -1418,7 +1419,13 @@ else {
     const result = spawnSync(
       process.execPath,
       [runner, ...args, '--executable', executable],
-      { cwd: f.root, encoding: 'utf8', input, timeout: 10_000 },
+      {
+        cwd: f.root,
+        encoding: 'utf8',
+        input,
+        timeout: 10_000,
+        env: { ...process.env, PSTACK_STATE_HOME: path.join(f.root, 'state') },
+      },
     );
     assert.equal(result.status, 0, result.stderr);
     return JSON.parse(result.stdout);

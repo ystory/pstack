@@ -16,3 +16,8 @@ shared/0006-worktree-dependency-state.patch
 0010-worktree-dependency-state.patch
 0011-upstream-0-15-46-refresh.patch
 shared/0007-neon-panel-budget.patch
+shared/0008-worker-runner-runtime.patch
+0012-worker-runner-runtime.patch
+0013-worker-runner-runtime-version.patch
+shared/0009-orca-runner-specifics.patch
+0014-orca-runner-specifics.patch

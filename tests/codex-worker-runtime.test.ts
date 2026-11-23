@@ -41,11 +41,13 @@ const send = (value) => console.log(JSON.stringify(value));
 const notify = (method, params) => send({method,params});
 const respond = (request, result) => send({id:request.id,result});
 let threadId, turnId, rollout, timer;
+if (process.env.FAKE_LINGERING_HELPER) (await import('node:child_process')).spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'}).unref();
 const lines = readline.createInterface({input:process.stdin});
 lines.on('line', (line) => {
  const request = JSON.parse(line); log({request});
  const p = request.params;
  switch (request.method) {
+ case undefined: break;
  case 'initialize': if (process.env.FAKE_INSPECT_CASE === 'initialize-error') { send({id:request.id,error:{code:-32000,message:'initialize unavailable'}}); break; } if (!process.env.FAKE_HOLD_INITIALIZE) respond(request,{userAgent:'fixture'}); break;
  case 'initialized': break;
  case 'account/read':
@@ -56,12 +58,17 @@ lines.on('line', (line) => {
  case 'model/list': if (process.env.FAKE_INSPECT_CASE === 'catalog-error') { send({id:request.id,error:{code:-32000,message:'catalog unavailable'}}); break; } respond(request,p.cursor ? {data:[{id:'second-model',model:'second-model',supportedReasoningEfforts:[{reasoningEffort:'high'}]}],nextCursor:null} : {data:[{id:'selected-model',model:'selected-model',supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'xhigh'}]}],nextCursor:'second-page'}); break;
  case 'thread/start': case 'thread/resume':
   if (process.env.FAKE_HOLD_THREAD) break;
-  threadId = p.threadId ?? 'thread-'+process.pid;
+  if (p.threadId && process.env.FAKE_NO_ROLLOUT) { send({id:request.id,error:{code:-32600,message:'no rollout found for thread id '+p.threadId}}); break; }
+  threadId = p.threadId && process.env.FAKE_RESUME_OTHER ? 'thread-other' : p.threadId ?? 'thread-'+process.pid;
   rollout = process.env.FAKE_LOG+'.'+threadId+'.rollout.jsonl';
   fs.appendFileSync(rollout,JSON.stringify({type:'turn_context',payload:{turn_id:'earlier-turn',model:'earlier-model',effort:'ultra'}})+'\n{"type":\n');
   respond(request,{thread:{id:threadId,path:rollout},model:'observed-model',reasoningEffort:'high',cwd:p.cwd}); break;
  case 'turn/start': {
   if (process.env.FAKE_HOLD_TURN_STARTED) break;
+  if (process.env.FAKE_REJECT_TURN) { send({id:request.id,error:{code:-32602,message:'turn rejected before delivery'}}); break; }
+  const signedOut = {message:'signed out',codexErrorInfo:'unauthorized'};
+  if (process.env.FAKE_FAILED_START) { respond(request,{turn:{id:'failed-turn',status:'failed',error:signedOut}}); break; }
+  if (process.env.FAKE_UNOPENED_FINAL_ERROR) { respond(request,{turn:{id:'unopened-turn',status:'inProgress'}}); notify('error',{threadId,turnId:'unopened-turn',willRetry:false,error:signedOut}); break; }
   turnId = 'turn-'+process.pid;
   const prompt = p.input[0].text;
   if (!process.env.FAKE_UNKNOWN_SETTINGS) fs.appendFileSync(rollout,JSON.stringify({type:'turn_context',payload:{turn_id:turnId,model:'turn-model',effort:'low'}})+'\n');
@@ -94,15 +101,18 @@ lines.on('line', (line) => {
     notify('item/autoApprovalReview/completed',review('review-denied','denied',threadId));
     notify('item/autoApprovalReview/completed',review('review-other-thread','denied','other-thread'));
    }
+   if (prompt.includes('ASK')) JSON.parse(process.env.FAKE_SERVER_REQUESTS).forEach((method,index)=>send({id:'ask-'+index,method,params:{threadId,turnId}}));
+   if (prompt.includes('RETRY')) notify('error',{threadId,turnId:process.env.FAKE_RETRY_TURN_ID ?? turnId,willRetry:true,error:JSON.parse(process.env.FAKE_RETRY_ERROR ?? 'null') ?? {message:'transient stream retry',codexErrorInfo:{responseStreamDisconnected:{httpStatusCode:502}},additionalDetails:null}});
+   if (prompt.includes('FINAL_ERROR')) notify('error',{threadId,turnId,willRetry:false,error:{message:process.env.FAKE_FINAL_ERROR_MESSAGE ?? 'final stream failure',codexErrorInfo:JSON.parse(process.env.FAKE_FINAL_ERROR_INFO ?? '"other"'),additionalDetails:null}});
    notify('item/completed',{threadId,turnId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'answer for '+threadId}});
    if (prompt.includes('EXIT')) { setTimeout(()=>process.exit(7),40); return; }
-   timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?{message:'actual terminal failure'}:null}}),prompt.includes('FAIL')?450:40);
+   timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?JSON.parse(process.env.FAKE_TURN_ERROR ?? 'null') ?? {message:'actual terminal failure',codexErrorInfo:JSON.parse(process.env.FAKE_TURN_ERROR_INFO ?? 'null')}:null}}),prompt.includes('FAIL')?450:40);
   };
   if (!process.env.FAKE_HOLD_TURN_RESPONSE) started();
   break;
  }
  case 'thread/approveGuardianDeniedAction': if (process.env.FAKE_REJECT_APPROVAL) { send({id:request.id,error:{code:-32600,message:'approval rejected'}}); break; } respond(request,{}); break;
- case 'turn/interrupt': clearTimeout(timer); if (process.env.FAKE_IGNORE_INTERRUPT) break; respond(request,{}); notify('turn/completed',{threadId,turn:{id:turnId,status:'interrupted'}}); break;
+ case 'turn/interrupt': clearTimeout(timer); if (process.env.FAKE_IGNORE_INTERRUPT) break; if (process.env.FAKE_INTERRUPT_NOT_RUNNING) { send({id:request.id,error:{code:-32600,message:'no active turn to interrupt'}}); break; } respond(request,{}); notify('turn/completed',{threadId,turn:{id:turnId,status:'interrupted'}}); break;
  default: send({id:request.id,error:{code:-32601,message:'unexpected '+request.method}});
  }
 });
@@ -138,13 +148,15 @@ async function fixture(t: TestContext) {
   );
   const runner = path.join(plugin, 'skills/poteto-mode/scripts/run-codex.mjs');
   await mkdir(path.dirname(runner), { recursive: true });
-  await cp(
-    path.join(
-      project,
-      'plugin-claude/skills/poteto-mode/scripts/run-codex.mjs',
-    ),
-    runner,
-  );
+  for (const name of [
+    'run-codex.mjs',
+    'worker-runtime.mjs',
+    'worker-supervisor.mjs',
+  ])
+    await cp(
+      path.join(project, 'plugin-claude/skills/poteto-mode/scripts', name),
+      path.join(path.dirname(runner), name),
+    );
   const workerContext = path.join(
     plugin,
     'skills/poteto-mode/references/worker-context.md',
@@ -187,6 +199,7 @@ async function fixture(t: TestContext) {
     CLAUDE_CONFIG_DIR: claudeHome,
     FAKE_LOG: log,
     CODEX_COMPANION_APP_SERVER_ENDPOINT: '/must-not-use-shared-broker',
+    PSTACK_STATE_HOME: path.join(root, 'state'),
   };
   const role = path.join(root, 'role.md'),
     instruction = path.join(root, 'AGENTS.md'),
@@ -337,6 +350,7 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
   assert.equal(receipt.status, 'completed');
   assert.deepEqual(receipt.stop, {
     kind: 'completed',
+    code: 'completed',
     cause: 'completed',
     continuable: true,
   });
@@ -458,13 +472,7 @@ test('saved visible codexWorkers launches the Codex CLI app-server', async (t) =
   assert.deepEqual(receipt.runtime.args, ['app-server']);
   assert.deepEqual(
     (await f.events()).filter((event) => event.args).map((event) => event.args),
-    [
-      ['--version'],
-      ['app-server', '--help'],
-      ['--version'],
-      ['app-server', '--help'],
-      ['app-server'],
-    ],
+    [['--version'], ['app-server', '--help'], ['app-server']],
   );
 });
 
@@ -839,6 +847,381 @@ test('terminal failure wins over an earlier final answer and abrupt server exit 
   assert.equal(exited.process.exitCode, 7);
 });
 
+test('a failed turn keeps provider credentials out of every receipt copy of its error', async (t) => {
+  const f = await fixture(t);
+  const run = f.run('leak', 'FAIL', [], {
+    FAKE_TURN_ERROR: JSON.stringify({
+      message: 'authentication failed: Bearer sample-only',
+      data: { api_key: 'sample-only', note: 'api_token=sample-only' },
+    }),
+  });
+  assert.equal(run.status, 1);
+  const receipt = await f.receipt('leak');
+  assert.equal(run.stdout.includes('sample-only'), false, run.stdout);
+  assert.equal(JSON.stringify(receipt).includes('sample-only'), false);
+  assert.deepEqual(receipt.turn.error, {
+    message: 'authentication failed: [redacted:labeled-kv]',
+    data: { note: 'api_token=[redacted:labeled-kv]' },
+  });
+  assert.equal(
+    receipt.stop.cause,
+    'authentication failed: [redacted:labeled-kv]',
+  );
+  assert.match(
+    await readFile(receipt.files.diagnostics, 'utf8'),
+    /Bearer sample-only/,
+  );
+});
+
+test("a failed CLI probe's output is redacted and bounded in the receipt and kept raw in diagnostics", async (t) => {
+  const f = await fixture(t);
+  await writeFile(
+    f.executable,
+    `#!${process.execPath}\nconsole.error('x'.repeat(3100) + ' token=sample-only'); process.exit(1);\n`,
+    { mode: 0o755 },
+  );
+  assert.equal(f.run('probe-leak').status, 1);
+  const receipt = await f.receipt('probe-leak');
+  assert.equal(JSON.stringify(receipt).includes('sample-only'), false);
+  assert.equal(receipt.runtime.error.length, 2000);
+  assert.match(receipt.runtime.error, /x \[redacted:labeled-kv\]$/);
+  assert.match(
+    await readFile(receipt.files.diagnostics, 'utf8'),
+    /token=sample-only/,
+  );
+});
+
+test('a run records its turn completion between its start and stop events', async (t) => {
+  const f = await fixture(t);
+  assert.equal(f.run('events').status, 0);
+  const events = (
+    await readFile(path.join(f.root, 'events', 'events.jsonl'), 'utf8')
+  )
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert.deepEqual(
+    events.map(({ type, status }) => [type, status]),
+    [
+      ['started', undefined],
+      ['turn-completed', 'completed'],
+      ['stopped', undefined],
+    ],
+  );
+});
+
+test('a turn that ends in its start response or an unopened final error settles with one turn-completed', async (t) => {
+  const f = await fixture(t);
+  for (const name of ['FAKE_FAILED_START', 'FAKE_UNOPENED_FINAL_ERROR']) {
+    const run = f.run(name, undefined, [], { [name]: '1' });
+    assert.equal(run.status, 1, name);
+    const receipt = await f.receipt(name);
+    assert.deepEqual(
+      [receipt.turn.status, receipt.stop.kind, receipt.stop.code],
+      ['failed', 'error', 'not-signed-in'],
+      name,
+    );
+    const events = (
+      await readFile(path.join(f.root, name, 'events.jsonl'), 'utf8')
+    )
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    assert.deepEqual(
+      events.map(({ type, status }) => [type, status]),
+      [
+        ['started', undefined],
+        ['turn-completed', 'failed'],
+        ['stopped', undefined],
+      ],
+      name,
+    );
+  }
+});
+
+test('a run records whether the supervisor killed descendants that outlived the server', async (t) => {
+  const f = await fixture(t);
+  for (const [name, env, reaped] of [
+    ['alone', {}, false],
+    ['helper', { FAKE_LINGERING_HELPER: '1' }, true],
+  ] as const) {
+    assert.equal(f.run(name, undefined, [], env).status, 0, name);
+    const receipt = await f.receipt(name);
+    assert.equal(receipt.status, 'completed', name);
+    assert.equal(receipt.process.descendantsReaped, reaped, name);
+  }
+});
+
+test('closing the client gives the server its stdin-end grace before any signal', async (t) => {
+  const f = await fixture(t);
+  const flushed = path.join(f.root, 'flushed');
+  const closeLine = "lines.on('close',()=>process.exit(0));";
+  assert.ok(fakeProtocol.includes(closeLine));
+  // The server finishes a write 250 ms after its stdin ends, inside the 1 s grace.
+  await writeFile(
+    f.executable,
+    (
+      fakePrelude +
+      fakeStandalone +
+      fakeProtocol.replace(
+        closeLine,
+        `process.on('SIGTERM',()=>process.exit(23));lines.on('close',()=>setTimeout(()=>{fs.writeFileSync(${JSON.stringify(flushed)},'flushed');process.exit(0);},250));`,
+      )
+    ).replace('#!/usr/bin/env node', '#!' + process.execPath),
+    { mode: 0o755 },
+  );
+  assert.equal(f.run('flush').status, 0);
+  const receipt = await f.receipt('flush');
+  assert.equal(await readFile(flushed, 'utf8'), 'flushed');
+  assert.deepEqual(
+    [receipt.process.exitCode, receipt.process.signal],
+    [0, null],
+  );
+});
+
+test('a CLI probe dies with a runner that is killed while it runs', async (t) => {
+  const f = await fixture(t);
+  const probePid = path.join(f.root, 'probe.pid');
+  await writeFile(
+    f.executable,
+    `#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(probePid)}, String(process.pid));\nsetTimeout(() => {}, 20000);\n`,
+    { mode: 0o755 },
+  );
+  const runner = f.start('probe');
+  runner.stdin.end('Do the synthetic task.');
+  const until = async (check: () => Promise<boolean> | boolean) => {
+    const deadline = Date.now() + 5000;
+    while (!(await check())) {
+      if (Date.now() > deadline) return false;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    return true;
+  };
+  assert.ok(
+    await until(() => readFile(probePid, 'utf8').then(Boolean, () => false)),
+  );
+  const pid = Number(await readFile(probePid, 'utf8'));
+  runner.kill('SIGKILL');
+  assert.ok(await until(() => !running(pid)), 'the probe outlived its runner');
+});
+
+test("a run probes the CLI once, supervised and without the parent's session", async (t) => {
+  const f = await fixture(t);
+  await writeFile(
+    f.executable,
+    (
+      fakePrelude +
+      'if (process.env.CODEX_THREAD_ID) log({ inheritedThread: process.env.CODEX_THREAD_ID });\n' +
+      fakeStandalone +
+      fakeProtocol
+    ).replace('#!/usr/bin/env node', '#!' + process.execPath),
+    { mode: 0o755 },
+  );
+  const run = f.run('one-probe', undefined, [], {
+    CODEX_THREAD_ID: 'parent-thread',
+  });
+  assert.equal(run.status, 0, run.stderr);
+  const events = await f.events();
+  assert.equal(
+    events.filter((event) => event.args?.join(' ') === '--version').length,
+    1,
+  );
+  assert.equal(
+    events.some((event) => 'inheritedThread' in event),
+    false,
+  );
+});
+
+test('a retried Codex error stays out of the receipt and a final one is kept', async (t) => {
+  const f = await fixture(t);
+  assert.equal(f.run('retried', 'RETRY').status, 0);
+  const retried = await f.receipt('retried');
+  assert.equal(retried.status, 'completed');
+  assert.equal(retried.stop.code, 'completed');
+  assert.equal(retried.error, null);
+  assert.match(
+    await readFile(retried.files.progress, 'utf8'),
+    /Codex retrying: transient stream retry/,
+  );
+  assert.equal(f.run('final', 'RETRY FINAL_ERROR FAIL').status, 1);
+  const final = await f.receipt('final');
+  assert.equal(final.stop.kind, 'error');
+  assert.equal(final.error.message, 'final stream failure');
+});
+
+test('a failed Codex turn stops with the code its error variant proves and the error as cause', async (t) => {
+  const f = await fixture(t);
+  const retried = JSON.stringify({
+    message: 'capacity exhausted',
+    codexErrorInfo: 'serverOverloaded',
+    additionalDetails: null,
+  });
+  for (const [name, prompt, env, code, cause] of [
+    [
+      'unauthorized',
+      'FAIL',
+      { FAKE_TURN_ERROR_INFO: '"unauthorized"' },
+      'not-signed-in',
+    ],
+    [
+      'http-401',
+      'FAIL',
+      {
+        FAKE_TURN_ERROR_INFO: '{"httpConnectionFailed":{"httpStatusCode":401}}',
+      },
+      'not-signed-in',
+    ],
+    [
+      'notified',
+      'FINAL_ERROR FAIL',
+      { FAKE_FINAL_ERROR_INFO: '"unauthorized"' },
+      'not-signed-in',
+      'final stream failure',
+    ],
+    [
+      'http-500',
+      'FAIL',
+      {
+        FAKE_TURN_ERROR_INFO: '{"httpConnectionFailed":{"httpStatusCode":500}}',
+      },
+      'failed',
+    ],
+    [
+      'usage',
+      'FAIL',
+      { FAKE_TURN_ERROR_INFO: '"usageLimitExceeded"' },
+      'usage-limit',
+    ],
+    [
+      'rate',
+      'FAIL',
+      { FAKE_TURN_ERROR_INFO: '"rateLimitExceeded"' },
+      'usage-limit',
+    ],
+    [
+      'attempts-429',
+      'FAIL',
+      {
+        FAKE_TURN_ERROR_INFO:
+          '{"responseTooManyFailedAttempts":{"httpStatusCode":429}}',
+      },
+      'usage-limit',
+    ],
+    [
+      'model',
+      'FAIL',
+      { FAKE_TURN_ERROR_INFO: '"modelNotFound"' },
+      'model-unavailable',
+    ],
+    [
+      'overloaded',
+      'FAIL',
+      { FAKE_TURN_ERROR_INFO: '"serverOverloaded"' },
+      'provider',
+    ],
+    ['flex', 'FAIL', { FAKE_TURN_ERROR_INFO: '"flexUnavailable"' }, 'provider'],
+    [
+      'capacity',
+      'FAIL',
+      { FAKE_TURN_ERROR_INFO: '"policyCapacityUnavailable"' },
+      'provider',
+    ],
+    ['policy', 'FAIL', { FAKE_TURN_ERROR_INFO: '"cyberPolicy"' }, 'failed'],
+    [
+      'retried-variant',
+      'RETRY FINAL_ERROR FAIL',
+      {
+        FAKE_RETRY_ERROR: retried,
+        FAKE_FINAL_ERROR_MESSAGE: 'capacity exhausted',
+      },
+      'provider',
+      'capacity exhausted',
+    ],
+    [
+      'other-text',
+      'RETRY FINAL_ERROR FAIL',
+      { FAKE_RETRY_ERROR: retried },
+      'failed',
+      'actual terminal failure',
+    ],
+    [
+      'other-turn-retry',
+      'RETRY FINAL_ERROR FAIL',
+      {
+        FAKE_RETRY_ERROR: retried,
+        FAKE_RETRY_TURN_ID: 'prior-turn',
+        FAKE_FINAL_ERROR_MESSAGE: 'capacity exhausted',
+      },
+      'failed',
+    ],
+  ] as const) {
+    assert.equal(f.run(name, prompt, [], env).status, 1, name);
+    const receipt = await f.receipt(name);
+    assert.equal(receipt.stop.kind, 'error', name);
+    assert.equal(receipt.stop.code, code, name);
+    assert.equal(receipt.stop.cause, cause ?? 'actual terminal failure', name);
+  }
+});
+
+test('every Codex server request gets an unattended answer that the receipt records', async (t) => {
+  const f = await fixture(t);
+  const declined = { result: { decision: 'decline' } };
+  const aborted = { result: { decision: 'abort' } };
+  const refused = (code: number, message: string) => ({
+    error: { code, message },
+  });
+  const expected = [
+    ['item/commandExecution/requestApproval', declined],
+    ['item/fileChange/requestApproval', declined],
+    [
+      'mcpServer/elicitation/request',
+      { result: { action: 'decline', content: null, _meta: null } },
+    ],
+    [
+      'item/tool/requestUserInput',
+      refused(-32001, 'Nobody is watching this worker to answer.'),
+    ],
+    [
+      'item/permissions/requestApproval',
+      { result: { permissions: {}, scope: 'turn', strictAutoReview: true } },
+    ],
+    ['item/tool/call', { result: { contentItems: [], success: false } }],
+    ['applyPatchApproval', aborted],
+    ['execCommandApproval', aborted],
+    [
+      'account/chatgptAuthTokens/refresh',
+      refused(-32001, 'pstack cannot refresh app-server auth tokens'),
+    ],
+    [
+      'attestation/generate',
+      refused(-32001, 'pstack did not negotiate attestation'),
+    ],
+    [
+      'item/unknown/request',
+      refused(
+        -32000,
+        'pstack rejected unrecognized blocking request item/unknown/request',
+      ),
+    ],
+  ] as const;
+  const result = f.run('asked', 'ASK', [], {
+    FAKE_SERVER_REQUESTS: JSON.stringify(expected.map(([method]) => method)),
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = await f.receipt('asked');
+  assert.deepEqual(
+    receipt.clientRequests,
+    expected.map(([method, answer]) => ({ method, answer })),
+  );
+  const replies = (await f.events())
+    .filter((event) => String(event.request?.id).startsWith('ask-'))
+    .map(({ request: { id, ...answer } }) => [id, answer]);
+  assert.deepEqual(
+    replies,
+    expected.map(([, answer], index) => [`ask-${index}`, answer]),
+  );
+});
+
 test('parallel workers and interleaved exact continuation retain separate identities and outputs', async (t) => {
   const f = await fixture(t);
   const launch = (name: string) =>
@@ -872,6 +1255,7 @@ test('parallel workers and interleaved exact continuation retain separate identi
   assert.equal(resume.request.params.sandbox, 'workspace-write');
   assert.equal(resume.request.params.approvalPolicy, 'on-request');
   assert.equal(resume.request.params.approvalsReviewer, 'auto_review');
+  assert.equal(resume.request.params.excludeTurns, true);
   assert.equal(Object.hasOwn(resume.request.params, 'threadSource'), false);
   assert.equal(
     events.some(
@@ -882,30 +1266,94 @@ test('parallel workers and interleaved exact continuation retain separate identi
   );
 });
 
-for (const { prompt, signal, turnKnown, startPending } of [
+test('a thread whose turn/start Codex rejected never started and is not continuable', async (t) => {
+  const f = await fixture(t);
+  const run = f.run('rejected', undefined, [], { FAKE_REJECT_TURN: '1' });
+  assert.equal(run.status, 1);
+  const receipt = await f.receipt('rejected');
+  assert.notEqual(receipt.threadId, null);
+  assert.equal(receipt.turnId, null);
+  assert.equal(receipt.inputSent, false);
+  assert.deepEqual(
+    [receipt.stop.kind, receipt.stop.continuable],
+    ['not-started', false],
+  );
+  assert.equal(receipt.error.message, 'turn rejected before delivery');
+});
+
+test('a resume that opens no thread or another thread is not continuable', async (t) => {
+  const f = await fixture(t);
+  for (const [name, variable, code, message] of [
+    [
+      'missing',
+      'FAKE_NO_ROLLOUT',
+      'missing-session',
+      /no rollout found for thread id thread-saved$/,
+    ],
+    [
+      'other',
+      'FAKE_RESUME_OTHER',
+      'failed',
+      /resumed thread-other instead of thread-saved/,
+    ],
+  ] as const) {
+    const result = f.run(name, 'Continue.', ['--resume', 'thread-saved'], {
+      [variable]: '1',
+    });
+    assert.equal(result.status, 1, name);
+    const receipt = await f.receipt(name);
+    assert.equal(receipt.threadId, null, name);
+    assert.equal(receipt.rolloutPath, null, name);
+    assert.equal(receipt.inputSent, false, name);
+    assert.equal(receipt.stop.kind, 'not-started', name);
+    assert.equal(receipt.stop.code, code, name);
+    assert.equal(receipt.stop.continuable, false, name);
+    assert.match(receipt.error.message, message, name);
+    const methods = (await f.events())
+      .filter((entry) => entry.pid === receipt.process.pid && entry.request)
+      .map((entry) => entry.request.method);
+    assert.equal(methods.includes('turn/start'), false, name);
+  }
+});
+
+for (const { prompt, signal, turnKnown, startPending, reply, outcome } of [
   {
     prompt: 'WAIT',
     signal: 'SIGTERM',
     turnKnown: true,
     startPending: false,
+    reply: {},
+    outcome: 'acknowledged',
+  },
+  {
+    prompt: 'GONE WAIT',
+    signal: 'SIGTERM',
+    turnKnown: true,
+    startPending: false,
+    reply: { FAKE_INTERRUPT_NOT_RUNNING: '1' },
+    outcome: 'not-running',
   },
   {
     prompt: 'EARLY WAIT',
     signal: 'SIGINT',
     turnKnown: true,
     startPending: true,
+    reply: { FAKE_IGNORE_INTERRUPT: '1' },
+    outcome: 'timed-out',
   },
   {
     prompt: 'NO_ID WAIT',
     signal: 'SIGINT',
     turnKnown: false,
     startPending: true,
+    reply: {},
+    outcome: null,
   },
 ] as const)
   test(`signal cancels the active turn and closes its process for ${prompt}`, async (t) => {
     const f = await fixture(t),
       child = f.start('cancelled', {
-        FAKE_IGNORE_INTERRUPT: '1',
+        ...reply,
         FAKE_HOLD_TURN_STARTED: turnKnown ? '' : '1',
         FAKE_HOLD_TURN_RESPONSE: startPending ? '1' : '',
       });
@@ -951,6 +1399,7 @@ for (const { prompt, signal, turnKnown, startPending } of [
     assert.equal(receipt.status, 'interrupted');
     assert.deepEqual(receipt.stop, {
       kind: 'interrupted',
+      code: 'signal',
       cause: signal,
       continuable: receipt.threadId !== null,
     });
@@ -972,7 +1421,9 @@ for (const { prompt, signal, turnKnown, startPending } of [
         (event) => event.request?.method === 'turn/interrupt',
       );
     assert.equal(interrupts.length, turnKnown ? 1 : 0);
+    assert.equal(receipt.interrupt?.outcome ?? null, outcome);
     if (turnKnown) {
+      assert.equal(receipt.interrupt.turnId, receipt.turnId);
       assert.equal(receipt.turnId, `turn-${receipt.process.pid}`);
       assert.equal(interrupts[0].request.params.threadId, receipt.threadId);
       assert.equal(interrupts[0].request.params.turnId, receipt.turnId);
@@ -1063,6 +1514,7 @@ test('denied reviews are recorded and an exact approval precedes the resumed tur
   assert.equal(approved.approvedReview, 'review-denied');
   const event = {
     id: 'review-denied',
+    target_item_id: 'call-review-denied',
     turn_id: denied.turnId,
     started_at_ms: 1,
     completed_at_ms: 2,
@@ -1211,6 +1663,10 @@ test('approval conversion covers every supported action and refuses unsupported 
     );
     assert.deepEqual(request.approvedReview.event.action, action);
     assert.equal(request.approvedReview.event.rationale, null);
+    assert.equal(
+      Object.hasOwn(request.approvedReview.event, 'target_item_id'),
+      false,
+    );
   }
   for (const [name, extra, message] of [
     [

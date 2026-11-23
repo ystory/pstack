@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn, spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { constants, createWriteStream } from 'node:fs';
 import {
   access,
@@ -11,6 +11,7 @@ import {
 } from 'node:fs/promises';
 import { finished } from 'node:stream/promises';
 import { StringDecoder } from 'node:string_decoder';
+import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -20,8 +21,31 @@ import {
   exactClaudeModel,
   versionAtLeast,
 } from './claude-capabilities.mjs';
+import {
+  childEnv,
+  probeSupervised,
+  recordActivity,
+  redact,
+  redactValue,
+  spawnSupervised,
+  startRun,
+  stopRecord,
+  stopRun,
+  turnCompleted,
+  writeOnce,
+} from './worker-runtime.mjs';
 
 const EXECUTOR = 'claude-code';
+// Orca managed-provider-process.ts:28.
+const STDERR_TAIL_MAX_CHARS = 8192;
+// Orca claude-result-outcome.ts:4-5: a result with one of these reasons is a stop, not a failure.
+const CLAUDE_ABORTED_TERMINAL_REASONS = new Set([
+  'aborted_streaming',
+  'aborted_tools',
+]);
+// Orca claude-stream-json-exit-error.ts:14-15, for the one conversation the run named.
+const missingConversation = (sessionId) =>
+  new RegExp(`^No conversation found with session ID: ${sessionId}\\s*$`, 'im');
 
 const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const USAGE = `Usage:
@@ -29,14 +53,15 @@ const USAGE = `Usage:
   node run-claude.mjs run --cwd /absolute/worktree --run-dir /absolute/local-run \\
     --model EXACT_MODEL_ID [--effort LEVEL] [--instruction /absolute/AGENTS.md] [--skill /absolute/SKILL.md] \\
     [--role /absolute/role.md] [--resume session-uuid] [--allowed-tool tool] \\
-    [--executable /absolute/claude] < task.txt
+    [--executable /absolute/claude] [--label TEXT] < task.txt
 
 Repeat --instruction, --skill, and --allowed-tool as needed. --role supplies only
 the requested role's Markdown body. Claude runs with --permission-mode auto. Pass
 --allowed-tool only for an action the user approved after an auto-mode denial.
 Fresh sessions are the default. Artifacts are saved in --run-dir outside the
 plugin; stdout is the result receipt JSON. Dispatchers pass the resolved model.
-Run requires an explicit exact model ID.`;
+Run requires an explicit exact model ID. --label names the run in workers.mjs
+status and the run's events.jsonl.`;
 
 function parseArguments(argv) {
   const command = argv[0];
@@ -54,6 +79,7 @@ function parseArguments(argv) {
     '--resume': 'resume',
     '--allowed-tool': 'allowedTool',
     '--executable': 'executable',
+    '--label': 'label',
   };
   for (let index = 1; index < argv.length; index += 2) {
     const name = names[argv[index]];
@@ -121,8 +147,10 @@ async function executablePath(requested = 'claude') {
   throw new Error('claude was not found on PATH');
 }
 
-function cliText(executable, argument) {
-  const result = spawnSync(executable, [argument], { encoding: 'utf8' });
+async function cliText(executable, argument) {
+  const result = await probeSupervised(executable, [argument], {
+    env: childEnv(process.env, EXECUTOR),
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(
@@ -156,11 +184,11 @@ async function detect(options) {
       ],
     };
   }
-  const versionText = cliText(executable, '--version').trim();
+  const versionText = (await cliText(executable, '--version')).trim();
   const version = versionText.match(/\b(\d+\.\d+\.\d+)\b/)?.[1];
   if (!version)
     throw new Error(`Unrecognized Claude Code version: ${versionText}`);
-  const help = cliText(executable, '--help');
+  const help = await cliText(executable, '--help');
   const requiredOptions = {
     print: help.includes('--print'),
     model: help.includes('--model'),
@@ -180,9 +208,9 @@ async function detect(options) {
   const effortSyntax = CLAUDE_CLI_EFFORTS.filter((effort) =>
     new RegExp(`\\b${effort}\\b`).test(effortHelp),
   );
-  const authResult = spawnSync(executable, ['auth', 'status'], {
-    encoding: 'utf8',
+  const authResult = await probeSupervised(executable, ['auth', 'status'], {
     timeout: 20_000,
+    env: childEnv(process.env, EXECUTOR),
   });
   let auth;
   if (!authResult.error && [0, 1].includes(authResult.status)) {
@@ -190,7 +218,14 @@ async function detect(options) {
       auth = JSON.parse(authResult.stdout);
     } catch {}
   }
-  const loggedIn = typeof auth?.loggedIn === 'boolean' ? auth.loggedIn : null;
+  // Orca environment-doctor.ts:28-34, 130-146: status wording changes between
+  // releases, so unparsed output falls back to the exit code; a timeout stays unknown.
+  const loggedIn =
+    typeof auth?.loggedIn === 'boolean'
+      ? auth.loggedIn
+      : !authResult.error && typeof authResult.status === 'number'
+        ? authResult.status === 0
+        : null;
   const method = auth?.authMethod ?? auth?.method;
   return {
     executor: EXECUTOR,
@@ -223,6 +258,91 @@ async function detect(options) {
     effortSyntax,
     modelExecutionVerified: false,
   };
+}
+
+function activityText({ name, input = {} }) {
+  if (name === 'Bash') return `running: ${input.command ?? name}`;
+  if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(name))
+    return `editing ${input.file_path ?? input.notebook_path ?? name}`;
+  return `tool: ${name}`;
+}
+
+// Orca claude-stream-json-exit-error.ts:45-58: the exit status, then stderr's
+// last lines, dropping the fragment a full tail starts with. Whole redacted
+// lines are kept from the end while they fit a stop cause with its after line,
+// such as why stdout did not parse.
+function exitText({ exitCode, signal }, stderrTail, after = null) {
+  const detail = (
+    stderrTail.length >= STDERR_TAIL_MAX_CHARS
+      ? stderrTail.slice(stderrTail.indexOf('\n') + 1)
+      : stderrTail
+  ).trim();
+  const how =
+    signal !== null
+      ? `(signal ${signal})`
+      : exitCode === null
+        ? ''
+        : `(code ${exitCode})`;
+  const head = `claude stream-json exited${how ? ` ${how}` : ''}`;
+  const tail = after ? `\n${redact(after, Infinity)}` : '';
+  let lines = redact(detail, Infinity);
+  while (
+    head.length + 2 + lines.length + tail.length > 2000 &&
+    lines.includes('\n')
+  )
+    lines = lines.slice(lines.indexOf('\n') + 1);
+  return `${lines ? `${head}: ${lines}` : head}${tail}`;
+}
+
+// The receipt's stop, from the first matching piece of evidence. received is a
+// stop signal the runner forwarded; signal also counts one the CLI died of.
+function claudeStop({
+  received,
+  signal,
+  missingSession,
+  foreignSession,
+  permissionMode,
+  terminalReason,
+  denials,
+  succeeded,
+  failure,
+}) {
+  const aborted = CLAUDE_ABORTED_TERMINAL_REASONS.has(terminalReason);
+  if (received) return ['interrupted', 'signal', received];
+  // An aborted result is a signal stop only when the runner sent the signal.
+  if (signal && !aborted) return ['interrupted', 'signal', signal];
+  if (missingSession) return ['error', 'missing-session', missingSession];
+  if (foreignSession) return ['error', 'failed', foreignSession];
+  // Orca claude-full-access-refusal.ts:52-66 and claude-permission-mode-ladder.ts:47-74:
+  // a first root init outside the launched mode is Claude's refusal of that mode.
+  if (permissionMode !== null && permissionMode !== 'auto')
+    return [
+      'error',
+      'permission-mode',
+      `Claude started in ${permissionMode} mode instead of auto`,
+    ];
+  // Orca claude-result-outcome.ts:14-20: the abort reason outranks is_error.
+  if (aborted)
+    return [
+      'interrupted',
+      'failed',
+      `Claude ended the turn early (${terminalReason})`,
+    ];
+  if (denials.length)
+    return ['permission', 'permission-denied', 'permission denial'];
+  if (succeeded) return ['completed', 'completed', 'completed'];
+  return ['error', 'failed', failure];
+}
+
+// A failed result's text is the provider's error wording, which can carry a
+// credential; a successful one is the worker's answer. stdout.jsonl keeps both raw.
+function receiptResult(event) {
+  if (!event || (event.is_error !== true && event.subtype === 'success'))
+    return event;
+  const copy = { ...event };
+  for (const key of ['result', 'errors'])
+    if (key in copy) copy[key] = redactValue(copy[key]);
+  return copy;
 }
 
 function markdownBody(text) {
@@ -279,7 +399,8 @@ async function run(options) {
   const prompt = [
     `Working directory: ${cwd}\n\nApply the supplied project and role instructions to the assigned task. Use the supplied skill material for that task.`,
     ...context.map(
-      (file) => `## Complete ${file.kind} body from ${file.path}\n\n${file.content}`,
+      (file) =>
+        `## Complete ${file.kind} body from ${file.path}\n\n${file.content}`,
     ),
     `Receiving executor is ${EXECUTOR}.\n\n${await readFile(new URL('../references/worker-context.md', import.meta.url), 'utf8')}`,
     `## Assigned task\n\n${task}`,
@@ -304,7 +425,11 @@ async function run(options) {
     '--permission-mode',
     'auto',
   ];
+  // Orca claude-structured-launch-resolution.ts:170-177, 288-290: a fresh
+  // conversation is named before spawn, so its identity never rests on the stream.
+  const requestedSessionId = options.resume ? null : randomUUID();
   if (options.resume) args.push('--resume', options.resume);
+  else args.push('--session-id', requestedSessionId);
   for (const tool of new Set(options.allowedTool)) {
     args.push('--allowedTools', tool);
   }
@@ -313,10 +438,12 @@ async function run(options) {
     executable,
     args,
     cwd,
+    label: options.label ?? null,
     model,
     modelSelection: 'explicit',
     reasoningEffort: options.effort ?? null,
     resumeSessionId: options.resume ?? null,
+    requestedSessionId,
     context: context.map(({ kind, path: sourcePath }) => ({
       kind,
       path: sourcePath,
@@ -338,30 +465,80 @@ async function run(options) {
       stderr.once('open', resolve).once('error', reject),
     ),
   ]);
-  const child = spawn(executable, args, {
+  const registry = startRun(
+    {
+      runDir,
+      executor: EXECUTOR,
+      model,
+      effort: options.effort ?? null,
+      cwd,
+      label: request.label,
+    },
+    { sessionId: options.resume ?? requestedSessionId },
+  );
+  const child = spawnSupervised(executable, args, {
     cwd,
+    env: childEnv(process.env, EXECUTOR),
     stdio: ['pipe', 'pipe', 'pipe'],
+    lifetime: 'one-shot',
   });
   child.stdout.pipe(stdout);
   child.stderr.pipe(stderr);
+  let stderrTail = '';
+  const stderrDecoder = new StringDecoder('utf8');
+  // Orca managed-provider-process.ts:143.
+  child.stderr.on('data', (chunk) => {
+    stderrTail = (stderrTail + stderrDecoder.write(chunk)).slice(
+      -STDERR_TAIL_MAX_CHARS,
+    );
+  });
   let pending = '';
   const decoder = new StringDecoder('utf8');
   let resultEvent = null;
+  // Orca claude-structured-session-acquisition.ts:88-94: only frames of the named
+  // conversation count; another conversation's frames are evidence of a mismatch.
+  const expectedSessionId = options.resume ?? requestedSessionId;
   let sessionId = null;
+  let foreignSessionId = null;
   let observedModel = null;
+  let rootInit = null;
   let parseError = null;
   const event = (line) => {
     if (!line.trim()) return;
     try {
       const value = JSON.parse(line);
-      if (typeof value.session_id === 'string') sessionId = value.session_id;
+      if (value.session_id !== expectedSessionId) {
+        if (typeof value.session_id === 'string')
+          foreignSessionId ??= value.session_id;
+        return;
+      }
+      sessionId = value.session_id;
       if (
         value.type === 'system' &&
         value.subtype === 'init' &&
         typeof value.model === 'string'
       )
         observedModel = value.model;
-      if (value.type === 'result') resultEvent = value;
+      // Orca claude-structured-session-acquisition.ts:98-101 and claude-turn-opening.ts:44-46.
+      if (
+        value.type === 'system' &&
+        value.subtype === 'init' &&
+        typeof value.parent_tool_use_id !== 'string'
+      )
+        rootInit ??= {
+          permissionMode:
+            typeof value.permissionMode === 'string' && value.permissionMode
+              ? value.permissionMode
+              : null,
+        };
+      if (value.type === 'assistant')
+        for (const block of value.message?.content ?? [])
+          if (block?.type === 'tool_use')
+            recordActivity(runDir, activityText(block));
+      if (value.type === 'result') {
+        resultEvent = value;
+        turnCompleted(runDir, value.subtype);
+      }
     } catch (error) {
       parseError ??= error.message;
     }
@@ -382,7 +559,7 @@ async function run(options) {
   let received = null;
   const forwardSignal = (signal) => {
     received ??= signal;
-    child.kill(signal);
+    void child.stop(signal);
   };
   const onInterrupt = () => forwardSignal('SIGINT');
   const onTerminate = () => forwardSignal('SIGTERM');
@@ -398,7 +575,10 @@ async function run(options) {
   process.off('SIGINT', onInterrupt);
   process.off('SIGTERM', onTerminate);
   pending += decoder.end();
+  stderrTail = (stderrTail + stderrDecoder.end()).slice(-STDERR_TAIL_MAX_CHARS);
   if (pending) event(pending);
+  // A pipe whose source was cut off at the drain bound never ends its destination.
+  for (const file of [stdout, stderr]) if (!file.writableEnded) file.end();
   await Promise.all([finished(stdout), finished(stderr)]);
   const signal =
     received ??
@@ -406,38 +586,85 @@ async function run(options) {
     { 130: 'SIGINT', 143: 'SIGTERM' }[completion.exitCode] ??
     null;
   const denials = resultEvent?.permission_denials ?? [];
+  const terminalReason =
+    typeof resultEvent?.terminal_reason === 'string'
+      ? resultEvent.terminal_reason
+      : null;
+  const aborted = CLAUDE_ABORTED_TERMINAL_REASONS.has(terminalReason);
   const succeeded =
+    !aborted &&
     completion.exitCode === 0 &&
     !parseError &&
+    foreignSessionId === null &&
     resultEvent?.subtype === 'success' &&
     resultEvent.is_error !== true;
-  const status = signal ? 'interrupted' : succeeded ? 'completed' : 'failed';
-  const [kind, cause] = signal
-    ? ['interrupted', signal]
-    : denials.length
-      ? ['permission', 'permission denial']
-      : succeeded
-        ? ['completed', 'completed']
-        : [
-            'error',
-            spawnError ??
-              parseError ??
-              resultEvent?.subtype ??
-              `exit ${completion.exitCode}`,
-          ];
+  const status =
+    signal || aborted ? 'interrupted' : succeeded ? 'completed' : 'failed';
+  const observedPermissionMode = rootInit?.permissionMode ?? null;
+  // Orca claude-stream-json-exit-error.ts:17-36, 61: Claude reports a missing
+  // conversation on stderr, or in a startup result's errors.
+  const resultErrors = Array.isArray(resultEvent?.errors)
+    ? resultEvent.errors.filter((entry) => typeof entry === 'string').join('\n')
+    : '';
+  // Orca reads them only for a failed start, so a successful result stands.
+  const missing = missingConversation(expectedSessionId);
+  const missingSession = succeeded
+    ? null
+    : missing.test(stderrTail)
+      ? exitText(completion, stderrTail)
+      : missing.test(resultErrors)
+        ? `claude reported a startup failure: ${resultErrors.trim()}`
+        : null;
+  const [kind, code, cause] = claudeStop({
+    received,
+    signal,
+    missingSession,
+    foreignSession:
+      foreignSessionId &&
+      `Claude reported session ${foreignSessionId} instead of ${expectedSessionId}`,
+    permissionMode: observedPermissionMode,
+    terminalReason,
+    denials,
+    succeeded,
+    // Without a result, stderr's last lines name the failure ahead of a parse error.
+    failure:
+      spawnError ??
+      (resultEvent && (parseError ?? resultEvent.subtype)) ??
+      exitText(
+        completion,
+        stderrTail,
+        !resultEvent && parseError
+          ? `stdout was not stream-json: ${parseError}`
+          : null,
+      ),
+  });
+  const resultCopy = receiptResult(resultEvent);
   const receipt = {
     ...request,
-    pid: child.pid ?? null,
+    pid: child.providerPid,
     ...completion,
+    descendantsReaped: child.descendantsReaped,
     sessionId,
+    foreignSessionId,
     observedModel,
-    result: typeof resultEvent?.result === 'string' ? resultEvent.result : null,
-    resultEvent,
+    observedPermissionMode,
+    terminalReason,
+    result: typeof resultCopy?.result === 'string' ? resultCopy.result : null,
+    resultEvent: resultCopy,
+    registry,
     status,
     stop: {
-      kind,
-      cause,
-      continuable: sessionId !== null,
+      // Orca claude-structured-session-acquisition.ts:88-94 trusts only frames of the
+      // conversation it named.
+      ...stopRecord({
+        kind,
+        code,
+        cause,
+        continuable:
+          missingSession === null &&
+          foreignSessionId === null &&
+          sessionId === expectedSessionId,
+      }),
       ...(denials.length ? { permissionDenials: denials } : {}),
     },
     spawnError,
@@ -450,19 +677,22 @@ async function run(options) {
     requestPath,
     resultPath,
   };
-  await writeFile(resultPath, `${JSON.stringify(receipt, null, 2)}\n`, {
-    flag: 'wx',
-  });
+  stopRun(runDir, receipt.stop);
+  writeOnce(resultPath, `${JSON.stringify(receipt, null, 2)}\n`);
   console.log(JSON.stringify(receipt));
-  process.exitCode =
-    (completion.exitCode >= 0 ? completion.exitCode : null) ??
-    (completion.signal === 'SIGINT'
-      ? 130
-      : completion.signal === 'SIGTERM'
-        ? 143
-        : 1);
-  if (process.exitCode === 0 && (parseError || !resultEvent))
-    process.exitCode = 1;
+  // The receipt keeps the CLI's own exit; the runner's follows the signal that stopped it.
+  if (received) process.exitCode = 128 + os.constants.signals[received];
+  else {
+    process.exitCode =
+      (completion.exitCode >= 0 ? completion.exitCode : null) ??
+      (completion.signal === 'SIGINT'
+        ? 130
+        : completion.signal === 'SIGTERM'
+          ? 143
+          : 1);
+    if (process.exitCode === 0 && (parseError || !resultEvent || foreignSessionId))
+      process.exitCode = 1;
+  }
 }
 
 try {

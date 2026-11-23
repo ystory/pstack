@@ -1,0 +1,259 @@
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 530ee60..c230a8b 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -42,7 +42,7 @@ Pass this launch request to native Bash:
+ 
+ ```json
+ {
+-  "command": "node \"<poteto-mode>/scripts/run-codex.mjs\" run --cwd \"/absolute/assigned-worktree\" --run-dir \"/absolute/unique-local-run-directory\" --model \"<selected-exact-model>\" --effort \"<supported-task-effort>\" --instruction \"/absolute/applicable/AGENTS.md\" --skill \"/absolute/relevant/SKILL.md\" --role \"<plugin>/agents/poteto-agent.md\" --prompt-file \"/absolute/consolidated-task.txt\"",
++  "command": "node \"<poteto-mode>/scripts/run-codex.mjs\" run --cwd \"/absolute/assigned-worktree\" --run-dir \"/absolute/unique-local-run-directory\" --label \"<short task name>\" --model \"<selected-exact-model>\" --effort \"<supported-task-effort>\" --instruction \"/absolute/applicable/AGENTS.md\" --skill \"/absolute/relevant/SKILL.md\" --role \"<plugin>/agents/poteto-agent.md\" --prompt-file \"/absolute/consolidated-task.txt\"",
+   "run_in_background": true,
+   "timeout": 7200000
+ }
+@@ -68,6 +68,16 @@ The outbound runner automatically includes the shared [receiving-worker executio
+ 
+ For `executor: "antigravity"`, preserve the returned exact `model` and separate `reasoningEffort`. Read [Antigravity execution](agy-execution.md) for the official agy runner, scoped session permissions, complete context, terminal receipts, cumulative usage, and exact continuation. Use this host's asynchronous command controls and collect every terminal receipt. Antigravity entries have no native agent type. Parent aliases stay native. Use known exact-model lineage for diversity. Custom or virtual routes with unknown lineage remain unknown. Preserve the calling workflow's selected-pool, cardinality, fresh-worker, required capability, and family gates.
+ 
++## Run records and progress
++
++The Codex, Claude, and Antigravity runners record each run the way Orca records its workers. Pass `--label "<short task name>"` on every launch. Each run appends `events.jsonl` to its run directory, one JSON line per event: `started` with the executor, model, effort, cwd, label, and runner pid, `activity` for a command, file edit, or tool call, `turn-completed`, and `stopped` with the stop kind and code. Each run also writes one registry file under the pstack state directory: `$PSTACK_STATE_HOME`, else `$XDG_STATE_HOME/pstack`, else `~/.local/state/pstack`.
++
++`node "<poteto-mode>/scripts/workers.mjs" status` lists the runs registered for the current directory and the directories inside it, with executor, model, label, state, and last event. A run is `running` while its runner lives without `result.json`, `lost` when the runner died without one, and otherwise its receipt's stop kind. Run it when the user asks what is running or where, and after compaction or a restart to find run directories rather than recalling them. `--cwd DIR` selects another checkout, `--all` lists every run, and `--json` prints records.
++
++`workers.mjs follow --run-dir DIR` prints each new event and exits when `result.json` appears, or with status 1 when the runner died without writing it. Start that command with `Monitor` when a worker launches. Tell the user which executor, model, label, and checkout each worker uses when it starts, and report its stop. In the desktop app, a Terminal panel tab running the same command lets the user watch a worker.
++
++A receipt's `stop.code` names the cause: `completed`, `signal`, `deadline`, `usage-limit`, `not-signed-in`, `model-unavailable`, `provider`, `missing-session`, `permission-mode`, `permission-denied`, `unsupported-auth`, or `failed`. `stop.cause` holds the redacted tail of the evidence, and the run directory keeps the raw diagnostics. `not-signed-in` and `unsupported-auth` need the user's login or setup. `usage-limit` and `provider` follow the calling workflow's dropout rule. `missing-session` cannot continue. Each runner starts its CLI under a supervisor that removes the parent session's environment, runs the CLI in its own process group, and stops that group when the runner stops or dies.
++
+ ## Worktrees and state transfer
+ 
+ Native `isolation: "worktree"` is available when its base and copy behavior meet the workflow. Otherwise create an explicit Git worktree at the resolved base commit before dispatch. Every independent writer owns a branch and checkout. A Cursor cloud-agent instruction maps to an exclusive local worktree, not a new machine. For a task that needs a remote host, use a real configured remote environment and identify it.
+diff --git a/skills/poteto-mode/scripts/run-codex.mjs b/skills/poteto-mode/scripts/run-codex.mjs
+index 2c779ed..e98adca 100644
+--- a/skills/poteto-mode/scripts/run-codex.mjs
++++ b/skills/poteto-mode/scripts/run-codex.mjs
+@@ -8,6 +8,15 @@ import {
+   claudeHome,
+   savedCodexWorkers,
+ } from '../../setup-pstack/scripts/state.mjs';
++import {
++  childEnv,
++  recordActivity,
++  redactError,
++  spawnSupervised,
++  startRun,
++  stopRecord,
++  stopRun,
++} from './worker-runtime.mjs';
+ 
+ const EXECUTOR = 'codex';
+ 
+@@ -16,9 +25,10 @@ const usage = `Usage: node run-codex.mjs detect [--executable ABS] [--codex-work
+        node run-codex.mjs run --cwd ABS --run-dir ABS --model ID [--effort VALUE]
+          [--instruction ABS ...] [--skill ABS ...] [--role ABS]
+          [--resume EXACT_THREAD_ID] [--sandbox workspace-write|danger-full-access]
+-         [--executable ABS] [--prompt-file ABS]
++         [--executable ABS] [--prompt-file ABS] [--label TEXT]
+          [--approve-review REVIEW_ID --review-receipt ABS]
+ Task text comes from --prompt-file or stdin. The run remains foreground until completion.
++--label names the run in workers.mjs status and the run's events.jsonl.
+ The saved codexWorkers setting selects the server. --codex-workers overrides it
+ for one detect or catalog probe.
+ --approve-review records the user's approval of one denied review listed in the
+@@ -44,6 +54,7 @@ function parse(argv) {
+     'approve-review',
+     'review-receipt',
+     'codex-workers',
++    'label',
+   ]);
+   for (let index = 0; index < args.length; index += 1) {
+     const name = args[index].slice(2);
+@@ -147,6 +158,7 @@ function cliStatus(options, server) {
+   const invoke = (args) =>
+     spawnSync(server.executable, args, {
+       cwd,
++      env: childEnv(process.env, EXECUTOR),
+       encoding: 'utf8',
+       timeout: 10_000,
+       maxBuffer: 1024 * 1024,
+@@ -210,6 +222,8 @@ async function inspect(options, server) {
+       disableBroker: true,
+       executable: server.executable,
+       appServerArgs: server.args,
++      env: childEnv(process.env, EXECUTOR),
++      spawn: spawnSupervised,
+     });
+     const account = await client.request('account/read', {
+       refreshToken: false,
+@@ -283,6 +297,23 @@ function turnSettings(rolloutPath, turnId) {
+   return settings;
+ }
+ 
++function activityText(item) {
++  switch (item?.type) {
++    case 'commandExecution':
++      return `running: ${item.command}`;
++    case 'fileChange':
++      return `editing ${(item.changes ?? []).map((change) => change.path).join(', ')}`;
++    case 'mcpToolCall':
++      return `tool: ${item.server}/${item.tool}`;
++    case 'dynamicToolCall':
++      return `tool: ${item.tool}`;
++    case 'webSearch':
++      return `searching: ${item.query}`;
++    default:
++      return null;
++  }
++}
++
+ const snakeCase = (value) =>
+   value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+ 
+@@ -369,6 +400,7 @@ async function run(options, server) {
+     executor: EXECUTOR,
+     runtime: server,
+     cwd: options.cwd,
++    label: options.label ?? null,
+     requested,
+     resumeThreadId: options.resume ?? null,
+     approvedReview: approval && {
+@@ -387,6 +419,17 @@ async function run(options, server) {
+   fs.writeFileSync(files.prompt, prompt, { flag: 'wx' });
+   fs.writeFileSync(files.progress, '', { flag: 'wx' });
+   fs.writeFileSync(files.diagnostics, '', { flag: 'wx' });
++  startRun(
++    {
++      runDir: directory,
++      executor: EXECUTOR,
++      model: options.model,
++      effort: options.effort ?? null,
++      cwd: options.cwd,
++      label: request.label,
++    },
++    options.resume ? { threadId: options.resume } : {},
++  );
+   const controller = new AbortController();
+   let signal = null;
+   const stop = (value) => {
+@@ -405,13 +448,15 @@ async function run(options, server) {
+   const threadSettings = { model: null, effort: null };
+   const deniedReviews = [];
+   const child = { pid: null, exitCode: null, signal: null, closed: false };
++  let provider = null;
++  const supervisedSpawn = (...spawnArgs) =>
++    (provider = spawnSupervised(...spawnArgs));
+   const pending = new Map();
+   const diagnostic = (event) => {
+     fs.appendFileSync(
+       files.diagnostics,
+       JSON.stringify({ at: new Date().toISOString(), ...event }) + '\n',
+     );
+-    if (event.event === 'spawn') child.pid = event.pid;
+     if (event.event === 'exit')
+       Object.assign(child, {
+         exitCode: event.code,
+@@ -441,6 +486,10 @@ async function run(options, server) {
+     }
+     if (message.params?.threadId !== threadId) return;
+     if (message.method === 'turn/started') turnId = message.params.turn.id;
++    if (message.method === 'item/started') {
++      const activity = activityText(message.params.item);
++      if (activity) recordActivity(directory, activity);
++    }
+     if (message.method === 'turn/completed') terminal = message.params.turn;
+     if (
+       message.method === 'item/autoApprovalReview/completed' &&
+@@ -466,6 +515,8 @@ async function run(options, server) {
+       direct: true,
+       executable: server.executable,
+       appServerArgs: server.args,
++      env: childEnv(process.env, EXECUTOR),
++      spawn: supervisedSpawn,
+       signal: controller.signal,
+       model: options.model,
+       effort: options.effort,
+@@ -505,6 +556,7 @@ async function run(options, server) {
+       data: error.data ?? null,
+       stack: error.stack,
+     };
++    diagnostic({ event: 'failure', failure });
+   } finally {
+     process.removeListener('SIGINT', onInterrupt);
+     process.removeListener('SIGTERM', onTerminate);
+@@ -515,15 +567,16 @@ async function run(options, server) {
+       : !failure && result?.status === 0 && terminal?.status === 'completed'
+         ? 'completed'
+         : 'failed';
+-  const [stopKind, stopCause] = signal
+-    ? ['interrupted', signal]
++  const [stopKind, stopCode, stopCause] = signal
++    ? ['interrupted', 'signal', signal]
+     : terminal?.status === 'interrupted'
+-      ? ['interrupted', 'native']
++      ? ['interrupted', 'failed', 'native']
+       : deniedReviews.length
+-        ? ['permission', 'denied review']
++        ? ['permission', 'permission-denied', 'denied review']
+         : status === 'completed'
+-          ? ['completed', 'completed']
+-          : ['error', failure?.message ?? 'failed'];
++          ? ['completed', 'completed', 'completed']
++          : ['error', 'failed', failure?.message ?? 'failed'];
++  child.pid = provider?.providerPid ?? null;
+   const exitCode =
+     signal === 'SIGINT'
+       ? 130
+@@ -537,6 +590,7 @@ async function run(options, server) {
+     executor: EXECUTOR,
+     runtime: runtime ?? server,
+     cwd: options.cwd,
++    label: request.label,
+     sandbox: request.sandbox,
+     threadId,
+     turnId,
+@@ -547,11 +601,16 @@ async function run(options, server) {
+     approvedReview: request.approvedReview?.reviewId ?? null,
+     deniedReviews,
+     status,
+-    stop: { kind: stopKind, cause: stopCause, continuable: threadId !== null },
++    stop: stopRecord({
++      kind: stopKind,
++      code: stopCode,
++      cause: stopCause,
++      continuable: threadId !== null,
++    }),
+     resultStatus: result?.status ?? null,
+     finalText,
+     turn: terminal,
+-    error: failure ?? result?.error ?? terminal?.error ?? null,
++    error: redactError(failure ?? result?.error ?? terminal?.error ?? null),
+     exitCode,
+     signal,
+     process: child,
+@@ -560,6 +619,7 @@ async function run(options, server) {
+     files,
+   };
+   fs.writeFileSync(files.final, finalText, { flag: 'wx' });
++  stopRun(directory, receipt.stop);
+   const temporary = files.result + '.tmp';
+   fs.writeFileSync(temporary, JSON.stringify(receipt, null, 2) + '\n', {
+     flag: 'wx',
+diff --git a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs
+index 4b91ade..9e2868c 100644
+--- a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs
++++ b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs
+@@ -1,4 +1,4 @@
+-// pstack-cc modified this file for direct worker execution and cancellation.
++// pstack-cc modified this file for direct worker execution, cancellation, and a caller-supplied spawn.
+ /**
+  * @typedef {Error & { data?: unknown, rpcCode?: number }} ProtocolError
+  * @typedef {import("./app-server-protocol").AppServerMethod} AppServerMethod
+@@ -190,7 +190,7 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
+   async initialize() {
+     const executable = this.options.executable ?? "codex";
+     const args = this.options.appServerArgs ?? ["app-server"];
+-    this.proc = spawn(executable, args, {
++    this.proc = (this.options.spawn ?? spawn)(executable, args, {
+       cwd: this.cwd,
+       env: this.options.env ?? process.env,
+       stdio: ["pipe", "pipe", "pipe"],

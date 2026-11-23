@@ -51,6 +51,7 @@ A task that edits `index.mjs` and verifies it with `node --test index.test.mjs` 
 node "<poteto-mode>/scripts/run-claude.mjs" run \
   --cwd "/absolute/assigned-worktree" \
   --run-dir "/absolute/local-run-directory" \
+  --label "<short task name>" \
   --model "<resolved-entry.model>" \
   --effort xhigh \
   --instruction "/absolute/applicable/AGENTS.md" \
@@ -75,6 +76,16 @@ The outbound runner automatically includes the shared [receiving-worker executio
 ## Antigravity workers
 
 For `executor: "antigravity"`, preserve the returned exact `model` and separate `reasoningEffort`. Read [Antigravity execution](agy-execution.md) for the official agy runner, scoped session permissions, complete context, terminal receipts, cumulative usage, and exact continuation. Use this host's asynchronous command controls and collect every terminal receipt. Antigravity entries have no native agent type. Parent aliases stay native. Use known exact-model lineage for diversity. Custom or virtual routes with unknown lineage remain unknown. Preserve the calling workflow's selected-pool, cardinality, fresh-worker, required capability, and family gates.
+
+## Run records and progress
+
+The Codex, Claude, and Antigravity runners record each run the way Orca records its workers. Pass `--label "<short task name>"` on every launch. Each run appends `events.jsonl` to its run directory, one JSON line per event: `started` with the executor, model, effort, cwd, label, and runner pid, `activity` for a command, file edit, or tool call, `turn-completed` with the CLI's own turn status when a turn ends, and `stopped` with the stop kind and code. Each run also writes one registry file under the pstack state directory: `$PSTACK_STATE_HOME`, else `$XDG_STATE_HOME/pstack`, else `~/.local/state/pstack`. Registration is best effort: a run whose registry file cannot be written still runs, and its receipt's `registry` holds the error instead of the run ID.
+
+`node "<poteto-mode>/scripts/workers.mjs" status` lists the runs registered for the current directory and the directories inside it, with executor, model, label, state, and last event. A run is `running` while its runner lives without a readable `result.json`, `lost` when the runner died without one, and otherwise its receipt's stop kind. An unreadable registry entry is skipped with a note on stderr. Run it when the user asks what is running or where, and after compaction or a restart to find run directories rather than recalling them. `--cwd DIR` selects another checkout, `--all` lists every run, and `--json` prints records.
+
+`workers.mjs follow --run-dir DIR` prints each new event and exits when `result.json` appears, or with status 1 when the runner died without writing it. Read the same output when you check a runner's command session, and tell the user which executor, model, label, and checkout each worker uses when it starts.
+
+A receipt's `stop.code` names the cause: `completed`, `signal`, `deadline`, `usage-limit`, `not-signed-in`, `model-unavailable`, `provider`, `missing-session`, `permission-mode`, `permission-denied`, `unsupported-auth`, or `failed`. `stop.cause` holds the redacted tail of the evidence, and the run directory keeps the raw diagnostics. `not-signed-in` and `unsupported-auth` need the user's login or setup. `usage-limit` and `provider` follow the calling workflow's dropout rule. `missing-session` cannot continue. Each runner starts its CLI under a supervisor that removes the parent session's environment, runs the CLI in its own process group, and stops that group when the runner stops or dies. When the CLI exits, the supervisor kills what remains of its group, and the receipt's `descendantsReaped` is true when anything remained. The receipt's exit code and signal are the CLI's own, also when a stop ended it. A runner that received a stop signal exits 128 plus that signal's number, 130 for SIGINT and 143 for SIGTERM.
 
 ## Local worktrees
 
@@ -102,7 +113,7 @@ For new work that needs a completed worker's built state, give a fresh worker th
 
 Track every returned agent or command identity, executor, and slice. For native delegates, use `wait_agent` for an event and `list_agents` for status on runtimes with those tools. The final-answer notification contains the result. Use a result/retrieval tool when the runtime exposes one. A spawn acknowledgement or a completed status without its report is not a result.
 
-For Claude Code, collect the command's terminal receipt and inspect its `result`, `resultEvent`, `sessionId`, `exitCode`, and `signal`, plus the artifacts named by `promptPath`, `requestPath`, `stdoutPath`, `stderrPath`, and `resultPath`. The receipt preserves the process outcome and raw stream. Review the reported work and artifacts under the calling workflow's normal result and failure rules.
+For Claude Code, collect the command's terminal receipt and inspect its `result`, `resultEvent`, `sessionId`, `exitCode`, and `signal`, plus the artifacts named by `promptPath`, `requestPath`, `stdoutPath`, `stderrPath`, and `resultPath`. The receipt preserves the process outcome. A failed result's `result` and `resultEvent` text is redacted, and `stdoutPath` keeps the raw stream. Only frames of the named session count. When the stream carries another session's frames, the receipt's `foreignSessionId` names the first one, and the run fails and is not continuable. Review the reported work and artifacts under the calling workflow's normal result and failure rules.
 
 Wait for every required terminal result before synthesis. Record failures and missing reports as gaps under the calling workflow's dropout rule. Review changed artifacts and verification evidence yourself.
 

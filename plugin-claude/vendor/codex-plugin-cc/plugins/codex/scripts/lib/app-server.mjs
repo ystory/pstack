@@ -1,4 +1,4 @@
-// pstack-cc modified this file for direct worker execution and cancellation.
+// pstack-cc modified this file for direct worker execution, cancellation, a caller-supplied spawn and its own stop, and caller-supplied server-request answers.
 /**
  * @typedef {Error & { data?: unknown, rpcCode?: number }} ProtocolError
  * @typedef {import("./app-server-protocol").AppServerMethod} AppServerMethod
@@ -142,7 +142,11 @@ class AppServerClientBase {
       this.pending.delete(message.id);
 
       if (message.error) {
-        pending.reject(createProtocolError(message.error.message ?? `codex app-server ${pending.method} failed.`, message.error));
+        pending.reject(
+          Object.assign(createProtocolError(message.error.message ?? `codex app-server ${pending.method} failed.`, message.error), {
+            method: pending.method
+          })
+        );
       } else {
         pending.resolve(message.result ?? {});
       }
@@ -155,10 +159,10 @@ class AppServerClientBase {
   }
 
   handleServerRequest(message) {
-    this.sendMessage({
-      id: message.id,
+    const answer = this.options.answerServerRequest?.(message) ?? {
       error: buildJsonRpcError(-32601, `Unsupported server request: ${message.method}`)
-    });
+    };
+    this.sendMessage({ id: message.id, ...answer });
   }
 
   handleExit(error) {
@@ -190,7 +194,7 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
   async initialize() {
     const executable = this.options.executable ?? "codex";
     const args = this.options.appServerArgs ?? ["app-server"];
-    this.proc = spawn(executable, args, {
+    this.proc = (this.options.spawn ?? spawn)(executable, args, {
       cwd: this.cwd,
       env: this.options.env ?? process.env,
       stdio: ["pipe", "pipe", "pipe"],
@@ -251,7 +255,11 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
 
     this.closed = true;
 
-    if (this.proc && !this.proc.killed) {
+    if (this.proc && !this.proc.killed && process.platform !== "win32" && typeof this.proc.stop === "function") {
+      // A supervised child reads its stdin end as the close request; its supervisor
+      // gives the server its grace before the stop ladder.
+      void this.proc.stop("close");
+    } else if (this.proc && !this.proc.killed) {
       this.proc.stdin.end();
       setTimeout(() => {
         if (this.proc && !this.proc.killed && this.proc.exitCode === null) {

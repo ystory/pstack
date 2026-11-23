@@ -49,3 +49,6 @@ shared/0006-worktree-dependency-state.patch
 shared/0007-neon-panel-budget.patch
 0043-remove-claude-cloud-work.patch
 0044-remove-claude-cloud-work-version.patch
+shared/0008-worker-runner-runtime.patch
+0045-worker-runner-runtime.patch
+0046-worker-runner-runtime-version.patch

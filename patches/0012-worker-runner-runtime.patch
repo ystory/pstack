@@ -1,0 +1,215 @@
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index f33374e..6b6209f 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -51,6 +51,7 @@ A task that edits `index.mjs` and verifies it with `node --test index.test.mjs`
+ node "<poteto-mode>/scripts/run-claude.mjs" run \
+   --cwd "/absolute/assigned-worktree" \
+   --run-dir "/absolute/local-run-directory" \
++  --label "<short task name>" \
+   --model "<resolved-entry.model>" \
+   --effort xhigh \
+   --instruction "/absolute/applicable/AGENTS.md" \
+@@ -76,6 +77,16 @@ The outbound runner automatically includes the shared [receiving-worker executio
+ 
+ For `executor: "antigravity"`, preserve the returned exact `model` and separate `reasoningEffort`. Read [Antigravity execution](agy-execution.md) for the official agy runner, scoped session permissions, complete context, terminal receipts, cumulative usage, and exact continuation. Use this host's asynchronous command controls and collect every terminal receipt. Antigravity entries have no native agent type. Parent aliases stay native. Use known exact-model lineage for diversity. Custom or virtual routes with unknown lineage remain unknown. Preserve the calling workflow's selected-pool, cardinality, fresh-worker, required capability, and family gates.
+ 
++## Run records and progress
++
++The Codex, Claude, and Antigravity runners record each run the way Orca records its workers. Pass `--label "<short task name>"` on every launch. Each run appends `events.jsonl` to its run directory, one JSON line per event: `started` with the executor, model, effort, cwd, label, and runner pid, `activity` for a command, file edit, or tool call, `turn-completed`, and `stopped` with the stop kind and code. Each run also writes one registry file under the pstack state directory: `$PSTACK_STATE_HOME`, else `$XDG_STATE_HOME/pstack`, else `~/.local/state/pstack`.
++
++`node "<poteto-mode>/scripts/workers.mjs" status` lists the runs registered for the current directory and the directories inside it, with executor, model, label, state, and last event. A run is `running` while its runner lives without `result.json`, `lost` when the runner died without one, and otherwise its receipt's stop kind. Run it when the user asks what is running or where, and after compaction or a restart to find run directories rather than recalling them. `--cwd DIR` selects another checkout, `--all` lists every run, and `--json` prints records.
++
++`workers.mjs follow --run-dir DIR` prints each new event and exits when `result.json` appears, or with status 1 when the runner died without writing it. Read the same output when you check a runner's command session, and tell the user which executor, model, label, and checkout each worker uses when it starts.
++
++A receipt's `stop.code` names the cause: `completed`, `signal`, `deadline`, `usage-limit`, `not-signed-in`, `model-unavailable`, `provider`, `missing-session`, `permission-mode`, `permission-denied`, `unsupported-auth`, or `failed`. `stop.cause` holds the redacted tail of the evidence, and the run directory keeps the raw diagnostics. `not-signed-in` and `unsupported-auth` need the user's login or setup. `usage-limit` and `provider` follow the calling workflow's dropout rule. `missing-session` cannot continue. Each runner starts its CLI under a supervisor that removes the parent session's environment, runs the CLI in its own process group, and stops that group when the runner stops or dies.
++
+ ## Local worktrees
+ 
+ Workers run on the current host through their selected executor. Give each independent worker an exclusive Git worktree and branch when it writes code. Use native managed-worktree tools when exposed, or `git worktree add` with an explicit base ref and a local `codex/` branch. The worker's prompt names its absolute checkout, branch, and resolved starting SHA; every shell command runs in that checkout. Keep the coordinator's checkout separate.
+diff --git a/skills/poteto-mode/scripts/run-claude.mjs b/skills/poteto-mode/scripts/run-claude.mjs
+index d94f962..b740859 100644
+--- a/skills/poteto-mode/scripts/run-claude.mjs
++++ b/skills/poteto-mode/scripts/run-claude.mjs
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env node
+-import { spawn, spawnSync } from 'node:child_process';
++import { spawnSync } from 'node:child_process';
+ import { constants, createWriteStream } from 'node:fs';
+ import {
+   access,
+@@ -20,6 +20,14 @@ import {
+   exactClaudeModel,
+   versionAtLeast,
+ } from './claude-capabilities.mjs';
++import {
++  childEnv,
++  recordActivity,
++  spawnSupervised,
++  startRun,
++  stopRecord,
++  stopRun,
++} from './worker-runtime.mjs';
+ 
+ const EXECUTOR = 'claude-code';
+ 
+@@ -29,14 +37,15 @@ const USAGE = `Usage:
+   node run-claude.mjs run --cwd /absolute/worktree --run-dir /absolute/local-run \\
+     --model EXACT_MODEL_ID [--effort LEVEL] [--instruction /absolute/AGENTS.md] [--skill /absolute/SKILL.md] \\
+     [--role /absolute/role.md] [--resume session-uuid] [--allowed-tool tool] \\
+-    [--executable /absolute/claude] < task.txt
++    [--executable /absolute/claude] [--label TEXT] < task.txt
+ 
+ Repeat --instruction, --skill, and --allowed-tool as needed. --role supplies only
+ the requested role's Markdown body. Claude runs with --permission-mode auto. Pass
+ --allowed-tool only for an action the user approved after an auto-mode denial.
+ Fresh sessions are the default. Artifacts are saved in --run-dir outside the
+ plugin; stdout is the result receipt JSON. Dispatchers pass the resolved model.
+-Run requires an explicit exact model ID.`;
++Run requires an explicit exact model ID. --label names the run in workers.mjs
++status and the run's events.jsonl.`;
+ 
+ function parseArguments(argv) {
+   const command = argv[0];
+@@ -54,6 +63,7 @@ function parseArguments(argv) {
+     '--resume': 'resume',
+     '--allowed-tool': 'allowedTool',
+     '--executable': 'executable',
++    '--label': 'label',
+   };
+   for (let index = 1; index < argv.length; index += 2) {
+     const name = names[argv[index]];
+@@ -122,7 +132,10 @@ async function executablePath(requested = 'claude') {
+ }
+ 
+ function cliText(executable, argument) {
+-  const result = spawnSync(executable, [argument], { encoding: 'utf8' });
++  const result = spawnSync(executable, [argument], {
++    encoding: 'utf8',
++    env: childEnv(process.env, EXECUTOR),
++  });
+   if (result.error) throw result.error;
+   if (result.status !== 0) {
+     throw new Error(
+@@ -183,6 +196,7 @@ async function detect(options) {
+   const authResult = spawnSync(executable, ['auth', 'status'], {
+     encoding: 'utf8',
+     timeout: 20_000,
++    env: childEnv(process.env, EXECUTOR),
+   });
+   let auth;
+   if (!authResult.error && [0, 1].includes(authResult.status)) {
+@@ -225,6 +239,13 @@ async function detect(options) {
+   };
+ }
+ 
++function activityText({ name, input = {} }) {
++  if (name === 'Bash') return `running: ${input.command ?? name}`;
++  if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(name))
++    return `editing ${input.file_path ?? input.notebook_path ?? name}`;
++  return `tool: ${name}`;
++}
++
+ function markdownBody(text) {
+   return text.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
+ }
+@@ -313,6 +334,7 @@ async function run(options) {
+     executable,
+     args,
+     cwd,
++    label: options.label ?? null,
+     model,
+     modelSelection: 'explicit',
+     reasoningEffort: options.effort ?? null,
+@@ -338,9 +360,22 @@ async function run(options) {
+       stderr.once('open', resolve).once('error', reject),
+     ),
+   ]);
+-  const child = spawn(executable, args, {
++  startRun(
++    {
++      runDir,
++      executor: EXECUTOR,
++      model,
++      effort: options.effort ?? null,
++      cwd,
++      label: request.label,
++    },
++    options.resume ? { sessionId: options.resume } : {},
++  );
++  const child = spawnSupervised(executable, args, {
+     cwd,
++    env: childEnv(process.env, EXECUTOR),
+     stdio: ['pipe', 'pipe', 'pipe'],
++    lifetime: 'one-shot',
+   });
+   child.stdout.pipe(stdout);
+   child.stderr.pipe(stderr);
+@@ -361,6 +396,10 @@ async function run(options) {
+         typeof value.model === 'string'
+       )
+         observedModel = value.model;
++      if (value.type === 'assistant')
++        for (const block of value.message?.content ?? [])
++          if (block?.type === 'tool_use')
++            recordActivity(runDir, activityText(block));
+       if (value.type === 'result') resultEvent = value;
+     } catch (error) {
+       parseError ??= error.message;
+@@ -382,7 +421,7 @@ async function run(options) {
+   let received = null;
+   const forwardSignal = (signal) => {
+     received ??= signal;
+-    child.kill(signal);
++    void child.stop(signal);
+   };
+   const onInterrupt = () => forwardSignal('SIGINT');
+   const onTerminate = () => forwardSignal('SIGTERM');
+@@ -412,14 +451,15 @@ async function run(options) {
+     resultEvent?.subtype === 'success' &&
+     resultEvent.is_error !== true;
+   const status = signal ? 'interrupted' : succeeded ? 'completed' : 'failed';
+-  const [kind, cause] = signal
+-    ? ['interrupted', signal]
++  const [kind, code, cause] = signal
++    ? ['interrupted', 'signal', signal]
+     : denials.length
+-      ? ['permission', 'permission denial']
++      ? ['permission', 'permission-denied', 'permission denial']
+       : succeeded
+-        ? ['completed', 'completed']
++        ? ['completed', 'completed', 'completed']
+         : [
+             'error',
++            'failed',
+             spawnError ??
+               parseError ??
+               resultEvent?.subtype ??
+@@ -427,7 +467,7 @@ async function run(options) {
+           ];
+   const receipt = {
+     ...request,
+-    pid: child.pid ?? null,
++    pid: child.providerPid,
+     ...completion,
+     sessionId,
+     observedModel,
+@@ -435,9 +475,7 @@ async function run(options) {
+     resultEvent,
+     status,
+     stop: {
+-      kind,
+-      cause,
+-      continuable: sessionId !== null,
++      ...stopRecord({ kind, code, cause, continuable: sessionId !== null }),
+       ...(denials.length ? { permissionDenials: denials } : {}),
+     },
+     spawnError,
+@@ -450,6 +488,7 @@ async function run(options) {
+     requestPath,
+     resultPath,
+   };
++  stopRun(runDir, receipt.stop);
+   await writeFile(resultPath, `${JSON.stringify(receipt, null, 2)}\n`, {
+     flag: 'wx',
+   });

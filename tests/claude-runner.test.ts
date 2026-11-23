@@ -41,6 +41,7 @@ const streamBytes = [
     type: 'system',
     subtype: 'init',
     model: 'claude-opus-5-5',
+    permissionMode: 'auto',
     session_id: sessionId,
     tools: ['Read', 'Write', 'Bash'],
     plugins: [{ name: 'existing-user-plugin' }],
@@ -106,6 +107,9 @@ if (args[0] === '--version') {
   console.log((process.env.PSTACK_FAKE_VERSION ?? '2.1.287') + ' (Claude Code)');
 } else if (args[0] === '--help') {
   console.log(${JSON.stringify(fakeHelp)});
+} else if (args[0] === 'auth' && process.env.PSTACK_FAKE_AUTH) {
+  console.log(process.env.PSTACK_FAKE_AUTH === 'text-in' ? 'Logged in.' : 'Not logged in.');
+  process.exitCode = process.env.PSTACK_FAKE_AUTH === 'text-in' ? 0 : 1;
 } else if (args[0] === 'auth') {
   console.log(JSON.stringify({ loggedIn: process.env.PSTACK_FAKE_LOGGED_IN !== 'false', authMethod: 'oauth_token', email: 'private@example.invalid', token: 'private-fixture' }));
 } else {
@@ -117,21 +121,39 @@ if (args[0] === '--version') {
     inheritedMarker: process.env.PSTACK_FAKE_INHERITED_MARKER,
   }));
   const scenario = process.env.PSTACK_FAKE_SCENARIO;
+  const named = (flag) => args.includes(flag) ? args[args.indexOf(flag) + 1] : null;
+  const sid = scenario === 'foreign-session' ? '00000000-0000-4000-8000-000000000000' : named('--session-id') ?? named('--resume');
   if (scenario === 'signal') process.kill(process.pid, 'SIGTERM');
   else if (scenario === 'error') {
-    process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, result: 'Original authentication failure', session_id: '${sessionId}'}) + '\\n');
+    process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, result: 'Original authentication failure', session_id: sid}) + '\\n');
     process.stderr.write('original stderr\\n');
     process.exitCode = 7;
   } else if (scenario === 'malformed') {
     process.stdout.write(Buffer.from([0xff, 0x0a]));
     process.stdout.write('not JSON\\n');
   } else if (scenario === 'denied') {
-    process.stdout.write(JSON.stringify({type: 'result', subtype: 'success', is_error: false, result: 'Read was denied.', session_id: '${sessionId}', permission_denials: [{tool_name: 'Read', tool_use_id: 'toolu_denied', tool_input: {file_path: '/outside/secret.txt'}}]}) + '\\n');
+    process.stdout.write(JSON.stringify({type: 'result', subtype: 'success', is_error: false, result: 'Read was denied.', session_id: sid, permission_denials: [{tool_name: 'Read', tool_use_id: 'toolu_denied', tool_input: {file_path: '/outside/secret.txt'}}]}) + '\\n');
+  } else if (scenario === 'missing-session') {
+    process.stderr.write('No conversation found with session ID: ' + sid + '\\n');
+    process.exitCode = 1;
+  } else if (scenario === 'missing-session-result') {
+    process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['No conversation found with session ID: ' + sid], session_id: sid}) + '\\n');
+    process.exitCode = 1;
+  } else if (scenario === 'stderr-crash') {
+    for (let line = 1; line <= 1000; line++) process.stderr.write('stderr line ' + String(line).padStart(4, '0') + ' xxxxxxxxxxxx\\n');
+    process.stderr.write('token=fixture-secret-value\\n');
+    process.exitCode = 3;
+  } else if (scenario === 'aborted-error' || scenario === 'aborted-success') {
+    const error = scenario === 'aborted-error';
+    process.stdout.write(JSON.stringify({type: 'result', subtype: error ? 'error_during_execution' : 'success', is_error: error, terminal_reason: error ? 'aborted_tools' : 'aborted_streaming', session_id: sid}) + '\\n');
   } else if (scenario === 'missing-result') {
-    process.stdout.write(JSON.stringify({type: 'system', subtype: 'init', session_id: '${sessionId}'}) + '\\n');
+    process.stdout.write(JSON.stringify({type: 'system', subtype: 'init', session_id: sid}) + '\\n');
   } else {
     const model = args[args.indexOf('--model') + 1];
     const events = ${JSON.stringify(streamBytes)}.split('\\n').map(line => JSON.parse(line));
+    for (const value of events) value.session_id = sid;
+    if (scenario === 'refused-auto') events[0].permissionMode = 'default';
+    if (scenario === 'missing-permission-mode') delete events[0].permissionMode;
     if (scenario === 'missing-model') delete events[0].model;
     else events[0].model = scenario === 'mismatched-model' ? 'claude-other-fixture-20300101' : model;
     const bytes = Buffer.from(events.map(value => JSON.stringify(value)).join('\\n'));
@@ -383,6 +405,11 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
   assert.equal(result.status, 0, result.stderr || result.error?.message);
   const receipt = JSON.parse(result.stdout);
   const call = JSON.parse(await readFile(f.callPath, 'utf8'));
+  const named = receipt.requestedSessionId;
+  assert.match(
+    named,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+  );
   assert.equal(call.cwd, f.cwd);
   assert.equal(receipt.cwd, f.cwd);
   assert.equal(call.inheritedMarker, 'existing environment preserved');
@@ -397,6 +424,8 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
     '--verbose',
     '--permission-mode',
     'auto',
+    '--session-id',
+    named,
     '--allowedTools',
     'Bash(node --test index.test.mjs)',
     '--allowedTools',
@@ -407,10 +436,10 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
   assert.ok(call.input.includes(f.roleBody));
   assert.ok(!call.input.includes('model: upstream-model'));
   assert.ok(call.input.endsWith(task));
-  assert.equal(receipt.sessionId, sessionId);
+  assert.equal(receipt.sessionId, named);
   assert.equal(receipt.observedModel, 'claude-opus-5-5');
   assert.equal(receipt.result, finalEvent.result);
-  assert.deepEqual(receipt.resultEvent, finalEvent);
+  assert.deepEqual(receipt.resultEvent, { ...finalEvent, session_id: named });
   assert.equal(receipt.exitCode, 0);
   assert.equal(receipt.signal, null);
   assert.equal(receipt.status, 'completed');
@@ -425,7 +454,7 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
   assert.ok(Number.isInteger(receipt.pid));
   assert.deepEqual(
     await readFile(receipt.stdoutPath),
-    Buffer.from(streamBytes),
+    Buffer.from(streamBytes.replaceAll(sessionId, named)),
   );
   assert.equal(
     await readFile(receipt.stderrPath, 'utf8'),
@@ -630,7 +659,7 @@ test('a missing final result preserves session evidence and returns failure', as
   assert.equal(result.status, 1, result.stderr);
   const receipt = JSON.parse(result.stdout);
   assert.equal(receipt.exitCode, 0);
-  assert.equal(receipt.sessionId, sessionId);
+  assert.equal(receipt.sessionId, receipt.requestedSessionId);
   assert.equal(receipt.resultEvent, null);
 });
 
@@ -844,4 +873,155 @@ test('Claude transport injects its receiving executor and the bundled shared con
     call.input.indexOf('Shared receiving fixture context.') <
       call.input.indexOf('## Assigned task'),
   );
+});
+
+test('a fresh run names its session before spawning and a resume does not', async (t) => {
+  const f = await fixture(t);
+  const fresh = f.invoke(f.runArgs);
+  assert.equal(fresh.status, 0, fresh.stderr);
+  const receipt = JSON.parse(fresh.stdout);
+  const request = JSON.parse(await readFile(receipt.requestPath, 'utf8'));
+  const call = JSON.parse(await readFile(f.callPath, 'utf8'));
+  assert.equal(request.requestedSessionId, receipt.requestedSessionId);
+  assert.equal(
+    call.args[call.args.indexOf('--session-id') + 1],
+    request.requestedSessionId,
+  );
+  const [startedLine] = (
+    await readFile(path.join(f.runDir, 'events.jsonl'), 'utf8')
+  ).split('\n');
+  const started = JSON.parse(startedLine!);
+  assert.equal(started.sessionId, request.requestedSessionId);
+  assert.equal(receipt.stop.continuable, true);
+
+  const g = await fixture(t);
+  const resumed = g.invoke([...g.runArgs, '--resume', sessionId]);
+  assert.equal(resumed.status, 0, resumed.stderr);
+  const resumeCall = JSON.parse(await readFile(g.callPath, 'utf8'));
+  assert.ok(!resumeCall.args.includes('--session-id'));
+  assert.equal(JSON.parse(resumed.stdout).requestedSessionId, null);
+});
+
+test('a stream from another conversation is not continuable', async (t) => {
+  const f = await fixture(t);
+  const result = f.invoke(f.runArgs, undefined, {
+    PSTACK_FAKE_SCENARIO: 'foreign-session',
+  });
+  const receipt = JSON.parse(result.stdout);
+  assert.notEqual(receipt.sessionId, receipt.requestedSessionId);
+  assert.equal(receipt.stop.continuable, false);
+});
+
+test('a run Claude started outside auto mode stops with permission-mode', async (t) => {
+  const f = await fixture(t);
+  const refused = f.invoke(f.runArgs, undefined, {
+    PSTACK_FAKE_SCENARIO: 'refused-auto',
+  });
+  assert.equal(refused.status, 0, refused.stderr);
+  const receipt = JSON.parse(refused.stdout);
+  assert.equal(receipt.observedPermissionMode, 'default');
+  assert.equal(receipt.stop.kind, 'error');
+  assert.equal(receipt.stop.code, 'permission-mode');
+  assert.match(receipt.stop.cause, /default mode instead of auto/);
+  const events = (await readFile(path.join(f.runDir, 'events.jsonl'), 'utf8'))
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert.equal(events.at(-1).code, 'permission-mode');
+
+  for (const [scenario, observed] of [
+    [undefined, 'auto'],
+    ['missing-permission-mode', null],
+  ] as const) {
+    const g = await fixture(t);
+    const result = g.invoke(
+      g.runArgs,
+      undefined,
+      scenario ? { PSTACK_FAKE_SCENARIO: scenario } : {},
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const ran = JSON.parse(result.stdout);
+    assert.equal(ran.observedPermissionMode, observed);
+    assert.equal(ran.stop.code, 'completed');
+  }
+});
+
+for (const scenario of ['missing-session', 'missing-session-result'])
+  test(`a resume of a conversation Claude cannot find stops with missing-session (${scenario})`, async (t) => {
+    const f = await fixture(t);
+    const result = f.invoke([...f.runArgs, '--resume', sessionId], undefined, {
+      PSTACK_FAKE_SCENARIO: scenario,
+    });
+    assert.equal(result.status, 1, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.stop.kind, 'error');
+    assert.equal(receipt.stop.code, 'missing-session');
+    assert.equal(receipt.stop.continuable, false);
+    assert.ok(
+      receipt.stop.cause.includes(
+        `No conversation found with session ID: ${sessionId}`,
+      ),
+    );
+  });
+
+test('a run without a result reports its last whole stderr lines, redacted', async (t) => {
+  const f = await fixture(t);
+  const result = f.invoke(f.runArgs, undefined, {
+    PSTACK_FAKE_SCENARIO: 'stderr-crash',
+  });
+  assert.equal(result.status, 3, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.resultEvent, null);
+  assert.equal(receipt.stop.code, 'failed');
+  const { cause } = receipt.stop;
+  assert.ok(cause.length <= 2000);
+  assert.match(
+    cause,
+    /^claude stream-json exited \(code 3\): stderr line \d{4} x{12}\n/,
+  );
+  assert.ok(
+    cause.endsWith('stderr line 1000 xxxxxxxxxxxx\n[redacted:labeled-kv]'),
+  );
+  assert.ok(!cause.includes('fixture-secret-value'));
+  assert.match(
+    await readFile(receipt.stderrPath, 'utf8'),
+    /token=fixture-secret-value/,
+  );
+});
+
+test('a result Claude cut short is an interrupted stop, not a completion or failure', async (t) => {
+  for (const [scenario, reason] of [
+    ['aborted-error', 'aborted_tools'],
+    ['aborted-success', 'aborted_streaming'],
+  ]) {
+    const f = await fixture(t);
+    const result = f.invoke(f.runArgs, undefined, {
+      PSTACK_FAKE_SCENARIO: scenario!,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.terminalReason, reason);
+    assert.equal(receipt.status, 'interrupted');
+    assert.equal(receipt.stop.kind, 'interrupted');
+    assert.equal(receipt.stop.continuable, true);
+    assert.match(receipt.stop.cause, new RegExp(reason!));
+  }
+  const g = await fixture(t);
+  const ran = JSON.parse(g.invoke(g.runArgs).stdout);
+  assert.equal(ran.terminalReason, null);
+  assert.equal(ran.stop.kind, 'completed');
+});
+
+test('detect reads sign-in from the exit code when auth status output does not parse', async (t) => {
+  const f = await fixture(t);
+  for (const [output, loggedIn] of [
+    ['text-in', true],
+    ['text-out', false],
+  ] as const) {
+    const result = f.invoke(['detect'], '', { PSTACK_FAKE_AUTH: output });
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.deepEqual(receipt.auth, { verified: true, loggedIn, method: null });
+    assert.equal(receipt.guidance.length, loggedIn ? 0 : 1);
+  }
 });

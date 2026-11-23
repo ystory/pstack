@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { constants, createWriteStream } from 'node:fs';
 import {
   access,
@@ -23,6 +24,7 @@ import {
 import {
   childEnv,
   recordActivity,
+  redact,
   spawnSupervised,
   startRun,
   stopRecord,
@@ -30,6 +32,16 @@ import {
 } from './worker-runtime.mjs';
 
 const EXECUTOR = 'claude-code';
+// Orca managed-provider-process.ts:28.
+const STDERR_TAIL_MAX_CHARS = 8192;
+// Orca claude-result-outcome.ts:4-5: a result with one of these reasons is a stop, not a failure.
+const CLAUDE_ABORTED_TERMINAL_REASONS = new Set([
+  'aborted_streaming',
+  'aborted_tools',
+]);
+// Orca claude-stream-json-exit-error.ts:14-15.
+const CLAUDE_MISSING_CONVERSATION =
+  /^No conversation found with session ID: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*$/im;
 
 const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const USAGE = `Usage:
@@ -204,7 +216,14 @@ async function detect(options) {
       auth = JSON.parse(authResult.stdout);
     } catch {}
   }
-  const loggedIn = typeof auth?.loggedIn === 'boolean' ? auth.loggedIn : null;
+  // Orca environment-doctor.ts:28-34, 130-146: status wording changes between
+  // releases, so unparsed output falls back to the exit code; a timeout stays unknown.
+  const loggedIn =
+    typeof auth?.loggedIn === 'boolean'
+      ? auth.loggedIn
+      : !authResult.error && typeof authResult.status === 'number'
+        ? authResult.status === 0
+        : null;
   const method = auth?.authMethod ?? auth?.method;
   return {
     executor: EXECUTOR,
@@ -244,6 +263,61 @@ function activityText({ name, input = {} }) {
   if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(name))
     return `editing ${input.file_path ?? input.notebook_path ?? name}`;
   return `tool: ${name}`;
+}
+
+// Orca claude-stream-json-exit-error.ts:45-58: the exit status, then stderr's
+// last lines, dropping the fragment a full tail starts with. Whole redacted
+// lines are kept from the end while they fit a stop cause.
+function exitText({ exitCode, signal }, stderrTail) {
+  const detail = (
+    stderrTail.length >= STDERR_TAIL_MAX_CHARS
+      ? stderrTail.slice(stderrTail.indexOf('\n') + 1)
+      : stderrTail
+  ).trim();
+  const how =
+    signal !== null
+      ? `(signal ${signal})`
+      : exitCode === null
+        ? ''
+        : `(code ${exitCode})`;
+  const head = `claude stream-json exited${how ? ` ${how}` : ''}`;
+  let lines = redact(detail, Infinity);
+  while (head.length + 2 + lines.length > 2000 && lines.includes('\n'))
+    lines = lines.slice(lines.indexOf('\n') + 1);
+  return lines ? `${head}: ${lines}` : head;
+}
+
+// The receipt's stop, from the first matching piece of evidence.
+function claudeStop({
+  signal,
+  missingSession,
+  permissionMode,
+  terminalReason,
+  denials,
+  succeeded,
+  failure,
+}) {
+  if (signal) return ['interrupted', 'signal', signal];
+  if (missingSession) return ['error', 'missing-session', missingSession];
+  // Orca claude-full-access-refusal.ts:52-66 and claude-permission-mode-ladder.ts:47-74:
+  // a first root init outside the launched mode is Claude's refusal of that mode.
+  if (permissionMode !== null && permissionMode !== 'auto')
+    return [
+      'error',
+      'permission-mode',
+      `Claude started in ${permissionMode} mode instead of auto`,
+    ];
+  // Orca claude-result-outcome.ts:14-20: the abort reason outranks is_error.
+  if (CLAUDE_ABORTED_TERMINAL_REASONS.has(terminalReason))
+    return [
+      'interrupted',
+      'failed',
+      `Claude ended the turn early (${terminalReason})`,
+    ];
+  if (denials.length)
+    return ['permission', 'permission-denied', 'permission denial'];
+  if (succeeded) return ['completed', 'completed', 'completed'];
+  return ['error', 'failed', failure];
 }
 
 function markdownBody(text) {
@@ -300,7 +374,8 @@ async function run(options) {
   const prompt = [
     `Working directory: ${cwd}\n\nApply the supplied project and role instructions to the assigned task. Use the supplied skill material for that task.`,
     ...context.map(
-      (file) => `## Complete ${file.kind} body from ${file.path}\n\n${file.content}`,
+      (file) =>
+        `## Complete ${file.kind} body from ${file.path}\n\n${file.content}`,
     ),
     `Receiving executor is ${EXECUTOR}.\n\n${await readFile(new URL('../references/worker-context.md', import.meta.url), 'utf8')}`,
     `## Assigned task\n\n${task}`,
@@ -325,7 +400,11 @@ async function run(options) {
     '--permission-mode',
     'auto',
   ];
+  // Orca claude-structured-launch-resolution.ts:170-177, 288-290: a fresh
+  // conversation is named before spawn, so its identity never rests on the stream.
+  const requestedSessionId = options.resume ? null : randomUUID();
   if (options.resume) args.push('--resume', options.resume);
+  else args.push('--session-id', requestedSessionId);
   for (const tool of new Set(options.allowedTool)) {
     args.push('--allowedTools', tool);
   }
@@ -339,6 +418,7 @@ async function run(options) {
     modelSelection: 'explicit',
     reasoningEffort: options.effort ?? null,
     resumeSessionId: options.resume ?? null,
+    requestedSessionId,
     context: context.map(({ kind, path: sourcePath }) => ({
       kind,
       path: sourcePath,
@@ -369,7 +449,7 @@ async function run(options) {
       cwd,
       label: request.label,
     },
-    options.resume ? { sessionId: options.resume } : {},
+    { sessionId: options.resume ?? requestedSessionId },
   );
   const child = spawnSupervised(executable, args, {
     cwd,
@@ -379,11 +459,20 @@ async function run(options) {
   });
   child.stdout.pipe(stdout);
   child.stderr.pipe(stderr);
+  let stderrTail = '';
+  const stderrDecoder = new StringDecoder('utf8');
+  // Orca managed-provider-process.ts:143.
+  child.stderr.on('data', (chunk) => {
+    stderrTail = (stderrTail + stderrDecoder.write(chunk)).slice(
+      -STDERR_TAIL_MAX_CHARS,
+    );
+  });
   let pending = '';
   const decoder = new StringDecoder('utf8');
   let resultEvent = null;
   let sessionId = null;
   let observedModel = null;
+  let rootInit = null;
   let parseError = null;
   const event = (line) => {
     if (!line.trim()) return;
@@ -396,6 +485,18 @@ async function run(options) {
         typeof value.model === 'string'
       )
         observedModel = value.model;
+      // Orca claude-structured-session-acquisition.ts:98-101 and claude-turn-opening.ts:44-46.
+      if (
+        value.type === 'system' &&
+        value.subtype === 'init' &&
+        typeof value.parent_tool_use_id !== 'string'
+      )
+        rootInit ??= {
+          permissionMode:
+            typeof value.permissionMode === 'string' && value.permissionMode
+              ? value.permissionMode
+              : null,
+        };
       if (value.type === 'assistant')
         for (const block of value.message?.content ?? [])
           if (block?.type === 'tool_use')
@@ -437,6 +538,7 @@ async function run(options) {
   process.off('SIGINT', onInterrupt);
   process.off('SIGTERM', onTerminate);
   pending += decoder.end();
+  stderrTail = (stderrTail + stderrDecoder.end()).slice(-STDERR_TAIL_MAX_CHARS);
   if (pending) event(pending);
   await Promise.all([finished(stdout), finished(stderr)]);
   const signal =
@@ -445,37 +547,66 @@ async function run(options) {
     { 130: 'SIGINT', 143: 'SIGTERM' }[completion.exitCode] ??
     null;
   const denials = resultEvent?.permission_denials ?? [];
+  const terminalReason =
+    typeof resultEvent?.terminal_reason === 'string'
+      ? resultEvent.terminal_reason
+      : null;
+  const aborted = CLAUDE_ABORTED_TERMINAL_REASONS.has(terminalReason);
   const succeeded =
+    !aborted &&
     completion.exitCode === 0 &&
     !parseError &&
     resultEvent?.subtype === 'success' &&
     resultEvent.is_error !== true;
-  const status = signal ? 'interrupted' : succeeded ? 'completed' : 'failed';
-  const [kind, code, cause] = signal
-    ? ['interrupted', 'signal', signal]
-    : denials.length
-      ? ['permission', 'permission-denied', 'permission denial']
-      : succeeded
-        ? ['completed', 'completed', 'completed']
-        : [
-            'error',
-            'failed',
-            spawnError ??
-              parseError ??
-              resultEvent?.subtype ??
-              `exit ${completion.exitCode}`,
-          ];
+  const status =
+    signal || aborted ? 'interrupted' : succeeded ? 'completed' : 'failed';
+  const observedPermissionMode = rootInit?.permissionMode ?? null;
+  // Orca claude-stream-json-exit-error.ts:17-36, 61: Claude reports a missing
+  // conversation on stderr, or in a startup result's errors.
+  const resultErrors = Array.isArray(resultEvent?.errors)
+    ? resultEvent.errors.filter((entry) => typeof entry === 'string').join('\n')
+    : '';
+  const missingSession = CLAUDE_MISSING_CONVERSATION.test(stderrTail)
+    ? exitText(completion, stderrTail)
+    : CLAUDE_MISSING_CONVERSATION.test(resultErrors)
+      ? `claude reported a startup failure: ${resultErrors.trim()}`
+      : null;
+  const [kind, code, cause] = claudeStop({
+    signal,
+    missingSession,
+    permissionMode: observedPermissionMode,
+    terminalReason,
+    denials,
+    succeeded,
+    failure:
+      spawnError ??
+      parseError ??
+      resultEvent?.subtype ??
+      exitText(completion, stderrTail),
+  });
   const receipt = {
     ...request,
     pid: child.providerPid,
     ...completion,
     sessionId,
     observedModel,
+    observedPermissionMode,
+    terminalReason,
     result: typeof resultEvent?.result === 'string' ? resultEvent.result : null,
     resultEvent,
     status,
     stop: {
-      ...stopRecord({ kind, code, cause, continuable: sessionId !== null }),
+      // Orca claude-structured-session-acquisition.ts:88-94 trusts only frames of the
+      // conversation it named.
+      ...stopRecord({
+        kind,
+        code,
+        cause,
+        continuable:
+          missingSession === null &&
+          sessionId !== null &&
+          sessionId === (options.resume ?? requestedSessionId),
+      }),
       ...(denials.length ? { permissionDenials: denials } : {}),
     },
     spawnError,

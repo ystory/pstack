@@ -529,9 +529,14 @@ async function run(options, server) {
   let interrupt = null;
   const clientRequests = [];
   const child = { pid: null, exitCode: null, signal: null, closed: false };
-  let provider = null;
-  const supervisedSpawn = (...spawnArgs) =>
-    (provider = spawnSupervised(...spawnArgs));
+  let provider = null,
+    providerClosed = null;
+  const supervisedSpawn = (...spawnArgs) => {
+    provider = spawnSupervised(...spawnArgs);
+    // Close carries the supervisor's last report, whether it killed descendants.
+    providerClosed = new Promise((resolve) => provider.once('close', resolve));
+    return provider;
+  };
   const pending = new Map();
   const diagnostic = (event) => {
     fs.appendFileSync(
@@ -654,6 +659,7 @@ async function run(options, server) {
     };
     diagnostic({ event: 'failure', failure });
   } finally {
+    await providerClosed;
     process.removeListener('SIGINT', onInterrupt);
     process.removeListener('SIGTERM', onTerminate);
   }
@@ -681,6 +687,7 @@ async function run(options, server) {
               failure?.message ?? 'failed',
             ];
   child.pid = provider?.providerPid ?? null;
+  child.descendantsReaped = provider?.descendantsReaped ?? null;
   const exitCode =
     signal === 'SIGINT'
       ? 130

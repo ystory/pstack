@@ -41,6 +41,7 @@ const send = (value) => console.log(JSON.stringify(value));
 const notify = (method, params) => send({method,params});
 const respond = (request, result) => send({id:request.id,result});
 let threadId, turnId, rollout, timer;
+if (process.env.FAKE_LINGERING_HELPER) (await import('node:child_process')).spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore'}).unref();
 const lines = readline.createInterface({input:process.stdin});
 lines.on('line', (line) => {
  const request = JSON.parse(line); log({request});
@@ -887,6 +888,19 @@ test('a run records its turn completion between its start and stop events', asyn
       ['stopped', undefined],
     ],
   );
+});
+
+test('a run records whether the supervisor killed descendants that outlived the server', async (t) => {
+  const f = await fixture(t);
+  for (const [name, env, reaped] of [
+    ['alone', {}, false],
+    ['helper', { FAKE_LINGERING_HELPER: '1' }, true],
+  ] as const) {
+    assert.equal(f.run(name, undefined, [], env).status, 0, name);
+    const receipt = await f.receipt(name);
+    assert.equal(receipt.status, 'completed', name);
+    assert.equal(receipt.process.descendantsReaped, reaped, name);
+  }
 });
 
 test('a retried Codex error stays out of the receipt and a final one is kept', async (t) => {

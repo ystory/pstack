@@ -152,6 +152,10 @@ if (args[0] === '--version') {
   } else if (scenario === 'aborted-error' || scenario === 'aborted-success') {
     const error = scenario === 'aborted-error';
     process.stdout.write(JSON.stringify({type: 'result', subtype: error ? 'error_during_execution' : 'success', is_error: error, terminal_reason: error ? 'aborted_tools' : 'aborted_streaming', session_id: sid}) + '\\n');
+  } else if (scenario === 'lingering-helper') {
+    const { spawn } = await import('node:child_process');
+    spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' }).unref();
+    process.stdout.write(JSON.stringify({type: 'result', subtype: 'success', is_error: false, result: 'done', session_id: sid}) + '\\n');
   } else if (scenario === 'pipe-holder') {
     const { spawn } = await import('node:child_process');
     const holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { detached: true, stdio: ['ignore', 1, 2] });
@@ -781,6 +785,23 @@ test("a helper outside the CLI's group holding its output cannot delay the recei
   assert.equal(receipt.status, 'completed');
   assert.equal(receipt.result, 'held');
   assert.match(await readFile(receipt.stdoutPath, 'utf8'), /"result":"held"/);
+});
+
+test('a run records whether the supervisor killed descendants that outlived Claude', async (t) => {
+  const f = await fixture(t);
+  for (const [scenario, reaped] of [
+    ['success', false],
+    ['lingering-helper', true],
+  ] as const) {
+    await rm(f.runDir, { recursive: true, force: true });
+    const result = f.invoke(f.runArgs, 'Perform the assignment.', {
+      PSTACK_FAKE_SCENARIO: scenario,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.status, 'completed', scenario);
+    assert.equal(receipt.descendantsReaped, reaped, scenario);
+  }
 });
 
 test('permission denials mark a completed Claude run for an approved continuation', async (t) => {

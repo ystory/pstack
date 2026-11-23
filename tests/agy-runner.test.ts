@@ -1269,7 +1269,7 @@ test(
 );
 
 test(
-  'agy catalog and run succeed when descendants exit shortly after a normal CLI exit',
+  'agy catalog and run succeed when descendants would exit shortly after a normal CLI exit, which reaps them as Orca does',
   { timeout: 15000 },
   async (t) => {
     const f = await fixture(t);
@@ -1284,7 +1284,8 @@ test(
       assert.equal(receipt.error, null, diagnostic);
       assert.equal(receipt.process.exitCode, 0, diagnostic);
       assert.equal(receipt.process.groupClosed, true, diagnostic);
-      assert.equal(receipt.process.shutdown, 'orderly', diagnostic);
+      assert.equal(receipt.process.shutdown, 'terminated', diagnostic);
+      assert.equal(receipt.process.descendantsReaped, true, diagnostic);
       if (command === 'catalog')
         assert.deepEqual(
           receipt.models.map((entry: any) => entry.model),
@@ -1298,7 +1299,7 @@ test(
 );
 
 test(
-  'agy catalog and run complete and reap descendants that outlive a normal CLI exit',
+  'agy catalog and run complete, reap descendants that outlive a normal CLI exit, and record the forced shutdown',
   { timeout: 20000 },
   async (t) => {
     const f = await fixture(t);
@@ -1313,7 +1314,7 @@ test(
       assert.equal(receipt.error, null, diagnostic);
       assert.equal(receipt.process.exitCode, 0, diagnostic);
       assert.equal(receipt.process.groupClosed, true, diagnostic);
-      assert.equal(receipt.process.shutdown, 'orderly', diagnostic);
+      assert.equal(receipt.process.shutdown, 'terminated', diagnostic);
       assert.equal(receipt.process.descendantsReaped, true, diagnostic);
       const pid = Number(await readFile(run.childPid, 'utf8'));
       assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });

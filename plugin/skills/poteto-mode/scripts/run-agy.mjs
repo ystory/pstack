@@ -431,7 +431,12 @@ async function ownedProcess(executable, args, options) {
         groupClosed: !alive(),
         descendantsReaped: child.descendantsReaped,
         cleanupErrors: [...cleanupErrors],
-        shutdown: closed && !firstError ? 'orderly' : 'terminated',
+        // Killed descendants leave the run complete, as Orca only warns of them,
+        // but the group did not empty on its own.
+        shutdown:
+          closed && !firstError && !child.descendantsReaped
+            ? 'orderly'
+            : 'terminated',
       },
     };
   } finally {

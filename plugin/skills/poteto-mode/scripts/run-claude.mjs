@@ -595,6 +595,7 @@ async function run(options) {
     ...request,
     pid: child.providerPid,
     ...completion,
+    descendantsReaped: child.descendantsReaped,
     sessionId,
     observedModel,
     observedPermissionMode,

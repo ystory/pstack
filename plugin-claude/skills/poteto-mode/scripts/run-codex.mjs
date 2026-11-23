@@ -371,6 +371,10 @@ function approvedAssessment(options) {
       : value;
   return {
     id: review.reviewId,
+    // Orca codex-auto-review-denial.ts: the reviewed item, when the review names one.
+    ...(typeof review.targetItemId === 'string' && review.targetItemId.trim()
+      ? { target_item_id: review.targetItemId }
+      : {}),
     turn_id: review.turnId,
     started_at_ms: review.startedAtMs,
     completed_at_ms: review.completedAtMs,

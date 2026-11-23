@@ -1162,6 +1162,7 @@ test('denied reviews are recorded and an exact approval precedes the resumed tur
   assert.equal(approved.approvedReview, 'review-denied');
   const event = {
     id: 'review-denied',
+    target_item_id: 'call-review-denied',
     turn_id: denied.turnId,
     started_at_ms: 1,
     completed_at_ms: 2,
@@ -1310,6 +1311,10 @@ test('approval conversion covers every supported action and refuses unsupported 
     );
     assert.deepEqual(request.approvedReview.event.action, action);
     assert.equal(request.approvedReview.event.rationale, null);
+    assert.equal(
+      Object.hasOwn(request.approvedReview.event, 'target_item_id'),
+      false,
+    );
   }
   for (const [name, extra, message] of [
     [

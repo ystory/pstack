@@ -314,6 +314,79 @@ function activityText(item) {
   }
 }
 
+// Orca codex-authentication-failure.ts: only the unauthorized variant, or an HTTP
+// failure carrying 401, proves sign-out. Variants are strings or single-key objects.
+const HTTP_ERROR_KINDS = [
+  'httpConnectionFailed',
+  'responseStreamConnectionFailed',
+  'responseStreamDisconnected',
+  'responseTooManyFailedAttempts',
+];
+function signedOut(error) {
+  const info = error?.codexErrorInfo;
+  const [variant, fields] =
+    typeof info === 'string' ? [info] : (Object.entries(info ?? {})[0] ?? []);
+  return (
+    variant === 'unauthorized' ||
+    (fields?.httpStatusCode === 401 && HTTP_ERROR_KINDS.includes(variant))
+  );
+}
+
+// Orca codex-structured-thread-open.ts: only this thread-specific resume refusal proves no rollout.
+const noRollout = (failure, threadId) =>
+  failure?.method === 'thread/resume' &&
+  failure.data?.code === -32600 &&
+  failure.message.endsWith(`no rollout found for thread id ${threadId}`);
+
+// Orca codex-structured-read-only.ts and codex-server-request-disposition.ts:
+// nobody watches a worker, so every blocking request gets a safe answer.
+const UNATTENDED_ANSWERS = new Map([
+  ['item/commandExecution/requestApproval', { result: { decision: 'decline' } }],
+  ['item/fileChange/requestApproval', { result: { decision: 'decline' } }],
+  [
+    'mcpServer/elicitation/request',
+    { result: { action: 'decline', content: null, _meta: null } },
+  ],
+  [
+    'item/tool/requestUserInput',
+    {
+      error: {
+        code: -32001,
+        message: 'Nobody is watching this worker to answer.',
+      },
+    },
+  ],
+  [
+    'item/permissions/requestApproval',
+    { result: { permissions: {}, scope: 'turn', strictAutoReview: true } },
+  ],
+  ['item/tool/call', { result: { contentItems: [], success: false } }],
+  ['applyPatchApproval', { result: { decision: 'abort' } }],
+  ['execCommandApproval', { result: { decision: 'abort' } }],
+  [
+    'account/chatgptAuthTokens/refresh',
+    {
+      error: {
+        code: -32001,
+        message: 'pstack cannot refresh app-server auth tokens',
+      },
+    },
+  ],
+  [
+    'attestation/generate',
+    {
+      error: { code: -32001, message: 'pstack did not negotiate attestation' },
+    },
+  ],
+]);
+const unattendedAnswer = (method) =>
+  UNATTENDED_ANSWERS.get(method) ?? {
+    error: {
+      code: -32000,
+      message: `pstack rejected unrecognized blocking request ${method}`,
+    },
+  };
+
 const snakeCase = (value) =>
   value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 
@@ -347,6 +420,10 @@ function approvedAssessment(options) {
       : value;
   return {
     id: review.reviewId,
+    // Orca codex-auto-review-denial.ts: the reviewed item, when the review names one.
+    ...(typeof review.targetItemId === 'string' && review.targetItemId.trim()
+      ? { target_item_id: review.targetItemId }
+      : {}),
     turn_id: review.turnId,
     started_at_ms: review.startedAtMs,
     completed_at_ms: review.completedAtMs,
@@ -447,6 +524,8 @@ async function run(options, server) {
     terminal = null;
   const threadSettings = { model: null, effort: null };
   const deniedReviews = [];
+  let interrupt = null;
+  const clientRequests = [];
   const child = { pid: null, exitCode: null, signal: null, closed: false };
   let provider = null;
   const supervisedSpawn = (...spawnArgs) =>
@@ -475,7 +554,12 @@ async function run(options, server) {
     if (message.id !== undefined) {
       const method = pending.get(message.id);
       pending.delete(message.id);
-      if (['thread/start', 'thread/resume'].includes(method)) {
+      // A resume that opened another thread proves no identity to continue.
+      if (
+        method === 'thread/start' ||
+        (method === 'thread/resume' &&
+          message.result?.thread?.id === options.resume)
+      ) {
         threadId = message.result?.thread?.id ?? threadId;
         rolloutPath = message.result?.thread?.path ?? rolloutPath;
         threadSettings.model = message.result?.model ?? null;
@@ -533,6 +617,12 @@ async function run(options, server) {
             event: approval,
           })),
       prompt,
+      onInterrupt: (outcome) => (interrupt = outcome),
+      answerServerRequest: ({ method }) => {
+        const answer = unattendedAnswer(method);
+        clientRequests.push({ method, answer });
+        return answer;
+      },
       onDiagnostic: diagnostic,
       onProgress: (update) => {
         if (typeof update === 'object') {
@@ -553,6 +643,7 @@ async function run(options, server) {
     failure = {
       message: error.message,
       code: error.code ?? null,
+      method: error.method ?? null,
       data: error.data ?? null,
       stack: error.stack,
     };
@@ -575,7 +666,15 @@ async function run(options, server) {
         ? ['permission', 'permission-denied', 'denied review']
         : status === 'completed'
           ? ['completed', 'completed', 'completed']
-          : ['error', 'failed', failure?.message ?? 'failed'];
+          : [
+              'error',
+              signedOut(terminal?.error) || signedOut(result?.error)
+                ? 'not-signed-in'
+                : noRollout(failure, options.resume)
+                  ? 'missing-session'
+                  : 'failed',
+              failure?.message ?? 'failed',
+            ];
   child.pid = provider?.providerPid ?? null;
   const exitCode =
     signal === 'SIGINT'
@@ -600,6 +699,7 @@ async function run(options, server) {
     threadSettings,
     approvedReview: request.approvedReview?.reviewId ?? null,
     deniedReviews,
+    clientRequests,
     status,
     stop: stopRecord({
       kind: stopKind,
@@ -613,6 +713,7 @@ async function run(options, server) {
     error: redactError(failure ?? result?.error ?? terminal?.error ?? null),
     exitCode,
     signal,
+    interrupt: redactError(interrupt),
     process: child,
     startedAt,
     finishedAt: new Date().toISOString(),

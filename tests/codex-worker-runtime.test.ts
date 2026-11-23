@@ -46,6 +46,7 @@ lines.on('line', (line) => {
  const request = JSON.parse(line); log({request});
  const p = request.params;
  switch (request.method) {
+ case undefined: break;
  case 'initialize': if (process.env.FAKE_INSPECT_CASE === 'initialize-error') { send({id:request.id,error:{code:-32000,message:'initialize unavailable'}}); break; } if (!process.env.FAKE_HOLD_INITIALIZE) respond(request,{userAgent:'fixture'}); break;
  case 'initialized': break;
  case 'account/read':
@@ -56,7 +57,8 @@ lines.on('line', (line) => {
  case 'model/list': if (process.env.FAKE_INSPECT_CASE === 'catalog-error') { send({id:request.id,error:{code:-32000,message:'catalog unavailable'}}); break; } respond(request,p.cursor ? {data:[{id:'second-model',model:'second-model',supportedReasoningEfforts:[{reasoningEffort:'high'}]}],nextCursor:null} : {data:[{id:'selected-model',model:'selected-model',supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'xhigh'}]}],nextCursor:'second-page'}); break;
  case 'thread/start': case 'thread/resume':
   if (process.env.FAKE_HOLD_THREAD) break;
-  threadId = p.threadId ?? 'thread-'+process.pid;
+  if (p.threadId && process.env.FAKE_NO_ROLLOUT) { send({id:request.id,error:{code:-32600,message:'no rollout found for thread id '+p.threadId}}); break; }
+  threadId = p.threadId && process.env.FAKE_RESUME_OTHER ? 'thread-other' : p.threadId ?? 'thread-'+process.pid;
   rollout = process.env.FAKE_LOG+'.'+threadId+'.rollout.jsonl';
   fs.appendFileSync(rollout,JSON.stringify({type:'turn_context',payload:{turn_id:'earlier-turn',model:'earlier-model',effort:'ultra'}})+'\n{"type":\n');
   respond(request,{thread:{id:threadId,path:rollout},model:'observed-model',reasoningEffort:'high',cwd:p.cwd}); break;
@@ -94,15 +96,18 @@ lines.on('line', (line) => {
     notify('item/autoApprovalReview/completed',review('review-denied','denied',threadId));
     notify('item/autoApprovalReview/completed',review('review-other-thread','denied','other-thread'));
    }
+   if (prompt.includes('ASK')) JSON.parse(process.env.FAKE_SERVER_REQUESTS).forEach((method,index)=>send({id:'ask-'+index,method,params:{threadId,turnId}}));
+   if (prompt.includes('RETRY')) notify('error',{threadId,turnId,willRetry:true,error:{message:'transient stream retry',codexErrorInfo:{responseStreamDisconnected:{httpStatusCode:502}},additionalDetails:null}});
+   if (prompt.includes('FINAL_ERROR')) notify('error',{threadId,turnId,willRetry:false,error:{message:'final stream failure',codexErrorInfo:JSON.parse(process.env.FAKE_FINAL_ERROR_INFO ?? '"other"'),additionalDetails:null}});
    notify('item/completed',{threadId,turnId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'answer for '+threadId}});
    if (prompt.includes('EXIT')) { setTimeout(()=>process.exit(7),40); return; }
-   timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?{message:'actual terminal failure'}:null}}),prompt.includes('FAIL')?450:40);
+   timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?{message:'actual terminal failure',codexErrorInfo:JSON.parse(process.env.FAKE_TURN_ERROR_INFO ?? 'null')}:null}}),prompt.includes('FAIL')?450:40);
   };
   if (!process.env.FAKE_HOLD_TURN_RESPONSE) started();
   break;
  }
  case 'thread/approveGuardianDeniedAction': if (process.env.FAKE_REJECT_APPROVAL) { send({id:request.id,error:{code:-32600,message:'approval rejected'}}); break; } respond(request,{}); break;
- case 'turn/interrupt': clearTimeout(timer); if (process.env.FAKE_IGNORE_INTERRUPT) break; respond(request,{}); notify('turn/completed',{threadId,turn:{id:turnId,status:'interrupted'}}); break;
+ case 'turn/interrupt': clearTimeout(timer); if (process.env.FAKE_IGNORE_INTERRUPT) break; if (process.env.FAKE_INTERRUPT_NOT_RUNNING) { send({id:request.id,error:{code:-32600,message:'no active turn to interrupt'}}); break; } respond(request,{}); notify('turn/completed',{threadId,turn:{id:turnId,status:'interrupted'}}); break;
  default: send({id:request.id,error:{code:-32601,message:'unexpected '+request.method}});
  }
 });
@@ -843,6 +848,121 @@ test('terminal failure wins over an earlier final answer and abrupt server exit 
   assert.equal(exited.process.exitCode, 7);
 });
 
+test('a retried Codex error stays out of the receipt and a final one is kept', async (t) => {
+  const f = await fixture(t);
+  assert.equal(f.run('retried', 'RETRY').status, 0);
+  const retried = await f.receipt('retried');
+  assert.equal(retried.status, 'completed');
+  assert.equal(retried.stop.code, 'completed');
+  assert.equal(retried.error, null);
+  assert.match(
+    await readFile(retried.files.progress, 'utf8'),
+    /Codex retrying: transient stream retry/,
+  );
+  assert.equal(f.run('final', 'RETRY FINAL_ERROR FAIL').status, 1);
+  const final = await f.receipt('final');
+  assert.equal(final.stop.kind, 'error');
+  assert.equal(final.error.message, 'final stream failure');
+});
+
+test('only sign-out evidence stops a failed Codex turn as not-signed-in', async (t) => {
+  const f = await fixture(t);
+  for (const [name, prompt, variable, info, code] of [
+    [
+      'unauthorized',
+      'FAIL',
+      'FAKE_TURN_ERROR_INFO',
+      '"unauthorized"',
+      'not-signed-in',
+    ],
+    [
+      'http-401',
+      'FAIL',
+      'FAKE_TURN_ERROR_INFO',
+      '{"httpConnectionFailed":{"httpStatusCode":401}}',
+      'not-signed-in',
+    ],
+    [
+      'notified',
+      'FINAL_ERROR FAIL',
+      'FAKE_FINAL_ERROR_INFO',
+      '"unauthorized"',
+      'not-signed-in',
+    ],
+    [
+      'http-500',
+      'FAIL',
+      'FAKE_TURN_ERROR_INFO',
+      '{"httpConnectionFailed":{"httpStatusCode":500}}',
+      'failed',
+    ],
+  ] as const) {
+    assert.equal(f.run(name, prompt, [], { [variable]: info }).status, 1);
+    const receipt = await f.receipt(name);
+    assert.equal(receipt.stop.kind, 'error', name);
+    assert.equal(receipt.stop.code, code, name);
+  }
+});
+
+test('every Codex server request gets an unattended answer that the receipt records', async (t) => {
+  const f = await fixture(t);
+  const declined = { result: { decision: 'decline' } };
+  const aborted = { result: { decision: 'abort' } };
+  const refused = (code: number, message: string) => ({
+    error: { code, message },
+  });
+  const expected = [
+    ['item/commandExecution/requestApproval', declined],
+    ['item/fileChange/requestApproval', declined],
+    [
+      'mcpServer/elicitation/request',
+      { result: { action: 'decline', content: null, _meta: null } },
+    ],
+    [
+      'item/tool/requestUserInput',
+      refused(-32001, 'Nobody is watching this worker to answer.'),
+    ],
+    [
+      'item/permissions/requestApproval',
+      { result: { permissions: {}, scope: 'turn', strictAutoReview: true } },
+    ],
+    ['item/tool/call', { result: { contentItems: [], success: false } }],
+    ['applyPatchApproval', aborted],
+    ['execCommandApproval', aborted],
+    [
+      'account/chatgptAuthTokens/refresh',
+      refused(-32001, 'pstack cannot refresh app-server auth tokens'),
+    ],
+    [
+      'attestation/generate',
+      refused(-32001, 'pstack did not negotiate attestation'),
+    ],
+    [
+      'item/unknown/request',
+      refused(
+        -32000,
+        'pstack rejected unrecognized blocking request item/unknown/request',
+      ),
+    ],
+  ] as const;
+  const result = f.run('asked', 'ASK', [], {
+    FAKE_SERVER_REQUESTS: JSON.stringify(expected.map(([method]) => method)),
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = await f.receipt('asked');
+  assert.deepEqual(
+    receipt.clientRequests,
+    expected.map(([method, answer]) => ({ method, answer })),
+  );
+  const replies = (await f.events())
+    .filter((event) => String(event.request?.id).startsWith('ask-'))
+    .map(({ request: { id, ...answer } }) => [id, answer]);
+  assert.deepEqual(
+    replies,
+    expected.map(([, answer], index) => [`ask-${index}`, answer]),
+  );
+});
+
 test('parallel workers and interleaved exact continuation retain separate identities and outputs', async (t) => {
   const f = await fixture(t);
   const launch = (name: string) =>
@@ -876,6 +996,7 @@ test('parallel workers and interleaved exact continuation retain separate identi
   assert.equal(resume.request.params.sandbox, 'workspace-write');
   assert.equal(resume.request.params.approvalPolicy, 'on-request');
   assert.equal(resume.request.params.approvalsReviewer, 'auto_review');
+  assert.equal(resume.request.params.excludeTurns, true);
   assert.equal(Object.hasOwn(resume.request.params, 'threadSource'), false);
   assert.equal(
     events.some(
@@ -886,30 +1007,78 @@ test('parallel workers and interleaved exact continuation retain separate identi
   );
 });
 
-for (const { prompt, signal, turnKnown, startPending } of [
+test('a resume that opens no thread or another thread is not continuable', async (t) => {
+  const f = await fixture(t);
+  for (const [name, variable, code, message] of [
+    [
+      'missing',
+      'FAKE_NO_ROLLOUT',
+      'missing-session',
+      /no rollout found for thread id thread-saved$/,
+    ],
+    [
+      'other',
+      'FAKE_RESUME_OTHER',
+      'failed',
+      /resumed thread-other instead of thread-saved/,
+    ],
+  ] as const) {
+    const result = f.run(name, 'Continue.', ['--resume', 'thread-saved'], {
+      [variable]: '1',
+    });
+    assert.equal(result.status, 1, name);
+    const receipt = await f.receipt(name);
+    assert.equal(receipt.threadId, null, name);
+    assert.equal(receipt.rolloutPath, null, name);
+    assert.equal(receipt.stop.kind, 'error', name);
+    assert.equal(receipt.stop.code, code, name);
+    assert.equal(receipt.stop.continuable, false, name);
+    assert.match(receipt.error.message, message, name);
+    const methods = (await f.events())
+      .filter((entry) => entry.pid === receipt.process.pid && entry.request)
+      .map((entry) => entry.request.method);
+    assert.equal(methods.includes('turn/start'), false, name);
+  }
+});
+
+for (const { prompt, signal, turnKnown, startPending, reply, outcome } of [
   {
     prompt: 'WAIT',
     signal: 'SIGTERM',
     turnKnown: true,
     startPending: false,
+    reply: {},
+    outcome: 'acknowledged',
+  },
+  {
+    prompt: 'GONE WAIT',
+    signal: 'SIGTERM',
+    turnKnown: true,
+    startPending: false,
+    reply: { FAKE_INTERRUPT_NOT_RUNNING: '1' },
+    outcome: 'not-running',
   },
   {
     prompt: 'EARLY WAIT',
     signal: 'SIGINT',
     turnKnown: true,
     startPending: true,
+    reply: { FAKE_IGNORE_INTERRUPT: '1' },
+    outcome: 'timed-out',
   },
   {
     prompt: 'NO_ID WAIT',
     signal: 'SIGINT',
     turnKnown: false,
     startPending: true,
+    reply: {},
+    outcome: null,
   },
 ] as const)
   test(`signal cancels the active turn and closes its process for ${prompt}`, async (t) => {
     const f = await fixture(t),
       child = f.start('cancelled', {
-        FAKE_IGNORE_INTERRUPT: '1',
+        ...reply,
         FAKE_HOLD_TURN_STARTED: turnKnown ? '' : '1',
         FAKE_HOLD_TURN_RESPONSE: startPending ? '1' : '',
       });
@@ -977,7 +1146,9 @@ for (const { prompt, signal, turnKnown, startPending } of [
         (event) => event.request?.method === 'turn/interrupt',
       );
     assert.equal(interrupts.length, turnKnown ? 1 : 0);
+    assert.equal(receipt.interrupt?.outcome ?? null, outcome);
     if (turnKnown) {
+      assert.equal(receipt.interrupt.turnId, receipt.turnId);
       assert.equal(receipt.turnId, `turn-${receipt.process.pid}`);
       assert.equal(interrupts[0].request.params.threadId, receipt.threadId);
       assert.equal(interrupts[0].request.params.turnId, receipt.turnId);
@@ -1068,6 +1239,7 @@ test('denied reviews are recorded and an exact approval precedes the resumed tur
   assert.equal(approved.approvedReview, 'review-denied');
   const event = {
     id: 'review-denied',
+    target_item_id: 'call-review-denied',
     turn_id: denied.turnId,
     started_at_ms: 1,
     completed_at_ms: 2,
@@ -1216,6 +1388,10 @@ test('approval conversion covers every supported action and refuses unsupported 
     );
     assert.deepEqual(request.approvedReview.event.action, action);
     assert.equal(request.approvedReview.event.rationale, null);
+    assert.equal(
+      Object.hasOwn(request.approvedReview.event, 'target_item_id'),
+      false,
+    );
   }
   for (const [name, extra, message] of [
     [

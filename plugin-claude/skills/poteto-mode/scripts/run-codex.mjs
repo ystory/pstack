@@ -11,6 +11,7 @@ import {
   childEnv,
   probeSupervised,
   recordActivity,
+  redact,
   redactValue,
   spawnSupervised,
   startRun,
@@ -155,7 +156,8 @@ async function serverCommand(options) {
   return { workers, kind: runtime.kind, executable, args: runtime.args };
 }
 
-async function cliStatus(options, server) {
+// diagnostic receives the raw probe failure; the returned error is redacted.
+async function cliStatus(options, server, diagnostic = () => {}) {
   const cwd = options.cwd ?? process.cwd();
   const invoke = (args) =>
     probeSupervised(server.executable, args, {
@@ -174,6 +176,19 @@ async function cliStatus(options, server) {
       : null;
   const supported =
     !appServer?.error && appServer?.status === 0 && helpError === null;
+  const error =
+    version.error?.message ??
+    appServer?.error?.message ??
+    (version.status !== 0
+      ? version.stderr.trim() ||
+        version.stdout.trim() ||
+        `exit ${version.status}`
+      : appServer?.status !== 0
+        ? appServer?.stderr.trim() ||
+          appServer?.stdout.trim() ||
+          `exit ${appServer?.status}`
+        : helpError);
+  if (error !== null) diagnostic({ event: 'cli-status', error });
   return {
     available: supported,
     workers: server.workers,
@@ -182,18 +197,7 @@ async function cliStatus(options, server) {
     args: server.args,
     version: version.status === 0 ? version.stdout.trim() : null,
     appServer: supported,
-    error:
-      version.error?.message ??
-      appServer?.error?.message ??
-      (version.status !== 0
-        ? version.stderr.trim() ||
-          version.stdout.trim() ||
-          `exit ${version.status}`
-        : appServer?.status !== 0
-          ? appServer?.stderr.trim() ||
-            appServer?.stdout.trim() ||
-            `exit ${appServer?.status}`
-          : helpError),
+    error: error === null ? null : redact(error),
   };
 }
 
@@ -666,7 +670,7 @@ async function run(options, server) {
     failure = null,
     runtime = null;
   try {
-    runtime = await cliStatus(options, server);
+    runtime = await cliStatus(options, server, diagnostic);
     if (!runtime.available)
       throw new Error(
         runtimes[server.workers].unavailable.replace('ERROR', () => runtime.error),

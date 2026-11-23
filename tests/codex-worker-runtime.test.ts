@@ -875,6 +875,24 @@ test('a failed turn keeps provider credentials out of every receipt copy of its 
   );
 });
 
+test("a failed CLI probe's output is redacted and bounded in the receipt and kept raw in diagnostics", async (t) => {
+  const f = await fixture(t);
+  await writeFile(
+    f.executable,
+    `#!${process.execPath}\nconsole.error('x'.repeat(3100) + ' token=sample-only'); process.exit(1);\n`,
+    { mode: 0o755 },
+  );
+  assert.equal(f.run('probe-leak').status, 1);
+  const receipt = await f.receipt('probe-leak');
+  assert.equal(JSON.stringify(receipt).includes('sample-only'), false);
+  assert.equal(receipt.runtime.error.length, 2000);
+  assert.match(receipt.runtime.error, /x \[redacted:labeled-kv\]$/);
+  assert.match(
+    await readFile(receipt.files.diagnostics, 'utf8'),
+    /token=sample-only/,
+  );
+});
+
 test('a run records its turn completion between its start and stop events', async (t) => {
   const f = await fixture(t);
   assert.equal(f.run('events').status, 0);

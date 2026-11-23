@@ -3,7 +3,13 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  linkSync,
+  mkdirSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -309,13 +315,33 @@ export function stateHome(env = process.env) {
   );
 }
 
+// Events are best effort: the run's own artifacts keep its full trace.
 export function appendEvent(runDir, type, text, fields = {}) {
   if (!EVENT_TYPES.includes(type))
     throw new TypeError(`Unknown event type ${type}.`);
-  appendFileSync(
-    path.join(runDir, 'events.jsonl'),
-    `${JSON.stringify({ ts: new Date().toISOString(), type, text: eventText(text), ...fields })}\n`,
+  try {
+    appendFileSync(
+      path.join(runDir, 'events.jsonl'),
+      `${JSON.stringify({ ts: new Date().toISOString(), type, text: eventText(text), ...fields })}\n`,
+    );
+  } catch {}
+}
+
+/** Writes the whole file under a temporary name and links it into place, so a
+ * reader sees all of it or nothing and an existing file is never replaced. */
+export function writeOnce(file, text, mode = 0o666) {
+  const temporary = path.join(
+    path.dirname(file),
+    `.${path.basename(file)}.${randomBytes(4).toString('hex')}.tmp`,
   );
+  try {
+    writeFileSync(temporary, text, { flag: 'wx', mode });
+    linkSync(temporary, file);
+  } finally {
+    try {
+      unlinkSync(temporary);
+    } catch {}
+  }
 }
 
 // Each run owns one registry file, written once, so concurrent runners never share a writer.
@@ -338,32 +364,43 @@ export function registerRun(
   };
   const runs = path.join(stateHome(env), 'runs');
   mkdirSync(runs, { recursive: true, mode: 0o700 });
-  writeFileSync(
+  writeOnce(
     path.join(runs, `${entry.runId}.json`),
     `${JSON.stringify(entry, null, 2)}\n`,
-    { flag: 'wx', mode: 0o600 },
+    0o600,
   );
   return entry;
 }
 
+/** Registers the run and opens its event log. Both are best effort, so the worker
+ * runs anyway; the result is the receipt's registry record, { runId } or { error }. */
 export function startRun(run, ids = {}, env = process.env) {
-  const entry = registerRun({ ...run, pid: process.pid }, env);
-  const { runId, startedAt, ...fields } = entry;
+  const fields = {
+    runDir: run.runDir,
+    executor: run.executor,
+    model: run.model,
+    effort: run.effort ?? null,
+    cwd: run.cwd,
+    label: run.label ?? null,
+    pid: process.pid,
+  };
+  let registry;
+  try {
+    registry = { runId: registerRun(fields, env).runId };
+  } catch (error) {
+    registry = { error: error.message };
+  }
   appendEvent(
-    entry.runDir,
+    run.runDir,
     'started',
-    `started ${entry.executor} ${entry.model}${entry.label ? `: ${entry.label}` : ''}`,
+    `started ${run.executor} ${run.model}${fields.label ? `: ${fields.label}` : ''}`,
     { ...fields, ...ids },
   );
-  return entry;
+  return registry;
 }
 
 export function recordActivity(runDir, text) {
-  try {
-    appendEvent(runDir, 'activity', text);
-  } catch {
-    // Activity is best effort; the run's own artifacts keep the full trace.
-  }
+  appendEvent(runDir, 'activity', text);
 }
 
 export function stopRun(runDir, stop) {

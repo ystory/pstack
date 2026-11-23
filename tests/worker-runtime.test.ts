@@ -165,15 +165,11 @@ test('startRun registers each run once and opens its event log', async (t) => {
     (await readdir(runs)).sort(),
     [`${first.runId}.json`, `${second.runId}.json`].sort(),
   );
-  assert.deepEqual(
-    JSON.parse(await readFile(path.join(runs, `${first.runId}.json`), 'utf8')),
-    {
-      runId: first.runId,
-      ...run,
-      pid: process.pid,
-      startedAt: first.startedAt,
-    },
+  const { startedAt, ...entry } = JSON.parse(
+    await readFile(path.join(runs, `${first.runId}.json`), 'utf8'),
   );
+  assert.deepEqual(entry, { runId: first.runId, ...run, pid: process.pid });
+  assert.ok(!Number.isNaN(Date.parse(startedAt)));
   runtime.recordActivity(runDir, 'running: pnpm test\n  --filter x');
   runtime.stopRun(runDir, { kind: 'completed', code: 'completed' });
   const events = await jsonLines(path.join(runDir, 'events.jsonl'));
@@ -216,6 +212,68 @@ test('startRun registers each run once and opens its event log', async (t) => {
     ],
   );
   assert.throws(() => runtime.appendEvent(runDir, 'question', 'later'));
+});
+
+test('a run whose registration fails still opens its event log and records why', async (t) => {
+  const root = await temporary(t);
+  const blocked = path.join(root, 'state is a file');
+  await writeFile(blocked, '');
+  const runDir = path.join(root, 'run');
+  await mkdir(runDir);
+  const registry = runtime.startRun(
+    { runDir, executor: 'claude-code', model: 'model-fixture', cwd: root },
+    {},
+    { PSTACK_STATE_HOME: blocked },
+  );
+  assert.match(registry.error, /ENOTDIR/);
+  assert.deepEqual(
+    (await jsonLines(path.join(runDir, 'events.jsonl'))).map(
+      (event) => event.type,
+    ),
+    ['started'],
+  );
+});
+
+test('an interrupted registry write leaves no entry, and status skips an unreadable one', async (t) => {
+  const root = await temporary(t);
+  const state = path.join(root, 'state');
+  const env = { ...process.env, PSTACK_STATE_HOME: state };
+  const healthy = runtime.startRun(
+    { runDir: root, executor: 'codex', model: 'healthy-model', cwd: root },
+    {},
+    env,
+  );
+  // A 512-byte file size limit kills the writer partway through a long entry.
+  const register = `import { registerRun } from ${JSON.stringify(path.join(scripts, 'worker-runtime.mjs'))};
+registerRun({ runDir: process.cwd(), cwd: process.cwd(), pid: process.pid, executor: 'codex', model: 'fixture', label: 'ordinary label '.repeat(50) });`;
+  const interrupted = spawnSync(
+    '/bin/sh',
+    [
+      '-c',
+      'ulimit -c 0; ulimit -f 1; exec "$0" --input-type=module -e "$1"',
+      process.execPath,
+      register,
+    ],
+    { env, cwd: root },
+  );
+  assert.notEqual(interrupted.status, 0);
+  const runs = path.join(state, 'runs');
+  assert.deepEqual(
+    (await readdir(runs)).filter((name) => name.endsWith('.json')),
+    [`${healthy.runId}.json`],
+  );
+  await writeFile(path.join(runs, 'zz-truncated.json'), '{"runId": "zz-');
+  const status = spawnSync(
+    process.execPath,
+    [path.join(scripts, 'workers.mjs'), 'status', '--all', '--json'],
+    { encoding: 'utf8', env },
+  );
+  assert.equal(status.status, 0, status.stderr);
+  assert.deepEqual(
+    JSON.parse(status.stdout).map((run: { runId: string }) => run.runId),
+    [healthy.runId],
+  );
+  assert.match(status.stderr, /Skipped registry entry zz-truncated\.json/);
 });
 
 // Like the supervisor, count EPERM as present: macOS reports it for a group of unreaped zombies.

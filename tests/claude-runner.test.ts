@@ -619,6 +619,21 @@ test('child failure preserves the original result, stderr, and exit status', asy
   assert.equal(await readFile(receipt.stderrPath, 'utf8'), 'original stderr\n');
 });
 
+test('a run whose registry cannot be written still runs and records why', async (t) => {
+  const f = await fixture(t);
+  const blocked = path.join(f.root, 'state is a file');
+  await writeFile(blocked, '');
+  const result = f.invoke(f.runArgs, undefined, {
+    PSTACK_STATE_HOME: blocked,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(
+    await readFile(path.join(f.runDir, 'result.json'), 'utf8'),
+  );
+  assert.equal(receipt.status, 'completed');
+  assert.match(receipt.registry.error, /ENOTDIR/);
+});
+
 test('a child startup failure returns a receipt without fabricating a result', async (t) => {
   const f = await fixture(t);
   await writeFile(f.executable, '#!/nonexistent/pstack-test-interpreter\n');

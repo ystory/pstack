@@ -496,7 +496,7 @@ async function run(options, server) {
   fs.writeFileSync(files.prompt, prompt, { flag: 'wx' });
   fs.writeFileSync(files.progress, '', { flag: 'wx' });
   fs.writeFileSync(files.diagnostics, '', { flag: 'wx' });
-  startRun(
+  const registry = startRun(
     {
       runDir: directory,
       executor: EXECUTOR,
@@ -700,6 +700,7 @@ async function run(options, server) {
     approvedReview: request.approvedReview?.reviewId ?? null,
     deniedReviews,
     clientRequests,
+    registry,
     status,
     stop: stopRecord({
       kind: stopKind,

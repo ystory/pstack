@@ -927,7 +927,8 @@ async function execute(options) {
     mode: 0o700,
   });
   await fs.mkdir(options.runDir, { mode: 0o700 });
-  if (context)
+  const registry =
+    context &&
     startRun(
       {
         runDir: options.runDir,
@@ -1136,6 +1137,7 @@ async function execute(options) {
     completedAt: new Date().toISOString(),
   };
   if (context) {
+    receipt.registry = registry;
     receipt.recoveredError =
       !error && evidence.terminalResult?.status === 'ERROR'
         ? redact(evidence.terminalResult.error)

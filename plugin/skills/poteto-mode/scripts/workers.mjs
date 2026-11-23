@@ -87,9 +87,16 @@ function status(options) {
   try {
     roots.push(fs.realpathSync(directory));
   } catch {}
-  const listed = names
-    .sort()
-    .map((name) => JSON.parse(fs.readFileSync(path.join(runs, name), 'utf8')))
+  const entries = [];
+  for (const name of names.sort()) {
+    try {
+      entries.push(JSON.parse(fs.readFileSync(path.join(runs, name), 'utf8')));
+    } catch (error) {
+      // One unreadable entry must not hide the healthy runs.
+      console.error(`Skipped registry entry ${name}: ${error.message}`);
+    }
+  }
+  const listed = entries
     .filter(
       (entry) => options.all || roots.some((root) => inside(root, entry.cwd)),
     )

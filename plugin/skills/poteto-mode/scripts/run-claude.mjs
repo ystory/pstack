@@ -440,7 +440,7 @@ async function run(options) {
       stderr.once('open', resolve).once('error', reject),
     ),
   ]);
-  startRun(
+  const registry = startRun(
     {
       runDir,
       executor: EXECUTOR,
@@ -594,6 +594,7 @@ async function run(options) {
     terminalReason,
     result: typeof resultEvent?.result === 'string' ? resultEvent.result : null,
     resultEvent,
+    registry,
     status,
     stop: {
       // Orca claude-structured-session-acquisition.ts:88-94 trusts only frames of the

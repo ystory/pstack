@@ -102,7 +102,7 @@ lines.on('line', (line) => {
     notify('item/autoApprovalReview/completed',review('review-other-thread','denied','other-thread'));
    }
    if (prompt.includes('ASK')) JSON.parse(process.env.FAKE_SERVER_REQUESTS).forEach((method,index)=>send({id:'ask-'+index,method,params:{threadId,turnId}}));
-   if (prompt.includes('RETRY')) notify('error',{threadId,turnId,willRetry:true,error:JSON.parse(process.env.FAKE_RETRY_ERROR ?? 'null') ?? {message:'transient stream retry',codexErrorInfo:{responseStreamDisconnected:{httpStatusCode:502}},additionalDetails:null}});
+   if (prompt.includes('RETRY')) notify('error',{threadId,turnId:process.env.FAKE_RETRY_TURN_ID ?? turnId,willRetry:true,error:JSON.parse(process.env.FAKE_RETRY_ERROR ?? 'null') ?? {message:'transient stream retry',codexErrorInfo:{responseStreamDisconnected:{httpStatusCode:502}},additionalDetails:null}});
    if (prompt.includes('FINAL_ERROR')) notify('error',{threadId,turnId,willRetry:false,error:{message:process.env.FAKE_FINAL_ERROR_MESSAGE ?? 'final stream failure',codexErrorInfo:JSON.parse(process.env.FAKE_FINAL_ERROR_INFO ?? '"other"'),additionalDetails:null}});
    notify('item/completed',{threadId,turnId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'answer for '+threadId}});
    if (prompt.includes('EXIT')) { setTimeout(()=>process.exit(7),40); return; }
@@ -1143,6 +1143,16 @@ test('a failed Codex turn stops with the code its error variant proves and the e
       { FAKE_RETRY_ERROR: retried },
       'failed',
       'actual terminal failure',
+    ],
+    [
+      'other-turn-retry',
+      'RETRY FINAL_ERROR FAIL',
+      {
+        FAKE_RETRY_ERROR: retried,
+        FAKE_RETRY_TURN_ID: 'prior-turn',
+        FAKE_FINAL_ERROR_MESSAGE: 'capacity exhausted',
+      },
+      'failed',
     ],
   ] as const) {
     assert.equal(f.run(name, prompt, [], env).status, 1, name);

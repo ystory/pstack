@@ -589,9 +589,10 @@ async function run(options, server) {
   const threadSettings = { model: null, effort: null };
   const deniedReviews = [];
   let interrupt = null,
-    retry = null,
     // The task reaches Codex in turn/start; a rejected or unsent request never delivered it.
     inputSent = false;
+  // Retried errors by turn ID, so a late retry of another turn never names this one's stop.
+  const retries = new Map();
   const clientRequests = [];
   const child = { pid: null, exitCode: null, signal: null, closed: false };
   let provider = null,
@@ -653,12 +654,17 @@ async function run(options, server) {
     }
     if (message.params?.threadId !== threadId) return;
     if (message.method === 'turn/started') turnId = message.params.turn.id;
-    // Orca codex-turn-failures.ts observeRetry: the last retried error with a variant.
+    // Orca codex-turn-failures.ts observeRetry: each turn's last retried error with a variant.
     if (message.method === 'error' && message.params.willRetry !== false) {
       const info = errorInfo(message.params.error);
       const text = failureText(message.params.error);
-      if (info && info.error !== 'other' && text !== undefined)
-        retry = { info, text };
+      if (
+        typeof message.params.turnId === 'string' &&
+        info &&
+        info.error !== 'other' &&
+        text !== undefined
+      )
+        retries.set(message.params.turnId, { info, text });
     }
     if (message.method === 'item/started') {
       const activity = activityText(message.params.item);
@@ -764,7 +770,11 @@ async function run(options, server) {
           ? ['completed', 'completed', 'completed']
           : noRollout(failure, options.resume)
             ? ['error', 'missing-session', failure.message]
-            : turnFailure(failure, [terminal?.error, result?.error], retry);
+            : turnFailure(
+                failure,
+                [terminal?.error, result?.error],
+                retries.get(turnId),
+              );
   child.pid = provider?.providerPid ?? null;
   child.descendantsReaped = provider?.descendantsReaped ?? null;
   const exitCode =

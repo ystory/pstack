@@ -81,7 +81,9 @@ function buildResumeParams(threadId, cwd, options = {}) {
     model: options.model ?? null,
     approvalPolicy: options.approvalPolicy ?? "never",
     approvalsReviewer: options.approvalsReviewer,
-    sandbox: options.sandbox ?? "read-only"
+    sandbox: options.sandbox ?? "read-only",
+    // The turn needs no replay of the history, which is deprecated for paginated threads.
+    excludeTurns: true
   };
 }
 
@@ -1156,6 +1158,9 @@ export async function runAppServerTurn(cwd, options = {}) {
         ephemeral: false
       });
       threadId = response.thread.id;
+      if (threadId !== options.resumeThreadId) {
+        throw new Error(`codex app-server resumed ${threadId} instead of ${options.resumeThreadId}`);
+      }
     } else {
       emitProgress(options.onProgress, "Starting Codex task thread.", "starting");
       const response = await startThread(client, cwd, {

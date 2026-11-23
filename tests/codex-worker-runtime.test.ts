@@ -56,7 +56,8 @@ lines.on('line', (line) => {
  case 'model/list': if (process.env.FAKE_INSPECT_CASE === 'catalog-error') { send({id:request.id,error:{code:-32000,message:'catalog unavailable'}}); break; } respond(request,p.cursor ? {data:[{id:'second-model',model:'second-model',supportedReasoningEfforts:[{reasoningEffort:'high'}]}],nextCursor:null} : {data:[{id:'selected-model',model:'selected-model',supportedReasoningEfforts:[{reasoningEffort:'low'},{reasoningEffort:'xhigh'}]}],nextCursor:'second-page'}); break;
  case 'thread/start': case 'thread/resume':
   if (process.env.FAKE_HOLD_THREAD) break;
-  threadId = p.threadId ?? 'thread-'+process.pid;
+  if (p.threadId && process.env.FAKE_NO_ROLLOUT) { send({id:request.id,error:{code:-32600,message:'no rollout found for thread id '+p.threadId}}); break; }
+  threadId = p.threadId && process.env.FAKE_RESUME_OTHER ? 'thread-other' : p.threadId ?? 'thread-'+process.pid;
   rollout = process.env.FAKE_LOG+'.'+threadId+'.rollout.jsonl';
   fs.appendFileSync(rollout,JSON.stringify({type:'turn_context',payload:{turn_id:'earlier-turn',model:'earlier-model',effort:'ultra'}})+'\n{"type":\n');
   respond(request,{thread:{id:threadId,path:rollout},model:'observed-model',reasoningEffort:'high',cwd:p.cwd}); break;
@@ -934,6 +935,7 @@ test('parallel workers and interleaved exact continuation retain separate identi
   assert.equal(resume.request.params.sandbox, 'workspace-write');
   assert.equal(resume.request.params.approvalPolicy, 'on-request');
   assert.equal(resume.request.params.approvalsReviewer, 'auto_review');
+  assert.equal(resume.request.params.excludeTurns, true);
   assert.equal(Object.hasOwn(resume.request.params, 'threadSource'), false);
   assert.equal(
     events.some(
@@ -942,6 +944,40 @@ test('parallel workers and interleaved exact continuation retain separate identi
     ),
     false,
   );
+});
+
+test('a resume that opens no thread or another thread is not continuable', async (t) => {
+  const f = await fixture(t);
+  for (const [name, variable, code, message] of [
+    [
+      'missing',
+      'FAKE_NO_ROLLOUT',
+      'missing-session',
+      /no rollout found for thread id thread-saved$/,
+    ],
+    [
+      'other',
+      'FAKE_RESUME_OTHER',
+      'failed',
+      /resumed thread-other instead of thread-saved/,
+    ],
+  ] as const) {
+    const result = f.run(name, 'Continue.', ['--resume', 'thread-saved'], {
+      [variable]: '1',
+    });
+    assert.equal(result.status, 1, name);
+    const receipt = await f.receipt(name);
+    assert.equal(receipt.threadId, null, name);
+    assert.equal(receipt.rolloutPath, null, name);
+    assert.equal(receipt.stop.kind, 'error', name);
+    assert.equal(receipt.stop.code, code, name);
+    assert.equal(receipt.stop.continuable, false, name);
+    assert.match(receipt.error.message, message, name);
+    const methods = (await f.events())
+      .filter((entry) => entry.pid === receipt.process.pid && entry.request)
+      .map((entry) => entry.request.method);
+    assert.equal(methods.includes('turn/start'), false, name);
+  }
 });
 
 for (const { prompt, signal, turnKnown, startPending } of [

@@ -142,7 +142,11 @@ class AppServerClientBase {
       this.pending.delete(message.id);
 
       if (message.error) {
-        pending.reject(createProtocolError(message.error.message ?? `codex app-server ${pending.method} failed.`, message.error));
+        pending.reject(
+          Object.assign(createProtocolError(message.error.message ?? `codex app-server ${pending.method} failed.`, message.error), {
+            method: pending.method
+          })
+        );
       } else {
         pending.resolve(message.result ?? {});
       }

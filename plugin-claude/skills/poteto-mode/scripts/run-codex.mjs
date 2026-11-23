@@ -332,6 +332,12 @@ function signedOut(error) {
   );
 }
 
+// Orca codex-structured-thread-open.ts: only this thread-specific resume refusal proves no rollout.
+const noRollout = (failure, threadId) =>
+  failure?.method === 'thread/resume' &&
+  failure.data?.code === -32600 &&
+  failure.message.endsWith(`no rollout found for thread id ${threadId}`);
+
 const snakeCase = (value) =>
   value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 
@@ -493,7 +499,12 @@ async function run(options, server) {
     if (message.id !== undefined) {
       const method = pending.get(message.id);
       pending.delete(message.id);
-      if (['thread/start', 'thread/resume'].includes(method)) {
+      // A resume that opened another thread proves no identity to continue.
+      if (
+        method === 'thread/start' ||
+        (method === 'thread/resume' &&
+          message.result?.thread?.id === options.resume)
+      ) {
         threadId = message.result?.thread?.id ?? threadId;
         rolloutPath = message.result?.thread?.path ?? rolloutPath;
         threadSettings.model = message.result?.model ?? null;
@@ -571,6 +582,7 @@ async function run(options, server) {
     failure = {
       message: error.message,
       code: error.code ?? null,
+      method: error.method ?? null,
       data: error.data ?? null,
       stack: error.stack,
     };
@@ -597,7 +609,9 @@ async function run(options, server) {
               'error',
               signedOut(terminal?.error) || signedOut(result?.error)
                 ? 'not-signed-in'
-                : 'failed',
+                : noRollout(failure, options.resume)
+                  ? 'missing-session'
+                  : 'failed',
               failure?.message ?? 'failed',
             ];
   child.pid = provider?.providerPid ?? null;

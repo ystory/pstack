@@ -903,6 +903,33 @@ test('a run records whether the supervisor killed descendants that outlived the 
   }
 });
 
+test('closing the client gives the server its stdin-end grace before any signal', async (t) => {
+  const f = await fixture(t);
+  const flushed = path.join(f.root, 'flushed');
+  const closeLine = "lines.on('close',()=>process.exit(0));";
+  assert.ok(fakeProtocol.includes(closeLine));
+  // The server finishes a write 250 ms after its stdin ends, inside the 1 s grace.
+  await writeFile(
+    f.executable,
+    (
+      fakePrelude +
+      fakeStandalone +
+      fakeProtocol.replace(
+        closeLine,
+        `process.on('SIGTERM',()=>process.exit(23));lines.on('close',()=>setTimeout(()=>{fs.writeFileSync(${JSON.stringify(flushed)},'flushed');process.exit(0);},250));`,
+      )
+    ).replace('#!/usr/bin/env node', '#!' + process.execPath),
+    { mode: 0o755 },
+  );
+  assert.equal(f.run('flush').status, 0);
+  const receipt = await f.receipt('flush');
+  assert.equal(await readFile(flushed, 'utf8'), 'flushed');
+  assert.deepEqual(
+    [receipt.process.exitCode, receipt.process.signal],
+    [0, null],
+  );
+});
+
 test('a retried Codex error stays out of the receipt and a final one is kept', async (t) => {
   const f = await fixture(t);
   assert.equal(f.run('retried', 'RETRY').status, 0);

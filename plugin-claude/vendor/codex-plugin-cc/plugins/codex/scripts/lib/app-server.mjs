@@ -1,4 +1,4 @@
-// pstack-cc modified this file for direct worker execution, cancellation, a caller-supplied spawn, and caller-supplied server-request answers.
+// pstack-cc modified this file for direct worker execution, cancellation, a caller-supplied spawn and its own stop, and caller-supplied server-request answers.
 /**
  * @typedef {Error & { data?: unknown, rpcCode?: number }} ProtocolError
  * @typedef {import("./app-server-protocol").AppServerMethod} AppServerMethod
@@ -255,7 +255,11 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
 
     this.closed = true;
 
-    if (this.proc && !this.proc.killed) {
+    if (this.proc && !this.proc.killed && process.platform !== "win32" && typeof this.proc.stop === "function") {
+      // A supervised child reads its stdin end as the close request; its supervisor
+      // gives the server its grace before the stop ladder.
+      void this.proc.stop("close");
+    } else if (this.proc && !this.proc.killed) {
       this.proc.stdin.end();
       setTimeout(() => {
         if (this.proc && !this.proc.killed && this.proc.exitCode === null) {

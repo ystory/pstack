@@ -1,0 +1,38 @@
+---
+status: accepted
+---
+
+# Follow Orca for cross-vendor worker runners
+
+The runners that start another vendor's agent as a pstack worker follow [Orca](https://github.com/stablyai/orca) (commit 84f67831). Those runners are `run-codex.mjs` on the Claude host, `run-claude.mjs` on the Codex host, and `run-agy.mjs` on both. Orca runs Claude Code, Codex, and Antigravity as each other's workers in production. Our first runners were built without that research. When a runner question comes up, Orca's source is the first reference.
+
+A runner keeps a behavior that differs from Orca's only for one of two reasons:
+
+1. **Upstream.** The behavior would change upstream pstack's workflow. Upstream sets an exact model per role, and its workers never ask a person. Workers may start agents of their own, and the parent reviews every diff.
+2. **Host.** Our hosts are a local Claude Code or Codex session, not the Orca app. Each run is one local process, and the host learns that the run ended when that process exits. There is no worker UI and no account switching.
+
+## Decisions
+
+| Aspect | Orca | pstack | Reason |
+|---|---|---|---|
+| Child environment | Strips the parent agent's session variables. Disables agy's auto-update and drops inherited Gemini keys | Same | Copy |
+| Child process lifetime | A detached supervisor runs the provider in its own group, reaps the group when its owner dies, and stops it in steps: stdin end, SIGTERM, SIGKILL | Same supervisor and timings | Copy |
+| Stop causes | Typed: not signed in, usage limit, model unavailable, provider failure, missing session | `stop.code` with the same causes | Copy |
+| Error text | Redacted, tail only | Same; raw text stays in the run directory | Copy |
+| Progress | Agent journal and status in Orca's UI | `events.jsonl` per run, with `workers.mjs status` and `follow` | Copy, through a host-neutral file |
+| Worker registry | Orca's database lists workers | One file per run under the pstack state directory | Copy, one writer per file |
+| Codex server requests | Typed answers when nobody can answer | Same answers instead of "unsupported" | Copy |
+| Codex resume and errors | `excludeTurns`, a resumed-ID check, errors counted only when `willRetry` is false | Same | Copy |
+| Claude session ID | Assigned before launch | Same | Copy |
+| agy API-key auth | Not used. Inherited keys are removed | Removed. Subscription login or ADC only | Copy |
+| Process per run vs per chat | One long-lived process per chat | One process per run. A message arriving at turn end continues the same process | Host |
+| Model per worker | Passed only when the user names one | An exact model and effort per role on every run | Upstream |
+| Worker sub-agents | Forbidden unless the task asks | Allowed | Upstream |
+| Codex worker history | Visible in Codex history | Hidden by default ([ADR 0004](0004-codex-worker-visibility-setting.md)) | Host. Without a worker UI of our own, visible threads crowd Codex Desktop |
+| Accounts and sign-in | Managed account homes and in-app sign-in | The user's existing login | Host |
+| Terminal workers and hooks | Default worker mode; hooks report its status | Structured runs only; the runner reads the event stream | Host. We have no terminal host |
+| Coordinator channel and approvals | `send`, `ask`, `escalation`, `worker_done`. The coordinator may allow or deny a permission prompt once | Planned for phase 2. Questions are limited to the cases where upstream says to stop | Copy (phase 2) |
+
+## Consequences
+
+Each runner change cites the Orca file and line it copies. A difference from Orca names reason 1 or 2. Reason 1 needs the upstream line it keeps. Reason 2 needs the host constraint. A difference with neither reason is a defect.

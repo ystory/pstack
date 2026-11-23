@@ -51,6 +51,7 @@ A task that edits `index.mjs` and verifies it with `node --test index.test.mjs` 
 node "<poteto-mode>/scripts/run-claude.mjs" run \
   --cwd "/absolute/assigned-worktree" \
   --run-dir "/absolute/local-run-directory" \
+  --label "<short task name>" \
   --model "<resolved-entry.model>" \
   --effort xhigh \
   --instruction "/absolute/applicable/AGENTS.md" \
@@ -75,6 +76,16 @@ The outbound runner automatically includes the shared [receiving-worker executio
 ## Antigravity workers
 
 For `executor: "antigravity"`, preserve the returned exact `model` and separate `reasoningEffort`. Read [Antigravity execution](agy-execution.md) for the official agy runner, scoped session permissions, complete context, terminal receipts, cumulative usage, and exact continuation. Use this host's asynchronous command controls and collect every terminal receipt. Antigravity entries have no native agent type. Parent aliases stay native. Use known exact-model lineage for diversity. Custom or virtual routes with unknown lineage remain unknown. Preserve the calling workflow's selected-pool, cardinality, fresh-worker, required capability, and family gates.
+
+## Run records and progress
+
+The Codex, Claude, and Antigravity runners record each run the way Orca records its workers. Pass `--label "<short task name>"` on every launch. Each run appends `events.jsonl` to its run directory, one JSON line per event: `started` with the executor, model, effort, cwd, label, and runner pid, `activity` for a command, file edit, or tool call, `turn-completed`, and `stopped` with the stop kind and code. Each run also writes one registry file under the pstack state directory: `$PSTACK_STATE_HOME`, else `$XDG_STATE_HOME/pstack`, else `~/.local/state/pstack`.
+
+`node "<poteto-mode>/scripts/workers.mjs" status` lists the runs registered for the current directory and the directories inside it, with executor, model, label, state, and last event. A run is `running` while its runner lives without `result.json`, `lost` when the runner died without one, and otherwise its receipt's stop kind. Run it when the user asks what is running or where, and after compaction or a restart to find run directories rather than recalling them. `--cwd DIR` selects another checkout, `--all` lists every run, and `--json` prints records.
+
+`workers.mjs follow --run-dir DIR` prints each new event and exits when `result.json` appears, or with status 1 when the runner died without writing it. Read the same output when you check a runner's command session, and tell the user which executor, model, label, and checkout each worker uses when it starts.
+
+A receipt's `stop.code` names the cause: `completed`, `signal`, `deadline`, `usage-limit`, `not-signed-in`, `model-unavailable`, `provider`, `missing-session`, `permission-mode`, `permission-denied`, `unsupported-auth`, or `failed`. `stop.cause` holds the redacted tail of the evidence, and the run directory keeps the raw diagnostics. `not-signed-in` and `unsupported-auth` need the user's login or setup. `usage-limit` and `provider` follow the calling workflow's dropout rule. `missing-session` cannot continue. Each runner starts its CLI under a supervisor that removes the parent session's environment, runs the CLI in its own process group, and stops that group when the runner stops or dies.
 
 ## Local worktrees
 

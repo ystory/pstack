@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import {
   mkdir,
   mkdtemp,
@@ -431,6 +431,42 @@ process.stdin.on('end', () => {
   assert.equal(alive(Number(await readFile(pidFile, 'utf8'))), false);
 });
 
+test('close waits at most the drain bound for pipes a helper outside the group holds', async (t) => {
+  const root = await temporary(t);
+  const pidFile = path.join(root, 'holder.pid');
+  const child = runtime.spawnSupervised(
+    process.execPath,
+    [
+      '-e',
+      `const holder = require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { detached: true, stdio: ['ignore', 1, 2] });
+holder.unref();
+require('node:fs').writeFileSync(process.argv[1], String(holder.pid));
+process.stdout.write('answer');`,
+      pidFile,
+    ],
+    { lifetime: 'one-shot', stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+  t.after(() => {
+    try {
+      process.kill(Number(readFileSync(pidFile, 'utf8')));
+    } catch {}
+  });
+  let stdout = '';
+  child.stdout.on('data', (bytes: Buffer) => (stdout += bytes));
+  child.stderr.resume();
+  await once(child, 'exit');
+  const exitedAt = Date.now();
+  assert.deepEqual(await once(child, 'close'), [0, null]);
+  const waited = Date.now() - exitedAt;
+  // Without the bound, close would wait out the holder's 20 s.
+  assert.ok(
+    waited < runtime.SUPERVISOR_MAX_STOP_MS,
+    `close came ${waited} ms after the provider exited`,
+  );
+  assert.equal(stdout, 'answer');
+  assert.ok(alive(Number(await readFile(pidFile, 'utf8'))));
+});
+
 test('the supervisor reports whether it killed descendants that outlived the provider', async (t) => {
   const root = await temporary(t);
   const pidFile = path.join(root, 'helper.pid');
@@ -489,11 +525,10 @@ test("stop ends a one-shot provider through the supervisor and close reports the
 
 test('a provider killed by a signal Node ignores reports that signal', async (t) => {
   await temporary(t);
-  const child = runtime.spawnSupervised(
-    '/bin/sh',
-    ['-c', 'kill -PIPE $$'],
-    { lifetime: 'one-shot', stdio: ['ignore', 'pipe', 'pipe'] },
-  );
+  const child = runtime.spawnSupervised('/bin/sh', ['-c', 'kill -PIPE $$'], {
+    lifetime: 'one-shot',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   child.stdout.resume();
   child.stderr.resume();
   const [exit, close] = await Promise.all([

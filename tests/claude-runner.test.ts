@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { constants, existsSync } from 'node:fs';
+import { constants, existsSync, readFileSync } from 'node:fs';
 import {
   access,
   chmod,
@@ -152,6 +152,12 @@ if (args[0] === '--version') {
   } else if (scenario === 'aborted-error' || scenario === 'aborted-success') {
     const error = scenario === 'aborted-error';
     process.stdout.write(JSON.stringify({type: 'result', subtype: error ? 'error_during_execution' : 'success', is_error: error, terminal_reason: error ? 'aborted_tools' : 'aborted_streaming', session_id: sid}) + '\\n');
+  } else if (scenario === 'pipe-holder') {
+    const { spawn } = await import('node:child_process');
+    const holder = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 20000)'], { detached: true, stdio: ['ignore', 1, 2] });
+    holder.unref();
+    writeFileSync(process.env.PSTACK_FAKE_READY, String(holder.pid));
+    process.stdout.write(JSON.stringify({type: 'result', subtype: 'success', is_error: false, result: 'held', session_id: sid}) + '\\n');
   } else if (scenario === 'missing-result') {
     process.stdout.write(JSON.stringify({type: 'system', subtype: 'init', session_id: sid}) + '\\n');
   } else {
@@ -753,6 +759,28 @@ test("a cancelled run records the CLI's own exit beside the stop signal", async 
     [receipt.stop.kind, receipt.stop.code, receipt.stop.cause],
     ['interrupted', 'signal', 'SIGINT'],
   );
+});
+
+test("a helper outside the CLI's group holding its output cannot delay the receipt past the drain bound", async (t) => {
+  const f = await fixture(t);
+  const holder = path.join(f.root, 'holder.pid');
+  t.after(() => {
+    try {
+      process.kill(Number(readFileSync(holder, 'utf8')));
+    } catch {}
+  });
+  const startedAt = Date.now();
+  const result = f.invoke(f.runArgs, 'Perform the assignment.', {
+    PSTACK_FAKE_SCENARIO: 'pipe-holder',
+    PSTACK_FAKE_READY: holder,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  // Without the bound, the runner would wait out the holder's 20 s.
+  assert.ok(Date.now() - startedAt < 8000, `${Date.now() - startedAt} ms`);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.status, 'completed');
+  assert.equal(receipt.result, 'held');
+  assert.match(await readFile(receipt.stdoutPath, 'utf8'), /"result":"held"/);
 });
 
 test('permission denials mark a completed Claude run for an approved continuation', async (t) => {

@@ -424,7 +424,7 @@ export const STDIN_END_GRACE_MS = 1_000;
 export const SIGTERM_GRACE_MS = 3_000;
 /** Bound kernel kill completion, so a process stuck on a hung drive cannot hang the stop. */
 export const GROUP_REAP_TIMEOUT_MS = 1_500;
-/** Orca's supervisor drains relayed output for this long; it stays in the owner's budget. */
+/** Longest the owner waits, after the supervisor exits, for the provider's output pipes to close. */
 export const OUTPUT_DRAIN_TIMEOUT_MS = 1_000;
 /** The owner waits out the supervisor's whole ladder before forcing the group itself. */
 export const SUPERVISOR_MAX_STOP_MS =
@@ -483,8 +483,19 @@ class SupervisedChild extends EventEmitter {
         );
     });
     raw.on('error', (error) => this.emit('error', error));
+    // The provider writes to the owner's pipes itself, so a helper outside its
+    // group can hold them open. Orca bounds the drain after the provider's exit;
+    // here the bound starts when the supervisor exits, after its reap.
+    let drain;
+    raw.once('exit', () => {
+      drain = setTimeout(() => {
+        raw.stdout?.destroy();
+        raw.stderr?.destroy();
+      }, OUTPUT_DRAIN_TIMEOUT_MS);
+    });
     // Close follows the IPC channel's close, so every report has arrived by then.
     raw.once('close', (code, signal) => {
+      clearTimeout(drain);
       if (this.#spawnError) {
         // A provider that never started looks like Node's own failed spawn.
         const errno = os.constants.errno[this.#spawnError.code];

@@ -545,6 +545,8 @@ async function run(options) {
   pending += decoder.end();
   stderrTail = (stderrTail + stderrDecoder.end()).slice(-STDERR_TAIL_MAX_CHARS);
   if (pending) event(pending);
+  // A pipe whose source was cut off at the drain bound never ends its destination.
+  for (const file of [stdout, stderr]) if (!file.writableEnded) file.end();
   await Promise.all([finished(stdout), finished(stderr)]);
   const signal =
     received ??

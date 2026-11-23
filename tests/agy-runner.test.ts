@@ -276,6 +276,17 @@ test('agy task stdin failure remains fatal after validated init', async (t) => {
   assert.equal(run.receipt.process.groupClosed, true);
 });
 
+test('agy task stdin failure stays fatal when the whole task fits in the pipe', async (t) => {
+  const f = await fixture(t);
+  const run = await f.invoke('closed-task-stdin');
+  assert.equal(run.watchdogFired, false, 'the runner hung without a receipt');
+  assert.notEqual(run.code, 0, JSON.stringify(run));
+  assert.equal(run.receipt.status, 'failed');
+  assert.equal(run.receipt.error, 'stdin: write EPIPE');
+  assert.equal(run.receipt.identityBeforeInput, true);
+  assert.equal(run.receipt.process.groupClosed, true);
+});
+
 test('agy sends one official user event with complete context, role body, exact settings and inherited harness', async (t) => {
   const f = await fixture(t);
   const instruction = path.join(f.root, 'AGENTS.md'),

@@ -162,8 +162,13 @@ if (spec.lifetime !== 'one-shot') {
 if (child?.stdin) {
   process.stdin.pipe(child.stdin);
   // A provider that stops reading must fail the owner's write as a direct pipe
-  // would. libuv never closes fd 0 itself, so close it and keep the slot taken.
-  child.stdin.on('error', () => {
+  // would. A write the owner already finished into this pipe cannot fail, so
+  // the report tells it. libuv never closes fd 0 itself, so close it and keep
+  // the slot taken.
+  child.stdin.once('error', (error) => {
+    report({
+      stdinError: { code: error?.code ?? 'EPIPE', message: String(error?.message) },
+    });
     process.stdin.destroy();
     releaseFd(0, 'r');
   });

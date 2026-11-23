@@ -469,6 +469,9 @@ class SupervisedChild extends EventEmitter {
     this.stdin = raw.stdin;
     this.stdout = raw.stdout;
     this.stderr = raw.stderr;
+    // The supervisor absorbed a failed provider write before it reported them,
+    // so an owner that never listened for one must not crash on the report.
+    raw.stdin?.on('error', () => {});
     raw.on('message', (message) => {
       if (Number.isSafeInteger(message?.providerPid))
         this.providerPid = message.providerPid;
@@ -476,6 +479,17 @@ class SupervisedChild extends EventEmitter {
         this.descendantsReaped = message.descendantsReaped;
       if (message?.providerExit)
         this.#emitExit(message.providerExit.code, message.providerExit.signal);
+      // The provider's stdin failed after the owner's write reached the
+      // supervisor; a direct child's stdin would have failed that write.
+      if (message?.stdinError && raw.stdin) {
+        raw.stdin.destroy();
+        raw.stdin.emit(
+          'error',
+          Object.assign(new Error(message.stdinError.message), {
+            code: message.stdinError.code,
+          }),
+        );
+      }
       if (message?.spawnError)
         this.#spawnError = Object.assign(
           new Error(message.spawnError.message),

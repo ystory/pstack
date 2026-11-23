@@ -24,6 +24,7 @@ import {
 import {
   childEnv,
   recordActivity,
+  redact,
   spawnSupervised,
   startRun,
   stopRecord,
@@ -31,6 +32,11 @@ import {
 } from './worker-runtime.mjs';
 
 const EXECUTOR = 'claude-code';
+// Orca managed-provider-process.ts:28.
+const STDERR_TAIL_MAX_CHARS = 8192;
+// Orca claude-stream-json-exit-error.ts:14-15.
+const CLAUDE_MISSING_CONVERSATION =
+  /^No conversation found with session ID: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*$/im;
 
 const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const USAGE = `Usage:
@@ -247,9 +253,39 @@ function activityText({ name, input = {} }) {
   return `tool: ${name}`;
 }
 
+// Orca claude-stream-json-exit-error.ts:45-58: the exit status, then stderr's
+// last lines, dropping the fragment a full tail starts with. Whole redacted
+// lines are kept from the end while they fit a stop cause.
+function exitText({ exitCode, signal }, stderrTail) {
+  const detail = (
+    stderrTail.length >= STDERR_TAIL_MAX_CHARS
+      ? stderrTail.slice(stderrTail.indexOf('\n') + 1)
+      : stderrTail
+  ).trim();
+  const how =
+    signal !== null
+      ? `(signal ${signal})`
+      : exitCode === null
+        ? ''
+        : `(code ${exitCode})`;
+  const head = `claude stream-json exited${how ? ` ${how}` : ''}`;
+  let lines = redact(detail, Infinity);
+  while (head.length + 2 + lines.length > 2000 && lines.includes('\n'))
+    lines = lines.slice(lines.indexOf('\n') + 1);
+  return lines ? `${head}: ${lines}` : head;
+}
+
 // The receipt's stop, from the first matching piece of evidence.
-function claudeStop({ signal, permissionMode, denials, succeeded, failure }) {
+function claudeStop({
+  signal,
+  missingSession,
+  permissionMode,
+  denials,
+  succeeded,
+  failure,
+}) {
   if (signal) return ['interrupted', 'signal', signal];
+  if (missingSession) return ['error', 'missing-session', missingSession];
   // Orca claude-full-access-refusal.ts:52-66 and claude-permission-mode-ladder.ts:47-74:
   // a first root init outside the launched mode is Claude's refusal of that mode.
   if (permissionMode !== null && permissionMode !== 'auto')
@@ -318,7 +354,8 @@ async function run(options) {
   const prompt = [
     `Working directory: ${cwd}\n\nApply the supplied project and role instructions to the assigned task. Use the supplied skill material for that task.`,
     ...context.map(
-      (file) => `## Complete ${file.kind} body from ${file.path}\n\n${file.content}`,
+      (file) =>
+        `## Complete ${file.kind} body from ${file.path}\n\n${file.content}`,
     ),
     `Receiving executor is ${EXECUTOR}.\n\n${await readFile(new URL('../references/worker-context.md', import.meta.url), 'utf8')}`,
     `## Assigned task\n\n${task}`,
@@ -402,6 +439,14 @@ async function run(options) {
   });
   child.stdout.pipe(stdout);
   child.stderr.pipe(stderr);
+  let stderrTail = '';
+  const stderrDecoder = new StringDecoder('utf8');
+  // Orca managed-provider-process.ts:143.
+  child.stderr.on('data', (chunk) => {
+    stderrTail = (stderrTail + stderrDecoder.write(chunk)).slice(
+      -STDERR_TAIL_MAX_CHARS,
+    );
+  });
   let pending = '';
   const decoder = new StringDecoder('utf8');
   let resultEvent = null;
@@ -473,6 +518,7 @@ async function run(options) {
   process.off('SIGINT', onInterrupt);
   process.off('SIGTERM', onTerminate);
   pending += decoder.end();
+  stderrTail = (stderrTail + stderrDecoder.end()).slice(-STDERR_TAIL_MAX_CHARS);
   if (pending) event(pending);
   await Promise.all([finished(stdout), finished(stderr)]);
   const signal =
@@ -488,8 +534,19 @@ async function run(options) {
     resultEvent.is_error !== true;
   const status = signal ? 'interrupted' : succeeded ? 'completed' : 'failed';
   const observedPermissionMode = rootInit?.permissionMode ?? null;
+  // Orca claude-stream-json-exit-error.ts:17-36, 61: Claude reports a missing
+  // conversation on stderr, or in a startup result's errors.
+  const resultErrors = Array.isArray(resultEvent?.errors)
+    ? resultEvent.errors.filter((entry) => typeof entry === 'string').join('\n')
+    : '';
+  const missingSession = CLAUDE_MISSING_CONVERSATION.test(stderrTail)
+    ? exitText(completion, stderrTail)
+    : CLAUDE_MISSING_CONVERSATION.test(resultErrors)
+      ? `claude reported a startup failure: ${resultErrors.trim()}`
+      : null;
   const [kind, code, cause] = claudeStop({
     signal,
+    missingSession,
     permissionMode: observedPermissionMode,
     denials,
     succeeded,
@@ -497,7 +554,7 @@ async function run(options) {
       spawnError ??
       parseError ??
       resultEvent?.subtype ??
-      `exit ${completion.exitCode}`,
+      exitText(completion, stderrTail),
   });
   const receipt = {
     ...request,
@@ -517,6 +574,7 @@ async function run(options) {
         code,
         cause,
         continuable:
+          missingSession === null &&
           sessionId !== null &&
           sessionId === (options.resume ?? requestedSessionId),
       }),

@@ -130,6 +130,16 @@ if (args[0] === '--version') {
     process.stdout.write('not JSON\\n');
   } else if (scenario === 'denied') {
     process.stdout.write(JSON.stringify({type: 'result', subtype: 'success', is_error: false, result: 'Read was denied.', session_id: sid, permission_denials: [{tool_name: 'Read', tool_use_id: 'toolu_denied', tool_input: {file_path: '/outside/secret.txt'}}]}) + '\\n');
+  } else if (scenario === 'missing-session') {
+    process.stderr.write('No conversation found with session ID: ' + sid + '\\n');
+    process.exitCode = 1;
+  } else if (scenario === 'missing-session-result') {
+    process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['No conversation found with session ID: ' + sid], session_id: sid}) + '\\n');
+    process.exitCode = 1;
+  } else if (scenario === 'stderr-crash') {
+    for (let line = 1; line <= 1000; line++) process.stderr.write('stderr line ' + String(line).padStart(4, '0') + ' xxxxxxxxxxxx\\n');
+    process.stderr.write('token=fixture-secret-value\\n');
+    process.exitCode = 3;
   } else if (scenario === 'missing-result') {
     process.stdout.write(JSON.stringify({type: 'system', subtype: 'init', session_id: sid}) + '\\n');
   } else {
@@ -928,4 +938,47 @@ test('a run Claude started outside auto mode stops with permission-mode', async 
     assert.equal(ran.observedPermissionMode, observed);
     assert.equal(ran.stop.code, 'completed');
   }
+});
+
+for (const scenario of ['missing-session', 'missing-session-result'])
+  test(`a resume of a conversation Claude cannot find stops with missing-session (${scenario})`, async (t) => {
+    const f = await fixture(t);
+    const result = f.invoke([...f.runArgs, '--resume', sessionId], undefined, {
+      PSTACK_FAKE_SCENARIO: scenario,
+    });
+    assert.equal(result.status, 1, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.stop.kind, 'error');
+    assert.equal(receipt.stop.code, 'missing-session');
+    assert.equal(receipt.stop.continuable, false);
+    assert.ok(
+      receipt.stop.cause.includes(
+        `No conversation found with session ID: ${sessionId}`,
+      ),
+    );
+  });
+
+test('a run without a result reports its last whole stderr lines, redacted', async (t) => {
+  const f = await fixture(t);
+  const result = f.invoke(f.runArgs, undefined, {
+    PSTACK_FAKE_SCENARIO: 'stderr-crash',
+  });
+  assert.equal(result.status, 3, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.resultEvent, null);
+  assert.equal(receipt.stop.code, 'failed');
+  const { cause } = receipt.stop;
+  assert.ok(cause.length <= 2000);
+  assert.match(
+    cause,
+    /^claude stream-json exited \(code 3\): stderr line \d{4} x{12}\n/,
+  );
+  assert.ok(
+    cause.endsWith('stderr line 1000 xxxxxxxxxxxx\n[redacted:labeled-kv]'),
+  );
+  assert.ok(!cause.includes('fixture-secret-value'));
+  assert.match(
+    await readFile(receipt.stderrPath, 'utf8'),
+    /token=fixture-secret-value/,
+  );
 });

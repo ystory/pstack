@@ -137,6 +137,10 @@ if (args[0] === '--version') {
     process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, result: 'Original authentication failure', session_id: sid}) + '\\n');
     process.stderr.write('original stderr\\n');
     process.exitCode = 7;
+  } else if (scenario === 'other-missing') {
+    process.stderr.write('No conversation found with session ID: 00000000-0000-4000-8000-000000000042\\n');
+    process.stdout.write(JSON.stringify({type: 'result', subtype: process.env.PSTACK_FAKE_SUBTYPE ?? 'success', is_error: process.env.PSTACK_FAKE_SUBTYPE !== undefined, result: 'resumed answer', session_id: sid}) + '\\n');
+    process.exitCode = process.env.PSTACK_FAKE_SUBTYPE === undefined ? 0 : 1;
   } else if (scenario === 'foreign-result') {
     process.stdout.write(JSON.stringify({type: 'system', subtype: 'init', session_id: sid, permissionMode: 'auto'}) + '\\n');
     process.stdout.write(JSON.stringify({type: 'result', subtype: 'success', is_error: false, result: 'foreign answer', session_id: '00000000-0000-4000-8000-000000000042'}) + '\\n');
@@ -1184,6 +1188,33 @@ for (const scenario of ['missing-session', 'missing-session-result'])
       ),
     );
   });
+
+test("another conversation's missing notice never marks a resume missing-session", async (t) => {
+  const f = await fixture(t);
+  const resumed = f.invoke([...f.runArgs, '--resume', sessionId], undefined, {
+    PSTACK_FAKE_SCENARIO: 'other-missing',
+  });
+  assert.equal(resumed.status, 0, resumed.stderr);
+  const receipt = JSON.parse(resumed.stdout);
+  assert.equal(receipt.result, 'resumed answer');
+  assert.deepEqual(
+    [receipt.stop.code, receipt.stop.continuable],
+    ['completed', true],
+  );
+  const g = await fixture(t);
+  const failed = g.invoke([...g.runArgs, '--resume', sessionId], undefined, {
+    PSTACK_FAKE_SCENARIO: 'other-missing',
+    PSTACK_FAKE_SUBTYPE: 'error_during_execution',
+  });
+  assert.equal(failed.status, 1, failed.stderr);
+  assert.deepEqual(
+    [
+      JSON.parse(failed.stdout).stop.code,
+      JSON.parse(failed.stdout).stop.continuable,
+    ],
+    ['failed', true],
+  );
+});
 
 test('a run without a result reports its last whole stderr lines, redacted', async (t) => {
   const f = await fixture(t);

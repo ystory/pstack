@@ -43,9 +43,9 @@ const CLAUDE_ABORTED_TERMINAL_REASONS = new Set([
   'aborted_streaming',
   'aborted_tools',
 ]);
-// Orca claude-stream-json-exit-error.ts:14-15.
-const CLAUDE_MISSING_CONVERSATION =
-  /^No conversation found with session ID: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*$/im;
+// Orca claude-stream-json-exit-error.ts:14-15, for the one conversation the run named.
+const missingConversation = (sessionId) =>
+  new RegExp(`^No conversation found with session ID: ${sessionId}\\s*$`, 'im');
 
 const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const USAGE = `Usage:
@@ -601,11 +601,15 @@ async function run(options) {
   const resultErrors = Array.isArray(resultEvent?.errors)
     ? resultEvent.errors.filter((entry) => typeof entry === 'string').join('\n')
     : '';
-  const missingSession = CLAUDE_MISSING_CONVERSATION.test(stderrTail)
-    ? exitText(completion, stderrTail)
-    : CLAUDE_MISSING_CONVERSATION.test(resultErrors)
-      ? `claude reported a startup failure: ${resultErrors.trim()}`
-      : null;
+  // Orca reads them only for a failed start, so a successful result stands.
+  const missing = missingConversation(expectedSessionId);
+  const missingSession = succeeded
+    ? null
+    : missing.test(stderrTail)
+      ? exitText(completion, stderrTail)
+      : missing.test(resultErrors)
+        ? `claude reported a startup failure: ${resultErrors.trim()}`
+        : null;
   const [kind, code, cause] = claudeStop({
     received,
     signal,

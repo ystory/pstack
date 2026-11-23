@@ -137,6 +137,9 @@ if (args[0] === '--version') {
     process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, result: 'Original authentication failure', session_id: sid}) + '\\n');
     process.stderr.write('original stderr\\n');
     process.exitCode = 7;
+  } else if (scenario === 'error-credential') {
+    process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, result: 'API Error: 401 Authorization: Bearer abcDEF123456789xyz', errors: ['request failed: api_key=sk-ant-api03-' + 'A'.repeat(44)], session_id: sid}) + '\\n');
+    process.exitCode = 1;
   } else if (scenario === 'malformed') {
     process.stdout.write(Buffer.from([0xff, 0x0a]));
     process.stdout.write('not JSON\\n');
@@ -637,6 +640,30 @@ test('child failure preserves the original result, stderr, and exit status', asy
     continuable: true,
   });
   assert.equal(await readFile(receipt.stderrPath, 'utf8'), 'original stderr\n');
+});
+
+test("a failed result's provider text is redacted in the receipt and kept raw in the trace", async (t) => {
+  const f = await fixture(t);
+  const result = f.invoke(f.runArgs, 'Perform the assignment.', {
+    PSTACK_FAKE_SCENARIO: 'error-credential',
+  });
+  assert.equal(result.status, 1, result.stderr);
+  const secrets = /abcDEF123456789xyz|sk-ant-api03/g;
+  const written = await readFile(path.join(f.runDir, 'result.json'), 'utf8');
+  assert.deepEqual(
+    [written.match(secrets), result.stdout.match(secrets)],
+    [null, null],
+  );
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.result, 'API Error: 401 [redacted:labeled-kv]');
+  assert.equal(receipt.resultEvent.result, receipt.result);
+  assert.deepEqual(receipt.resultEvent.errors, [
+    'request failed: [redacted:labeled-kv]',
+  ]);
+  assert.equal(
+    (await readFile(receipt.stdoutPath, 'utf8')).match(secrets)?.length,
+    2,
+  );
 });
 
 test('a run whose registry cannot be written still runs and records why', async (t) => {

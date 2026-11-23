@@ -25,6 +25,7 @@ import {
   probeSupervised,
   recordActivity,
   redact,
+  redactValue,
   spawnSupervised,
   startRun,
   stopRecord,
@@ -325,6 +326,17 @@ function claudeStop({
   return ['error', 'failed', failure];
 }
 
+// A failed result's text is the provider's error wording, which can carry a
+// credential; a successful one is the worker's answer. stdout.jsonl keeps both raw.
+function receiptResult(event) {
+  if (!event || (event.is_error !== true && event.subtype === 'success'))
+    return event;
+  const copy = { ...event };
+  for (const key of ['result', 'errors'])
+    if (key in copy) copy[key] = redactValue(copy[key]);
+  return copy;
+}
+
 function markdownBody(text) {
   return text.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
 }
@@ -595,6 +607,7 @@ async function run(options) {
       resultEvent?.subtype ??
       exitText(completion, stderrTail),
   });
+  const resultCopy = receiptResult(resultEvent);
   const receipt = {
     ...request,
     pid: child.providerPid,
@@ -604,8 +617,8 @@ async function run(options) {
     observedModel,
     observedPermissionMode,
     terminalReason,
-    result: typeof resultEvent?.result === 'string' ? resultEvent.result : null,
-    resultEvent,
+    result: typeof resultCopy?.result === 'string' ? resultCopy.result : null,
+    resultEvent: resultCopy,
     registry,
     status,
     stop: {

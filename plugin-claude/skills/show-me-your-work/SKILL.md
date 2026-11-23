@@ -45,7 +45,7 @@ A run is one agent conversation, including its later turns and any summary of it
 
 ## Where it lives
 
-By default the log is a working artifact, not committed. Keep it at `decisions.tsv` in the work dir, or `.audit/<task-slug>.tsv` when several efforts run at once, and leave it out of git. In a Claude cloud session, keep it in the durable location from [Claude cloud sessions](../poteto-mode/references/claude-cloud.md) instead, because the work dir disappears with the container. Outside a Claude Project, that means a note posted on the PR, not a commit, so the rule below still decides when to commit it.
+By default the log is a working artifact, not committed. Keep it at `decisions.tsv` in the work dir, or `.audit/<task-slug>.tsv` when several efforts run at once, and leave it out of git.
 
 Commit it only when the work is ambitious enough that a reviewer needs the trail to trust the result.
 

@@ -47,3 +47,5 @@ shared/0006-worktree-dependency-state.patch
 0041-claude-projects-review-2.patch
 0042-upstream-0-15-46-refresh.patch
 shared/0007-neon-panel-budget.patch
+0043-remove-claude-cloud-work.patch
+0044-remove-claude-cloud-work-version.patch

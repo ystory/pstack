@@ -514,10 +514,6 @@
       "reason": "Retain the accepted immutable-bundle bootstrap, watcher, plan checker or project-scoped history adaptation."
     },
     {
-      "path": "skills/poteto-mode/scripts/watch-pr/github.ts",
-      "reason": "Read pull requests through gh REST routes after the host refuses GitHub GraphQL, as Claude cloud sessions do."
-    },
-    {
       "path": "skills/poteto-mode/scripts/watch-pr/watch-pr",
       "reason": "Retain the accepted immutable-bundle bootstrap, watcher, plan checker or project-scoped history adaptation."
     },

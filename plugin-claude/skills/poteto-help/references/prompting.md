@@ -39,15 +39,10 @@ A prompt states the intent and the check for done. The playbook supplies the ste
 
 - Say "im going to bed" or "im stepping away" so the agent stops asking.
 - Write done as checks every iteration can run, and give `/loop` that predicate.
-- In a Claude cloud session, `/loop` stops when the container is reclaimed. Ask instead for a run whose wakes follow [Claude cloud sessions](../../poteto-mode/references/claude-cloud.md).
 - Ask for a fresh worktree off a named base.
 - Pre-answer what the agent would stop for, such as "don't ask me before committing".
 - Ask for a decision log to audit later.
 - Give an exit: "if you're truly stuck after a few hours, stop and write up why".
-
-## In a Claude Project
-
-- A coordinator Claude writes the prompt for each thread, and the thread never receives a slash command. Follow [Claude Projects](../../poteto-mode/references/claude-projects.md) for that brief and for who the operator is.
 
 ## Steer in one line
 

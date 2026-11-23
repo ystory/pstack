@@ -43,7 +43,12 @@ async function fixture(t: TestContext) {
   const references = path.join(plugin, 'skills/poteto-mode/references');
   await mkdir(scripts, { recursive: true });
   await mkdir(references);
-  for (const name of ['run-agy.mjs', 'agy-capabilities.mjs'])
+  for (const name of [
+    'run-agy.mjs',
+    'agy-capabilities.mjs',
+    'worker-runtime.mjs',
+    'worker-supervisor.mjs',
+  ])
     await cp(path.join(path.dirname(source), name), path.join(scripts, name));
   await cp(
     path.join(path.dirname(source), '../references/worker-context.md'),
@@ -96,6 +101,7 @@ async function fixture(t: TestContext) {
           AGY_TRACE: trace,
           AGY_CHILD_PID: childPid,
           AGY_INHERITED_MARKER: 'inherited unchanged',
+          PSTACK_STATE_HOME: path.join(root, 'state'),
           ...env,
         },
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -334,6 +340,7 @@ test('agy sends one official user event with complete context, role body, exact 
     assert.equal(run.receipt.timeoutMs, null);
     assert.deepEqual(run.receipt.stop, {
       kind: 'completed',
+      code: 'completed',
       cause: 'completed',
       continuable: true,
     });
@@ -745,13 +752,14 @@ test('agy completes a turn whose native ERROR result carries a recovered model e
 
 test('agy interrupted runs keep a continuable conversation and continue it', async (t) => {
   const f = await fixture(t);
-  for (const [extra, signal, cause] of [
-    [['--timeout-ms', '350'], undefined, 'deadline'],
-    [[], 'SIGTERM', 'SIGTERM'],
+  for (const [extra, signal, code, cause] of [
+    [['--timeout-ms', '350'], undefined, 'deadline', 'deadline'],
+    [[], 'SIGTERM', 'signal', 'SIGTERM'],
   ] as const) {
     const run = await f.invoke('hang', [...extra], 'run', {}, signal);
     assert.deepEqual(run.receipt.stop, {
       kind: 'interrupted',
+      code,
       cause,
       continuable: true,
     });
@@ -1014,14 +1022,14 @@ test('agy missing model or effort fails before writing output or launching any p
 });
 
 test(
-  'agy fails and closes a CLI that exited while a descendant holds its output pipes',
+  'agy reaps a descendant holding its output pipes when the CLI exits',
   { timeout: 6000 },
   async (t) => {
     const f = await fixture(t);
     const run = await f.invoke('pipe-descendant');
     assert.notEqual(run.code, 0);
     assert.equal(run.receipt.status, 'failed');
-    assert.match(run.receipt.error, /descendant pipes|descendant processes/);
+    assert.equal(run.receipt.result, null);
     assert.equal(run.receipt.process.closed, true);
     assert.equal(run.receipt.process.groupClosed, true);
     const pid = Number(await readFile(run.childPid, 'utf8'));
@@ -1059,7 +1067,7 @@ test(
 );
 
 test(
-  'agy fails and kills descendants that outlive the closure grace after a normal CLI exit',
+  'agy catalog and run complete and reap descendants that outlive a normal CLI exit',
   { timeout: 20000 },
   async (t) => {
     const f = await fixture(t);
@@ -1069,17 +1077,12 @@ test(
         await readFile(path.join(run.runDir, 'result.json'), 'utf8'),
       );
       const diagnostic = `${command} ${JSON.stringify(receipt)}`;
-      assert.notEqual(run.code, 0, diagnostic);
-      assert.equal(receipt.status, 'failed', diagnostic);
-      assert.equal(
-        receipt.error,
-        'Owned CLI left descendant processes alive.',
-        diagnostic,
-      );
+      assert.equal(run.code, 0, diagnostic);
+      assert.equal(receipt.status, 'completed', diagnostic);
+      assert.equal(receipt.error, null, diagnostic);
       assert.equal(receipt.process.exitCode, 0, diagnostic);
       assert.equal(receipt.process.groupClosed, true, diagnostic);
-      assert.equal(receipt.process.shutdown, 'terminated', diagnostic);
-      if (command === 'run') assert.equal(receipt.result, null, diagnostic);
+      assert.equal(receipt.process.shutdown, 'orderly', diagnostic);
       const pid = Number(await readFile(run.childPid, 'utf8'));
       assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
     }

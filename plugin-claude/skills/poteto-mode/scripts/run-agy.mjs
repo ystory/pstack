@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { constants, openSync, closeSync, writeSync } from 'node:fs';
 import * as fs from 'node:fs/promises';
@@ -13,6 +12,15 @@ import {
   supportedAgyVersion,
   parseAgyModels,
 } from './agy-capabilities.mjs';
+import {
+  childEnv,
+  recordActivity,
+  redact,
+  spawnSupervised,
+  startRun,
+  stopRecord,
+  stopRun,
+} from './worker-runtime.mjs';
 
 const executor = 'antigravity';
 const pluginRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -41,7 +49,7 @@ const capabilities = {
   osReadOnlyEnforcement: false,
 };
 const usage =
-  'Usage: run-agy.mjs detect [--executable ABS] | catalog --cwd ABS --run-dir ABS [--executable ABS] | run --cwd ABS --run-dir ABS --model EXACT_ID --effort LEVEL [--instruction ABS] [--skill ABS] [--role ABS] [--prompt-file ABS] [--resume ABS_PRIOR_RECEIPT] [--timeout-ms N] [--executable ABS]';
+  'Usage: run-agy.mjs detect [--executable ABS] | catalog --cwd ABS --run-dir ABS [--executable ABS] | run --cwd ABS --run-dir ABS --model EXACT_ID --effort LEVEL [--instruction ABS] [--skill ABS] [--role ABS] [--prompt-file ABS] [--resume ABS_PRIOR_RECEIPT] [--timeout-ms N] [--executable ABS] [--label TEXT]';
 
 function optionsFor(argv) {
   const options = {
@@ -64,6 +72,7 @@ function optionsFor(argv) {
     '--resume': 'resume',
     '--timeout-ms': 'timeoutMs',
     '--executable': 'executable',
+    '--label': 'label',
   };
   for (let index = 1; index < argv.length; index += 2) {
     const key = names[argv[index]],
@@ -222,14 +231,14 @@ async function ownedProcess(executable, args, options) {
   const cleanupErrors = new Set();
   const sendSignal = (signal) => {
     try {
-      signalGroup(child?.pid, signal);
+      signalGroup(child?.providerPid, signal);
     } catch (error) {
       cleanupErrors.add(error.message);
     }
   };
   const alive = () => {
     try {
-      return groupExists(child?.pid);
+      return groupExists(child?.providerPid);
     } catch (error) {
       cleanupErrors.add(error.message);
       return true;
@@ -252,14 +261,15 @@ async function ownedProcess(executable, args, options) {
     cause ??= kind;
     if (child?.pid && !stopping) {
       stopping = true;
-      sendSignal(kind === 'interrupted' ? 'SIGINT' : 'SIGTERM');
-      later(() => sendSignal('SIGKILL'), 400);
-      later(() => {
-        child.stdin?.destroy();
-        child.stdout.destroy();
-        child.stderr.destroy();
-        settle();
-      }, 1200);
+      // The supervisor runs the stop ladder on the provider group.
+      void child.stop(kind === 'interrupted' ? 'SIGINT' : 'SIGTERM').then(() =>
+        later(() => {
+          child.stdin?.destroy();
+          child.stdout.destroy();
+          child.stderr.destroy();
+          settle();
+        }, 200),
+      );
     }
   };
   const send = () => {
@@ -272,10 +282,11 @@ async function ownedProcess(executable, args, options) {
   process.on('SIGINT', interrupt);
   process.on('SIGTERM', terminate);
   try {
-    child = spawn(executable, args, {
+    child = spawnSupervised(executable, args, {
       cwd: options.cwd,
-      detached: true,
+      env: childEnv(process.env, executor),
       stdio: [hasInput ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+      lifetime: 'one-shot',
     });
     child.once('error', (error) => {
       fail(error.message);
@@ -364,7 +375,7 @@ async function ownedProcess(executable, args, options) {
       inputSent: sent,
       identityBeforeInput,
       process: {
-        pid: child.pid ?? null,
+        pid: child.providerPid,
         exitCode: code,
         signal,
         closed,
@@ -535,26 +546,27 @@ function conversationVerified(receipt, requested) {
 }
 
 const interruptionCauses = {
-  'timed-out': 'deadline',
-  interrupted: 'SIGINT',
-  terminated: 'SIGTERM',
+  'timed-out': ['deadline', 'deadline'],
+  interrupted: ['signal', 'SIGINT'],
+  terminated: ['signal', 'SIGTERM'],
 };
 
 function stopFor(receipt) {
-  const [kind, cause] =
+  const [kind, code, cause] =
     receipt.status in interruptionCauses
-      ? ['interrupted', interruptionCauses[receipt.status]]
+      ? ['interrupted', ...interruptionCauses[receipt.status]]
       : receipt.status === 'completed'
-        ? ['completed', 'completed']
-        : ['error', receipt.error ?? receipt.status];
-  return {
+        ? ['completed', 'completed', 'completed']
+        : ['error', 'failed', receipt.error ?? receipt.status];
+  return stopRecord({
     kind,
+    code,
     cause,
     continuable: conversationVerified(receipt, {
       model: receipt.requested?.model,
       cwd: receipt.cwd,
     }),
-  };
+  });
 }
 
 async function priorFor(options, auth) {
@@ -623,6 +635,7 @@ function streamParser(options, prior) {
     toolErrors = [],
     userInput = false,
     count = 0;
+  const toolSteps = new Set();
   const line = (text, ready) => {
     if (!text.trim()) return;
     const value = JSON.parse(text);
@@ -653,6 +666,10 @@ function streamParser(options, prior) {
       if (!init || value.step_update?.conversation_id !== init.conversation_id)
         throw new Error('Step conversation ID disagrees with init.');
       const { step_type, state, tool_name, tool_info } = value.step_update;
+      if (step_type === 'tool' && !toolSteps.has(value.step_update.step_index)) {
+        toolSteps.add(value.step_update.step_index);
+        recordActivity(options.runDir, `tool: ${tool_name ?? tool_info?.name}`);
+      }
       if (
         ['ERROR', 'FAILED', 'CANCELLED', 'CANCELED', 'ABORTED'].includes(
           state,
@@ -750,6 +767,18 @@ async function execute(options) {
     mode: 0o700,
   });
   await fs.mkdir(options.runDir, { mode: 0o700 });
+  if (context)
+    startRun(
+      {
+        runDir: options.runDir,
+        executor,
+        model: options.model,
+        effort: options.effort,
+        cwd: options.cwd,
+        label: options.label ?? null,
+      },
+      prior ? { sessionId: prior.conversationId } : {},
+    );
   const resultPath = path.join(options.runDir, 'result.json');
   const stdoutPath = path.join(
     options.runDir,
@@ -762,6 +791,7 @@ async function execute(options) {
     command: options.command,
     cwd: options.cwd,
     runDir: options.runDir,
+    label: options.label ?? null,
     executable,
     requested: options.requested ?? null,
     auth,
@@ -903,7 +933,7 @@ async function execute(options) {
     ...request,
     args,
     status,
-    error,
+    error: error && redact(error),
     runtime,
     process: outcome?.process ?? {
       pid: null,
@@ -936,6 +966,7 @@ async function execute(options) {
         ? evidence.terminalResult.error
         : null;
     receipt.stop = stopFor(receipt);
+    stopRun(options.runDir, receipt.stop);
   }
   await fs.writeFile(resultPath, json(receipt), { flag: 'wx', mode: 0o600 });
   console.log(JSON.stringify(receipt));

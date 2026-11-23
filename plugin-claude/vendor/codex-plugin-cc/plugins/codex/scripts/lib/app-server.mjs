@@ -1,4 +1,4 @@
-// pstack-cc modified this file for direct worker execution and cancellation.
+// pstack-cc modified this file for direct worker execution, cancellation, and a caller-supplied spawn.
 /**
  * @typedef {Error & { data?: unknown, rpcCode?: number }} ProtocolError
  * @typedef {import("./app-server-protocol").AppServerMethod} AppServerMethod
@@ -190,7 +190,7 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
   async initialize() {
     const executable = this.options.executable ?? "codex";
     const args = this.options.appServerArgs ?? ["app-server"];
-    this.proc = spawn(executable, args, {
+    this.proc = (this.options.spawn ?? spawn)(executable, args, {
       cwd: this.cwd,
       env: this.options.env ?? process.env,
       stdio: ["pipe", "pipe", "pipe"],

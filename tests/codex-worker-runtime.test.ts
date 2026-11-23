@@ -138,13 +138,15 @@ async function fixture(t: TestContext) {
   );
   const runner = path.join(plugin, 'skills/poteto-mode/scripts/run-codex.mjs');
   await mkdir(path.dirname(runner), { recursive: true });
-  await cp(
-    path.join(
-      project,
-      'plugin-claude/skills/poteto-mode/scripts/run-codex.mjs',
-    ),
-    runner,
-  );
+  for (const name of [
+    'run-codex.mjs',
+    'worker-runtime.mjs',
+    'worker-supervisor.mjs',
+  ])
+    await cp(
+      path.join(project, 'plugin-claude/skills/poteto-mode/scripts', name),
+      path.join(path.dirname(runner), name),
+    );
   const workerContext = path.join(
     plugin,
     'skills/poteto-mode/references/worker-context.md',
@@ -187,6 +189,7 @@ async function fixture(t: TestContext) {
     CLAUDE_CONFIG_DIR: claudeHome,
     FAKE_LOG: log,
     CODEX_COMPANION_APP_SERVER_ENDPOINT: '/must-not-use-shared-broker',
+    PSTACK_STATE_HOME: path.join(root, 'state'),
   };
   const role = path.join(root, 'role.md'),
     instruction = path.join(root, 'AGENTS.md'),
@@ -337,6 +340,7 @@ test('copied runner delivers settings and full instruction bodies, then awaits t
   assert.equal(receipt.status, 'completed');
   assert.deepEqual(receipt.stop, {
     kind: 'completed',
+    code: 'completed',
     cause: 'completed',
     continuable: true,
   });
@@ -951,6 +955,7 @@ for (const { prompt, signal, turnKnown, startPending } of [
     assert.equal(receipt.status, 'interrupted');
     assert.deepEqual(receipt.stop, {
       kind: 'interrupted',
+      code: 'signal',
       cause: signal,
       continuable: receipt.threadId !== null,
     });

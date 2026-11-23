@@ -1098,13 +1098,15 @@ test('mixed setup uses the selected standalone server for safe account status an
     path.join(f.plugin, 'vendor'),
     { recursive: true },
   );
-  await cp(
-    path.join(
-      project,
-      'plugin-claude/skills/poteto-mode/scripts/run-codex.mjs',
-    ),
-    path.join(f.plugin, 'skills/poteto-mode/scripts/run-codex.mjs'),
-  );
+  for (const name of [
+    'run-codex.mjs',
+    'worker-runtime.mjs',
+    'worker-supervisor.mjs',
+  ])
+    await cp(
+      path.join(project, 'plugin-claude/skills/poteto-mode/scripts', name),
+      path.join(f.plugin, 'skills/poteto-mode/scripts', name),
+    );
   const server = path.join(f.root, 'standalone runtime with spaces');
   const log = path.join(f.root, 'standalone calls.jsonl');
   await writeFile(

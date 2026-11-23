@@ -8,6 +8,15 @@ import {
   claudeHome,
   savedCodexWorkers,
 } from '../../setup-pstack/scripts/state.mjs';
+import {
+  childEnv,
+  recordActivity,
+  redactError,
+  spawnSupervised,
+  startRun,
+  stopRecord,
+  stopRun,
+} from './worker-runtime.mjs';
 
 const EXECUTOR = 'codex';
 
@@ -16,9 +25,10 @@ const usage = `Usage: node run-codex.mjs detect [--executable ABS] [--codex-work
        node run-codex.mjs run --cwd ABS --run-dir ABS --model ID [--effort VALUE]
          [--instruction ABS ...] [--skill ABS ...] [--role ABS]
          [--resume EXACT_THREAD_ID] [--sandbox workspace-write|danger-full-access]
-         [--executable ABS] [--prompt-file ABS]
+         [--executable ABS] [--prompt-file ABS] [--label TEXT]
          [--approve-review REVIEW_ID --review-receipt ABS]
 Task text comes from --prompt-file or stdin. The run remains foreground until completion.
+--label names the run in workers.mjs status and the run's events.jsonl.
 The saved codexWorkers setting selects the server. --codex-workers overrides it
 for one detect or catalog probe.
 --approve-review records the user's approval of one denied review listed in the
@@ -44,6 +54,7 @@ function parse(argv) {
     'approve-review',
     'review-receipt',
     'codex-workers',
+    'label',
   ]);
   for (let index = 0; index < args.length; index += 1) {
     const name = args[index].slice(2);
@@ -147,6 +158,7 @@ function cliStatus(options, server) {
   const invoke = (args) =>
     spawnSync(server.executable, args, {
       cwd,
+      env: childEnv(process.env, EXECUTOR),
       encoding: 'utf8',
       timeout: 10_000,
       maxBuffer: 1024 * 1024,
@@ -210,6 +222,8 @@ async function inspect(options, server) {
       disableBroker: true,
       executable: server.executable,
       appServerArgs: server.args,
+      env: childEnv(process.env, EXECUTOR),
+      spawn: spawnSupervised,
     });
     const account = await client.request('account/read', {
       refreshToken: false,
@@ -281,6 +295,23 @@ function turnSettings(rolloutPath, turnId) {
     settings.effort = record.payload.effort ?? null;
   }
   return settings;
+}
+
+function activityText(item) {
+  switch (item?.type) {
+    case 'commandExecution':
+      return `running: ${item.command}`;
+    case 'fileChange':
+      return `editing ${(item.changes ?? []).map((change) => change.path).join(', ')}`;
+    case 'mcpToolCall':
+      return `tool: ${item.server}/${item.tool}`;
+    case 'dynamicToolCall':
+      return `tool: ${item.tool}`;
+    case 'webSearch':
+      return `searching: ${item.query}`;
+    default:
+      return null;
+  }
 }
 
 const snakeCase = (value) =>
@@ -369,6 +400,7 @@ async function run(options, server) {
     executor: EXECUTOR,
     runtime: server,
     cwd: options.cwd,
+    label: options.label ?? null,
     requested,
     resumeThreadId: options.resume ?? null,
     approvedReview: approval && {
@@ -387,6 +419,17 @@ async function run(options, server) {
   fs.writeFileSync(files.prompt, prompt, { flag: 'wx' });
   fs.writeFileSync(files.progress, '', { flag: 'wx' });
   fs.writeFileSync(files.diagnostics, '', { flag: 'wx' });
+  startRun(
+    {
+      runDir: directory,
+      executor: EXECUTOR,
+      model: options.model,
+      effort: options.effort ?? null,
+      cwd: options.cwd,
+      label: request.label,
+    },
+    options.resume ? { threadId: options.resume } : {},
+  );
   const controller = new AbortController();
   let signal = null;
   const stop = (value) => {
@@ -405,13 +448,15 @@ async function run(options, server) {
   const threadSettings = { model: null, effort: null };
   const deniedReviews = [];
   const child = { pid: null, exitCode: null, signal: null, closed: false };
+  let provider = null;
+  const supervisedSpawn = (...spawnArgs) =>
+    (provider = spawnSupervised(...spawnArgs));
   const pending = new Map();
   const diagnostic = (event) => {
     fs.appendFileSync(
       files.diagnostics,
       JSON.stringify({ at: new Date().toISOString(), ...event }) + '\n',
     );
-    if (event.event === 'spawn') child.pid = event.pid;
     if (event.event === 'exit')
       Object.assign(child, {
         exitCode: event.code,
@@ -441,6 +486,10 @@ async function run(options, server) {
     }
     if (message.params?.threadId !== threadId) return;
     if (message.method === 'turn/started') turnId = message.params.turn.id;
+    if (message.method === 'item/started') {
+      const activity = activityText(message.params.item);
+      if (activity) recordActivity(directory, activity);
+    }
     if (message.method === 'turn/completed') terminal = message.params.turn;
     if (
       message.method === 'item/autoApprovalReview/completed' &&
@@ -466,6 +515,8 @@ async function run(options, server) {
       direct: true,
       executable: server.executable,
       appServerArgs: server.args,
+      env: childEnv(process.env, EXECUTOR),
+      spawn: supervisedSpawn,
       signal: controller.signal,
       model: options.model,
       effort: options.effort,
@@ -505,6 +556,7 @@ async function run(options, server) {
       data: error.data ?? null,
       stack: error.stack,
     };
+    diagnostic({ event: 'failure', failure });
   } finally {
     process.removeListener('SIGINT', onInterrupt);
     process.removeListener('SIGTERM', onTerminate);
@@ -515,15 +567,16 @@ async function run(options, server) {
       : !failure && result?.status === 0 && terminal?.status === 'completed'
         ? 'completed'
         : 'failed';
-  const [stopKind, stopCause] = signal
-    ? ['interrupted', signal]
+  const [stopKind, stopCode, stopCause] = signal
+    ? ['interrupted', 'signal', signal]
     : terminal?.status === 'interrupted'
-      ? ['interrupted', 'native']
+      ? ['interrupted', 'failed', 'native']
       : deniedReviews.length
-        ? ['permission', 'denied review']
+        ? ['permission', 'permission-denied', 'denied review']
         : status === 'completed'
-          ? ['completed', 'completed']
-          : ['error', failure?.message ?? 'failed'];
+          ? ['completed', 'completed', 'completed']
+          : ['error', 'failed', failure?.message ?? 'failed'];
+  child.pid = provider?.providerPid ?? null;
   const exitCode =
     signal === 'SIGINT'
       ? 130
@@ -537,6 +590,7 @@ async function run(options, server) {
     executor: EXECUTOR,
     runtime: runtime ?? server,
     cwd: options.cwd,
+    label: request.label,
     sandbox: request.sandbox,
     threadId,
     turnId,
@@ -547,11 +601,16 @@ async function run(options, server) {
     approvedReview: request.approvedReview?.reviewId ?? null,
     deniedReviews,
     status,
-    stop: { kind: stopKind, cause: stopCause, continuable: threadId !== null },
+    stop: stopRecord({
+      kind: stopKind,
+      code: stopCode,
+      cause: stopCause,
+      continuable: threadId !== null,
+    }),
     resultStatus: result?.status ?? null,
     finalText,
     turn: terminal,
-    error: failure ?? result?.error ?? terminal?.error ?? null,
+    error: redactError(failure ?? result?.error ?? terminal?.error ?? null),
     exitCode,
     signal,
     process: child,
@@ -560,6 +619,7 @@ async function run(options, server) {
     files,
   };
   fs.writeFileSync(files.final, finalText, { flag: 'wx' });
+  stopRun(directory, receipt.stop);
   const temporary = files.result + '.tmp';
   fs.writeFileSync(temporary, JSON.stringify(receipt, null, 2) + '\n', {
     flag: 'wx',

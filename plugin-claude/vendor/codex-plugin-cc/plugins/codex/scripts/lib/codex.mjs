@@ -539,6 +539,11 @@ function applyTurnNotification(state, message) {
       }
       break;
     case "error":
+      // Codex retries a stream error itself unless willRetry is false; only that one ends the turn.
+      if (message.params.willRetry !== false) {
+        emitProgress(state.onProgress, `Codex retrying: ${message.params.error.message}`);
+        break;
+      }
       state.error = message.params.error;
       emitProgress(state.onProgress, `Codex error: ${message.params.error.message}`, "failed");
       break;

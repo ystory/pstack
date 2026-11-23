@@ -94,6 +94,8 @@ lines.on('line', (line) => {
     notify('item/autoApprovalReview/completed',review('review-denied','denied',threadId));
     notify('item/autoApprovalReview/completed',review('review-other-thread','denied','other-thread'));
    }
+   if (prompt.includes('RETRY')) notify('error',{threadId,turnId,willRetry:true,error:{message:'transient stream retry',codexErrorInfo:{responseStreamDisconnected:{httpStatusCode:502}},additionalDetails:null}});
+   if (prompt.includes('FINAL_ERROR')) notify('error',{threadId,turnId,willRetry:false,error:{message:'final stream failure',codexErrorInfo:'other',additionalDetails:null}});
    notify('item/completed',{threadId,turnId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'answer for '+threadId}});
    if (prompt.includes('EXIT')) { setTimeout(()=>process.exit(7),40); return; }
    timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?{message:'actual terminal failure'}:null}}),prompt.includes('FAIL')?450:40);
@@ -841,6 +843,23 @@ test('terminal failure wins over an earlier final answer and abrupt server exit 
   const exited = await f.receipt('exited');
   assert.equal(exited.status, 'failed');
   assert.equal(exited.process.exitCode, 7);
+});
+
+test('a retried Codex error stays out of the receipt and a final one is kept', async (t) => {
+  const f = await fixture(t);
+  assert.equal(f.run('retried', 'RETRY').status, 0);
+  const retried = await f.receipt('retried');
+  assert.equal(retried.status, 'completed');
+  assert.equal(retried.stop.code, 'completed');
+  assert.equal(retried.error, null);
+  assert.match(
+    await readFile(retried.files.progress, 'utf8'),
+    /Codex retrying: transient stream retry/,
+  );
+  assert.equal(f.run('final', 'RETRY FINAL_ERROR FAIL').status, 1);
+  const final = await f.receipt('final');
+  assert.equal(final.stop.kind, 'error');
+  assert.equal(final.error.message, 'final stream failure');
 });
 
 test('parallel workers and interleaved exact continuation retain separate identities and outputs', async (t) => {

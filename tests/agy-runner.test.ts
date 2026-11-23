@@ -975,6 +975,27 @@ test('agy leaves retry notices out of the answer and keeps them in the native re
   );
 });
 
+test('an agy notice that it could not rebuild its agent ends the conversation', async (t) => {
+  const f = await fixture(t);
+  const failed = await f.invoke('failure-notice');
+  assert.deepEqual(
+    [failed.receipt.sessionLost, failed.receipt.stop.continuable],
+    [false, true],
+  );
+  const lost = await f.invoke('rebuild-notice');
+  assert.deepEqual(
+    [lost.receipt.sessionLost, lost.receipt.stop.continuable],
+    [true, false],
+  );
+  const resumed = await f.invoke('normal', [
+    '--resume',
+    path.join(lost.runDir, 'result.json'),
+  ]);
+  assert.equal(resumed.code, 1);
+  assert.equal(resumed.receipt, null);
+  assert.match(resumed.stderr, /lacks exact conversation identity evidence/);
+});
+
 test('agy tool errors return to the worker and do not fail the run', async (t) => {
   const f = await fixture(t);
   const run = await f.invoke('tool-error');

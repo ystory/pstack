@@ -54,6 +54,9 @@ const launchModelFor = (model, effort) => {
 const retryNotice = /^\s*\u26a0 (Model produced invalid output\.)\s*$/;
 const turnFailureNotice =
   /^\s*(?:\u26a0 (?:UNAUTHENTICATED \(code 401\)|agent executor error): [^\n]*|API key not valid\. Please pass a valid API key\.|Agent execution error: failed to create Gemini client: [^\n]*|Agent connection was lost and could not be re-established: Failed to rebuild agent: [\s\S]*)\s*$/;
+// Orca antigravity-dialect.ts:160-161, 210-217: agy drops a conversation whose agent
+// it cannot rebuild, so later prompts find no session.
+const rebuildFailed = 'Failed to rebuild agent: ';
 const answerOf = (response) =>
   response
     .split('\n')
@@ -626,7 +629,8 @@ function conversationVerified(receipt, requested) {
     receipt.identityBeforeInput === true &&
     receipt.inputSent === true &&
     receipt.process?.closed === true &&
-    receipt.process.groupClosed === true
+    receipt.process.groupClosed === true &&
+    receipt.sessionLost !== true
   );
 }
 
@@ -810,6 +814,7 @@ function streamParser(options, prior) {
     failedStep = null,
     toolErrors = [],
     userInput = false,
+    sessionLost = false,
     count = 0;
   const toolSteps = new Set();
   const line = (text, ready) => {
@@ -822,8 +827,10 @@ function streamParser(options, prior) {
       typeof value.event !== 'string'
     )
       throw new Error('Expected an event-based stream object.');
-    if (value.event === 'error' || value.error || value.is_error === true)
+    if (value.event === 'error' || value.error || value.is_error === true) {
+      sessionLost ||= text.includes(rebuildFailed);
       throw new Error(`Native agy failure: ${JSON.stringify(value)}`);
+    }
     if (result) throw new Error('Stream continued after terminal result.');
     if (value.event === 'init') {
       if (init) throw new Error('Duplicate stream init.');
@@ -895,10 +902,12 @@ function streamParser(options, prior) {
         throw new Error(
           'Missing matching current-turn SUCCESS terminal result and nonempty response.',
         );
-      if (turnFailureNotice.test(answerOf(terminal.response)))
+      if (turnFailureNotice.test(answerOf(terminal.response))) {
+        sessionLost = terminal.response.includes(rebuildFailed);
         throw new Error(
           `agy ended the turn with a failure notice: ${answerOf(terminal.response).trim()}`,
         );
+      }
       if (
         !Number.isSafeInteger(terminal.num_turns) ||
         terminal.num_turns <= (prior?.numTurns ?? 0)
@@ -934,6 +943,7 @@ function streamParser(options, prior) {
         terminalResult: result,
         failedStep,
         toolErrors,
+        sessionLost,
       };
     },
   };

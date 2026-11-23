@@ -107,6 +107,9 @@ if (args[0] === '--version') {
   console.log((process.env.PSTACK_FAKE_VERSION ?? '2.1.287') + ' (Claude Code)');
 } else if (args[0] === '--help') {
   console.log(${JSON.stringify(fakeHelp)});
+} else if (args[0] === 'auth' && process.env.PSTACK_FAKE_AUTH) {
+  console.log(process.env.PSTACK_FAKE_AUTH === 'text-in' ? 'Logged in.' : 'Not logged in.');
+  process.exitCode = process.env.PSTACK_FAKE_AUTH === 'text-in' ? 0 : 1;
 } else if (args[0] === 'auth') {
   console.log(JSON.stringify({ loggedIn: process.env.PSTACK_FAKE_LOGGED_IN !== 'false', authMethod: 'oauth_token', email: 'private@example.invalid', token: 'private-fixture' }));
 } else {
@@ -1007,4 +1010,18 @@ test('a result Claude cut short is an interrupted stop, not a completion or fail
   const ran = JSON.parse(g.invoke(g.runArgs).stdout);
   assert.equal(ran.terminalReason, null);
   assert.equal(ran.stop.kind, 'completed');
+});
+
+test('detect reads sign-in from the exit code when auth status output does not parse', async (t) => {
+  const f = await fixture(t);
+  for (const [output, loggedIn] of [
+    ['text-in', true],
+    ['text-out', false],
+  ] as const) {
+    const result = f.invoke(['detect'], '', { PSTACK_FAKE_AUTH: output });
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.deepEqual(receipt.auth, { verified: true, loggedIn, method: null });
+    assert.equal(receipt.guidance.length, loggedIn ? 0 : 1);
+  }
 });

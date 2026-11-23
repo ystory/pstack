@@ -216,7 +216,14 @@ async function detect(options) {
       auth = JSON.parse(authResult.stdout);
     } catch {}
   }
-  const loggedIn = typeof auth?.loggedIn === 'boolean' ? auth.loggedIn : null;
+  // Orca environment-doctor.ts:28-34, 130-146: status wording changes between
+  // releases, so unparsed output falls back to the exit code; a timeout stays unknown.
+  const loggedIn =
+    typeof auth?.loggedIn === 'boolean'
+      ? auth.loggedIn
+      : !authResult.error && typeof authResult.status === 'number'
+        ? authResult.status === 0
+        : null;
   const method = auth?.authMethod ?? auth?.method;
   return {
     executor: EXECUTOR,

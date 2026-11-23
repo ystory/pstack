@@ -222,7 +222,10 @@ if (args[0] === '--version') {
     if (mode === 'recovered-error-nonzero') process.exitCode = 3;
   }
   if (mode === 'error-then-success')
-    emit({ event: 'error', error: 'original native failure' });
+    emit({
+      event: 'error',
+      error: process.env.AGY_NATIVE_ERROR ?? 'original native failure',
+    });
   if (
     [
       'hang',

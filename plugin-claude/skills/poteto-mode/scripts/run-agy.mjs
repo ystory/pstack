@@ -815,6 +815,8 @@ function streamParser(options, prior) {
     toolErrors = [],
     userInput = false,
     sessionLost = false,
+    // The raw native error line, which names its cause only for stopFor.
+    nativeError = '',
     count = 0;
   const toolSteps = new Set();
   const line = (text, ready) => {
@@ -829,6 +831,7 @@ function streamParser(options, prior) {
       throw new Error('Expected an event-based stream object.');
     if (value.event === 'error' || value.error || value.is_error === true) {
       sessionLost ||= text.includes(rebuildFailed);
+      nativeError ||= text;
       throw new Error(`Native agy failure: ${JSON.stringify(value)}`);
     }
     if (result) throw new Error('Stream continued after terminal result.');
@@ -935,6 +938,7 @@ function streamParser(options, prior) {
       if (!init || !result || count !== 1)
         throw new Error('Stream lacks exactly one matching terminal result.');
     },
+    nativeError: () => nativeError,
     evidence() {
       return {
         conversationId: init?.conversation_id ?? null,
@@ -1017,6 +1021,7 @@ async function execute(options) {
     error = null,
     failureKind = null,
     evidence = {},
+    nativeError = '',
     catalog = null;
   let args = [];
   try {
@@ -1096,7 +1101,10 @@ async function execute(options) {
       stdout: (bytes) => writeSync(stdoutFd, bytes),
       stderr: (bytes) => writeSync(stderrFd, bytes),
     });
-    if (parser) evidence = parser.evidence();
+    if (parser) {
+      evidence = parser.evidence();
+      nativeError = parser.nativeError();
+    }
     if (outcome.error) throw new Error(outcome.error);
     if (!outcome.process.closed || !outcome.process.groupClosed)
       throw new Error('Owned process closure is unconfirmed.');
@@ -1176,9 +1184,14 @@ async function execute(options) {
       !error && evidence.terminalResult?.status === 'ERROR'
         ? redact(evidence.terminalResult.error)
         : null;
+    // Orca classifies agy's own error text, wherever it arrives, by the same evidence.
     receipt.stop = stopFor(
       receipt,
-      `${await tail(stderrPath)}\n${evidence.terminalResult?.error ?? ''}`,
+      [
+        await tail(stderrPath),
+        evidence.terminalResult?.error ?? '',
+        nativeError,
+      ].join('\n'),
     );
     stopRun(options.runDir, receipt.stop);
   }

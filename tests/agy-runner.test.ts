@@ -975,6 +975,20 @@ test('agy leaves retry notices out of the answer and keeps them in the native re
   );
 });
 
+test("agy's sign-in wording in a native error event stops the run as not-signed-in", async (t) => {
+  const f = await fixture(t);
+  const run = await f.invoke('error-then-success', [], 'run', {
+    AGY_NATIVE_ERROR: 'Not signed in. Run agy login.',
+  });
+  assert.match(run.receipt.error, /Not signed in/);
+  assert.deepEqual(
+    [run.receipt.stop.kind, run.receipt.stop.code],
+    ['error', 'not-signed-in'],
+  );
+  const other = await f.invoke('error-then-success');
+  assert.equal(other.receipt.stop.code, 'failed');
+});
+
 test('an agy notice that it could not rebuild its agent ends the conversation', async (t) => {
   const f = await fixture(t);
   const failed = await f.invoke('failure-notice');

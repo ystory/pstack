@@ -56,11 +56,16 @@ try {
 try {
   closeSync(reportShield);
 } catch {}
-// Release this pid's copies of the owner's output pipes; /dev/null keeps the slots taken.
-for (const fd of [1, 2]) {
-  closeSync(fd);
-  openSync('/dev/null', 'w');
+// Closing a stdio fd and opening /dev/null at once refills that lowest free slot.
+function releaseFd(fd, flags) {
+  try {
+    closeSync(fd);
+  } catch {}
+  openSync('/dev/null', flags);
 }
+// Release this pid's copies of the owner's output pipes.
+releaseFd(1, 'w');
+releaseFd(2, 'w');
 // A spawn that failed without a pid reports through its 'error' event below.
 if (child?.pid) {
   try {
@@ -145,8 +150,12 @@ if (spec.lifetime !== 'one-shot') {
 }
 if (child?.stdin) {
   process.stdin.pipe(child.stdin);
-  // A provider that stops reading must fail the owner's write as a direct pipe would.
-  child.stdin.on('error', () => process.stdin.destroy());
+  // A provider that stops reading must fail the owner's write as a direct pipe
+  // would. libuv never closes fd 0 itself, so close it and keep the slot taken.
+  child.stdin.on('error', () => {
+    process.stdin.destroy();
+    releaseFd(0, 'r');
+  });
   // A dead owner's pipe raises EPIPE; unhandled, it would end this pid before the group.
   for (const stream of [process.stdin, child.stdin])
     stream.on('error', () => {});

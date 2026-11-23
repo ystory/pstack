@@ -31,6 +31,11 @@ const json = (value) => `${JSON.stringify(value, null, 2)}\n`;
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const descendantExitGraceMs = 3000;
+// Orca's ACP stop sends session/cancel and gives the turn this long to end before it
+// closes the process (acp-structured-session-adapter-deps.ts:19-20). Headless agy's
+// cancel is SIGINT.
+const cancelGraceMs = 4000;
+const cancellations = ['interrupted', 'terminated', 'timed-out'];
 const contains = (root, target) =>
   target === root || target.startsWith(`${root}${path.sep}`);
 const uuid = (value) =>
@@ -252,24 +257,42 @@ async function ownedProcess(executable, args, options) {
     timers.add(timer);
     return timer;
   };
-  let settle;
+  let settle, markExited;
   const completion = new Promise((resolve) => {
     settle = resolve;
   });
+  const exited = new Promise((resolve) => {
+    markExited = resolve;
+  });
+  const cancelTurn = async () => {
+    if (!child.providerPid || code !== null || signal !== null) return;
+    try {
+      process.kill(child.providerPid, 'SIGINT');
+    } catch (error) {
+      if (error.code !== 'ESRCH') cleanupErrors.add(error.message);
+    }
+    await new Promise((resolve) => {
+      later(resolve, cancelGraceMs);
+      void exited.then(resolve);
+    });
+  };
   const fail = (message, kind = 'failed') => {
     firstError ??= message;
     cause ??= kind;
     if (child?.pid && !stopping) {
       stopping = true;
-      // The supervisor runs the stop ladder on the provider group.
-      void child.stop(kind === 'interrupted' ? 'SIGINT' : 'SIGTERM').then(() =>
-        later(() => {
-          child.stdin?.destroy();
-          child.stdout.destroy();
-          child.stderr.destroy();
-          settle();
-        }, 200),
-      );
+      // A cancellation lets agy end its turn first; the supervisor then runs the
+      // stop ladder on the provider group.
+      void (cancellations.includes(kind) ? cancelTurn() : Promise.resolve())
+        .then(() => child.stop(kind === 'interrupted' ? 'SIGINT' : 'SIGTERM'))
+        .then(() =>
+          later(() => {
+            child.stdin?.destroy();
+            child.stdout.destroy();
+            child.stderr.destroy();
+            settle();
+          }, 200),
+        );
     }
   };
   const send = () => {
@@ -327,6 +350,7 @@ async function ownedProcess(executable, args, options) {
     child.once('exit', (exitCode, exitSignal) => {
       code = exitCode;
       signal = exitSignal;
+      markExited();
       if (code !== 0 || signal) fail(`agy exited ${code ?? signal}.`);
       later(() => {
         if (!closed) fail('Owned CLI exited with open descendant pipes.');

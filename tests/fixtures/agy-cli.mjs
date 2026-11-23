@@ -209,7 +209,13 @@ if (args[0] === '--version') {
   if (mode === 'error-then-success')
     emit({ event: 'error', error: 'original native failure' });
   if (
-    ['hang', 'late-success', 'descendant', 'pipe-descendant'].includes(mode)
+    [
+      'hang',
+      'late-success',
+      'descendant',
+      'pipe-descendant',
+      'slow-cancel',
+    ].includes(mode)
   ) {
     let descendant;
     if (mode === 'descendant' || mode === 'pipe-descendant') {
@@ -225,8 +231,9 @@ if (args[0] === '--version') {
       );
       writeFileSync(process.env.AGY_CHILD_PID, String(descendant.pid));
     }
-    const stop = async () => {
-      trace({ stopped: true });
+    const stop = async (signal) => {
+      trace({ stopped: signal, at: Date.now() });
+      if (mode === 'slow-cancel' && signal === 'SIGINT') return;
       if (mode === 'late-success') emit(result);
       if (descendant) {
         descendant.kill('SIGTERM');

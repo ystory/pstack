@@ -903,8 +903,43 @@ test('agy rejects stale and mismatched resumed streams and retains their consume
 });
 
 test(
+  'agy cancels a turn with SIGINT and gives the CLI 4 s to end it before the stop ladder',
+  { timeout: 30000 },
+  async (t) => {
+    const f = await fixture(t);
+    const stops = async (trace: string) =>
+      (await readFile(trace, 'utf8'))
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+        .filter((event) => 'stopped' in event);
+    for (const [extra, signal] of [
+      [['--timeout-ms', '350'], undefined],
+      [[], 'SIGTERM'],
+    ] as const) {
+      const prompt = await f.invoke('hang', [...extra], 'run', {}, signal);
+      assert.deepEqual(
+        (await stops(prompt.trace)).map((event) => event.stopped),
+        ['SIGINT'],
+      );
+      assert.equal(prompt.receipt.process.groupClosed, true);
+    }
+    const slow = await f.invoke('slow-cancel', ['--timeout-ms', '350']);
+    const [interrupt, terminate] = await stops(slow.trace);
+    assert.deepEqual(
+      [interrupt.stopped, terminate.stopped],
+      ['SIGINT', 'SIGTERM'],
+    );
+    const grace = terminate.at - interrupt.at;
+    assert.ok(grace >= 3900 && grace < 6000, `grace ${grace} ms`);
+    assert.equal(slow.receipt.status, 'timed-out');
+    assert.equal(slow.receipt.process.groupClosed, true);
+  },
+);
+
+test(
   'agy timeout and SIGINT/SIGTERM override late success and terminate the owned process tree',
-  { timeout: 15000 },
+  { timeout: 30000 },
   async (t) => {
     const f = await fixture(t);
     for (const mode of ['hang', 'late-success', 'descendant', 'init-hang']) {

@@ -468,13 +468,7 @@ test('saved visible codexWorkers launches the Codex CLI app-server', async (t) =
   assert.deepEqual(receipt.runtime.args, ['app-server']);
   assert.deepEqual(
     (await f.events()).filter((event) => event.args).map((event) => event.args),
-    [
-      ['--version'],
-      ['app-server', '--help'],
-      ['--version'],
-      ['app-server', '--help'],
-      ['app-server'],
-    ],
+    [['--version'], ['app-server', '--help'], ['app-server']],
   );
 });
 
@@ -976,6 +970,33 @@ test('a CLI probe dies with a runner that is killed while it runs', async (t) =>
   const pid = Number(await readFile(probePid, 'utf8'));
   runner.kill('SIGKILL');
   assert.ok(await until(() => !running(pid)), 'the probe outlived its runner');
+});
+
+test("a run probes the CLI once, supervised and without the parent's session", async (t) => {
+  const f = await fixture(t);
+  await writeFile(
+    f.executable,
+    (
+      fakePrelude +
+      'if (process.env.CODEX_THREAD_ID) log({ inheritedThread: process.env.CODEX_THREAD_ID });\n' +
+      fakeStandalone +
+      fakeProtocol
+    ).replace('#!/usr/bin/env node', '#!' + process.execPath),
+    { mode: 0o755 },
+  );
+  const run = f.run('one-probe', undefined, [], {
+    CODEX_THREAD_ID: 'parent-thread',
+  });
+  assert.equal(run.status, 0, run.stderr);
+  const events = await f.events();
+  assert.equal(
+    events.filter((event) => event.args?.join(' ') === '--version').length,
+    1,
+  );
+  assert.equal(
+    events.some((event) => 'inheritedThread' in event),
+    false,
+  );
 });
 
 test('a retried Codex error stays out of the receipt and a final one is kept', async (t) => {

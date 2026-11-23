@@ -1,4 +1,4 @@
-// pstack-cc modified this file for direct worker execution, cancellation, and reviewed approvals.
+// pstack-cc modified this file for direct worker execution, cancellation, reviewed approvals, and a caller's runtime probe.
 /**
  * @typedef {import("./app-server-protocol").AppServerNotification} AppServerNotification
  * @typedef {import("./app-server-protocol").ReviewTarget} ReviewTarget
@@ -1166,7 +1166,8 @@ export async function importExternalAgentSession(cwd, options = {}) {
 }
 
 export async function runAppServerTurn(cwd, options = {}) {
-  const availability = getCodexAvailability(cwd, options);
+  // A caller that probed the runtime under its own supervision passes that result.
+  const availability = options.availability ?? getCodexAvailability(cwd, options);
   if (!availability.available) {
     throw new Error(`Codex runtime unavailable: ${availability.detail}`);
   }

@@ -677,6 +677,7 @@ async function run(options, server) {
       );
     result = await runAppServerTurn(options.cwd, {
       direct: true,
+      availability: { available: true, detail: runtime.version },
       executable: server.executable,
       appServerArgs: server.args,
       env: childEnv(process.env, EXECUTOR),

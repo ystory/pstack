@@ -58,7 +58,7 @@ type ToolEvent = {
   };
 };
 
-const usage = `Usage: node scripts/check-agy-live.ts --evidence-dir ABS_NEW --fresh-runner ABS --resume-runner ABS --model EXACT_ID --effort LEVEL --inherited-auth gemini-api-key|adc|inherited-default [--executable ABS] [--timeout-ms N]`;
+const usage = `Usage: node scripts/check-agy-live.ts --evidence-dir ABS_NEW --fresh-runner ABS --resume-runner ABS --model EXACT_ID --effort LEVEL --inherited-auth adc|inherited-default [--executable ABS] [--timeout-ms N]`;
 const hash = (bytes: Buffer | string) =>
   createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
@@ -108,10 +108,14 @@ for (const flag of [
 ])
   if (options[flag] !== undefined)
     assert.ok(path.isAbsolute(options[flag]!), `${flag} must be absolute.`);
+// Workers refuse agy's Gemini API-key route, so the check cannot acknowledge it.
+assert.notEqual(
+  options['--inherited-auth'],
+  'gemini-api-key',
+  'Workers do not use the Gemini API-key route. Use subscription login or ADC.',
+);
 assert.ok(
-  ['gemini-api-key', 'adc', 'inherited-default'].includes(
-    options['--inherited-auth']!,
-  ),
+  ['adc', 'inherited-default'].includes(options['--inherited-auth']!),
   '--inherited-auth must acknowledge an already-authorized inherited method.',
 );
 const timeoutMs = Number(options['--timeout-ms'] ?? '120000');

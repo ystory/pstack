@@ -484,6 +484,15 @@ test('live agy verification requires explicit paid settings and a new evidence d
     0,
   );
   assert.notEqual(call({ ...values, '--evidence-dir': root }).status, 0);
+  // Even when agy's settings select the Gemini API-key route, the check refuses it.
+  await mkdir(path.join(root, '.gemini/antigravity-cli'), { recursive: true });
+  await writeFile(
+    path.join(root, '.gemini/antigravity-cli/settings.json'),
+    JSON.stringify({ modelProvider: 'gemini' }),
+  );
+  const apiKey = call({ ...values, '--inherited-auth': 'gemini-api-key' });
+  assert.notEqual(apiKey.status, 0);
+  assert.match(apiKey.stderr, /Workers do not use the Gemini API-key route/);
   await assert.rejects(stat(evidence), { code: 'ENOENT' });
   await assert.rejects(readFile(log), { code: 'ENOENT' });
 });

@@ -9,6 +9,7 @@ import {
   readdir,
   realpath,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import os from 'node:os';
@@ -212,6 +213,40 @@ test('startRun registers each run once and opens its event log', async (t) => {
     ],
   );
   assert.throws(() => runtime.appendEvent(runDir, 'question', 'later'));
+});
+
+test('a run started through a symlinked cwd is listed from the link and its target', async (t) => {
+  const root = await temporary(t);
+  const state = path.join(root, 'state');
+  const target = path.join(root, 'worktree');
+  const link = path.join(root, 'worktree link');
+  await mkdir(target);
+  await symlink(target, link);
+  const runDir = path.join(root, 'run');
+  await mkdir(runDir);
+  runtime.startRun(
+    { runDir, executor: 'claude-code', model: 'model-fixture', cwd: link },
+    {},
+    { PSTACK_STATE_HOME: state },
+  );
+  const listed = (cwd: string, ...args: string[]) => {
+    const result = spawnSync(
+      process.execPath,
+      [path.join(scripts, 'workers.mjs'), 'status', '--json', ...args],
+      {
+        cwd,
+        encoding: 'utf8',
+        env: { ...process.env, PSTACK_STATE_HOME: state },
+      },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout).map(
+      (run: { runDir: string }) => run.runDir,
+    );
+  };
+  assert.deepEqual(listed(link), [runDir]);
+  assert.deepEqual(listed(root, '--cwd', link), [runDir]);
+  assert.deepEqual(listed(root, '--cwd', target), [runDir]);
 });
 
 test('a run whose registration fails still opens its event log and records why', async (t) => {

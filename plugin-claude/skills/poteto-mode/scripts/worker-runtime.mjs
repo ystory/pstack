@@ -7,6 +7,7 @@ import {
   appendFileSync,
   linkSync,
   mkdirSync,
+  realpathSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -372,6 +373,15 @@ export function registerRun(
   return entry;
 }
 
+// status compares canonical paths, so a run started through a symlink is found from either path.
+function canonicalDirectory(directory) {
+  try {
+    return realpathSync(directory);
+  } catch {
+    return directory;
+  }
+}
+
 /** Registers the run and opens its event log. Both are best effort, so the worker
  * runs anyway; the result is the receipt's registry record, { runId } or { error }. */
 export function startRun(run, ids = {}, env = process.env) {
@@ -380,7 +390,7 @@ export function startRun(run, ids = {}, env = process.env) {
     executor: run.executor,
     model: run.model,
     effort: run.effort ?? null,
-    cwd: run.cwd,
+    cwd: canonicalDirectory(run.cwd),
     label: run.label ?? null,
     pid: process.pid,
   };

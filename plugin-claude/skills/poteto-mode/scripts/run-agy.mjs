@@ -16,6 +16,7 @@ import {
   childEnv,
   recordActivity,
   redact,
+  redactValue,
   spawnSupervised,
   startRun,
   stopRecord,
@@ -1111,6 +1112,11 @@ async function execute(options) {
       shutdown: 'not-started',
     },
     ...evidence,
+    // The native terminal result's error is provider text, which can carry a credential.
+    terminalResult: evidence.terminalResult && {
+      ...evidence.terminalResult,
+      error: redactValue(evidence.terminalResult.error),
+    },
     effectiveEffort: null,
     inputSent: outcome?.inputSent ?? false,
     identityBeforeInput: outcome?.identityBeforeInput ?? false,
@@ -1132,7 +1138,7 @@ async function execute(options) {
   if (context) {
     receipt.recoveredError =
       !error && evidence.terminalResult?.status === 'ERROR'
-        ? evidence.terminalResult.error
+        ? redact(evidence.terminalResult.error)
         : null;
     receipt.stop = stopFor(
       receipt,

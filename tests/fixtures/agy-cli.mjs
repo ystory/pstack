@@ -189,7 +189,9 @@ if (args[0] === '--version') {
     Object.assign(result.result, {
       status: 'ERROR',
       response: '',
-      error: 'Resource exhausted. Please try again later.',
+      error:
+        process.env.AGY_FIXTURE_TERMINAL_ERROR ??
+        'Resource exhausted. Please try again later.',
       finished_reason: 'error',
       usage: {
         input_tokens: 13417,
@@ -212,7 +214,9 @@ if (args[0] === '--version') {
     });
     Object.assign(result.result, {
       status: 'ERROR',
-      error: 'API error (attempt 1): Error 429, Status: RESOURCE_EXHAUSTED',
+      error:
+        process.env.AGY_FIXTURE_TERMINAL_ERROR ??
+        'API error (attempt 1): Error 429, Status: RESOURCE_EXHAUSTED',
       finished_reason: 'error',
     });
     if (mode === 'recovered-error-nonzero') process.exitCode = 3;

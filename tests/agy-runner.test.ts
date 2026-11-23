@@ -870,6 +870,30 @@ test('agy completes a turn whose native ERROR result carries a recovered model e
   );
 });
 
+test('agy keeps provider credentials out of the receipt copies of a native error', async (t) => {
+  const f = await fixture(t);
+  const secret = 'Error 401: Authorization: Bearer sample-only';
+  for (const mode of ['recovered-error', 'failure']) {
+    const run = await f.invoke(mode, [], 'run', {
+      AGY_FIXTURE_TERMINAL_ERROR: secret,
+    });
+    const receipt = await readFile(
+      path.join(run.runDir, 'result.json'),
+      'utf8',
+    );
+    assert.equal(receipt.includes('sample-only'), false, receipt);
+    assert.equal(run.stdout.includes('sample-only'), false, mode);
+    const masked = 'Error 401: [redacted:labeled-kv]';
+    assert.equal(JSON.parse(receipt).terminalResult.error, masked);
+    if (mode === 'recovered-error')
+      assert.equal(JSON.parse(receipt).recoveredError, masked);
+    assert.match(
+      await readFile(path.join(run.runDir, 'stdout.jsonl'), 'utf8'),
+      /Bearer sample-only/,
+    );
+  }
+});
+
 test('agy interrupted runs keep a continuable conversation and continue it', async (t) => {
   const f = await fixture(t);
   for (const [extra, signal, code, cause] of [

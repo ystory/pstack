@@ -101,7 +101,7 @@ lines.on('line', (line) => {
    if (prompt.includes('FINAL_ERROR')) notify('error',{threadId,turnId,willRetry:false,error:{message:'final stream failure',codexErrorInfo:JSON.parse(process.env.FAKE_FINAL_ERROR_INFO ?? '"other"'),additionalDetails:null}});
    notify('item/completed',{threadId,turnId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'answer for '+threadId}});
    if (prompt.includes('EXIT')) { setTimeout(()=>process.exit(7),40); return; }
-   timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?{message:'actual terminal failure',codexErrorInfo:JSON.parse(process.env.FAKE_TURN_ERROR_INFO ?? 'null')}:null}}),prompt.includes('FAIL')?450:40);
+   timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?JSON.parse(process.env.FAKE_TURN_ERROR ?? 'null') ?? {message:'actual terminal failure',codexErrorInfo:JSON.parse(process.env.FAKE_TURN_ERROR_INFO ?? 'null')}:null}}),prompt.includes('FAIL')?450:40);
   };
   if (!process.env.FAKE_HOLD_TURN_RESPONSE) started();
   break;
@@ -846,6 +846,28 @@ test('terminal failure wins over an earlier final answer and abrupt server exit 
   const exited = await f.receipt('exited');
   assert.equal(exited.status, 'failed');
   assert.equal(exited.process.exitCode, 7);
+});
+
+test('a failed turn keeps provider credentials out of every receipt copy of its error', async (t) => {
+  const f = await fixture(t);
+  const run = f.run('leak', 'FAIL', [], {
+    FAKE_TURN_ERROR: JSON.stringify({
+      message: 'authentication failed: Bearer sample-only',
+      data: { api_key: 'sample-only', note: 'api_token=sample-only' },
+    }),
+  });
+  assert.equal(run.status, 1);
+  const receipt = await f.receipt('leak');
+  assert.equal(run.stdout.includes('sample-only'), false, run.stdout);
+  assert.equal(JSON.stringify(receipt).includes('sample-only'), false);
+  assert.deepEqual(receipt.turn.error, {
+    message: 'authentication failed: [redacted:labeled-kv]',
+    data: { note: 'api_token=[redacted:labeled-kv]' },
+  });
+  assert.match(
+    await readFile(receipt.files.diagnostics, 'utf8'),
+    /Bearer sample-only/,
+  );
 });
 
 test('a retried Codex error stays out of the receipt and a final one is kept', async (t) => {

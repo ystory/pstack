@@ -54,8 +54,10 @@ const PROVIDER_PATTERNS = [
 ];
 const STANDALONE_BEARER = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
 const URL_USERINFO = /(https?:\/\/)([^/@\s]+)@/g;
-const ENV_LINE =
-  /^[^\S\r\n\u2028\u2029]*([A-Z_][A-Z0-9_]*)[^\S\r\n\u2028\u2029]*=[^\S\r\n\u2028\u2029]*\S.*/gm;
+// A whole multiline .env value, including one that starts on the next line.
+const ENV_LINE = /^\s*([A-Z_][A-Z0-9_]*)\s*=\s*\S.*/my;
+const WHITESPACE_RUN = /\s*/y;
+const LINE_TERMINATORS = ['\n', '\r', '\u2028', '\u2029'];
 const CREDENTIAL_ASSIGNMENT =
   /(?<![\w-])(?:\\?["'])?([\w-]+)(?:\\?["'])?\s*[:=]\s*/g;
 const CREDENTIAL_NAME =
@@ -64,6 +66,27 @@ const BARE_CREDENTIAL_NAME =
   /^(?:api[-_]?key|token|secret|password|bearer|authorization)$/i;
 const AUTH_SCHEME = /(?:Basic|Bearer|Token)[^\S\r\n\u2028\u2029]+/iy;
 const LINE_END = /[\r\n\u2028\u2029]/;
+// Structured keys whose unlabeled values no string rule can classify.
+const CREDENTIAL_KEYS = new Set([
+  'env',
+  'environment',
+  'env_vars',
+  'api_key',
+  'api-key',
+  'apikey',
+  'authorization',
+  'bearer',
+  'cookie',
+  'password',
+  'set-cookie',
+  'secret',
+  'token',
+  'proxy-authorization',
+  'headers.authorization',
+]);
+// Orca worker-terminal-redaction.ts: an Orca dispatch capability, which a
+// worker started from an Orca terminal can echo.
+const DISPATCH_CAPABILITY = /\bdcap_[A-Za-z0-9_-]{20,}\b/g;
 
 function credentialValueSpan(input, start) {
   const escaped = input[start] === '\\' && /["']/.test(input[start + 1] ?? '');
@@ -120,8 +143,64 @@ function redactCredentialAssignments(input) {
   return parts.join('');
 }
 
+function skipWhitespace(input, index) {
+  while (index < input.length) {
+    const code = input.charCodeAt(index);
+    if (code === 0x20 || (code >= 0x09 && code <= 0x0d)) index++;
+    else if (code < 0x80) return index;
+    else {
+      WHITESPACE_RUN.lastIndex = index;
+      WHITESPACE_RUN.test(input);
+      if (WHITESPACE_RUN.lastIndex === index) return index;
+      index = WHITESPACE_RUN.lastIndex;
+    }
+  }
+  return index;
+}
+
+function redactEnvironmentLines(input) {
+  const parts = [];
+  let copiedThrough = 0;
+  let start = 0;
+  // Each terminator kind is searched once per occurrence; -2 is unsearched, -1 exhausted.
+  const nextTerminator = [-2, -2, -2, -2];
+  while (start < input.length) {
+    const content = skipWhitespace(input, start);
+    if (content === input.length) break;
+    const code = input.charCodeAt(content);
+    if ((code >= 0x41 && code <= 0x5a) || code === 0x5f) {
+      ENV_LINE.lastIndex = start;
+      const match = ENV_LINE.exec(input);
+      if (match) {
+        parts.push(
+          input.slice(copiedThrough, start),
+          `${match[1]}=[redacted:env-value]`,
+        );
+        copiedThrough = ENV_LINE.lastIndex;
+        start = copiedThrough + 1;
+        continue;
+      }
+    }
+    let terminator = -1;
+    for (let kind = 0; kind < LINE_TERMINATORS.length; kind++) {
+      let next = nextTerminator[kind];
+      if (next !== -1 && next < content) {
+        next = input.indexOf(LINE_TERMINATORS[kind], content);
+        nextTerminator[kind] = next;
+      }
+      if (next !== -1 && (terminator === -1 || next < terminator))
+        terminator = next;
+    }
+    if (terminator === -1) break;
+    start = terminator + 1;
+  }
+  if (parts.length === 0) return input;
+  parts.push(input.slice(copiedThrough));
+  return parts.join('');
+}
+
 function redactString(input) {
-  let out = input;
+  let out = input.replace(DISPATCH_CAPABILITY, '[dispatch capability redacted]');
   for (const { tag, re } of PROVIDER_PATTERNS)
     out = out.replace(re, `[redacted:${tag}]`);
   out = redactCredentialAssignments(out).replace(
@@ -129,7 +208,20 @@ function redactString(input) {
     '[redacted:labeled-kv]',
   );
   out = out.replace(URL_USERINFO, '$1[redacted]@');
-  return out.replace(ENV_LINE, '$1=[redacted:env-value]');
+  return redactEnvironmentLines(out);
+}
+
+function credentialKey(key) {
+  const lower = key.toLowerCase();
+  return (
+    CREDENTIAL_KEYS.has(lower) ||
+    /\b(api[-_]?key|token|secret|password|bearer|authorization|private[-_]?key)\b/i.test(
+      key,
+    ) ||
+    /(apikey|token|secret|password|authorization|bearer|privkey|privatekey)/.test(
+      lower.replace(/[^a-z0-9]+/g, ''),
+    )
+  );
 }
 
 // Orca worker-turn-stop-wording.ts: a provider's stderr can be long, and its end names the failure.
@@ -138,15 +230,19 @@ export function redact(text, max = 2000) {
   return masked.length > max ? `…${masked.slice(-(max - 1))}` : masked;
 }
 
-// Strings in a structured error, such as an RPC error object, redacted in place of the original.
-export function redactError(value) {
-  if (typeof value === 'string') return redact(value);
-  if (Array.isArray(value)) return value.map(redactError);
-  if (value && typeof value === 'object')
-    return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, redactError(entry)]),
-    );
-  return value;
+/** Orca redactValue: a structured error, such as an RPC error object, with its
+ * strings redacted and every credential-named key dropped. */
+export function redactValue(value, seen = new WeakSet()) {
+  if (typeof value === 'string') return redactString(value);
+  if (!value || typeof value !== 'object') return value;
+  if (seen.has(value)) return '[Circular]';
+  seen.add(value);
+  if (Array.isArray(value)) return value.map((entry) => redactValue(entry, seen));
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !credentialKey(key))
+      .map(([key, entry]) => [key, redactValue(entry, seen)]),
+  );
 }
 
 function eventText(text, max = 200) {

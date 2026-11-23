@@ -83,6 +83,39 @@ test('redact masks credentials and keeps the end of long text', () => {
   );
 });
 
+test('redaction masks the credential forms Orca masks, in text and structured errors', () => {
+  const capability = `dcap_${'fixture'.repeat(4)}`;
+  assert.equal(
+    runtime.redact(`rejected ${capability}`),
+    'rejected [dispatch capability redacted]',
+  );
+  assert.equal(
+    runtime.redact('SERVICE_AUTH=\n fixture-value'),
+    'SERVICE_AUTH=[redacted:env-value]',
+  );
+  const error: {
+    message: string;
+    data: Record<string, unknown>;
+    codes: unknown[];
+  } = {
+    message: 'authentication failed: Bearer sample-only',
+    data: {
+      api_key: 'sample-only',
+      apiKey: 'sample-only',
+      token: 'sample-only',
+      password: 'sample-only',
+      detail: 'kept',
+    },
+    codes: [401, 'retry with Bearer sample-only'],
+  };
+  error.data.self = error;
+  assert.deepEqual(runtime.redactValue(error), {
+    message: 'authentication failed: [redacted:labeled-kv]',
+    data: { detail: 'kept', self: '[Circular]' },
+    codes: [401, 'retry with [redacted:labeled-kv]'],
+  });
+});
+
 test('stop records accept only the typed kinds and codes and redact the cause', () => {
   assert.deepEqual(
     runtime.stopRecord({

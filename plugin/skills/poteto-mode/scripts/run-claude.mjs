@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { constants, createWriteStream } from 'node:fs';
 import {
   access,
@@ -20,6 +20,14 @@ import {
   exactClaudeModel,
   versionAtLeast,
 } from './claude-capabilities.mjs';
+import {
+  childEnv,
+  recordActivity,
+  spawnSupervised,
+  startRun,
+  stopRecord,
+  stopRun,
+} from './worker-runtime.mjs';
 
 const EXECUTOR = 'claude-code';
 
@@ -29,14 +37,15 @@ const USAGE = `Usage:
   node run-claude.mjs run --cwd /absolute/worktree --run-dir /absolute/local-run \\
     --model EXACT_MODEL_ID [--effort LEVEL] [--instruction /absolute/AGENTS.md] [--skill /absolute/SKILL.md] \\
     [--role /absolute/role.md] [--resume session-uuid] [--allowed-tool tool] \\
-    [--executable /absolute/claude] < task.txt
+    [--executable /absolute/claude] [--label TEXT] < task.txt
 
 Repeat --instruction, --skill, and --allowed-tool as needed. --role supplies only
 the requested role's Markdown body. Claude runs with --permission-mode auto. Pass
 --allowed-tool only for an action the user approved after an auto-mode denial.
 Fresh sessions are the default. Artifacts are saved in --run-dir outside the
 plugin; stdout is the result receipt JSON. Dispatchers pass the resolved model.
-Run requires an explicit exact model ID.`;
+Run requires an explicit exact model ID. --label names the run in workers.mjs
+status and the run's events.jsonl.`;
 
 function parseArguments(argv) {
   const command = argv[0];
@@ -54,6 +63,7 @@ function parseArguments(argv) {
     '--resume': 'resume',
     '--allowed-tool': 'allowedTool',
     '--executable': 'executable',
+    '--label': 'label',
   };
   for (let index = 1; index < argv.length; index += 2) {
     const name = names[argv[index]];
@@ -122,7 +132,10 @@ async function executablePath(requested = 'claude') {
 }
 
 function cliText(executable, argument) {
-  const result = spawnSync(executable, [argument], { encoding: 'utf8' });
+  const result = spawnSync(executable, [argument], {
+    encoding: 'utf8',
+    env: childEnv(process.env, EXECUTOR),
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) {
     throw new Error(
@@ -183,6 +196,7 @@ async function detect(options) {
   const authResult = spawnSync(executable, ['auth', 'status'], {
     encoding: 'utf8',
     timeout: 20_000,
+    env: childEnv(process.env, EXECUTOR),
   });
   let auth;
   if (!authResult.error && [0, 1].includes(authResult.status)) {
@@ -223,6 +237,13 @@ async function detect(options) {
     effortSyntax,
     modelExecutionVerified: false,
   };
+}
+
+function activityText({ name, input = {} }) {
+  if (name === 'Bash') return `running: ${input.command ?? name}`;
+  if (['Edit', 'Write', 'MultiEdit', 'NotebookEdit'].includes(name))
+    return `editing ${input.file_path ?? input.notebook_path ?? name}`;
+  return `tool: ${name}`;
 }
 
 function markdownBody(text) {
@@ -313,6 +334,7 @@ async function run(options) {
     executable,
     args,
     cwd,
+    label: options.label ?? null,
     model,
     modelSelection: 'explicit',
     reasoningEffort: options.effort ?? null,
@@ -338,9 +360,22 @@ async function run(options) {
       stderr.once('open', resolve).once('error', reject),
     ),
   ]);
-  const child = spawn(executable, args, {
+  startRun(
+    {
+      runDir,
+      executor: EXECUTOR,
+      model,
+      effort: options.effort ?? null,
+      cwd,
+      label: request.label,
+    },
+    options.resume ? { sessionId: options.resume } : {},
+  );
+  const child = spawnSupervised(executable, args, {
     cwd,
+    env: childEnv(process.env, EXECUTOR),
     stdio: ['pipe', 'pipe', 'pipe'],
+    lifetime: 'one-shot',
   });
   child.stdout.pipe(stdout);
   child.stderr.pipe(stderr);
@@ -361,6 +396,10 @@ async function run(options) {
         typeof value.model === 'string'
       )
         observedModel = value.model;
+      if (value.type === 'assistant')
+        for (const block of value.message?.content ?? [])
+          if (block?.type === 'tool_use')
+            recordActivity(runDir, activityText(block));
       if (value.type === 'result') resultEvent = value;
     } catch (error) {
       parseError ??= error.message;
@@ -382,7 +421,7 @@ async function run(options) {
   let received = null;
   const forwardSignal = (signal) => {
     received ??= signal;
-    child.kill(signal);
+    void child.stop(signal);
   };
   const onInterrupt = () => forwardSignal('SIGINT');
   const onTerminate = () => forwardSignal('SIGTERM');
@@ -412,14 +451,15 @@ async function run(options) {
     resultEvent?.subtype === 'success' &&
     resultEvent.is_error !== true;
   const status = signal ? 'interrupted' : succeeded ? 'completed' : 'failed';
-  const [kind, cause] = signal
-    ? ['interrupted', signal]
+  const [kind, code, cause] = signal
+    ? ['interrupted', 'signal', signal]
     : denials.length
-      ? ['permission', 'permission denial']
+      ? ['permission', 'permission-denied', 'permission denial']
       : succeeded
-        ? ['completed', 'completed']
+        ? ['completed', 'completed', 'completed']
         : [
             'error',
+            'failed',
             spawnError ??
               parseError ??
               resultEvent?.subtype ??
@@ -427,7 +467,7 @@ async function run(options) {
           ];
   const receipt = {
     ...request,
-    pid: child.pid ?? null,
+    pid: child.providerPid,
     ...completion,
     sessionId,
     observedModel,
@@ -435,9 +475,7 @@ async function run(options) {
     resultEvent,
     status,
     stop: {
-      kind,
-      cause,
-      continuable: sessionId !== null,
+      ...stopRecord({ kind, code, cause, continuable: sessionId !== null }),
       ...(denials.length ? { permissionDenials: denials } : {}),
     },
     spawnError,
@@ -450,6 +488,7 @@ async function run(options) {
     requestPath,
     resultPath,
   };
+  stopRun(runDir, receipt.stop);
   await writeFile(resultPath, `${JSON.stringify(receipt, null, 2)}\n`, {
     flag: 'wx',
   });

@@ -1418,7 +1418,13 @@ else {
     const result = spawnSync(
       process.execPath,
       [runner, ...args, '--executable', executable],
-      { cwd: f.root, encoding: 'utf8', input, timeout: 10_000 },
+      {
+        cwd: f.root,
+        encoding: 'utf8',
+        input,
+        timeout: 10_000,
+        env: { ...process.env, PSTACK_STATE_HOME: path.join(f.root, 'state') },
+      },
     );
     assert.equal(result.status, 0, result.stderr);
     return JSON.parse(result.stdout);

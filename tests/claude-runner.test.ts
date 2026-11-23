@@ -175,6 +175,7 @@ if (args[0] === '--version') {
           ...process.env,
           PSTACK_FAKE_CALL_PATH: callPath,
           PSTACK_FAKE_INHERITED_MARKER: 'existing environment preserved',
+          PSTACK_STATE_HOME: path.join(root, 'state'),
           ...env,
         },
       },
@@ -415,6 +416,7 @@ test('run preserves cwd, stdin context, role body, raw trace, and immutable bund
   assert.equal(receipt.status, 'completed');
   assert.deepEqual(receipt.stop, {
     kind: 'completed',
+    code: 'completed',
     cause: 'completed',
     continuable: true,
   });
@@ -581,6 +583,7 @@ test('child failure preserves the original result, stderr, and exit status', asy
   assert.equal(receipt.status, 'failed');
   assert.deepEqual(receipt.stop, {
     kind: 'error',
+    code: 'failed',
     cause: 'error_during_execution',
     continuable: true,
   });
@@ -655,6 +658,7 @@ test('permission denials mark a completed Claude run for an approved continuatio
   assert.equal(receipt.status, 'completed');
   assert.deepEqual(receipt.stop, {
     kind: 'permission',
+    code: 'permission-denied',
     cause: 'permission denial',
     continuable: true,
     permissionDenials: [

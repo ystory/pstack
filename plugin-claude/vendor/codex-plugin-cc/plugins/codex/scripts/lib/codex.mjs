@@ -1,4 +1,4 @@
-// pstack-cc modified this file for direct worker execution, cancellation, reviewed approvals, and a caller's runtime probe.
+// pstack-cc modified this file for direct worker execution, cancellation, reviewed approvals, a caller's runtime probe, and unopened turns that end with a final error.
 /**
  * @typedef {import("./app-server-protocol").AppServerNotification} AppServerNotification
  * @typedef {import("./app-server-protocol").ReviewTarget} ReviewTarget
@@ -319,6 +319,7 @@ function createTurnCaptureState(threadId, options = {}) {
     threadIds: new Set([threadId]),
     threadTurnIds: new Map(),
     threadLabels: new Map(),
+    openedTurnIds: new Set(),
     turnId: null,
     bufferedNotifications: [],
     completion,
@@ -511,6 +512,9 @@ function applyTurnNotification(state, message) {
     case "turn/started":
       registerThread(state, message.params.threadId);
       state.threadTurnIds.set(message.params.threadId, message.params.turn.id);
+      if ((message.params.threadId ?? null) === state.threadId) {
+        state.openedTurnIds.add(message.params.turn.id);
+      }
       if ((message.params.threadId ?? null) !== state.threadId) {
         state.activeSubagentTurns.add(message.params.threadId);
       }
@@ -548,6 +552,15 @@ function applyTurnNotification(state, message) {
       }
       state.error = message.params.error;
       emitProgress(state.onProgress, `Codex error: ${message.params.error.message}`, "failed");
+      // Orca codex-structured-turn-end-settlement.ts: a turn Codex never opened can end
+      // with only this final error, while an opened turn still sends turn/completed.
+      if (
+        message.params.threadId === state.threadId &&
+        message.params.turnId &&
+        !state.openedTurnIds.has(message.params.turnId)
+      ) {
+        completeTurn(state, { id: message.params.turnId, status: "failed", error: message.params.error });
+      }
       break;
     case "turn/completed":
       if ((message.params.threadId ?? null) !== state.threadId) {

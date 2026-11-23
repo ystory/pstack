@@ -66,6 +66,9 @@ lines.on('line', (line) => {
  case 'turn/start': {
   if (process.env.FAKE_HOLD_TURN_STARTED) break;
   if (process.env.FAKE_REJECT_TURN) { send({id:request.id,error:{code:-32602,message:'turn rejected before delivery'}}); break; }
+  const signedOut = {message:'signed out',codexErrorInfo:'unauthorized'};
+  if (process.env.FAKE_FAILED_START) { respond(request,{turn:{id:'failed-turn',status:'failed',error:signedOut}}); break; }
+  if (process.env.FAKE_UNOPENED_FINAL_ERROR) { respond(request,{turn:{id:'unopened-turn',status:'inProgress'}}); notify('error',{threadId,turnId:'unopened-turn',willRetry:false,error:signedOut}); break; }
   turnId = 'turn-'+process.pid;
   const prompt = p.input[0].text;
   if (!process.env.FAKE_UNKNOWN_SETTINGS) fs.appendFileSync(rollout,JSON.stringify({type:'turn_context',payload:{turn_id:turnId,model:'turn-model',effort:'low'}})+'\n');
@@ -905,6 +908,35 @@ test('a run records its turn completion between its start and stop events', asyn
       ['stopped', undefined],
     ],
   );
+});
+
+test('a turn that ends in its start response or an unopened final error settles with one turn-completed', async (t) => {
+  const f = await fixture(t);
+  for (const name of ['FAKE_FAILED_START', 'FAKE_UNOPENED_FINAL_ERROR']) {
+    const run = f.run(name, undefined, [], { [name]: '1' });
+    assert.equal(run.status, 1, name);
+    const receipt = await f.receipt(name);
+    assert.deepEqual(
+      [receipt.turn.status, receipt.stop.kind, receipt.stop.code],
+      ['failed', 'error', 'not-signed-in'],
+      name,
+    );
+    const events = (
+      await readFile(path.join(f.root, name, 'events.jsonl'), 'utf8')
+    )
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
+    assert.deepEqual(
+      events.map(({ type, status }) => [type, status]),
+      [
+        ['started', undefined],
+        ['turn-completed', 'failed'],
+        ['stopped', undefined],
+      ],
+      name,
+    );
+  }
 });
 
 test('a run records whether the supervisor killed descendants that outlived the server', async (t) => {

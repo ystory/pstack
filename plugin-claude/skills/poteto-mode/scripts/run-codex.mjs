@@ -602,6 +602,14 @@ async function run(options, server) {
     providerClosed = new Promise((resolve) => provider.once('close', resolve));
     return provider;
   };
+  // A turn can end in a notification, in turn/start's response, or in a final
+  // error; each ended turn gets one turn-completed event.
+  const endedTurns = new Set();
+  const endTurn = (turn) => {
+    if (!turn || endedTurns.has(turn.id)) return;
+    endedTurns.add(turn.id);
+    turnCompleted(directory, turn.status);
+  };
   const pending = new Map();
   const diagnostic = (event) => {
     fs.appendFileSync(
@@ -658,7 +666,7 @@ async function run(options, server) {
     }
     if (message.method === 'turn/completed') {
       terminal = message.params.turn;
-      turnCompleted(directory, terminal?.status);
+      endTurn(terminal);
     }
     if (
       message.method === 'item/autoApprovalReview/completed' &&
@@ -725,6 +733,7 @@ async function run(options, server) {
     turnId = result.turnId;
     finalText = result.finalMessage ?? finalText;
     terminal = result.turn;
+    endTurn(terminal);
   } catch (error) {
     failure = {
       message: error.message,

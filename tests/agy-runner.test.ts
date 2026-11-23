@@ -588,26 +588,6 @@ test('agy receipts name the inherited auth method from agy settings and environm
   };
   const cases: [string | null, Record<string, string>, Auth][] = [
     [
-      JSON.stringify({ modelProvider: 'gemini', unrelated }),
-      { GEMINI_API_KEY: key, AGY_ADC_AUTH: 'true' },
-      {
-        method: 'gemini-api-key',
-        modelProvider: 'gemini',
-        geminiApiKeyPresent: true,
-        verified: false,
-      },
-    ],
-    [
-      JSON.stringify({ modelProvider: 'gemini' }),
-      {},
-      {
-        method: 'gemini-api-key',
-        modelProvider: 'gemini',
-        geminiApiKeyPresent: false,
-        verified: false,
-      },
-    ],
-    [
       null,
       { AGY_ADC_AUTH: 'true', GEMINI_API_KEY: key },
       {
@@ -644,6 +624,7 @@ test('agy receipts name the inherited auth method from agy settings and environm
     const detected = await f.invoke('normal', [], 'detect', env);
     assert.equal(detected.code, 0, detected.stderr);
     assert.deepEqual(detected.receipt.auth, expected);
+    assert.equal(detected.receipt.stop, null);
     const runs = [
       await f.invoke('normal', [], 'catalog', env),
       await f.invoke('normal', [], 'run', env),
@@ -667,6 +648,53 @@ test('agy receipts name the inherited auth method from agy settings and environm
       ])
         for (const secret of [key, unrelated])
           assert.equal(text.includes(secret), false);
+    }
+  }
+});
+
+test('agy refuses the Gemini API-key route in detect, catalog and run without launching a worker', async (t) => {
+  const f = await fixture(t);
+  const key = 'fixture-gemini-key-value-never-recorded';
+  const settings = path.join(f.home, '.gemini/antigravity-cli/settings.json');
+  await mkdir(path.dirname(settings), { recursive: true });
+  await writeFile(settings, JSON.stringify({ modelProvider: 'gemini' }));
+  for (const env of [{ GEMINI_API_KEY: key, AGY_ADC_AUTH: 'true' }, {}]) {
+    const detected = await f.invoke('normal', [], 'detect', env);
+    assert.notEqual(detected.code, 0);
+    assert.equal(detected.receipt.compatible, true);
+    assert.equal(detected.receipt.auth.modelProvider, 'gemini');
+    assert.equal(detected.receipt.stop.code, 'unsupported-auth');
+    assert.match(detected.receipt.stop.cause, /"modelProvider": "gemini"/);
+    for (const command of ['catalog', 'run']) {
+      const run = await f.invoke('normal', [], command, env);
+      assert.notEqual(run.code, 0);
+      assert.equal(run.receipt.status, 'unsupported-auth');
+      assert.match(run.receipt.error, /settings\.json/);
+      assert.equal(run.receipt.inputSent, false);
+      await assert.rejects(readFile(run.trace), { code: 'ENOENT' });
+      for (const text of [run.stdout, detected.stdout])
+        assert.equal(text.includes(key), false);
+      if (command === 'run') {
+        assert.deepEqual(run.receipt.stop, {
+          kind: 'not-started',
+          code: 'unsupported-auth',
+          cause: run.receipt.error,
+          continuable: false,
+        });
+        const events = (
+          await readFile(path.join(run.runDir, 'events.jsonl'), 'utf8')
+        )
+          .trim()
+          .split('\n')
+          .map((line) => JSON.parse(line));
+        assert.deepEqual(
+          events.map((event) => [event.type, event.code]),
+          [
+            ['started', undefined],
+            ['stopped', 'unsupported-auth'],
+          ],
+        );
+      }
     }
   }
 });

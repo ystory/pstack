@@ -392,8 +392,22 @@ async function ownedProcess(executable, args, options) {
   }
 }
 
+// Workers use subscription login or ADC. agy's modelProvider setting selects the
+// Gemini API-key route instead, so no catalog or worker starts under it.
+function authStop(auth) {
+  if (auth.method !== 'gemini-api-key') return null;
+  return stopRecord({
+    kind: 'not-started',
+    code: 'unsupported-auth',
+    cause:
+      '"modelProvider": "gemini" in ~/.gemini/antigravity-cli/settings.json selects the Gemini API-key route, which workers do not use. Workers use subscription login or ADC.',
+    continuable: false,
+  });
+}
+
 async function detect(options) {
   const auth = await inheritedAgyAuth();
+  const stop = authStop(auth);
   let executable;
   try {
     executable = await executablePath(options.executable);
@@ -408,6 +422,7 @@ async function detect(options) {
       available: false,
       compatible: false,
       auth,
+      stop,
       modelExecutionVerified: false,
     };
   }
@@ -468,6 +483,7 @@ async function detect(options) {
       Object.values(requiredOptions).every(Boolean) &&
       effortSyntax.length > 0,
     auth,
+    stop,
     modelExecutionVerified: false,
     probeError: versionProbe.error ?? helpProbe.error ?? null,
     probeCause: versionProbe.cause ?? helpProbe.cause ?? null,
@@ -558,7 +574,9 @@ function stopFor(receipt) {
       ? ['interrupted', ...interruptionCauses[receipt.status]]
       : receipt.status === 'completed'
         ? ['completed', 'completed', 'completed']
-        : ['error', 'failed', receipt.error ?? receipt.status];
+        : receipt.status === 'unsupported-auth'
+          ? ['not-started', 'unsupported-auth', receipt.error]
+          : ['error', 'failed', receipt.error ?? receipt.status];
   return stopRecord({
     kind,
     code,
@@ -827,6 +845,11 @@ async function execute(options) {
   try {
     stdoutFd = openSync(stdoutPath, 'wx', 0o600);
     stderrFd = openSync(stderrPath, 'wx', 0o600);
+    const refused = authStop(auth);
+    if (refused)
+      throw Object.assign(new Error(refused.cause), {
+        kind: 'unsupported-auth',
+      });
     runtime = await detect({ executable });
     if (!runtime.compatible) {
       const rejected = new Error(
@@ -987,7 +1010,7 @@ try {
   else if (options.command === 'detect') {
     const result = await detect(options);
     console.log(JSON.stringify(result));
-    if (!result.compatible) process.exitCode = 1;
+    if (!result.compatible || result.stop) process.exitCode = 1;
   } else await execute(options);
 } catch (error) {
   console.error(error.message);

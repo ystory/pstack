@@ -302,10 +302,12 @@ async function supervisedFixture(t: TestContext) {
   await writeFile(
     provider,
     `import { spawn } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { renameSync, writeFileSync } from 'node:fs';
 process.on('SIGTERM', () => {});
 const descendant = spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"], { stdio: 'ignore' });
-writeFileSync(process.argv[2], String(descendant.pid));
+// Renamed into place: the file exists only once it holds the pid.
+writeFileSync(process.argv[2] + '.tmp', String(descendant.pid));
+renameSync(process.argv[2] + '.tmp', process.argv[2]);
 setInterval(() => {}, 1000);
 `,
   );
@@ -343,6 +345,8 @@ test('the supervisor runs its whole ladder on the provider group after its owner
     const { providerPid, supervisorPid } = JSON.parse(line.toString());
     assert.ok(await waitUntil(() => existsSync(pidFile), 5000));
     const descendant = Number(await readFile(pidFile, 'utf8'));
+    // alive(0) would probe this test's own process group.
+    assert.ok(descendant > 0, `bad descendant pid ${descendant}`);
     owner.kill('SIGKILL');
     const killedAt = Date.now();
     assert.ok(

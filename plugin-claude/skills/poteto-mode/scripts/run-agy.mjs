@@ -21,6 +21,7 @@ import {
   startRun,
   stopRecord,
   stopRun,
+  writeOnce,
 } from './worker-runtime.mjs';
 
 const executor = 'antigravity';
@@ -1148,7 +1149,7 @@ async function execute(options) {
     );
     stopRun(options.runDir, receipt.stop);
   }
-  await fs.writeFile(resultPath, json(receipt), { flag: 'wx', mode: 0o600 });
+  writeOnce(resultPath, json(receipt), 0o600);
   console.log(JSON.stringify(receipt));
   process.exitCode = !error
     ? 0

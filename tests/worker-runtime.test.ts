@@ -627,3 +627,47 @@ test('follow streams each new event and exits on the receipt or a lost runner', 
     `lost: runner ${deadPid} exited without result.json`,
   ]);
 });
+
+test('follow and status agree that a dead runner with a truncated receipt is lost', async (t) => {
+  const root = await temporary(t);
+  const state = path.join(root, 'state');
+  const runDir = path.join(root, 'run');
+  await mkdir(runDir);
+  const deadPid = await exitedPid();
+  runtime.appendEvent(runDir, 'started', 'started claude-code model', {
+    pid: deadPid,
+  });
+  runtime.stopRun(runDir, { kind: 'completed', code: 'completed' });
+  await writeFile(path.join(runDir, 'result.json'), '{"stop": {"kind": "comp');
+  await mkdir(path.join(state, 'runs'), { recursive: true });
+  await writeFile(
+    path.join(state, 'runs', 'run.json'),
+    JSON.stringify({ runId: 'run', runDir, cwd: root, pid: deadPid }),
+  );
+  const env = { ...process.env, PSTACK_STATE_HOME: state };
+  const follow = spawnSync(
+    process.execPath,
+    [workers, 'follow', '--run-dir', runDir],
+    { encoding: 'utf8', env, timeout: 10_000 },
+  );
+  assert.equal(follow.status, 1, follow.stderr);
+  assert.match(
+    follow.stdout,
+    /lost: runner \d+ exited without result\.json\n$/,
+  );
+  const status = spawnSync(
+    process.execPath,
+    [workers, 'status', '--all', '--json'],
+    { encoding: 'utf8', env },
+  );
+  assert.equal(JSON.parse(status.stdout)[0].state, 'lost');
+});
+
+test('writeOnce links a whole file into place and never replaces one', async (t) => {
+  const root = await temporary(t);
+  const file = path.join(root, 'result.json');
+  runtime.writeOnce(file, 'first\n');
+  assert.throws(() => runtime.writeOnce(file, 'second\n'), { code: 'EEXIST' });
+  assert.equal(await readFile(file, 'utf8'), 'first\n');
+  assert.deepEqual(await readdir(root), ['result.json']);
+});

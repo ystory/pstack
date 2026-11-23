@@ -16,6 +16,7 @@ import {
   startRun,
   stopRecord,
   stopRun,
+  writeOnce,
 } from './worker-runtime.mjs';
 
 const EXECUTOR = 'codex';
@@ -722,11 +723,7 @@ async function run(options, server) {
   };
   fs.writeFileSync(files.final, finalText, { flag: 'wx' });
   stopRun(directory, receipt.stop);
-  const temporary = files.result + '.tmp';
-  fs.writeFileSync(temporary, JSON.stringify(receipt, null, 2) + '\n', {
-    flag: 'wx',
-  });
-  fs.renameSync(temporary, files.result);
+  writeOnce(files.result, JSON.stringify(receipt, null, 2) + '\n');
   process.exitCode = exitCode;
   return receipt;
 }

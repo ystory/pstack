@@ -29,6 +29,7 @@ import {
   startRun,
   stopRecord,
   stopRun,
+  writeOnce,
 } from './worker-runtime.mjs';
 
 const EXECUTOR = 'claude-code';
@@ -621,9 +622,7 @@ async function run(options) {
     resultPath,
   };
   stopRun(runDir, receipt.stop);
-  await writeFile(resultPath, `${JSON.stringify(receipt, null, 2)}\n`, {
-    flag: 'wx',
-  });
+  writeOnce(resultPath, `${JSON.stringify(receipt, null, 2)}\n`);
   console.log(JSON.stringify(receipt));
   process.exitCode =
     (completion.exitCode >= 0 ? completion.exitCode : null) ??

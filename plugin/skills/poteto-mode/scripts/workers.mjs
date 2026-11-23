@@ -49,19 +49,29 @@ function alive(pid) {
   }
 }
 
-function runState(entry) {
+// Runners link a complete receipt into place, so one that does not parse as a
+// record is not a receipt; status and follow both judge a run by this.
+function readReceipt(runDir) {
   try {
     const receipt = JSON.parse(
-      fs.readFileSync(path.join(entry.runDir, 'result.json'), 'utf8'),
+      fs.readFileSync(path.join(runDir, 'result.json'), 'utf8'),
     );
-    return {
-      state: receipt.stop?.kind ?? receipt.status,
-      code: receipt.stop?.code ?? null,
-    };
+    return receipt && typeof receipt === 'object' && !Array.isArray(receipt)
+      ? receipt
+      : null;
   } catch {
-    // No receipt yet, or one still being written.
-    return { state: alive(entry.pid) ? 'running' : 'lost', code: null };
+    return null;
   }
+}
+
+function runState(entry) {
+  const receipt = readReceipt(entry.runDir);
+  if (!receipt)
+    return { state: alive(entry.pid) ? 'running' : 'lost', code: null };
+  return {
+    state: receipt.stop?.kind ?? receipt.status,
+    code: receipt.stop?.code ?? null,
+  };
 }
 
 const inside = (root, target) => {
@@ -119,7 +129,6 @@ function status(options) {
 
 async function follow({ runDir }) {
   const eventsPath = path.join(runDir, 'events.jsonl');
-  const resultPath = path.join(runDir, 'result.json');
   const decoder = new StringDecoder('utf8');
   const startBy = Date.now() + FOLLOW_START_MS;
   let offset = 0,
@@ -145,14 +154,14 @@ async function follow({ runDir }) {
   };
   for (;;) {
     // Runners append their stopped event before result.json, so this drain includes it.
-    const finished = fs.existsSync(resultPath);
+    const finished = readReceipt(runDir) !== null;
     drain();
     if (finished) return 0;
     if (pid === null && Date.now() > startBy) {
       console.error(`No run started in ${runDir}.`);
       return 1;
     }
-    if (pid !== null && !alive(pid) && !fs.existsSync(resultPath)) {
+    if (pid !== null && !alive(pid) && !readReceipt(runDir)) {
       drain();
       console.log(`lost: runner ${pid} exited without result.json`);
       return 1;

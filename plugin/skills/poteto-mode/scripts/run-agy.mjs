@@ -253,6 +253,8 @@ async function ownedProcess(executable, args, options) {
     signal = null;
   let closed = false,
     sent = false,
+    // A failed task write means agy did not read the whole task.
+    inputFailed = false,
     identityBeforeInput = false,
     output = '',
     diagnostics = '',
@@ -349,7 +351,10 @@ async function ownedProcess(executable, args, options) {
       fail(error.message);
       settle();
     });
-    child.stdin?.on('error', (error) => fail(`stdin: ${error.message}`));
+    child.stdin?.on('error', (error) => {
+      inputFailed = true;
+      fail(`stdin: ${error.message}`);
+    });
     child.stdout.on('error', (error) => fail(`stdout: ${error.message}`));
     child.stderr.on('error', (error) => fail(`stderr: ${error.message}`));
     child.stdout.on('data', (bytes) => {
@@ -430,7 +435,7 @@ async function ownedProcess(executable, args, options) {
       diagnostics,
       error: firstError,
       cause,
-      inputSent: sent,
+      inputSent: sent && !inputFailed,
       identityBeforeInput,
       process: {
         pid: child.providerPid,

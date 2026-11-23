@@ -285,6 +285,18 @@ test('agy task stdin failure stays fatal when the whole task fits in the pipe', 
   assert.equal(run.receipt.error, 'stdin: write EPIPE');
   assert.equal(run.receipt.identityBeforeInput, true);
   assert.equal(run.receipt.process.groupClosed, true);
+  assert.equal(run.receipt.inputSent, false);
+  assert.deepEqual(
+    [run.receipt.stop.kind, run.receipt.stop.continuable],
+    ['not-started', false],
+  );
+  const resumed = await f.invoke('normal', [
+    '--resume',
+    path.join(run.runDir, 'result.json'),
+  ]);
+  assert.equal(resumed.code, 1);
+  assert.equal(resumed.receipt, null);
+  assert.match(resumed.stderr, /lacks exact conversation identity evidence/);
 });
 
 test('agy sends one official user event with complete context, role body, exact settings and inherited harness', async (t) => {

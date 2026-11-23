@@ -65,6 +65,7 @@ lines.on('line', (line) => {
   respond(request,{thread:{id:threadId,path:rollout},model:'observed-model',reasoningEffort:'high',cwd:p.cwd}); break;
  case 'turn/start': {
   if (process.env.FAKE_HOLD_TURN_STARTED) break;
+  if (process.env.FAKE_REJECT_TURN) { send({id:request.id,error:{code:-32602,message:'turn rejected before delivery'}}); break; }
   turnId = 'turn-'+process.pid;
   const prompt = p.input[0].text;
   if (!process.env.FAKE_UNKNOWN_SETTINGS) fs.appendFileSync(rollout,JSON.stringify({type:'turn_context',payload:{turn_id:turnId,model:'turn-model',effort:'low'}})+'\n');
@@ -1223,6 +1224,21 @@ test('parallel workers and interleaved exact continuation retain separate identi
   );
 });
 
+test('a thread whose turn/start Codex rejected never started and is not continuable', async (t) => {
+  const f = await fixture(t);
+  const run = f.run('rejected', undefined, [], { FAKE_REJECT_TURN: '1' });
+  assert.equal(run.status, 1);
+  const receipt = await f.receipt('rejected');
+  assert.notEqual(receipt.threadId, null);
+  assert.equal(receipt.turnId, null);
+  assert.equal(receipt.inputSent, false);
+  assert.deepEqual(
+    [receipt.stop.kind, receipt.stop.continuable],
+    ['not-started', false],
+  );
+  assert.equal(receipt.error.message, 'turn rejected before delivery');
+});
+
 test('a resume that opens no thread or another thread is not continuable', async (t) => {
   const f = await fixture(t);
   for (const [name, variable, code, message] of [
@@ -1246,7 +1262,8 @@ test('a resume that opens no thread or another thread is not continuable', async
     const receipt = await f.receipt(name);
     assert.equal(receipt.threadId, null, name);
     assert.equal(receipt.rolloutPath, null, name);
-    assert.equal(receipt.stop.kind, 'error', name);
+    assert.equal(receipt.inputSent, false, name);
+    assert.equal(receipt.stop.kind, 'not-started', name);
     assert.equal(receipt.stop.code, code, name);
     assert.equal(receipt.stop.continuable, false, name);
     assert.match(receipt.error.message, message, name);

@@ -589,7 +589,9 @@ async function run(options, server) {
   const threadSettings = { model: null, effort: null };
   const deniedReviews = [];
   let interrupt = null,
-    retry = null;
+    retry = null,
+    // The task reaches Codex in turn/start; a rejected or unsent request never delivered it.
+    inputSent = false;
   const clientRequests = [];
   const child = { pid: null, exitCode: null, signal: null, closed: false };
   let provider = null,
@@ -614,6 +616,8 @@ async function run(options, server) {
       });
     if (event.direction === 'send' && event.message.id !== undefined)
       pending.set(event.message.id, event.message.method);
+    if (event.direction === 'send' && event.message.method === 'turn/start')
+      inputSent = true;
     if (event.direction !== 'receive') return;
     let message;
     try {
@@ -636,6 +640,7 @@ async function run(options, server) {
         threadSettings.effort =
           message.result?.reasoningEffort ?? message.result?.effort ?? null;
       }
+      if (method === 'turn/start' && message.error) inputSent = false;
       if (method === 'turn/start') turnId = message.result?.turn?.id ?? turnId;
     }
     if (message.params?.threadId !== threadId) return;
@@ -779,11 +784,12 @@ async function run(options, server) {
     clientRequests,
     registry,
     status,
+    inputSent,
     stop: stopRecord({
-      kind: stopKind,
+      kind: stopKind === 'completed' || inputSent ? stopKind : 'not-started',
       code: stopCode,
       cause: stopCause,
-      continuable: threadId !== null,
+      continuable: threadId !== null && inputSent,
     }),
     resultStatus: result?.status ?? null,
     finalText,

@@ -52,3 +52,5 @@ shared/0007-neon-panel-budget.patch
 shared/0008-worker-runner-runtime.patch
 0045-worker-runner-runtime.patch
 0046-worker-runner-runtime-version.patch
+shared/0009-orca-runner-specifics.patch
+0047-orca-runner-specifics.patch

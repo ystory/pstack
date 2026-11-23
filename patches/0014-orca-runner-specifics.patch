@@ -1,0 +1,512 @@
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index 6b6209f..cc44f66 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -79,13 +79,13 @@ For `executor: "antigravity"`, preserve the returned exact `model` and separate
+ 
+ ## Run records and progress
+ 
+-The Codex, Claude, and Antigravity runners record each run the way Orca records its workers. Pass `--label "<short task name>"` on every launch. Each run appends `events.jsonl` to its run directory, one JSON line per event: `started` with the executor, model, effort, cwd, label, and runner pid, `activity` for a command, file edit, or tool call, `turn-completed`, and `stopped` with the stop kind and code. Each run also writes one registry file under the pstack state directory: `$PSTACK_STATE_HOME`, else `$XDG_STATE_HOME/pstack`, else `~/.local/state/pstack`.
++The Codex, Claude, and Antigravity runners record each run the way Orca records its workers. Pass `--label "<short task name>"` on every launch. Each run appends `events.jsonl` to its run directory, one JSON line per event: `started` with the executor, model, effort, cwd, label, and runner pid, `activity` for a command, file edit, or tool call, `turn-completed` with the CLI's own turn status when a turn ends, and `stopped` with the stop kind and code. Each run also writes one registry file under the pstack state directory: `$PSTACK_STATE_HOME`, else `$XDG_STATE_HOME/pstack`, else `~/.local/state/pstack`. Registration is best effort: a run whose registry file cannot be written still runs, and its receipt's `registry` holds the error instead of the run ID.
+ 
+-`node "<poteto-mode>/scripts/workers.mjs" status` lists the runs registered for the current directory and the directories inside it, with executor, model, label, state, and last event. A run is `running` while its runner lives without `result.json`, `lost` when the runner died without one, and otherwise its receipt's stop kind. Run it when the user asks what is running or where, and after compaction or a restart to find run directories rather than recalling them. `--cwd DIR` selects another checkout, `--all` lists every run, and `--json` prints records.
++`node "<poteto-mode>/scripts/workers.mjs" status` lists the runs registered for the current directory and the directories inside it, with executor, model, label, state, and last event. A run is `running` while its runner lives without a readable `result.json`, `lost` when the runner died without one, and otherwise its receipt's stop kind. An unreadable registry entry is skipped with a note on stderr. Run it when the user asks what is running or where, and after compaction or a restart to find run directories rather than recalling them. `--cwd DIR` selects another checkout, `--all` lists every run, and `--json` prints records.
+ 
+ `workers.mjs follow --run-dir DIR` prints each new event and exits when `result.json` appears, or with status 1 when the runner died without writing it. Read the same output when you check a runner's command session, and tell the user which executor, model, label, and checkout each worker uses when it starts.
+ 
+-A receipt's `stop.code` names the cause: `completed`, `signal`, `deadline`, `usage-limit`, `not-signed-in`, `model-unavailable`, `provider`, `missing-session`, `permission-mode`, `permission-denied`, `unsupported-auth`, or `failed`. `stop.cause` holds the redacted tail of the evidence, and the run directory keeps the raw diagnostics. `not-signed-in` and `unsupported-auth` need the user's login or setup. `usage-limit` and `provider` follow the calling workflow's dropout rule. `missing-session` cannot continue. Each runner starts its CLI under a supervisor that removes the parent session's environment, runs the CLI in its own process group, and stops that group when the runner stops or dies.
++A receipt's `stop.code` names the cause: `completed`, `signal`, `deadline`, `usage-limit`, `not-signed-in`, `model-unavailable`, `provider`, `missing-session`, `permission-mode`, `permission-denied`, `unsupported-auth`, or `failed`. `stop.cause` holds the redacted tail of the evidence, and the run directory keeps the raw diagnostics. `not-signed-in` and `unsupported-auth` need the user's login or setup. `usage-limit` and `provider` follow the calling workflow's dropout rule. `missing-session` cannot continue. Each runner starts its CLI under a supervisor that removes the parent session's environment, runs the CLI in its own process group, and stops that group when the runner stops or dies. When the CLI exits, the supervisor kills what remains of its group, and the receipt's `descendantsReaped` is true when anything remained. The receipt's exit code and signal are the CLI's own, also when a stop ended it. A runner that received a stop signal exits 128 plus that signal's number, 130 for SIGINT and 143 for SIGTERM.
+ 
+ ## Local worktrees
+ 
+@@ -113,7 +113,7 @@ For new work that needs a completed worker's built state, give a fresh worker th
+ 
+ Track every returned agent or command identity, executor, and slice. For native delegates, use `wait_agent` for an event and `list_agents` for status on runtimes with those tools. The final-answer notification contains the result. Use a result/retrieval tool when the runtime exposes one. A spawn acknowledgement or a completed status without its report is not a result.
+ 
+-For Claude Code, collect the command's terminal receipt and inspect its `result`, `resultEvent`, `sessionId`, `exitCode`, and `signal`, plus the artifacts named by `promptPath`, `requestPath`, `stdoutPath`, `stderrPath`, and `resultPath`. The receipt preserves the process outcome and raw stream. Review the reported work and artifacts under the calling workflow's normal result and failure rules.
++For Claude Code, collect the command's terminal receipt and inspect its `result`, `resultEvent`, `sessionId`, `exitCode`, and `signal`, plus the artifacts named by `promptPath`, `requestPath`, `stdoutPath`, `stderrPath`, and `resultPath`. The receipt preserves the process outcome. A failed result's `result` and `resultEvent` text is redacted, and `stdoutPath` keeps the raw stream. Only frames of the named session count. When the stream carries another session's frames, the receipt's `foreignSessionId` names the first one, and the run fails and is not continuable. Review the reported work and artifacts under the calling workflow's normal result and failure rules.
+ 
+ Wait for every required terminal result before synthesis. Record failures and missing reports as gaps under the calling workflow's dropout rule. Review changed artifacts and verification evidence yourself.
+ 
+diff --git a/skills/poteto-mode/scripts/run-claude.mjs b/skills/poteto-mode/scripts/run-claude.mjs
+index b740859..c741315 100644
+--- a/skills/poteto-mode/scripts/run-claude.mjs
++++ b/skills/poteto-mode/scripts/run-claude.mjs
+@@ -1,5 +1,5 @@
+ #!/usr/bin/env node
+-import { spawnSync } from 'node:child_process';
++import { randomUUID } from 'node:crypto';
+ import { constants, createWriteStream } from 'node:fs';
+ import {
+   access,
+@@ -11,6 +11,7 @@ import {
+ } from 'node:fs/promises';
+ import { finished } from 'node:stream/promises';
+ import { StringDecoder } from 'node:string_decoder';
++import os from 'node:os';
+ import path from 'node:path';
+ import process from 'node:process';
+ import { fileURLToPath } from 'node:url';
+@@ -22,14 +23,29 @@ import {
+ } from './claude-capabilities.mjs';
+ import {
+   childEnv,
++  probeSupervised,
+   recordActivity,
++  redact,
++  redactValue,
+   spawnSupervised,
+   startRun,
+   stopRecord,
+   stopRun,
++  turnCompleted,
++  writeOnce,
+ } from './worker-runtime.mjs';
+ 
+ const EXECUTOR = 'claude-code';
++// Orca managed-provider-process.ts:28.
++const STDERR_TAIL_MAX_CHARS = 8192;
++// Orca claude-result-outcome.ts:4-5: a result with one of these reasons is a stop, not a failure.
++const CLAUDE_ABORTED_TERMINAL_REASONS = new Set([
++  'aborted_streaming',
++  'aborted_tools',
++]);
++// Orca claude-stream-json-exit-error.ts:14-15, for the one conversation the run named.
++const missingConversation = (sessionId) =>
++  new RegExp(`^No conversation found with session ID: ${sessionId}\\s*$`, 'im');
+ 
+ const PLUGIN_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+ const USAGE = `Usage:
+@@ -131,9 +147,8 @@ async function executablePath(requested = 'claude') {
+   throw new Error('claude was not found on PATH');
+ }
+ 
+-function cliText(executable, argument) {
+-  const result = spawnSync(executable, [argument], {
+-    encoding: 'utf8',
++async function cliText(executable, argument) {
++  const result = await probeSupervised(executable, [argument], {
+     env: childEnv(process.env, EXECUTOR),
+   });
+   if (result.error) throw result.error;
+@@ -169,11 +184,11 @@ async function detect(options) {
+       ],
+     };
+   }
+-  const versionText = cliText(executable, '--version').trim();
++  const versionText = (await cliText(executable, '--version')).trim();
+   const version = versionText.match(/\b(\d+\.\d+\.\d+)\b/)?.[1];
+   if (!version)
+     throw new Error(`Unrecognized Claude Code version: ${versionText}`);
+-  const help = cliText(executable, '--help');
++  const help = await cliText(executable, '--help');
+   const requiredOptions = {
+     print: help.includes('--print'),
+     model: help.includes('--model'),
+@@ -193,8 +208,7 @@ async function detect(options) {
+   const effortSyntax = CLAUDE_CLI_EFFORTS.filter((effort) =>
+     new RegExp(`\\b${effort}\\b`).test(effortHelp),
+   );
+-  const authResult = spawnSync(executable, ['auth', 'status'], {
+-    encoding: 'utf8',
++  const authResult = await probeSupervised(executable, ['auth', 'status'], {
+     timeout: 20_000,
+     env: childEnv(process.env, EXECUTOR),
+   });
+@@ -204,7 +218,14 @@ async function detect(options) {
+       auth = JSON.parse(authResult.stdout);
+     } catch {}
+   }
+-  const loggedIn = typeof auth?.loggedIn === 'boolean' ? auth.loggedIn : null;
++  // Orca environment-doctor.ts:28-34, 130-146: status wording changes between
++  // releases, so unparsed output falls back to the exit code; a timeout stays unknown.
++  const loggedIn =
++    typeof auth?.loggedIn === 'boolean'
++      ? auth.loggedIn
++      : !authResult.error && typeof authResult.status === 'number'
++        ? authResult.status === 0
++        : null;
+   const method = auth?.authMethod ?? auth?.method;
+   return {
+     executor: EXECUTOR,
+@@ -246,6 +267,84 @@ function activityText({ name, input = {} }) {
+   return `tool: ${name}`;
+ }
+ 
++// Orca claude-stream-json-exit-error.ts:45-58: the exit status, then stderr's
++// last lines, dropping the fragment a full tail starts with. Whole redacted
++// lines are kept from the end while they fit a stop cause with its after line,
++// such as why stdout did not parse.
++function exitText({ exitCode, signal }, stderrTail, after = null) {
++  const detail = (
++    stderrTail.length >= STDERR_TAIL_MAX_CHARS
++      ? stderrTail.slice(stderrTail.indexOf('\n') + 1)
++      : stderrTail
++  ).trim();
++  const how =
++    signal !== null
++      ? `(signal ${signal})`
++      : exitCode === null
++        ? ''
++        : `(code ${exitCode})`;
++  const head = `claude stream-json exited${how ? ` ${how}` : ''}`;
++  const tail = after ? `\n${redact(after, Infinity)}` : '';
++  let lines = redact(detail, Infinity);
++  while (
++    head.length + 2 + lines.length + tail.length > 2000 &&
++    lines.includes('\n')
++  )
++    lines = lines.slice(lines.indexOf('\n') + 1);
++  return `${lines ? `${head}: ${lines}` : head}${tail}`;
++}
++
++// The receipt's stop, from the first matching piece of evidence. received is a
++// stop signal the runner forwarded; signal also counts one the CLI died of.
++function claudeStop({
++  received,
++  signal,
++  missingSession,
++  foreignSession,
++  permissionMode,
++  terminalReason,
++  denials,
++  succeeded,
++  failure,
++}) {
++  const aborted = CLAUDE_ABORTED_TERMINAL_REASONS.has(terminalReason);
++  if (received) return ['interrupted', 'signal', received];
++  // An aborted result is a signal stop only when the runner sent the signal.
++  if (signal && !aborted) return ['interrupted', 'signal', signal];
++  if (missingSession) return ['error', 'missing-session', missingSession];
++  if (foreignSession) return ['error', 'failed', foreignSession];
++  // Orca claude-full-access-refusal.ts:52-66 and claude-permission-mode-ladder.ts:47-74:
++  // a first root init outside the launched mode is Claude's refusal of that mode.
++  if (permissionMode !== null && permissionMode !== 'auto')
++    return [
++      'error',
++      'permission-mode',
++      `Claude started in ${permissionMode} mode instead of auto`,
++    ];
++  // Orca claude-result-outcome.ts:14-20: the abort reason outranks is_error.
++  if (aborted)
++    return [
++      'interrupted',
++      'failed',
++      `Claude ended the turn early (${terminalReason})`,
++    ];
++  if (denials.length)
++    return ['permission', 'permission-denied', 'permission denial'];
++  if (succeeded) return ['completed', 'completed', 'completed'];
++  return ['error', 'failed', failure];
++}
++
++// A failed result's text is the provider's error wording, which can carry a
++// credential; a successful one is the worker's answer. stdout.jsonl keeps both raw.
++function receiptResult(event) {
++  if (!event || (event.is_error !== true && event.subtype === 'success'))
++    return event;
++  const copy = { ...event };
++  for (const key of ['result', 'errors'])
++    if (key in copy) copy[key] = redactValue(copy[key]);
++  return copy;
++}
++
+ function markdownBody(text) {
+   return text.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
+ }
+@@ -300,7 +399,8 @@ async function run(options) {
+   const prompt = [
+     `Working directory: ${cwd}\n\nApply the supplied project and role instructions to the assigned task. Use the supplied skill material for that task.`,
+     ...context.map(
+-      (file) => `## Complete ${file.kind} body from ${file.path}\n\n${file.content}`,
++      (file) =>
++        `## Complete ${file.kind} body from ${file.path}\n\n${file.content}`,
+     ),
+     `Receiving executor is ${EXECUTOR}.\n\n${await readFile(new URL('../references/worker-context.md', import.meta.url), 'utf8')}`,
+     `## Assigned task\n\n${task}`,
+@@ -325,7 +425,11 @@ async function run(options) {
+     '--permission-mode',
+     'auto',
+   ];
++  // Orca claude-structured-launch-resolution.ts:170-177, 288-290: a fresh
++  // conversation is named before spawn, so its identity never rests on the stream.
++  const requestedSessionId = options.resume ? null : randomUUID();
+   if (options.resume) args.push('--resume', options.resume);
++  else args.push('--session-id', requestedSessionId);
+   for (const tool of new Set(options.allowedTool)) {
+     args.push('--allowedTools', tool);
+   }
+@@ -339,6 +443,7 @@ async function run(options) {
+     modelSelection: 'explicit',
+     reasoningEffort: options.effort ?? null,
+     resumeSessionId: options.resume ?? null,
++    requestedSessionId,
+     context: context.map(({ kind, path: sourcePath }) => ({
+       kind,
+       path: sourcePath,
+@@ -360,7 +465,7 @@ async function run(options) {
+       stderr.once('open', resolve).once('error', reject),
+     ),
+   ]);
+-  startRun(
++  const registry = startRun(
+     {
+       runDir,
+       executor: EXECUTOR,
+@@ -369,7 +474,7 @@ async function run(options) {
+       cwd,
+       label: request.label,
+     },
+-    options.resume ? { sessionId: options.resume } : {},
++    { sessionId: options.resume ?? requestedSessionId },
+   );
+   const child = spawnSupervised(executable, args, {
+     cwd,
+@@ -379,28 +484,61 @@ async function run(options) {
+   });
+   child.stdout.pipe(stdout);
+   child.stderr.pipe(stderr);
++  let stderrTail = '';
++  const stderrDecoder = new StringDecoder('utf8');
++  // Orca managed-provider-process.ts:143.
++  child.stderr.on('data', (chunk) => {
++    stderrTail = (stderrTail + stderrDecoder.write(chunk)).slice(
++      -STDERR_TAIL_MAX_CHARS,
++    );
++  });
+   let pending = '';
+   const decoder = new StringDecoder('utf8');
+   let resultEvent = null;
++  // Orca claude-structured-session-acquisition.ts:88-94: only frames of the named
++  // conversation count; another conversation's frames are evidence of a mismatch.
++  const expectedSessionId = options.resume ?? requestedSessionId;
+   let sessionId = null;
++  let foreignSessionId = null;
+   let observedModel = null;
++  let rootInit = null;
+   let parseError = null;
+   const event = (line) => {
+     if (!line.trim()) return;
+     try {
+       const value = JSON.parse(line);
+-      if (typeof value.session_id === 'string') sessionId = value.session_id;
++      if (value.session_id !== expectedSessionId) {
++        if (typeof value.session_id === 'string')
++          foreignSessionId ??= value.session_id;
++        return;
++      }
++      sessionId = value.session_id;
+       if (
+         value.type === 'system' &&
+         value.subtype === 'init' &&
+         typeof value.model === 'string'
+       )
+         observedModel = value.model;
++      // Orca claude-structured-session-acquisition.ts:98-101 and claude-turn-opening.ts:44-46.
++      if (
++        value.type === 'system' &&
++        value.subtype === 'init' &&
++        typeof value.parent_tool_use_id !== 'string'
++      )
++        rootInit ??= {
++          permissionMode:
++            typeof value.permissionMode === 'string' && value.permissionMode
++              ? value.permissionMode
++              : null,
++        };
+       if (value.type === 'assistant')
+         for (const block of value.message?.content ?? [])
+           if (block?.type === 'tool_use')
+             recordActivity(runDir, activityText(block));
+-      if (value.type === 'result') resultEvent = value;
++      if (value.type === 'result') {
++        resultEvent = value;
++        turnCompleted(runDir, value.subtype);
++      }
+     } catch (error) {
+       parseError ??= error.message;
+     }
+@@ -437,7 +575,10 @@ async function run(options) {
+   process.off('SIGINT', onInterrupt);
+   process.off('SIGTERM', onTerminate);
+   pending += decoder.end();
++  stderrTail = (stderrTail + stderrDecoder.end()).slice(-STDERR_TAIL_MAX_CHARS);
+   if (pending) event(pending);
++  // A pipe whose source was cut off at the drain bound never ends its destination.
++  for (const file of [stdout, stderr]) if (!file.writableEnded) file.end();
+   await Promise.all([finished(stdout), finished(stderr)]);
+   const signal =
+     received ??
+@@ -445,37 +586,85 @@ async function run(options) {
+     { 130: 'SIGINT', 143: 'SIGTERM' }[completion.exitCode] ??
+     null;
+   const denials = resultEvent?.permission_denials ?? [];
++  const terminalReason =
++    typeof resultEvent?.terminal_reason === 'string'
++      ? resultEvent.terminal_reason
++      : null;
++  const aborted = CLAUDE_ABORTED_TERMINAL_REASONS.has(terminalReason);
+   const succeeded =
++    !aborted &&
+     completion.exitCode === 0 &&
+     !parseError &&
++    foreignSessionId === null &&
+     resultEvent?.subtype === 'success' &&
+     resultEvent.is_error !== true;
+-  const status = signal ? 'interrupted' : succeeded ? 'completed' : 'failed';
+-  const [kind, code, cause] = signal
+-    ? ['interrupted', 'signal', signal]
+-    : denials.length
+-      ? ['permission', 'permission-denied', 'permission denial']
+-      : succeeded
+-        ? ['completed', 'completed', 'completed']
+-        : [
+-            'error',
+-            'failed',
+-            spawnError ??
+-              parseError ??
+-              resultEvent?.subtype ??
+-              `exit ${completion.exitCode}`,
+-          ];
++  const status =
++    signal || aborted ? 'interrupted' : succeeded ? 'completed' : 'failed';
++  const observedPermissionMode = rootInit?.permissionMode ?? null;
++  // Orca claude-stream-json-exit-error.ts:17-36, 61: Claude reports a missing
++  // conversation on stderr, or in a startup result's errors.
++  const resultErrors = Array.isArray(resultEvent?.errors)
++    ? resultEvent.errors.filter((entry) => typeof entry === 'string').join('\n')
++    : '';
++  // Orca reads them only for a failed start, so a successful result stands.
++  const missing = missingConversation(expectedSessionId);
++  const missingSession = succeeded
++    ? null
++    : missing.test(stderrTail)
++      ? exitText(completion, stderrTail)
++      : missing.test(resultErrors)
++        ? `claude reported a startup failure: ${resultErrors.trim()}`
++        : null;
++  const [kind, code, cause] = claudeStop({
++    received,
++    signal,
++    missingSession,
++    foreignSession:
++      foreignSessionId &&
++      `Claude reported session ${foreignSessionId} instead of ${expectedSessionId}`,
++    permissionMode: observedPermissionMode,
++    terminalReason,
++    denials,
++    succeeded,
++    // Without a result, stderr's last lines name the failure ahead of a parse error.
++    failure:
++      spawnError ??
++      (resultEvent && (parseError ?? resultEvent.subtype)) ??
++      exitText(
++        completion,
++        stderrTail,
++        !resultEvent && parseError
++          ? `stdout was not stream-json: ${parseError}`
++          : null,
++      ),
++  });
++  const resultCopy = receiptResult(resultEvent);
+   const receipt = {
+     ...request,
+     pid: child.providerPid,
+     ...completion,
++    descendantsReaped: child.descendantsReaped,
+     sessionId,
++    foreignSessionId,
+     observedModel,
+-    result: typeof resultEvent?.result === 'string' ? resultEvent.result : null,
+-    resultEvent,
++    observedPermissionMode,
++    terminalReason,
++    result: typeof resultCopy?.result === 'string' ? resultCopy.result : null,
++    resultEvent: resultCopy,
++    registry,
+     status,
+     stop: {
+-      ...stopRecord({ kind, code, cause, continuable: sessionId !== null }),
++      // Orca claude-structured-session-acquisition.ts:88-94 trusts only frames of the
++      // conversation it named.
++      ...stopRecord({
++        kind,
++        code,
++        cause,
++        continuable:
++          missingSession === null &&
++          foreignSessionId === null &&
++          sessionId === expectedSessionId,
++      }),
+       ...(denials.length ? { permissionDenials: denials } : {}),
+     },
+     spawnError,
+@@ -489,19 +678,21 @@ async function run(options) {
+     resultPath,
+   };
+   stopRun(runDir, receipt.stop);
+-  await writeFile(resultPath, `${JSON.stringify(receipt, null, 2)}\n`, {
+-    flag: 'wx',
+-  });
++  writeOnce(resultPath, `${JSON.stringify(receipt, null, 2)}\n`);
+   console.log(JSON.stringify(receipt));
+-  process.exitCode =
+-    (completion.exitCode >= 0 ? completion.exitCode : null) ??
+-    (completion.signal === 'SIGINT'
+-      ? 130
+-      : completion.signal === 'SIGTERM'
+-        ? 143
+-        : 1);
+-  if (process.exitCode === 0 && (parseError || !resultEvent))
+-    process.exitCode = 1;
++  // The receipt keeps the CLI's own exit; the runner's follows the signal that stopped it.
++  if (received) process.exitCode = 128 + os.constants.signals[received];
++  else {
++    process.exitCode =
++      (completion.exitCode >= 0 ? completion.exitCode : null) ??
++      (completion.signal === 'SIGINT'
++        ? 130
++        : completion.signal === 'SIGTERM'
++          ? 143
++          : 1);
++    if (process.exitCode === 0 && (parseError || !resultEvent || foreignSessionId))
++      process.exitCode = 1;
++  }
+ }
+ 
+ try {
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 4ccb32d..9b17ff2 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -21,7 +21,7 @@ Check `node --version`. Helpers require Node.js 24.12 or newer. Codex registrati
+ 
+ For selected Claude Code workers, run the sibling `poteto-mode/scripts/run-claude.mjs detect`. Report its executable, version, compatibility, safe auth status, and guidance. If missing, guide the authorized CLI installation. If logged out, guide human login in the user's terminal. Rerun detection afterward. Reuse existing authentication and configuration. Never copy credentials into a test home or setup file. Detection does not install tools, authenticate, or prove model access. If login status cannot be established, inspect the selected CLI's normal status flow with the user before choosing its models.
+ 
+-For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs detect`. Use the prerequisite guide for the official agy CLI. Let the user choose subscription login, Gemini API key, or ADC, and prepare that method with the guide. Reuse a method the user keeps. Never read credentials, ask the user to paste a key into the conversation, or switch methods silently. Rerun detection and confirm its `auth.method` before collecting the source-labeled catalog below. The catalog reflects the active method. Detection proves required syntax and version and reports the inherited method. It does not prove authentication or model access.
++For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs detect`. Use the prerequisite guide for the official agy CLI. Workers use subscription login or ADC. Let the user choose one, and prepare it with the guide. Reuse a method the user keeps. Detection fails with `stop.code` `unsupported-auth` when agy's settings select the Gemini API-key route, and workers refuse to start under it. Report that to the user. Change the setting only after the user chooses subscription login or ADC. Never read credentials, ask the user to paste a key into the conversation, or switch methods silently. Rerun detection and confirm its `auth.method` before collecting the source-labeled catalog below. The catalog reflects the active method. Detection proves required syntax and version and reports the inherited method. It does not prove authentication or model access.
+ 
+ The [execution binding](../poteto-mode/references/execution.md) describes runtime capability checks. A global CLI effort list proves syntax only. It supplies no default model or account entitlement.
+ 
+diff --git a/skills/setup-pstack/references/cli-prerequisites.md b/skills/setup-pstack/references/cli-prerequisites.md
+index 2cd3906..54f4e42 100644
+--- a/skills/setup-pstack/references/cli-prerequisites.md
++++ b/skills/setup-pstack/references/cli-prerequisites.md
+@@ -22,14 +22,13 @@ Rerun the existing capability detector after installation or login. The external
+ 
+ Prepare Antigravity only when selected. Use the official [Antigravity installation guide](https://antigravity.google/docs/getting-started/) and its `https://antigravity.google/cli/install.sh` installer. The bundled runner requires the official agy CLI 1.5.8 or newer. Run the sibling `poteto-mode/scripts/run-agy.mjs detect` through the PATH inherited by future workers. An absolute `--executable` overrides one invocation for diagnostics and is never saved. No unofficial extension is required.
+ 
+-Let the user choose the authentication method, follow the official guide for it, and never switch methods silently. Reuse a working method the user keeps. Do not inspect or copy credential files or save personal model defaults. The official CLI supports three methods:
++Let the user choose the authentication method, follow the official guide for it, and never switch methods silently. Reuse a working method the user keeps. Do not inspect or copy credential files or save personal model defaults. Workers support two of the official CLI's methods:
+ 
+ - Subscription login uses the official interactive agy login in the user's terminal. Detection reports `inherited-default`.
+-- The Gemini API key method follows the [official agy installation page](https://antigravity.google/docs/install.md). When the user chooses it, set `"modelProvider": "gemini"` in `~/.gemini/antigravity-cli/settings.json` and keep every other setting. The user makes `GEMINI_API_KEY` available in the environment inherited by this host and future workers, outside the conversation. Never ask for, print, or copy the key. The key alone has no effect. With `modelProvider` set and no key, agy exits at startup with a message naming `GEMINI_API_KEY`. Detection reports `gemini-api-key`.
+ - ADC uses existing Google Application Default Credentials with `AGY_ADC_AUTH=true` in the inherited environment. Detection reports `adc`.
+ 
+-agy checks `modelProvider` before `AGY_ADC_AUTH`, so `"modelProvider": "gemini"` selects the API key method even when ADC is enabled. When the user chooses another method while that value is set, remove only `modelProvider`.
++Workers do not use the Gemini API key method. The runner removes `GEMINI_API_KEY` and `GOOGLE_API_KEY` from every worker's environment. agy checks `modelProvider` before `AGY_ADC_AUTH`, so `"modelProvider": "gemini"` in `~/.gemini/antigravity-cli/settings.json` selects the API key method even when ADC is enabled. With that value set, detection reports `gemini-api-key` and fails with `stop.code` `unsupported-auth`. The catalog and every run then refuse to start. When the user chooses subscription login or ADC while that value is set, remove only `modelProvider`.
+ 
+-Rerun detection after preparing the method. Confirm `auth.method`, and for the Gemini API key method confirm `auth.geminiApiKeyPresent`, before collecting the catalog. If the key is reported absent, this host did not inherit it. The runner reports only these safe fields and passes no authentication option to agy. A version probe and these fields do not prove authentication or model access.
++Rerun detection after preparing the method. Confirm `auth.method` before collecting the catalog. The runner reports only safe fields and passes no authentication option to agy. A version probe and these fields do not prove authentication or model access.
+ 
+ Run `poteto-mode/scripts/run-agy.mjs catalog --cwd ABS --run-dir ABS_NEW_LOCAL_DIRECTORY`. This collects sanitized exact model IDs, labels, per-model capability sources, and the runtime version without a task prompt. A fixed-effort label supplies only its reported variant effort. Unclassified models remain candidates until per-model evidence supplies supported efforts. Catalog availability does not establish successful inference. The catalog lists the models of the active method, so collect it again after a method change. Antigravity-only setup skips every other executor's probes and catalog inputs.

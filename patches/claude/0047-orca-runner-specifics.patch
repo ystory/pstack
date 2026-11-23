@@ -1,0 +1,732 @@
+diff --git a/skills/poteto-mode/references/execution.md b/skills/poteto-mode/references/execution.md
+index c230a8b..3f0d938 100644
+--- a/skills/poteto-mode/references/execution.md
++++ b/skills/poteto-mode/references/execution.md
+@@ -54,7 +54,7 @@ Do not infer that browser, local-server, or network work is unavailable from the
+ 
+ Pass the absolute poteto-mode skill with `--skill` for a poteto-agent. Pass context paths to the runner instead of reading and copying their bodies into the brief. The runner reads the files and includes their complete bodies in its task input. The worker applies the [receiving-worker context rules](worker-context.md). Required reads of bodies absent from the input still need transcript evidence.
+ 
+-Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. A stopped thread's conversation meets that exception, per [Continuing a stopped worker](continuation.md). The receipt's `stop` records how the run ended. Never resume the latest thread or infer identity from a directory name. Setup saves `codexWorkers` and makes the selected server available on inherited PATH. The runner reads that saved value, so a launch passes no runtime setting. `hidden` calls `codex-app-server --session-source app-server`, and `visible` calls `codex app-server`. Absolute-path flags override one invocation for diagnostics and are not saved. If runtime preparation is incomplete, use [setup prerequisites](../../setup-pstack/references/prerequisites.md). Neither value falls back to the other server.
++Each independent seat and new round gets a unique run directory and fresh Codex thread. Use `--resume EXACT_THREAD_ID` only under poteto-mode's stateful-reuse exception. A stopped thread's conversation meets that exception, per [Continuing a stopped worker](continuation.md). The receipt's `stop` records how the run ended. When Codex rejected the task's `turn/start` or the runner never sent it, the receipt's `inputSent` is false, `stop.kind` is `not-started`, and `stop.continuable` is false. Never resume the latest thread or infer identity from a directory name. Setup saves `codexWorkers` and makes the selected server available on inherited PATH. The runner reads that saved value, so a launch passes no runtime setting. `hidden` calls `codex-app-server --session-source app-server`, and `visible` calls `codex app-server`. Absolute-path flags override one invocation for diagnostics and are not saved. If runtime preparation is incomplete, use [setup prerequisites](../../setup-pstack/references/prerequisites.md). Neither value falls back to the other server.
+ 
+ Workers share the existing Codex account, configuration, and persistent rollout/state storage through inherited `CODEX_HOME`. With `hidden`, fresh roots use the server's `app-server` session source without a `threadSource` tag. With `visible`, the CLI server records its fixed `vscode` source, and worker threads appear in Codex Desktop lists and `codex resume`. Roots remain persistent and can resume by exact thread ID. Existing threads retain their original source on resume and are not migrated or hidden retroactively. Ordinary Desktop lists filter session sources, but a successful help probe alone does not verify screen behavior or descendant visibility. Claude tools, MCP servers, conversation history, and permissions do not automatically become Codex tools or state. Verify the external executor has the capabilities needed for its assigned task.
+ 
+@@ -70,13 +70,13 @@ For `executor: "antigravity"`, preserve the returned exact `model` and separate
+ 
+ ## Run records and progress
+ 
+-The Codex, Claude, and Antigravity runners record each run the way Orca records its workers. Pass `--label "<short task name>"` on every launch. Each run appends `events.jsonl` to its run directory, one JSON line per event: `started` with the executor, model, effort, cwd, label, and runner pid, `activity` for a command, file edit, or tool call, `turn-completed`, and `stopped` with the stop kind and code. Each run also writes one registry file under the pstack state directory: `$PSTACK_STATE_HOME`, else `$XDG_STATE_HOME/pstack`, else `~/.local/state/pstack`.
++The Codex, Claude, and Antigravity runners record each run the way Orca records its workers. Pass `--label "<short task name>"` on every launch. Each run appends `events.jsonl` to its run directory, one JSON line per event: `started` with the executor, model, effort, cwd, label, and runner pid, `activity` for a command, file edit, or tool call, `turn-completed` with the CLI's own turn status when a turn ends, and `stopped` with the stop kind and code. Each run also writes one registry file under the pstack state directory: `$PSTACK_STATE_HOME`, else `$XDG_STATE_HOME/pstack`, else `~/.local/state/pstack`. Registration is best effort: a run whose registry file cannot be written still runs, and its receipt's `registry` holds the error instead of the run ID.
+ 
+-`node "<poteto-mode>/scripts/workers.mjs" status` lists the runs registered for the current directory and the directories inside it, with executor, model, label, state, and last event. A run is `running` while its runner lives without `result.json`, `lost` when the runner died without one, and otherwise its receipt's stop kind. Run it when the user asks what is running or where, and after compaction or a restart to find run directories rather than recalling them. `--cwd DIR` selects another checkout, `--all` lists every run, and `--json` prints records.
++`node "<poteto-mode>/scripts/workers.mjs" status` lists the runs registered for the current directory and the directories inside it, with executor, model, label, state, and last event. A run is `running` while its runner lives without a readable `result.json`, `lost` when the runner died without one, and otherwise its receipt's stop kind. An unreadable registry entry is skipped with a note on stderr. Run it when the user asks what is running or where, and after compaction or a restart to find run directories rather than recalling them. `--cwd DIR` selects another checkout, `--all` lists every run, and `--json` prints records.
+ 
+ `workers.mjs follow --run-dir DIR` prints each new event and exits when `result.json` appears, or with status 1 when the runner died without writing it. Start that command with `Monitor` when a worker launches. Tell the user which executor, model, label, and checkout each worker uses when it starts, and report its stop. In the desktop app, a Terminal panel tab running the same command lets the user watch a worker.
+ 
+-A receipt's `stop.code` names the cause: `completed`, `signal`, `deadline`, `usage-limit`, `not-signed-in`, `model-unavailable`, `provider`, `missing-session`, `permission-mode`, `permission-denied`, `unsupported-auth`, or `failed`. `stop.cause` holds the redacted tail of the evidence, and the run directory keeps the raw diagnostics. `not-signed-in` and `unsupported-auth` need the user's login or setup. `usage-limit` and `provider` follow the calling workflow's dropout rule. `missing-session` cannot continue. Each runner starts its CLI under a supervisor that removes the parent session's environment, runs the CLI in its own process group, and stops that group when the runner stops or dies.
++A receipt's `stop.code` names the cause: `completed`, `signal`, `deadline`, `usage-limit`, `not-signed-in`, `model-unavailable`, `provider`, `missing-session`, `permission-mode`, `permission-denied`, `unsupported-auth`, or `failed`. `stop.cause` holds the redacted tail of the evidence, and the run directory keeps the raw diagnostics. `not-signed-in` and `unsupported-auth` need the user's login or setup. `usage-limit` and `provider` follow the calling workflow's dropout rule. `missing-session` cannot continue. Each runner starts its CLI under a supervisor that removes the parent session's environment, runs the CLI in its own process group, and stops that group when the runner stops or dies. When the CLI exits, the supervisor kills what remains of its group, and the receipt's `descendantsReaped` is true when anything remained. The receipt's exit code and signal are the CLI's own, also when a stop ended it. A runner that received a stop signal exits 128 plus that signal's number, 130 for SIGINT and 143 for SIGTERM.
+ 
+ ## Worktrees and state transfer
+ 
+diff --git a/skills/poteto-mode/scripts/run-codex.mjs b/skills/poteto-mode/scripts/run-codex.mjs
+index e98adca..90c59b7 100644
+--- a/skills/poteto-mode/scripts/run-codex.mjs
++++ b/skills/poteto-mode/scripts/run-codex.mjs
+@@ -1,7 +1,6 @@
+ #!/usr/bin/env node
+ import fs from 'node:fs';
+ import path from 'node:path';
+-import { spawnSync } from 'node:child_process';
+ import { CodexAppServerClient } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs';
+ import { runAppServerTurn } from '../../../vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs';
+ import {
+@@ -10,12 +9,16 @@ import {
+ } from '../../setup-pstack/scripts/state.mjs';
+ import {
+   childEnv,
++  probeSupervised,
+   recordActivity,
+-  redactError,
++  redact,
++  redactValue,
+   spawnSupervised,
+   startRun,
+   stopRecord,
+   stopRun,
++  turnCompleted,
++  writeOnce,
+ } from './worker-runtime.mjs';
+ 
+ const EXECUTOR = 'codex';
+@@ -153,21 +156,19 @@ async function serverCommand(options) {
+   return { workers, kind: runtime.kind, executable, args: runtime.args };
+ }
+ 
+-function cliStatus(options, server) {
++// diagnostic receives the raw probe failure; the returned error is redacted.
++async function cliStatus(options, server, diagnostic = () => {}) {
+   const cwd = options.cwd ?? process.cwd();
+   const invoke = (args) =>
+-    spawnSync(server.executable, args, {
++    probeSupervised(server.executable, args, {
+       cwd,
+       env: childEnv(process.env, EXECUTOR),
+-      encoding: 'utf8',
+       timeout: 10_000,
+-      maxBuffer: 1024 * 1024,
+-      windowsHide: true,
+     });
+-  const version = invoke(['--version']);
++  const version = await invoke(['--version']);
+   const appServer =
+     !version.error && version.status === 0
+-      ? invoke([...server.args, '--help'])
++      ? await invoke([...server.args, '--help'])
+       : null;
+   const helpError =
+     !appServer?.error && appServer?.status === 0
+@@ -175,6 +176,19 @@ function cliStatus(options, server) {
+       : null;
+   const supported =
+     !appServer?.error && appServer?.status === 0 && helpError === null;
++  const error =
++    version.error?.message ??
++    appServer?.error?.message ??
++    (version.status !== 0
++      ? version.stderr.trim() ||
++        version.stdout.trim() ||
++        `exit ${version.status}`
++      : appServer?.status !== 0
++        ? appServer?.stderr.trim() ||
++          appServer?.stdout.trim() ||
++          `exit ${appServer?.status}`
++        : helpError);
++  if (error !== null) diagnostic({ event: 'cli-status', error });
+   return {
+     available: supported,
+     workers: server.workers,
+@@ -183,23 +197,12 @@ function cliStatus(options, server) {
+     args: server.args,
+     version: version.status === 0 ? version.stdout.trim() : null,
+     appServer: supported,
+-    error:
+-      version.error?.message ??
+-      appServer?.error?.message ??
+-      (version.status !== 0
+-        ? version.stderr.trim() ||
+-          version.stdout.trim() ||
+-          `exit ${version.status}`
+-        : appServer?.status !== 0
+-          ? appServer?.stderr.trim() ||
+-            appServer?.stdout.trim() ||
+-            `exit ${appServer?.status}`
+-          : helpError),
++    error: error === null ? null : redact(error),
+   };
+ }
+ 
+ async function inspect(options, server) {
+-  const cli = cliStatus(options, server);
++  const cli = await cliStatus(options, server);
+   const result = {
+     schemaVersion: 1,
+     cli,
+@@ -314,6 +317,140 @@ function activityText(item) {
+   }
+ }
+ 
++// Orca codex-structured-thread-facts.ts: codexErrorInfo is a variant name or a
++// single-key object whose fields can carry the HTTP status.
++function errorInfo(error) {
++  const info = error?.codexErrorInfo;
++  if (typeof info === 'string' && info) return { error: info };
++  const [variant, fields] =
++    Object.entries(info && typeof info === 'object' ? info : {})[0] ?? [];
++  return variant ? { error: variant, status: fields?.httpStatusCode } : null;
++}
++const failureText = (error) =>
++  typeof error?.additionalDetails === 'string'
++    ? error.additionalDetails
++    : typeof error?.message === 'string'
++      ? error.message
++      : undefined;
++// The provider's words for a failure, as Orca's usage-limit and sign-in text joins them.
++function errorText(error) {
++  const message = typeof error?.message === 'string' ? error.message : null;
++  const details =
++    typeof error?.additionalDetails === 'string' ? error.additionalDetails : null;
++  return (
++    [message, details !== message ? details : null].filter(Boolean).join('\n') ||
++    null
++  );
++}
++
++// Orca codex-authentication-failure.ts: only the unauthorized variant, or an HTTP
++// failure carrying 401, proves sign-out.
++const HTTP_ERROR_KINDS = [
++  'httpConnectionFailed',
++  'responseStreamConnectionFailed',
++  'responseStreamDisconnected',
++  'responseTooManyFailedAttempts',
++];
++// Orca codex-turn-failures.ts:159-199 with codex-usage-limits.ts: the stop code a
++// failed turn's error proves. A final 'other' error that repeats the text of an
++// error Codex retried keeps that retry's variant.
++function codexStopCode(error, retry) {
++  let info = errorInfo(error);
++  if (
++    info?.error === 'other' &&
++    retry &&
++    failureText(error) !== undefined &&
++    failureText(error) === retry.text
++  )
++    info = retry.info;
++  if (!info) return 'failed';
++  if (
++    ['usageLimitExceeded', 'rateLimitExceeded'].includes(info.error) ||
++    (info.error === 'responseTooManyFailedAttempts' && info.status === 429)
++  )
++    return 'usage-limit';
++  if (
++    info.error === 'unauthorized' ||
++    (info.status === 401 && HTTP_ERROR_KINDS.includes(info.error))
++  )
++    return 'not-signed-in';
++  if (info.error === 'modelNotFound') return 'model-unavailable';
++  if (
++    ['serverOverloaded', 'flexUnavailable', 'policyCapacityUnavailable'].includes(
++      info.error,
++    )
++  )
++    return 'provider';
++  return 'failed';
++}
++
++// The turn's error, or the error notification that ended it, whichever proves a
++// code, names the stop; the cause is that error's text.
++function turnFailure(failure, errors, retry) {
++  const present = errors.filter(Boolean);
++  const proven = present.find((error) => codexStopCode(error, retry) !== 'failed');
++  return [
++    'error',
++    proven ? codexStopCode(proven, retry) : 'failed',
++    failure?.message ?? errorText(proven ?? present[0]) ?? 'failed',
++  ];
++}
++
++// Orca codex-structured-thread-open.ts: only this thread-specific resume refusal proves no rollout.
++const noRollout = (failure, threadId) =>
++  failure?.method === 'thread/resume' &&
++  failure.data?.code === -32600 &&
++  failure.message.endsWith(`no rollout found for thread id ${threadId}`);
++
++// Orca codex-structured-read-only.ts and codex-server-request-disposition.ts:
++// nobody watches a worker, so every blocking request gets a safe answer.
++const UNATTENDED_ANSWERS = new Map([
++  ['item/commandExecution/requestApproval', { result: { decision: 'decline' } }],
++  ['item/fileChange/requestApproval', { result: { decision: 'decline' } }],
++  [
++    'mcpServer/elicitation/request',
++    { result: { action: 'decline', content: null, _meta: null } },
++  ],
++  [
++    'item/tool/requestUserInput',
++    {
++      error: {
++        code: -32001,
++        message: 'Nobody is watching this worker to answer.',
++      },
++    },
++  ],
++  [
++    'item/permissions/requestApproval',
++    { result: { permissions: {}, scope: 'turn', strictAutoReview: true } },
++  ],
++  ['item/tool/call', { result: { contentItems: [], success: false } }],
++  ['applyPatchApproval', { result: { decision: 'abort' } }],
++  ['execCommandApproval', { result: { decision: 'abort' } }],
++  [
++    'account/chatgptAuthTokens/refresh',
++    {
++      error: {
++        code: -32001,
++        message: 'pstack cannot refresh app-server auth tokens',
++      },
++    },
++  ],
++  [
++    'attestation/generate',
++    {
++      error: { code: -32001, message: 'pstack did not negotiate attestation' },
++    },
++  ],
++]);
++const unattendedAnswer = (method) =>
++  UNATTENDED_ANSWERS.get(method) ?? {
++    error: {
++      code: -32000,
++      message: `pstack rejected unrecognized blocking request ${method}`,
++    },
++  };
++
+ const snakeCase = (value) =>
+   value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+ 
+@@ -347,6 +484,10 @@ function approvedAssessment(options) {
+       : value;
+   return {
+     id: review.reviewId,
++    // Orca codex-auto-review-denial.ts: the reviewed item, when the review names one.
++    ...(typeof review.targetItemId === 'string' && review.targetItemId.trim()
++      ? { target_item_id: review.targetItemId }
++      : {}),
+     turn_id: review.turnId,
+     started_at_ms: review.startedAtMs,
+     completed_at_ms: review.completedAtMs,
+@@ -419,7 +560,7 @@ async function run(options, server) {
+   fs.writeFileSync(files.prompt, prompt, { flag: 'wx' });
+   fs.writeFileSync(files.progress, '', { flag: 'wx' });
+   fs.writeFileSync(files.diagnostics, '', { flag: 'wx' });
+-  startRun(
++  const registry = startRun(
+     {
+       runDir: directory,
+       executor: EXECUTOR,
+@@ -447,10 +588,29 @@ async function run(options, server) {
+     terminal = null;
+   const threadSettings = { model: null, effort: null };
+   const deniedReviews = [];
++  let interrupt = null,
++    // The task reaches Codex in turn/start; a rejected or unsent request never delivered it.
++    inputSent = false;
++  // Retried errors by turn ID, so a late retry of another turn never names this one's stop.
++  const retries = new Map();
++  const clientRequests = [];
+   const child = { pid: null, exitCode: null, signal: null, closed: false };
+-  let provider = null;
+-  const supervisedSpawn = (...spawnArgs) =>
+-    (provider = spawnSupervised(...spawnArgs));
++  let provider = null,
++    providerClosed = null;
++  const supervisedSpawn = (...spawnArgs) => {
++    provider = spawnSupervised(...spawnArgs);
++    // Close carries the supervisor's last report, whether it killed descendants.
++    providerClosed = new Promise((resolve) => provider.once('close', resolve));
++    return provider;
++  };
++  // A turn can end in a notification, in turn/start's response, or in a final
++  // error; each ended turn gets one turn-completed event.
++  const endedTurns = new Set();
++  const endTurn = (turn) => {
++    if (!turn || endedTurns.has(turn.id)) return;
++    endedTurns.add(turn.id);
++    turnCompleted(directory, turn.status);
++  };
+   const pending = new Map();
+   const diagnostic = (event) => {
+     fs.appendFileSync(
+@@ -465,6 +625,8 @@ async function run(options, server) {
+       });
+     if (event.direction === 'send' && event.message.id !== undefined)
+       pending.set(event.message.id, event.message.method);
++    if (event.direction === 'send' && event.message.method === 'turn/start')
++      inputSent = true;
+     if (event.direction !== 'receive') return;
+     let message;
+     try {
+@@ -475,22 +637,43 @@ async function run(options, server) {
+     if (message.id !== undefined) {
+       const method = pending.get(message.id);
+       pending.delete(message.id);
+-      if (['thread/start', 'thread/resume'].includes(method)) {
++      // A resume that opened another thread proves no identity to continue.
++      if (
++        method === 'thread/start' ||
++        (method === 'thread/resume' &&
++          message.result?.thread?.id === options.resume)
++      ) {
+         threadId = message.result?.thread?.id ?? threadId;
+         rolloutPath = message.result?.thread?.path ?? rolloutPath;
+         threadSettings.model = message.result?.model ?? null;
+         threadSettings.effort =
+           message.result?.reasoningEffort ?? message.result?.effort ?? null;
+       }
++      if (method === 'turn/start' && message.error) inputSent = false;
+       if (method === 'turn/start') turnId = message.result?.turn?.id ?? turnId;
+     }
+     if (message.params?.threadId !== threadId) return;
+     if (message.method === 'turn/started') turnId = message.params.turn.id;
++    // Orca codex-turn-failures.ts observeRetry: each turn's last retried error with a variant.
++    if (message.method === 'error' && message.params.willRetry !== false) {
++      const info = errorInfo(message.params.error);
++      const text = failureText(message.params.error);
++      if (
++        typeof message.params.turnId === 'string' &&
++        info &&
++        info.error !== 'other' &&
++        text !== undefined
++      )
++        retries.set(message.params.turnId, { info, text });
++    }
+     if (message.method === 'item/started') {
+       const activity = activityText(message.params.item);
+       if (activity) recordActivity(directory, activity);
+     }
+-    if (message.method === 'turn/completed') terminal = message.params.turn;
++    if (message.method === 'turn/completed') {
++      terminal = message.params.turn;
++      endTurn(terminal);
++    }
+     if (
+       message.method === 'item/autoApprovalReview/completed' &&
+       message.params.review?.status === 'denied'
+@@ -506,13 +689,14 @@ async function run(options, server) {
+     failure = null,
+     runtime = null;
+   try {
+-    runtime = cliStatus(options, server);
++    runtime = await cliStatus(options, server, diagnostic);
+     if (!runtime.available)
+       throw new Error(
+         runtimes[server.workers].unavailable.replace('ERROR', () => runtime.error),
+       );
+     result = await runAppServerTurn(options.cwd, {
+       direct: true,
++      availability: { available: true, detail: runtime.version },
+       executable: server.executable,
+       appServerArgs: server.args,
+       env: childEnv(process.env, EXECUTOR),
+@@ -533,6 +717,12 @@ async function run(options, server) {
+             event: approval,
+           })),
+       prompt,
++      onInterrupt: (outcome) => (interrupt = outcome),
++      answerServerRequest: ({ method }) => {
++        const answer = unattendedAnswer(method);
++        clientRequests.push({ method, answer });
++        return answer;
++      },
+       onDiagnostic: diagnostic,
+       onProgress: (update) => {
+         if (typeof update === 'object') {
+@@ -549,15 +739,18 @@ async function run(options, server) {
+     turnId = result.turnId;
+     finalText = result.finalMessage ?? finalText;
+     terminal = result.turn;
++    endTurn(terminal);
+   } catch (error) {
+     failure = {
+       message: error.message,
+       code: error.code ?? null,
++      method: error.method ?? null,
+       data: error.data ?? null,
+       stack: error.stack,
+     };
+     diagnostic({ event: 'failure', failure });
+   } finally {
++    await providerClosed;
+     process.removeListener('SIGINT', onInterrupt);
+     process.removeListener('SIGTERM', onTerminate);
+   }
+@@ -575,8 +768,15 @@ async function run(options, server) {
+         ? ['permission', 'permission-denied', 'denied review']
+         : status === 'completed'
+           ? ['completed', 'completed', 'completed']
+-          : ['error', 'failed', failure?.message ?? 'failed'];
++          : noRollout(failure, options.resume)
++            ? ['error', 'missing-session', failure.message]
++            : turnFailure(
++                failure,
++                [terminal?.error, result?.error],
++                retries.get(turnId),
++              );
+   child.pid = provider?.providerPid ?? null;
++  child.descendantsReaped = provider?.descendantsReaped ?? null;
+   const exitCode =
+     signal === 'SIGINT'
+       ? 130
+@@ -600,19 +800,23 @@ async function run(options, server) {
+     threadSettings,
+     approvedReview: request.approvedReview?.reviewId ?? null,
+     deniedReviews,
++    clientRequests,
++    registry,
+     status,
++    inputSent,
+     stop: stopRecord({
+-      kind: stopKind,
++      kind: stopKind === 'completed' || inputSent ? stopKind : 'not-started',
+       code: stopCode,
+       cause: stopCause,
+-      continuable: threadId !== null,
++      continuable: threadId !== null && inputSent,
+     }),
+     resultStatus: result?.status ?? null,
+     finalText,
+-    turn: terminal,
+-    error: redactError(failure ?? result?.error ?? terminal?.error ?? null),
++    turn: terminal && { ...terminal, error: redactValue(terminal.error) },
++    error: redactValue(failure ?? result?.error ?? terminal?.error ?? null),
+     exitCode,
+     signal,
++    interrupt: redactValue(interrupt),
+     process: child,
+     startedAt,
+     finishedAt: new Date().toISOString(),
+@@ -620,11 +824,7 @@ async function run(options, server) {
+   };
+   fs.writeFileSync(files.final, finalText, { flag: 'wx' });
+   stopRun(directory, receipt.stop);
+-  const temporary = files.result + '.tmp';
+-  fs.writeFileSync(temporary, JSON.stringify(receipt, null, 2) + '\n', {
+-    flag: 'wx',
+-  });
+-  fs.renameSync(temporary, files.result);
++  writeOnce(files.result, JSON.stringify(receipt, null, 2) + '\n');
+   process.exitCode = exitCode;
+   return receipt;
+ }
+diff --git a/skills/setup-pstack/SKILL.md b/skills/setup-pstack/SKILL.md
+index 2e4f0b2..ccc8862 100644
+--- a/skills/setup-pstack/SKILL.md
++++ b/skills/setup-pstack/SKILL.md
+@@ -30,7 +30,7 @@ When the Claude detector runs, report `configuration.claudeHome` as the setup co
+ 
+ Claude-only choices do not require Codex. Use [the prerequisite guide](references/prerequisites.md) for selected tools that need preparation, then rerun detection. Reuse existing installations and authentication. Distinguish ChatGPT subscription login from OpenAI API-key billing. Keep interactive login in the user's terminal or the host's normal login flow. Never ask the user to paste credentials into the conversation.
+ 
+-For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs detect`. Use the prerequisite guide for the official agy CLI. Let the user choose subscription login, Gemini API key, or ADC, and prepare that method with the guide. Reuse a method the user keeps. Never read credentials, ask the user to paste a key into the conversation, or switch methods silently. Rerun detection and confirm its `auth.method` before collecting the source-labeled catalog below. The catalog reflects the active method. Detection proves required syntax and version and reports the inherited method. It does not prove authentication or model access.
++For selected Antigravity workers, run the sibling `poteto-mode/scripts/run-agy.mjs detect`. Use the prerequisite guide for the official agy CLI. Workers use subscription login or ADC. Let the user choose one, and prepare it with the guide. Reuse a method the user keeps. Detection fails with `stop.code` `unsupported-auth` when agy's settings select the Gemini API-key route, and workers refuse to start under it. Report that to the user. Change the setting only after the user chooses subscription login or ADC. Never read credentials, ask the user to paste a key into the conversation, or switch methods silently. Rerun detection and confirm its `auth.method` before collecting the source-labeled catalog below. The catalog reflects the active method. Detection proves required syntax and version and reports the inherited method. It does not prove authentication or model access.
+ 
+ Native exact-model choices use generated agent definitions and per-invocation effort. Claude Code 2.1.292 introduced that effort parameter. If the installed host lacks the parameter, guide an update before configuring explicit native effort. Inspect the active tool schema as well as the version.
+ 
+diff --git a/skills/setup-pstack/references/prerequisites.md b/skills/setup-pstack/references/prerequisites.md
+index bebd10a..dcb3b67 100644
+--- a/skills/setup-pstack/references/prerequisites.md
++++ b/skills/setup-pstack/references/prerequisites.md
+@@ -48,14 +48,13 @@ Rerun detection and collect the catalog after login. Runtime capability, login s
+ 
+ Prepare Antigravity only when selected. Use the official [Antigravity installation guide](https://antigravity.google/docs/getting-started/) and its `https://antigravity.google/cli/install.sh` installer. The bundled runner requires the official agy CLI 1.5.8 or newer. Run the sibling `poteto-mode/scripts/run-agy.mjs detect` through the PATH inherited by future workers. An absolute `--executable` overrides one invocation for diagnostics and is never saved. No unofficial extension is required.
+ 
+-Let the user choose the authentication method, follow the official guide for it, and never switch methods silently. Reuse a working method the user keeps. Do not inspect or copy credential files or save personal model defaults. The official CLI supports three methods:
++Let the user choose the authentication method, follow the official guide for it, and never switch methods silently. Reuse a working method the user keeps. Do not inspect or copy credential files or save personal model defaults. Workers support two of the official CLI's methods:
+ 
+ - Subscription login uses the official interactive agy login in the user's terminal. Detection reports `inherited-default`.
+-- The Gemini API key method follows the [official agy installation page](https://antigravity.google/docs/install.md). When the user chooses it, set `"modelProvider": "gemini"` in `~/.gemini/antigravity-cli/settings.json` and keep every other setting. The user makes `GEMINI_API_KEY` available in the environment inherited by this host and future workers, outside the conversation. Never ask for, print, or copy the key. The key alone has no effect. With `modelProvider` set and no key, agy exits at startup with a message naming `GEMINI_API_KEY`. Detection reports `gemini-api-key`.
+ - ADC uses existing Google Application Default Credentials with `AGY_ADC_AUTH=true` in the inherited environment. Detection reports `adc`.
+ 
+-agy checks `modelProvider` before `AGY_ADC_AUTH`, so `"modelProvider": "gemini"` selects the API key method even when ADC is enabled. When the user chooses another method while that value is set, remove only `modelProvider`.
++Workers do not use the Gemini API key method. The runner removes `GEMINI_API_KEY` and `GOOGLE_API_KEY` from every worker's environment. agy checks `modelProvider` before `AGY_ADC_AUTH`, so `"modelProvider": "gemini"` in `~/.gemini/antigravity-cli/settings.json` selects the API key method even when ADC is enabled. With that value set, detection reports `gemini-api-key` and fails with `stop.code` `unsupported-auth`. The catalog and every run then refuse to start. When the user chooses subscription login or ADC while that value is set, remove only `modelProvider`.
+ 
+-Rerun detection after preparing the method. Confirm `auth.method`, and for the Gemini API key method confirm `auth.geminiApiKeyPresent`, before collecting the catalog. If the key is reported absent, this host did not inherit it. The runner reports only these safe fields and passes no authentication option to agy. A version probe and these fields do not prove authentication or model access.
++Rerun detection after preparing the method. Confirm `auth.method` before collecting the catalog. The runner reports only safe fields and passes no authentication option to agy. A version probe and these fields do not prove authentication or model access.
+ 
+ Run `poteto-mode/scripts/run-agy.mjs catalog --cwd ABS --run-dir ABS_NEW_LOCAL_DIRECTORY`. This collects sanitized exact model IDs, labels, per-model capability sources, and the runtime version without a task prompt. A fixed-effort label supplies only its reported variant effort. Unclassified models remain candidates until per-model evidence supplies supported efforts. Catalog availability does not establish successful inference. The catalog lists the models of the active method, so collect it again after a method change. Antigravity-only setup skips every other executor's probes and catalog inputs.
+diff --git a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs
+index 9e2868c..66d150a 100644
+--- a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs
++++ b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/app-server.mjs
+@@ -1,4 +1,4 @@
+-// pstack-cc modified this file for direct worker execution, cancellation, and a caller-supplied spawn.
++// pstack-cc modified this file for direct worker execution, cancellation, a caller-supplied spawn and its own stop, and caller-supplied server-request answers.
+ /**
+  * @typedef {Error & { data?: unknown, rpcCode?: number }} ProtocolError
+  * @typedef {import("./app-server-protocol").AppServerMethod} AppServerMethod
+@@ -142,7 +142,11 @@ class AppServerClientBase {
+       this.pending.delete(message.id);
+ 
+       if (message.error) {
+-        pending.reject(createProtocolError(message.error.message ?? `codex app-server ${pending.method} failed.`, message.error));
++        pending.reject(
++          Object.assign(createProtocolError(message.error.message ?? `codex app-server ${pending.method} failed.`, message.error), {
++            method: pending.method
++          })
++        );
+       } else {
+         pending.resolve(message.result ?? {});
+       }
+@@ -155,10 +159,10 @@ class AppServerClientBase {
+   }
+ 
+   handleServerRequest(message) {
+-    this.sendMessage({
+-      id: message.id,
++    const answer = this.options.answerServerRequest?.(message) ?? {
+       error: buildJsonRpcError(-32601, `Unsupported server request: ${message.method}`)
+-    });
++    };
++    this.sendMessage({ id: message.id, ...answer });
+   }
+ 
+   handleExit(error) {
+@@ -251,7 +255,11 @@ class SpawnedCodexAppServerClient extends AppServerClientBase {
+ 
+     this.closed = true;
+ 
+-    if (this.proc && !this.proc.killed) {
++    if (this.proc && !this.proc.killed && process.platform !== "win32" && typeof this.proc.stop === "function") {
++      // A supervised child reads its stdin end as the close request; its supervisor
++      // gives the server its grace before the stop ladder.
++      void this.proc.stop("close");
++    } else if (this.proc && !this.proc.killed) {
+       this.proc.stdin.end();
+       setTimeout(() => {
+         if (this.proc && !this.proc.killed && this.proc.exitCode === null) {
+diff --git a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
+index a766b81..79145fa 100644
+--- a/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
++++ b/vendor/codex-plugin-cc/plugins/codex/scripts/lib/codex.mjs
+@@ -1,4 +1,4 @@
+-// pstack-cc modified this file for direct worker execution, cancellation, and reviewed approvals.
++// pstack-cc modified this file for direct worker execution, cancellation, reviewed approvals, a caller's runtime probe, and unopened turns that end with a final error.
+ /**
+  * @typedef {import("./app-server-protocol").AppServerNotification} AppServerNotification
+  * @typedef {import("./app-server-protocol").ReviewTarget} ReviewTarget
+@@ -81,7 +81,9 @@ function buildResumeParams(threadId, cwd, options = {}) {
+     model: options.model ?? null,
+     approvalPolicy: options.approvalPolicy ?? "never",
+     approvalsReviewer: options.approvalsReviewer,
+-    sandbox: options.sandbox ?? "read-only"
++    sandbox: options.sandbox ?? "read-only",
++    // The turn needs no replay of the history, which is deprecated for paginated threads.
++    excludeTurns: true
+   };
+ }
+ 
+@@ -317,6 +319,7 @@ function createTurnCaptureState(threadId, options = {}) {
+     threadIds: new Set([threadId]),
+     threadTurnIds: new Map(),
+     threadLabels: new Map(),
++    openedTurnIds: new Set(),
+     turnId: null,
+     bufferedNotifications: [],
+     completion,
+@@ -509,6 +512,9 @@ function applyTurnNotification(state, message) {
+     case "turn/started":
+       registerThread(state, message.params.threadId);
+       state.threadTurnIds.set(message.params.threadId, message.params.turn.id);
++      if ((message.params.threadId ?? null) === state.threadId) {
++        state.openedTurnIds.add(message.params.turn.id);
++      }
+       if ((message.params.threadId ?? null) !== state.threadId) {
+         state.activeSubagentTurns.add(message.params.threadId);
+       }
+@@ -539,8 +545,22 @@ function applyTurnNotification(state, message) {
+       }
+       break;
+     case "error":
++      // Codex retries a stream error itself unless willRetry is false; only that one ends the turn.
++      if (message.params.willRetry !== false) {
++        emitProgress(state.onProgress, `Codex retrying: ${message.params.error.message}`);
++        break;
++      }
+       state.error = message.params.error;
+       emitProgress(state.onProgress, `Codex error: ${message.params.error.message}`, "failed");
++      // Orca codex-structured-turn-end-settlement.ts: a turn Codex never opened can end
++      // with only this final error, while an opened turn still sends turn/completed.
++      if (
++        message.params.threadId === state.threadId &&
++        message.params.turnId &&
++        !state.openedTurnIds.has(message.params.turnId)
++      ) {
++        completeTurn(state, { id: message.params.turnId, status: "failed", error: message.params.error });
++      }
+       break;
+     case "turn/completed":
+       if ((message.params.threadId ?? null) !== state.threadId) {
+@@ -560,6 +580,28 @@ function applyTurnNotification(state, message) {
+   }
+ }
+ 
++const TURN_INTERRUPT_GRACE_MS = 5_000;
++
++/** An acknowledgement confirms the turn stopped; -32600 means it was not running. */
++async function interruptTurn(client, threadId, turnId) {
++  let timer;
++  const timedOut = new Promise((resolve) => {
++    timer = setTimeout(resolve, TURN_INTERRUPT_GRACE_MS, { outcome: "timed-out", detail: null });
++  });
++  const reply = (async () => client.request("turn/interrupt", { threadId, turnId }))().then(
++    () => ({ outcome: "acknowledged", detail: null }),
++    (error) => ({
++      outcome: error?.rpcCode === -32600 ? "not-running" : error?.rpcCode === undefined ? "lost" : "refused",
++      detail: error instanceof Error ? error.message : String(error)
++    })
++  );
++  try {
++    return { turnId, ...(await Promise.race([reply, timedOut])) };
++  } finally {
++    clearTimeout(timer);
++  }
++}
++
+ async function captureTurn(client, threadId, startRequest, options = {}) {
+   const state = createTurnCaptureState(threadId, options);
+   const previousHandler = client.notificationHandler;
+@@ -571,7 +613,10 @@ async function captureTurn(client, threadId, startRequest, options = {}) {
+     if (!options.signal?.aborted || state.completed || interruptRequested) return;
+     interruptRequested = true;
+     if (state.turnId) {
+-      void client.request("turn/interrupt", { threadId: state.threadId, turnId: state.turnId }).catch(() => {});
++      // withDirectAppServer closes the server only after this settles.
++      client.turnInterrupt = interruptTurn(client, state.threadId, state.turnId).then((result) => {
++        options.onInterrupt?.(result);
++      });
+     }
+     const error = options.signal.reason ?? new Error("Codex turn aborted.");
+     rejectAbort(error);
+@@ -674,14 +719,19 @@ async function withAppServer(cwd, fn) {
+ 
+ async function withDirectAppServer(cwd, fn, options = {}) {
+   const client = await CodexAppServerClient.connect(cwd, { ...options, disableBroker: true });
+-  const abort = () => { queueMicrotask(() => { void client.close(); }); };
++  // The microtask runs after captureTurn's abort listener has sent its turn interrupt.
++  const close = async () => {
++    await client.turnInterrupt;
++    await client.close();
++  };
++  const abort = () => { queueMicrotask(() => { void close(); }); };
+   options.signal?.addEventListener("abort", abort);
+   try {
+     options.signal?.throwIfAborted();
+     return await fn(client);
+   } finally {
+     options.signal?.removeEventListener("abort", abort);
+-    await client.close();
++    await close();
+   }
+ }
+ 
+@@ -1129,7 +1179,8 @@ export async function importExternalAgentSession(cwd, options = {}) {
+ }
+ 
+ export async function runAppServerTurn(cwd, options = {}) {
+-  const availability = getCodexAvailability(cwd, options);
++  // A caller that probed the runtime under its own supervision passes that result.
++  const availability = options.availability ?? getCodexAvailability(cwd, options);
+   if (!availability.available) {
+     throw new Error(`Codex runtime unavailable: ${availability.detail}`);
+   }
+@@ -1151,6 +1202,9 @@ export async function runAppServerTurn(cwd, options = {}) {
+         ephemeral: false
+       });
+       threadId = response.thread.id;
++      if (threadId !== options.resumeThreadId) {
++        throw new Error(`codex app-server resumed ${threadId} instead of ${options.resumeThreadId}`);
++      }
+     } else {
+       emitProgress(options.onProgress, "Starting Codex task thread.", "starting");
+       const response = await startThread(client, cwd, {
+@@ -1185,7 +1239,12 @@ export async function runAppServerTurn(cwd, options = {}) {
+           effort: options.effort ?? null,
+           outputSchema: options.outputSchema ?? null
+         }),
+-      { onProgress: options.onProgress, signal: options.signal, requireTerminalCompletion: options.direct === true }
++      {
++        onProgress: options.onProgress,
++        onInterrupt: options.onInterrupt,
++        signal: options.signal,
++        requireTerminalCompletion: options.direct === true
++      }
+     );
+ 
+     return {

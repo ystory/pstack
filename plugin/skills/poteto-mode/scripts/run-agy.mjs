@@ -772,9 +772,11 @@ async function priorFor(options, auth) {
     throw new Error(
       'Resume requires verified closed owned process and process group.',
     );
+  // The prior run proves its identity with the ID it launched; a receipt from
+  // before launchModel launched its requested ID.
   if (
     !conversationVerified(prior, {
-      model: options.launchModel,
+      model: prior.launchModel ?? prior.requested?.model,
       cwd: options.cwd,
     })
   )

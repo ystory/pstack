@@ -1028,6 +1028,28 @@ test('agy rejects wrong resume route, cwd, auth, closure, receipt alias and nake
   assert.match(naked.stderr, /absolute path/);
 });
 
+test('agy resumes a receipt from before launchModel by the ID that run launched', async (t) => {
+  const f = await fixture(t);
+  const first = await f.invoke();
+  assert.equal(first.receipt.stop.continuable, true, first.stderr);
+  // A runner before launchModel launched the leveled ID even when --effort differed.
+  const { launchModel, ...legacy } = first.receipt;
+  assert.equal(launchModel, model);
+  legacy.requested.reasoningEffort = 'high';
+  const prior = path.join(first.runDir, 'result.json');
+  await writeFile(prior, JSON.stringify(legacy));
+  const resumed = await f.invoke('normal', [
+    '--resume',
+    prior,
+    '--effort',
+    'high',
+  ]);
+  assert.equal(resumed.code, 0, resumed.stderr);
+  assert.equal(resumed.receipt.status, 'completed');
+  assert.equal(resumed.receipt.launchModel, 'gemini-4-hydrogen');
+  assert.equal(resumed.receipt.conversationId, first.receipt.conversationId);
+});
+
 test('agy rejects stale and mismatched resumed streams and retains their consumed continuation edge', async (t) => {
   const f = await fixture(t);
   for (const mode of ['stale', 'wrong-resume']) {

@@ -140,6 +140,9 @@ if (args[0] === '--version') {
     for (let line = 1; line <= 1000; line++) process.stderr.write('stderr line ' + String(line).padStart(4, '0') + ' xxxxxxxxxxxx\\n');
     process.stderr.write('token=fixture-secret-value\\n');
     process.exitCode = 3;
+  } else if (scenario === 'aborted-error' || scenario === 'aborted-success') {
+    const error = scenario === 'aborted-error';
+    process.stdout.write(JSON.stringify({type: 'result', subtype: error ? 'error_during_execution' : 'success', is_error: error, terminal_reason: error ? 'aborted_tools' : 'aborted_streaming', session_id: sid}) + '\\n');
   } else if (scenario === 'missing-result') {
     process.stdout.write(JSON.stringify({type: 'system', subtype: 'init', session_id: sid}) + '\\n');
   } else {
@@ -981,4 +984,27 @@ test('a run without a result reports its last whole stderr lines, redacted', asy
     await readFile(receipt.stderrPath, 'utf8'),
     /token=fixture-secret-value/,
   );
+});
+
+test('a result Claude cut short is an interrupted stop, not a completion or failure', async (t) => {
+  for (const [scenario, reason] of [
+    ['aborted-error', 'aborted_tools'],
+    ['aborted-success', 'aborted_streaming'],
+  ]) {
+    const f = await fixture(t);
+    const result = f.invoke(f.runArgs, undefined, {
+      PSTACK_FAKE_SCENARIO: scenario!,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.terminalReason, reason);
+    assert.equal(receipt.status, 'interrupted');
+    assert.equal(receipt.stop.kind, 'interrupted');
+    assert.equal(receipt.stop.continuable, true);
+    assert.match(receipt.stop.cause, new RegExp(reason!));
+  }
+  const g = await fixture(t);
+  const ran = JSON.parse(g.invoke(g.runArgs).stdout);
+  assert.equal(ran.terminalReason, null);
+  assert.equal(ran.stop.kind, 'completed');
 });

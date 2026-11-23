@@ -34,6 +34,11 @@ import {
 const EXECUTOR = 'claude-code';
 // Orca managed-provider-process.ts:28.
 const STDERR_TAIL_MAX_CHARS = 8192;
+// Orca claude-result-outcome.ts:4-5: a result with one of these reasons is a stop, not a failure.
+const CLAUDE_ABORTED_TERMINAL_REASONS = new Set([
+  'aborted_streaming',
+  'aborted_tools',
+]);
 // Orca claude-stream-json-exit-error.ts:14-15.
 const CLAUDE_MISSING_CONVERSATION =
   /^No conversation found with session ID: [0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\s*$/im;
@@ -280,6 +285,7 @@ function claudeStop({
   signal,
   missingSession,
   permissionMode,
+  terminalReason,
   denials,
   succeeded,
   failure,
@@ -293,6 +299,13 @@ function claudeStop({
       'error',
       'permission-mode',
       `Claude started in ${permissionMode} mode instead of auto`,
+    ];
+  // Orca claude-result-outcome.ts:14-20: the abort reason outranks is_error.
+  if (CLAUDE_ABORTED_TERMINAL_REASONS.has(terminalReason))
+    return [
+      'interrupted',
+      'failed',
+      `Claude ended the turn early (${terminalReason})`,
     ];
   if (denials.length)
     return ['permission', 'permission-denied', 'permission denial'];
@@ -527,12 +540,19 @@ async function run(options) {
     { 130: 'SIGINT', 143: 'SIGTERM' }[completion.exitCode] ??
     null;
   const denials = resultEvent?.permission_denials ?? [];
+  const terminalReason =
+    typeof resultEvent?.terminal_reason === 'string'
+      ? resultEvent.terminal_reason
+      : null;
+  const aborted = CLAUDE_ABORTED_TERMINAL_REASONS.has(terminalReason);
   const succeeded =
+    !aborted &&
     completion.exitCode === 0 &&
     !parseError &&
     resultEvent?.subtype === 'success' &&
     resultEvent.is_error !== true;
-  const status = signal ? 'interrupted' : succeeded ? 'completed' : 'failed';
+  const status =
+    signal || aborted ? 'interrupted' : succeeded ? 'completed' : 'failed';
   const observedPermissionMode = rootInit?.permissionMode ?? null;
   // Orca claude-stream-json-exit-error.ts:17-36, 61: Claude reports a missing
   // conversation on stderr, or in a startup result's errors.
@@ -548,6 +568,7 @@ async function run(options) {
     signal,
     missingSession,
     permissionMode: observedPermissionMode,
+    terminalReason,
     denials,
     succeeded,
     failure:
@@ -563,6 +584,7 @@ async function run(options) {
     sessionId,
     observedModel,
     observedPermissionMode,
+    terminalReason,
     result: typeof resultEvent?.result === 'string' ? resultEvent.result : null,
     resultEvent,
     status,

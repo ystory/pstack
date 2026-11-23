@@ -43,6 +43,16 @@ const launchModelFor = (model, effort) => {
   const match = levelSuffix.exec(model);
   return match && match[2] !== effort ? match[1] : model;
 };
+// Orca antigravity-dialect.ts:151-159. agy retries an empty model reply and sends the
+// retry notice each time; the failure notices end a turn as failed.
+const retryNotice = /^\s*⚠ (Model produced invalid output\.)\s*$/;
+const turnFailureNotice =
+  /^\s*(?:⚠ (?:UNAUTHENTICATED \(code 401\)|agent executor error): [^\n]*|API key not valid\. Please pass a valid API key\.|Agent execution error: failed to create Gemini client: [^\n]*|Agent connection was lost and could not be re-established: Failed to rebuild agent: [\s\S]*)\s*$/;
+const answerOf = (response) =>
+  response
+    .split('\n')
+    .filter((line) => !retryNotice.test(line))
+    .join('\n');
 const contains = (root, target) =>
   target === root || target.startsWith(`${root}${path.sep}`);
 const uuid = (value) =>
@@ -769,10 +779,14 @@ function streamParser(options, prior) {
         terminal.is_error === true ||
         terminal.success === false ||
         typeof terminal.response !== 'string' ||
-        !terminal.response.trim()
+        !answerOf(terminal.response).trim()
       )
         throw new Error(
           'Missing matching current-turn SUCCESS terminal result and nonempty response.',
+        );
+      if (turnFailureNotice.test(answerOf(terminal.response)))
+        throw new Error(
+          `agy ended the turn with a failure notice: ${answerOf(terminal.response).trim()}`,
         );
       if (
         !Number.isSafeInteger(terminal.num_turns) ||
@@ -966,10 +980,11 @@ async function execute(options) {
       throw new Error('Owned process closure is unconfirmed.');
     if (context) {
       request.finalPath = path.join(options.runDir, 'final.txt');
-      await fs.writeFile(request.finalPath, evidence.terminalResult.response, {
-        flag: 'wx',
-        mode: 0o600,
-      });
+      await fs.writeFile(
+        request.finalPath,
+        answerOf(evidence.terminalResult.response),
+        { flag: 'wx', mode: 0o600 },
+      );
     }
     if (!context) {
       catalog = {
@@ -1013,7 +1028,9 @@ async function execute(options) {
     effectiveEffort: null,
     inputSent: outcome?.inputSent ?? false,
     identityBeforeInput: outcome?.identityBeforeInput ?? false,
-    result: error ? null : (evidence.terminalResult?.response ?? null),
+    result: error
+      ? null
+      : answerOf(evidence.terminalResult?.response ?? '') || null,
     usage: evidence.terminalResult?.usage
       ? {
           scope: 'conversation-cumulative',

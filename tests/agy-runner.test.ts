@@ -454,6 +454,9 @@ for (const mode of [
   'truncated-utf8',
   'failure',
   'empty',
+  'retry-only',
+  'failure-notice',
+  'rebuild-notice',
   'error-then-success',
   'duplicate-result',
   'late-error',
@@ -479,6 +482,10 @@ for (const mode of [
     }
     if (mode === 'error-then-success')
       assert.match(run.receipt.error, /original native failure/);
+    if (mode.endsWith('-notice')) {
+      assert.match(run.receipt.error, /failure notice/);
+      assert.equal(run.receipt.terminalResult.status, 'SUCCESS');
+    }
     if (mode === 'bad-utf8')
       assert.ok(
         (await readFile(path.join(run.runDir, 'stdout.jsonl'))).includes(0xc3),
@@ -834,6 +841,22 @@ test('agy interrupted runs keep a continuable conversation and continue it', asy
     assert.equal(resumed.receipt.conversationId, run.receipt.conversationId);
     assert.equal(resumed.receipt.stop.kind, 'completed');
   }
+});
+
+test('agy leaves retry notices out of the answer and keeps them in the native result', async (t) => {
+  const f = await fixture(t);
+  const run = await f.invoke('retry-notice');
+  assert.equal(run.code, 0, run.stderr);
+  assert.equal(run.receipt.status, 'completed');
+  assert.equal(run.receipt.result, 'fresh answer 한글 🥔');
+  assert.equal(
+    await readFile(path.join(run.runDir, 'final.txt'), 'utf8'),
+    'fresh answer 한글 🥔',
+  );
+  assert.match(
+    run.receipt.terminalResult.response,
+    /^⚠ Model produced invalid output\.\n/,
+  );
 });
 
 test('agy tool errors return to the worker and do not fail the run', async (t) => {

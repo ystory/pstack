@@ -155,12 +155,21 @@ if (args[0] === '--version') {
           },
         },
       });
+  const responses = {
+    empty: ' \n ',
+    'retry-notice':
+      '⚠ Model produced invalid output.\n⚠ Model produced invalid output.\nfresh answer 한글 🥔',
+    'retry-only': '⚠ Model produced invalid output.\n',
+    'failure-notice': '⚠ agent executor error: model request failed\n',
+    'rebuild-notice':
+      'Agent connection was lost and could not be re-established: Failed to rebuild agent: no session\nretry later',
+  };
   const result = {
     event: 'result',
     result: {
       conversation_id: mode === 'wrong-result-id' ? 'wrong' : conversationId,
       status: 'SUCCESS',
-      response: mode === 'empty' ? ' \n ' : 'fresh answer 한글 🥔',
+      response: responses[mode] ?? 'fresh answer 한글 🥔',
       num_turns: args.includes('--conversation') && mode !== 'stale' ? 2 : 1,
       usage: { input_tokens: 22, output_tokens: 4, total_tokens: 26 },
     },

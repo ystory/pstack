@@ -368,7 +368,8 @@ class SupervisedChild extends EventEmitter {
     return this.#raw.kill(signal);
   }
 
-  /** Ends stdin, then lets the supervisor run its ladder; forces the group only if it outlives it. */
+  /** Ends stdin, then lets the supervisor run its ladder; forces the group only if it outlives it.
+   * reason is kept as stopReason; SIGINT, SIGTERM, or SIGHUP is also the signal the supervisor exits with. */
   async stop(reason) {
     this.stopReason ??= reason;
     const raw = this.#raw;
@@ -382,8 +383,12 @@ class SupervisedChild extends EventEmitter {
     try {
       raw.stdin?.end();
     } catch {}
-    // Only a session reads its stdin end as a close request.
-    if (this.#lifetime === 'one-shot') raw.kill('SIGTERM');
+    // Only a session reads its stdin end as a close request. The supervisor
+    // exits with the signal it received, so a signal reason survives the stop.
+    if (this.#lifetime === 'one-shot')
+      raw.kill(
+        ['SIGINT', 'SIGTERM', 'SIGHUP'].includes(reason) ? reason : 'SIGTERM',
+      );
     if (await waitFor(exited, SUPERVISOR_MAX_STOP_MS)) return;
     try {
       if (this.providerPid) process.kill(-this.providerPid, 'SIGKILL');

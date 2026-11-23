@@ -341,24 +341,29 @@ process.stdin.on('end', () => {
 
 test('stop ends a one-shot provider through the supervisor and reports the signal', async (t) => {
   await temporary(t);
-  const child = runtime.spawnSupervised(
-    process.execPath,
-    [
-      '-e',
-      "process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1000)",
-    ],
-    { lifetime: 'one-shot', stdio: ['ignore', 'pipe', 'pipe'] },
-  );
-  child.stdout.resume();
-  child.stderr.resume();
-  assert.ok(await waitUntil(() => child.providerPid !== null, 5000));
-  const closed = once(child, 'close');
-  const startedAt = Date.now();
-  await child.stop('deadline');
-  assert.deepEqual(await closed, [null, 'SIGTERM']);
-  assert.ok(Date.now() - startedAt < runtime.SIGTERM_GRACE_MS);
-  assert.equal(child.stopReason, 'deadline');
-  assert.equal(alive(child.providerPid, true), false);
+  for (const [reason, signal] of [
+    ['deadline', 'SIGTERM'],
+    ['SIGINT', 'SIGINT'],
+  ]) {
+    const child = runtime.spawnSupervised(
+      process.execPath,
+      [
+        '-e',
+        "process.on('SIGTERM', () => process.exit(0)); setInterval(() => {}, 1000)",
+      ],
+      { lifetime: 'one-shot', stdio: ['ignore', 'pipe', 'pipe'] },
+    );
+    child.stdout.resume();
+    child.stderr.resume();
+    assert.ok(await waitUntil(() => child.providerPid !== null, 5000));
+    const closed = once(child, 'close');
+    const startedAt = Date.now();
+    await child.stop(reason);
+    assert.deepEqual(await closed, [null, signal]);
+    assert.ok(Date.now() - startedAt < runtime.SIGTERM_GRACE_MS);
+    assert.equal(child.stopReason, reason);
+    assert.equal(alive(child.providerPid, true), false);
+  }
 });
 
 const workers = path.join(scripts, 'workers.mjs');

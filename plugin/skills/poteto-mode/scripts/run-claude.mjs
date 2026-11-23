@@ -295,6 +295,7 @@ function claudeStop({
   received,
   signal,
   missingSession,
+  foreignSession,
   permissionMode,
   terminalReason,
   denials,
@@ -306,6 +307,7 @@ function claudeStop({
   // An aborted result is a signal stop only when the runner sent the signal.
   if (signal && !aborted) return ['interrupted', 'signal', signal];
   if (missingSession) return ['error', 'missing-session', missingSession];
+  if (foreignSession) return ['error', 'failed', foreignSession];
   // Orca claude-full-access-refusal.ts:52-66 and claude-permission-mode-ladder.ts:47-74:
   // a first root init outside the launched mode is Claude's refusal of that mode.
   if (permissionMode !== null && permissionMode !== 'auto')
@@ -488,7 +490,11 @@ async function run(options) {
   let pending = '';
   const decoder = new StringDecoder('utf8');
   let resultEvent = null;
+  // Orca claude-structured-session-acquisition.ts:88-94: only frames of the named
+  // conversation count; another conversation's frames are evidence of a mismatch.
+  const expectedSessionId = options.resume ?? requestedSessionId;
   let sessionId = null;
+  let foreignSessionId = null;
   let observedModel = null;
   let rootInit = null;
   let parseError = null;
@@ -496,7 +502,12 @@ async function run(options) {
     if (!line.trim()) return;
     try {
       const value = JSON.parse(line);
-      if (typeof value.session_id === 'string') sessionId = value.session_id;
+      if (value.session_id !== expectedSessionId) {
+        if (typeof value.session_id === 'string')
+          foreignSessionId ??= value.session_id;
+        return;
+      }
+      sessionId = value.session_id;
       if (
         value.type === 'system' &&
         value.subtype === 'init' &&
@@ -579,6 +590,7 @@ async function run(options) {
     !aborted &&
     completion.exitCode === 0 &&
     !parseError &&
+    foreignSessionId === null &&
     resultEvent?.subtype === 'success' &&
     resultEvent.is_error !== true;
   const status =
@@ -598,6 +610,9 @@ async function run(options) {
     received,
     signal,
     missingSession,
+    foreignSession:
+      foreignSessionId &&
+      `Claude reported session ${foreignSessionId} instead of ${expectedSessionId}`,
     permissionMode: observedPermissionMode,
     terminalReason,
     denials,
@@ -615,6 +630,7 @@ async function run(options) {
     ...completion,
     descendantsReaped: child.descendantsReaped,
     sessionId,
+    foreignSessionId,
     observedModel,
     observedPermissionMode,
     terminalReason,
@@ -631,8 +647,8 @@ async function run(options) {
         cause,
         continuable:
           missingSession === null &&
-          sessionId !== null &&
-          sessionId === (options.resume ?? requestedSessionId),
+          foreignSessionId === null &&
+          sessionId === expectedSessionId,
       }),
       ...(denials.length ? { permissionDenials: denials } : {}),
     },
@@ -659,7 +675,7 @@ async function run(options) {
         : completion.signal === 'SIGTERM'
           ? 143
           : 1);
-    if (process.exitCode === 0 && (parseError || !resultEvent))
+    if (process.exitCode === 0 && (parseError || !resultEvent || foreignSessionId))
       process.exitCode = 1;
   }
 }

@@ -137,6 +137,9 @@ if (args[0] === '--version') {
     process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, result: 'Original authentication failure', session_id: sid}) + '\\n');
     process.stderr.write('original stderr\\n');
     process.exitCode = 7;
+  } else if (scenario === 'foreign-result') {
+    process.stdout.write(JSON.stringify({type: 'system', subtype: 'init', session_id: sid, permissionMode: 'auto'}) + '\\n');
+    process.stdout.write(JSON.stringify({type: 'result', subtype: 'success', is_error: false, result: 'foreign answer', session_id: '00000000-0000-4000-8000-000000000042'}) + '\\n');
   } else if (scenario === 'error-credential') {
     process.stdout.write(JSON.stringify({type: 'result', subtype: 'error_during_execution', is_error: true, result: 'API Error: 401 Authorization: Bearer abcDEF123456789xyz', errors: ['request failed: api_key=sk-ant-api03-' + 'A'.repeat(44)], session_id: sid}) + '\\n');
     process.exitCode = 1;
@@ -1098,9 +1101,36 @@ test('a stream from another conversation is not continuable', async (t) => {
   const result = f.invoke(f.runArgs, undefined, {
     PSTACK_FAKE_SCENARIO: 'foreign-session',
   });
+  assert.equal(result.status, 1, result.stderr);
   const receipt = JSON.parse(result.stdout);
-  assert.notEqual(receipt.sessionId, receipt.requestedSessionId);
-  assert.equal(receipt.stop.continuable, false);
+  assert.equal(receipt.sessionId, null);
+  assert.equal(
+    receipt.foreignSessionId,
+    '00000000-0000-4000-8000-000000000000',
+  );
+  assert.equal(receipt.result, null);
+  assert.deepEqual(
+    [receipt.status, receipt.stop.kind, receipt.stop.continuable],
+    ['failed', 'error', false],
+  );
+});
+
+test("another conversation's result is never the named session's answer", async (t) => {
+  const f = await fixture(t);
+  const result = f.invoke(f.runArgs, undefined, {
+    PSTACK_FAKE_SCENARIO: 'foreign-result',
+  });
+  assert.equal(result.status, 1, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.sessionId, receipt.requestedSessionId);
+  assert.equal(receipt.resultEvent, null);
+  assert.equal(receipt.result, null);
+  assert.deepEqual(receipt.stop, {
+    kind: 'error',
+    code: 'failed',
+    cause: `Claude reported session 00000000-0000-4000-8000-000000000042 instead of ${receipt.requestedSessionId}`,
+    continuable: false,
+  });
 });
 
 test('a run Claude started outside auto mode stops with permission-mode', async (t) => {

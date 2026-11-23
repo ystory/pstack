@@ -1407,8 +1407,9 @@ else {
     writeFileSync(${JSON.stringify(capture)}, JSON.stringify(args));
     const modelIndex = args.indexOf('--model');
     const model = modelIndex < 0 ? null : args[modelIndex + 1];
-    console.log(JSON.stringify({ type: 'system', subtype: 'init', model }));
-    console.log(JSON.stringify({ type: 'result', result: 'Fixture received ' + model }));
+    const session_id = args[args.indexOf('--session-id') + 1];
+    console.log(JSON.stringify({ type: 'system', subtype: 'init', session_id, model }));
+    console.log(JSON.stringify({ type: 'result', session_id, result: 'Fixture received ' + model }));
   });
 }
 `,

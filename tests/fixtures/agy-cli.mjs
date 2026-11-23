@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { appendFileSync, closeSync, fstatSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  closeSync,
+  fstatSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { once } from 'node:events';
 
 const args = process.argv.slice(2);
@@ -166,6 +172,36 @@ if (args[0] === '--version') {
     'rebuild-notice':
       'Agent connection was lost and could not be re-established: Failed to rebuild agent: no session\nretry later',
   };
+  // scripts/check-agy-live.ts: read the pointer and its marker, answer with the
+  // marker, and recall it on resume without tools.
+  if (mode === 'live-marker') {
+    const cache = `${process.env.AGY_TRACE}.marker`;
+    let marker;
+    if (args.includes('--conversation')) marker = readFileSync(cache, 'utf8');
+    else {
+      const pointer = `${process.cwd()}/pointer.txt`;
+      const markerFile = readFileSync(pointer, 'utf8').trim();
+      marker = readFileSync(markerFile, 'utf8');
+      writeFileSync(cache, marker);
+      for (const [index, file] of [pointer, markerFile].entries())
+        emit({
+          event: 'step_update',
+          step_update: {
+            ...update.step_update,
+            step_index: index + 1,
+            step_type: 'tool',
+            tool_name: 'read_file',
+            tool_info: {
+              name: 'read_file',
+              parameters: { path: file },
+              output: readFileSync(file, 'utf8'),
+            },
+          },
+        });
+    }
+    responses[mode] =
+      `${process.env.AGY_LIVE_RETRY ? '⚠ Model produced invalid output.\n' : ''}${marker}`;
+  }
   const result = {
     event: 'result',
     result: {

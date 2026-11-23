@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   writeFile,
   rm,
   stat,
@@ -429,6 +430,66 @@ for (const host of ['codex', 'claude-code']) {
     await assert.rejects(readFile(file), { code: 'ENOENT' });
   });
 }
+
+test("live agy verification accepts the runner's launch ID and retry-free answer", async (t) => {
+  const root = await realpath(
+    await mkdtemp(path.join(os.tmpdir(), 'pstack-agy-live-check-')),
+  );
+  t.after(() => rm(root, { recursive: true, force: true }));
+  for (const [effort, retry] of [
+    ['low', ''],
+    ['high', ''],
+    ['low', '1'],
+  ] as const) {
+    const evidence = path.join(root, `${effort}-${retry || 'plain'}`);
+    const result = spawnSync(
+      process.execPath,
+      [
+        path.resolve('scripts/check-agy-live.ts'),
+        '--evidence-dir',
+        evidence,
+        '--fresh-runner',
+        path.resolve('plugin/skills/poteto-mode/scripts/run-agy.mjs'),
+        '--resume-runner',
+        path.resolve('plugin-claude/skills/poteto-mode/scripts/run-agy.mjs'),
+        '--model',
+        'gemini-fixture-low',
+        '--effort',
+        effort,
+        '--inherited-auth',
+        'inherited-default',
+        '--executable',
+        path.resolve('tests/fixtures/agy-cli.mjs'),
+      ],
+      {
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          HOME: root,
+          TMPDIR: root,
+          AGY_ADC_AUTH: '',
+          AGY_FIXTURE: 'live-marker',
+          AGY_TRACE: `${evidence}.trace`,
+          AGY_LIVE_RETRY: retry,
+          PSTACK_STATE_HOME: path.join(root, 'state'),
+        },
+      },
+    );
+    const summary = JSON.parse(
+      await readFile(path.join(evidence, 'summary.json'), 'utf8'),
+    );
+    assert.equal(
+      summary.status,
+      'completed',
+      `${effort} ${retry} ${result.stderr}`,
+    );
+    const fresh = JSON.parse(await readFile(summary.fresh, 'utf8'));
+    assert.equal(
+      fresh.launchModel,
+      effort === 'high' ? 'gemini-fixture' : 'gemini-fixture-low',
+    );
+  }
+});
 
 test('live agy verification requires explicit paid settings and a new evidence directory before CLI invocation', async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'pstack-agy-live-gates-'));

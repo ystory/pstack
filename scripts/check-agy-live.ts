@@ -15,6 +15,7 @@ type Receipt = {
   status: string;
   error: string | null;
   requested: Entry;
+  launchModel: string;
   cwd: string;
   authMode: string;
   observedModel: string | null;
@@ -283,6 +284,21 @@ async function launch(runner: string, name: string, args: string[]) {
   return JSON.parse(Buffer.concat(stdout).toString('utf8'));
 }
 
+// The runner's documented behavior (agy-execution.md): a leveled ID whose level
+// differs from the effort launches the family ID, and the answer leaves out agy's
+// retry notices that terminalResult.response keeps.
+const levelSuffix = /^(.+)-(none|minimal|low|medium|high|xhigh|max)$/;
+const retryNotice = /^\s*\u26a0 (Model produced invalid output\.)\s*$/;
+function launchModelFor({ model, reasoningEffort }: Entry) {
+  const level = levelSuffix.exec(model);
+  return level && level[2] !== reasoningEffort ? level[1]! : model;
+}
+const answerOf = (response: string) =>
+  response
+    .split('\n')
+    .filter((line) => !retryNotice.test(line))
+    .join('\n');
+
 async function completed(runDirectory: string, emitted: Receipt) {
   const receipt: Receipt = JSON.parse(
     await fs.readFile(path.join(runDirectory, 'result.json'), 'utf8'),
@@ -297,8 +313,10 @@ async function completed(runDirectory: string, emitted: Receipt) {
   assert.deepEqual(receipt.requested, entry);
   assert.equal(receipt.cwd, workspace);
   assert.equal(receipt.authMode, authMode);
-  assert.equal(receipt.observedModel, entry.model);
-  assert.equal(receipt.init.init.model, entry.model);
+  const launchModel = launchModelFor(entry);
+  assert.equal(receipt.launchModel, launchModel);
+  assert.equal(receipt.observedModel, launchModel);
+  assert.equal(receipt.init.init.model, launchModel);
   assert.equal(receipt.init.init.cwd, workspace);
   assert.equal(receipt.init.conversation_id, receipt.conversationId);
   assert.equal(receipt.terminalResult.conversation_id, receipt.conversationId);
@@ -318,12 +336,10 @@ async function completed(runDirectory: string, emitted: Receipt) {
   assert.equal(receipt.usage.scope, 'conversation-cumulative');
   assert.equal(receipt.usage.source, 'native-agy-result');
   assert.deepEqual(receipt.usage.value, receipt.terminalResult.usage);
-  assert.equal(receipt.terminalResult.response.trim(), marker);
-  assert.equal(receipt.result, receipt.terminalResult.response);
-  assert.equal(
-    await fs.readFile(receipt.finalPath, 'utf8'),
-    receipt.terminalResult.response,
-  );
+  const answer = answerOf(receipt.terminalResult.response);
+  assert.equal(answer.trim(), marker);
+  assert.equal(receipt.result, answer);
+  assert.equal(await fs.readFile(receipt.finalPath, 'utf8'), answer);
   return receipt;
 }
 async function completedTools(receipt: Receipt) {

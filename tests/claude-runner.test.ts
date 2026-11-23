@@ -125,8 +125,11 @@ if (args[0] === '--version') {
   const named = (flag) => args.includes(flag) ? args[args.indexOf(flag) + 1] : null;
   const sid = scenario === 'foreign-session' ? '00000000-0000-4000-8000-000000000000' : named('--session-id') ?? named('--resume');
   if (scenario === 'signal') process.kill(process.pid, 'SIGTERM');
-  else if (scenario === 'cancel-exit') {
-    for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => process.exit(23));
+  else if (scenario === 'cancel-exit' || scenario === 'cancel-aborted') {
+    for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
+      if (scenario === 'cancel-aborted') process.stdout.write(JSON.stringify({type: 'result', subtype: 'success', is_error: false, terminal_reason: 'aborted_streaming', session_id: sid}) + '\\n', () => process.exit(0));
+      else process.exit(23);
+    });
     writeFileSync(process.env.PSTACK_FAKE_READY, 'ready');
     await new Promise(() => setInterval(() => {}, 1000));
   }
@@ -149,9 +152,10 @@ if (args[0] === '--version') {
     for (let line = 1; line <= 1000; line++) process.stderr.write('stderr line ' + String(line).padStart(4, '0') + ' xxxxxxxxxxxx\\n');
     process.stderr.write('token=fixture-secret-value\\n');
     process.exitCode = 3;
-  } else if (scenario === 'aborted-error' || scenario === 'aborted-success') {
+  } else if (scenario === 'aborted-error' || scenario === 'aborted-success' || scenario === 'aborted-143') {
     const error = scenario === 'aborted-error';
     process.stdout.write(JSON.stringify({type: 'result', subtype: error ? 'error_during_execution' : 'success', is_error: error, terminal_reason: error ? 'aborted_tools' : 'aborted_streaming', session_id: sid}) + '\\n');
+    if (scenario === 'aborted-143') process.exitCode = 143;
   } else if (scenario === 'lingering-helper') {
     const { spawn } = await import('node:child_process');
     spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' }).unref();
@@ -726,9 +730,13 @@ test('child termination preserves the signal and conventional process exit statu
   assert.equal(receipt.stop.cause, 'SIGTERM');
 });
 
-test("a cancelled run records the CLI's own exit beside the stop signal", async (t) => {
-  const f = await fixture(t);
-  const ready = path.join(f.root, 'ready');
+// Runs the fake CLI's scenario, sends the runner SIGINT once the CLI is ready, and
+// returns the runner's exit code and receipt.
+async function cancelled(
+  f: Awaited<ReturnType<typeof fixture>>,
+  scenario: string,
+) {
+  const ready = path.join(f.root, `${scenario}.ready`);
   const runner = spawn(
     process.execPath,
     [f.runner, ...f.runArgs, '--executable', f.executable],
@@ -737,7 +745,7 @@ test("a cancelled run records the CLI's own exit beside the stop signal", async 
       env: {
         ...process.env,
         PSTACK_FAKE_CALL_PATH: f.callPath,
-        PSTACK_FAKE_SCENARIO: 'cancel-exit',
+        PSTACK_FAKE_SCENARIO: scenario,
         PSTACK_FAKE_READY: ready,
         PSTACK_STATE_HOME: path.join(f.root, 'state'),
       },
@@ -753,7 +761,12 @@ test("a cancelled run records the CLI's own exit beside the stop signal", async 
   }
   runner.kill('SIGINT');
   const [code] = await once(runner, 'close');
-  const receipt = JSON.parse(stdout);
+  return { code, receipt: JSON.parse(stdout) };
+}
+
+test("a cancelled run records the CLI's own exit beside the stop signal", async (t) => {
+  const f = await fixture(t);
+  const { code, receipt } = await cancelled(f, 'cancel-exit');
   assert.equal(code, 23);
   assert.deepEqual(
     [receipt.exitCode, receipt.signal, receipt.status],
@@ -762,6 +775,30 @@ test("a cancelled run records the CLI's own exit beside the stop signal", async 
   assert.deepEqual(
     [receipt.stop.kind, receipt.stop.code, receipt.stop.cause],
     ['interrupted', 'signal', 'SIGINT'],
+  );
+});
+
+test('an aborted result is a signal stop only when the runner sent the signal', async (t) => {
+  const f = await fixture(t);
+  const { receipt: stopped } = await cancelled(f, 'cancel-aborted');
+  assert.equal(stopped.terminalReason, 'aborted_streaming');
+  assert.deepEqual(
+    [stopped.stop.kind, stopped.stop.code, stopped.stop.cause],
+    ['interrupted', 'signal', 'SIGINT'],
+  );
+  const g = await fixture(t);
+  const result = g.invoke(g.runArgs, undefined, {
+    PSTACK_FAKE_SCENARIO: 'aborted-143',
+  });
+  const ended = JSON.parse(result.stdout);
+  assert.equal(ended.exitCode, 143);
+  assert.deepEqual(
+    [ended.stop.kind, ended.stop.code, ended.stop.cause],
+    [
+      'interrupted',
+      'failed',
+      'Claude ended the turn early (aborted_streaming)',
+    ],
   );
 });
 

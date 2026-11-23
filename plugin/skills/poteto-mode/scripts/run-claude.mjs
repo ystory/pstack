@@ -287,8 +287,10 @@ function exitText({ exitCode, signal }, stderrTail) {
   return lines ? `${head}: ${lines}` : head;
 }
 
-// The receipt's stop, from the first matching piece of evidence.
+// The receipt's stop, from the first matching piece of evidence. received is a
+// stop signal the runner forwarded; signal also counts one the CLI died of.
 function claudeStop({
+  received,
   signal,
   missingSession,
   permissionMode,
@@ -297,7 +299,10 @@ function claudeStop({
   succeeded,
   failure,
 }) {
-  if (signal) return ['interrupted', 'signal', signal];
+  const aborted = CLAUDE_ABORTED_TERMINAL_REASONS.has(terminalReason);
+  if (received) return ['interrupted', 'signal', received];
+  // An aborted result is a signal stop only when the runner sent the signal.
+  if (signal && !aborted) return ['interrupted', 'signal', signal];
   if (missingSession) return ['error', 'missing-session', missingSession];
   // Orca claude-full-access-refusal.ts:52-66 and claude-permission-mode-ladder.ts:47-74:
   // a first root init outside the launched mode is Claude's refusal of that mode.
@@ -308,7 +313,7 @@ function claudeStop({
       `Claude started in ${permissionMode} mode instead of auto`,
     ];
   // Orca claude-result-outcome.ts:14-20: the abort reason outranks is_error.
-  if (CLAUDE_ABORTED_TERMINAL_REASONS.has(terminalReason))
+  if (aborted)
     return [
       'interrupted',
       'failed',
@@ -577,6 +582,7 @@ async function run(options) {
       ? `claude reported a startup failure: ${resultErrors.trim()}`
       : null;
   const [kind, code, cause] = claudeStop({
+    received,
     signal,
     missingSession,
     permissionMode: observedPermissionMode,

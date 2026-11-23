@@ -36,6 +36,13 @@ const descendantExitGraceMs = 3000;
 // cancel is SIGINT.
 const cancelGraceMs = 4000;
 const cancellations = ['interrupted', 'terminated', 'timed-out'];
+// agy runs its default model for a leveled ID whose level conflicts with --effort, so
+// launch the family ID (agent-session-option-catalog-antigravity.ts:5-23).
+const levelSuffix = /^(.+)-(none|minimal|low|medium|high|xhigh|max)$/;
+const launchModelFor = (model, effort) => {
+  const match = levelSuffix.exec(model);
+  return match && match[2] !== effort ? match[1] : model;
+};
 const contains = (root, target) =>
   target === root || target.startsWith(`${root}${path.sep}`);
 const uuid = (value) =>
@@ -112,6 +119,7 @@ function optionsFor(argv) {
       model: options.model,
       reasoningEffort: options.effort,
     });
+    options.launchModel = launchModelFor(options.model, options.effort);
   }
   return options;
 }
@@ -606,7 +614,7 @@ function stopFor(receipt) {
     code,
     cause,
     continuable: conversationVerified(receipt, {
-      model: receipt.requested?.model,
+      model: receipt.launchModel,
       cwd: receipt.cwd,
     }),
   });
@@ -646,7 +654,12 @@ async function priorFor(options, auth) {
     throw new Error(
       'Resume requires verified closed owned process and process group.',
     );
-  if (!conversationVerified(prior, options))
+  if (
+    !conversationVerified(prior, {
+      model: options.launchModel,
+      cwd: options.cwd,
+    })
+  )
     throw new Error(
       'Resume receipt lacks exact conversation identity evidence.',
     );
@@ -702,7 +715,10 @@ function streamParser(options, prior) {
         throw new Error(
           'Init conversation ID does not match the exact requested conversation.',
         );
-      if (init.init?.model !== options.model || init.init?.cwd !== options.cwd)
+      if (
+        init.init?.model !== options.launchModel ||
+        init.init?.cwd !== options.cwd
+      )
         throw new Error('Init model or cwd does not match the exact request.');
       ready();
     } else if (value.event === 'step_update') {
@@ -837,6 +853,7 @@ async function execute(options) {
     label: options.label ?? null,
     executable,
     requested: options.requested ?? null,
+    launchModel: options.launchModel ?? null,
     auth,
     authMode: auth.method,
     permissions: 'all-native-tools-auto-approved',
@@ -910,7 +927,7 @@ async function execute(options) {
         '--output-format',
         'stream-json',
         '--model',
-        options.model,
+        options.launchModel,
         '--effort',
         options.effort,
         '--dangerously-skip-permissions',

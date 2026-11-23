@@ -368,6 +368,41 @@ test('agy sends one official user event with complete context, role body, exact 
   }
 });
 
+test('agy launches the family ID when the model level conflicts with the effort and records both IDs', async (t) => {
+  const f = await fixture(t);
+  for (const [requested, effort, launched] of [
+    ['gemini-3.8-flash-low', 'high', 'gemini-3.8-flash'],
+    ['gemini-3.8-flash-low', 'low', 'gemini-3.8-flash-low'],
+    ['claude-fixture-20261115', 'high', 'claude-fixture-20261115'],
+  ] as const) {
+    const run = await f.invoke('normal', [
+      '--model',
+      requested,
+      '--effort',
+      effort,
+    ]);
+    assert.equal(run.code, 0, run.stderr);
+    assert.equal(run.receipt.requested.model, requested);
+    assert.equal(run.receipt.requested.reasoningEffort, effort);
+    assert.equal(run.receipt.launchModel, launched);
+    assert.equal(run.receipt.observedModel, launched);
+    const args = run.receipt.args;
+    assert.equal(args[args.indexOf('--model') + 1], launched);
+    assert.equal(args[args.indexOf('--effort') + 1], effort);
+    assert.equal(run.receipt.stop.continuable, true);
+    const resumed = await f.invoke('normal', [
+      '--model',
+      requested,
+      '--effort',
+      effort,
+      '--resume',
+      path.join(run.runDir, 'result.json'),
+    ]);
+    assert.equal(resumed.code, 0, resumed.stderr);
+    assert.equal(resumed.receipt.launchModel, launched);
+  }
+});
+
 test('agy catalog preserves exact sanitized ID/label provenance without a model prompt or invented effort matrix', async (t) => {
   const f = await fixture(t);
   const run = await f.invoke('normal', [], 'catalog');

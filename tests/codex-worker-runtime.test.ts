@@ -98,8 +98,8 @@ lines.on('line', (line) => {
     notify('item/autoApprovalReview/completed',review('review-other-thread','denied','other-thread'));
    }
    if (prompt.includes('ASK')) JSON.parse(process.env.FAKE_SERVER_REQUESTS).forEach((method,index)=>send({id:'ask-'+index,method,params:{threadId,turnId}}));
-   if (prompt.includes('RETRY')) notify('error',{threadId,turnId,willRetry:true,error:{message:'transient stream retry',codexErrorInfo:{responseStreamDisconnected:{httpStatusCode:502}},additionalDetails:null}});
-   if (prompt.includes('FINAL_ERROR')) notify('error',{threadId,turnId,willRetry:false,error:{message:'final stream failure',codexErrorInfo:JSON.parse(process.env.FAKE_FINAL_ERROR_INFO ?? '"other"'),additionalDetails:null}});
+   if (prompt.includes('RETRY')) notify('error',{threadId,turnId,willRetry:true,error:JSON.parse(process.env.FAKE_RETRY_ERROR ?? 'null') ?? {message:'transient stream retry',codexErrorInfo:{responseStreamDisconnected:{httpStatusCode:502}},additionalDetails:null}});
+   if (prompt.includes('FINAL_ERROR')) notify('error',{threadId,turnId,willRetry:false,error:{message:process.env.FAKE_FINAL_ERROR_MESSAGE ?? 'final stream failure',codexErrorInfo:JSON.parse(process.env.FAKE_FINAL_ERROR_INFO ?? '"other"'),additionalDetails:null}});
    notify('item/completed',{threadId,turnId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'answer for '+threadId}});
    if (prompt.includes('EXIT')) { setTimeout(()=>process.exit(7),40); return; }
    timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?JSON.parse(process.env.FAKE_TURN_ERROR ?? 'null') ?? {message:'actual terminal failure',codexErrorInfo:JSON.parse(process.env.FAKE_TURN_ERROR_INFO ?? 'null')}:null}}),prompt.includes('FAIL')?450:40);
@@ -865,6 +865,10 @@ test('a failed turn keeps provider credentials out of every receipt copy of its 
     message: 'authentication failed: [redacted:labeled-kv]',
     data: { note: 'api_token=[redacted:labeled-kv]' },
   });
+  assert.equal(
+    receipt.stop.cause,
+    'authentication failed: [redacted:labeled-kv]',
+  );
   assert.match(
     await readFile(receipt.files.diagnostics, 'utf8'),
     /Bearer sample-only/,
@@ -973,42 +977,107 @@ test('a retried Codex error stays out of the receipt and a final one is kept', a
   assert.equal(final.error.message, 'final stream failure');
 });
 
-test('only sign-out evidence stops a failed Codex turn as not-signed-in', async (t) => {
+test('a failed Codex turn stops with the code its error variant proves and the error as cause', async (t) => {
   const f = await fixture(t);
-  for (const [name, prompt, variable, info, code] of [
+  const retried = JSON.stringify({
+    message: 'capacity exhausted',
+    codexErrorInfo: 'serverOverloaded',
+    additionalDetails: null,
+  });
+  for (const [name, prompt, env, code, cause] of [
     [
       'unauthorized',
       'FAIL',
-      'FAKE_TURN_ERROR_INFO',
-      '"unauthorized"',
+      { FAKE_TURN_ERROR_INFO: '"unauthorized"' },
       'not-signed-in',
     ],
     [
       'http-401',
       'FAIL',
-      'FAKE_TURN_ERROR_INFO',
-      '{"httpConnectionFailed":{"httpStatusCode":401}}',
+      {
+        FAKE_TURN_ERROR_INFO: '{"httpConnectionFailed":{"httpStatusCode":401}}',
+      },
       'not-signed-in',
     ],
     [
       'notified',
       'FINAL_ERROR FAIL',
-      'FAKE_FINAL_ERROR_INFO',
-      '"unauthorized"',
+      { FAKE_FINAL_ERROR_INFO: '"unauthorized"' },
       'not-signed-in',
+      'final stream failure',
     ],
     [
       'http-500',
       'FAIL',
-      'FAKE_TURN_ERROR_INFO',
-      '{"httpConnectionFailed":{"httpStatusCode":500}}',
+      {
+        FAKE_TURN_ERROR_INFO: '{"httpConnectionFailed":{"httpStatusCode":500}}',
+      },
       'failed',
     ],
+    [
+      'usage',
+      'FAIL',
+      { FAKE_TURN_ERROR_INFO: '"usageLimitExceeded"' },
+      'usage-limit',
+    ],
+    [
+      'rate',
+      'FAIL',
+      { FAKE_TURN_ERROR_INFO: '"rateLimitExceeded"' },
+      'usage-limit',
+    ],
+    [
+      'attempts-429',
+      'FAIL',
+      {
+        FAKE_TURN_ERROR_INFO:
+          '{"responseTooManyFailedAttempts":{"httpStatusCode":429}}',
+      },
+      'usage-limit',
+    ],
+    [
+      'model',
+      'FAIL',
+      { FAKE_TURN_ERROR_INFO: '"modelNotFound"' },
+      'model-unavailable',
+    ],
+    [
+      'overloaded',
+      'FAIL',
+      { FAKE_TURN_ERROR_INFO: '"serverOverloaded"' },
+      'provider',
+    ],
+    ['flex', 'FAIL', { FAKE_TURN_ERROR_INFO: '"flexUnavailable"' }, 'provider'],
+    [
+      'capacity',
+      'FAIL',
+      { FAKE_TURN_ERROR_INFO: '"policyCapacityUnavailable"' },
+      'provider',
+    ],
+    ['policy', 'FAIL', { FAKE_TURN_ERROR_INFO: '"cyberPolicy"' }, 'failed'],
+    [
+      'retried-variant',
+      'RETRY FINAL_ERROR FAIL',
+      {
+        FAKE_RETRY_ERROR: retried,
+        FAKE_FINAL_ERROR_MESSAGE: 'capacity exhausted',
+      },
+      'provider',
+      'capacity exhausted',
+    ],
+    [
+      'other-text',
+      'RETRY FINAL_ERROR FAIL',
+      { FAKE_RETRY_ERROR: retried },
+      'failed',
+      'actual terminal failure',
+    ],
   ] as const) {
-    assert.equal(f.run(name, prompt, [], { [variable]: info }).status, 1);
+    assert.equal(f.run(name, prompt, [], env).status, 1, name);
     const receipt = await f.receipt(name);
     assert.equal(receipt.stop.kind, 'error', name);
     assert.equal(receipt.stop.code, code, name);
+    assert.equal(receipt.stop.cause, cause ?? 'actual terminal failure', name);
   }
 });
 

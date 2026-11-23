@@ -313,22 +313,83 @@ function activityText(item) {
   }
 }
 
+// Orca codex-structured-thread-facts.ts: codexErrorInfo is a variant name or a
+// single-key object whose fields can carry the HTTP status.
+function errorInfo(error) {
+  const info = error?.codexErrorInfo;
+  if (typeof info === 'string' && info) return { error: info };
+  const [variant, fields] =
+    Object.entries(info && typeof info === 'object' ? info : {})[0] ?? [];
+  return variant ? { error: variant, status: fields?.httpStatusCode } : null;
+}
+const failureText = (error) =>
+  typeof error?.additionalDetails === 'string'
+    ? error.additionalDetails
+    : typeof error?.message === 'string'
+      ? error.message
+      : undefined;
+// The provider's words for a failure, as Orca's usage-limit and sign-in text joins them.
+function errorText(error) {
+  const message = typeof error?.message === 'string' ? error.message : null;
+  const details =
+    typeof error?.additionalDetails === 'string' ? error.additionalDetails : null;
+  return (
+    [message, details !== message ? details : null].filter(Boolean).join('\n') ||
+    null
+  );
+}
+
 // Orca codex-authentication-failure.ts: only the unauthorized variant, or an HTTP
-// failure carrying 401, proves sign-out. Variants are strings or single-key objects.
+// failure carrying 401, proves sign-out.
 const HTTP_ERROR_KINDS = [
   'httpConnectionFailed',
   'responseStreamConnectionFailed',
   'responseStreamDisconnected',
   'responseTooManyFailedAttempts',
 ];
-function signedOut(error) {
-  const info = error?.codexErrorInfo;
-  const [variant, fields] =
-    typeof info === 'string' ? [info] : (Object.entries(info ?? {})[0] ?? []);
-  return (
-    variant === 'unauthorized' ||
-    (fields?.httpStatusCode === 401 && HTTP_ERROR_KINDS.includes(variant))
-  );
+// Orca codex-turn-failures.ts:159-199 with codex-usage-limits.ts: the stop code a
+// failed turn's error proves. A final 'other' error that repeats the text of an
+// error Codex retried keeps that retry's variant.
+function codexStopCode(error, retry) {
+  let info = errorInfo(error);
+  if (
+    info?.error === 'other' &&
+    retry &&
+    failureText(error) !== undefined &&
+    failureText(error) === retry.text
+  )
+    info = retry.info;
+  if (!info) return 'failed';
+  if (
+    ['usageLimitExceeded', 'rateLimitExceeded'].includes(info.error) ||
+    (info.error === 'responseTooManyFailedAttempts' && info.status === 429)
+  )
+    return 'usage-limit';
+  if (
+    info.error === 'unauthorized' ||
+    (info.status === 401 && HTTP_ERROR_KINDS.includes(info.error))
+  )
+    return 'not-signed-in';
+  if (info.error === 'modelNotFound') return 'model-unavailable';
+  if (
+    ['serverOverloaded', 'flexUnavailable', 'policyCapacityUnavailable'].includes(
+      info.error,
+    )
+  )
+    return 'provider';
+  return 'failed';
+}
+
+// The turn's error, or the error notification that ended it, whichever proves a
+// code, names the stop; the cause is that error's text.
+function turnFailure(failure, errors, retry) {
+  const present = errors.filter(Boolean);
+  const proven = present.find((error) => codexStopCode(error, retry) !== 'failed');
+  return [
+    'error',
+    proven ? codexStopCode(proven, retry) : 'failed',
+    failure?.message ?? errorText(proven ?? present[0]) ?? 'failed',
+  ];
 }
 
 // Orca codex-structured-thread-open.ts: only this thread-specific resume refusal proves no rollout.
@@ -523,7 +584,8 @@ async function run(options, server) {
     terminal = null;
   const threadSettings = { model: null, effort: null };
   const deniedReviews = [];
-  let interrupt = null;
+  let interrupt = null,
+    retry = null;
   const clientRequests = [];
   const child = { pid: null, exitCode: null, signal: null, closed: false };
   let provider = null,
@@ -574,6 +636,13 @@ async function run(options, server) {
     }
     if (message.params?.threadId !== threadId) return;
     if (message.method === 'turn/started') turnId = message.params.turn.id;
+    // Orca codex-turn-failures.ts observeRetry: the last retried error with a variant.
+    if (message.method === 'error' && message.params.willRetry !== false) {
+      const info = errorInfo(message.params.error);
+      const text = failureText(message.params.error);
+      if (info && info.error !== 'other' && text !== undefined)
+        retry = { info, text };
+    }
     if (message.method === 'item/started') {
       const activity = activityText(message.params.item);
       if (activity) recordActivity(directory, activity);
@@ -674,15 +743,9 @@ async function run(options, server) {
         ? ['permission', 'permission-denied', 'denied review']
         : status === 'completed'
           ? ['completed', 'completed', 'completed']
-          : [
-              'error',
-              signedOut(terminal?.error) || signedOut(result?.error)
-                ? 'not-signed-in'
-                : noRollout(failure, options.resume)
-                  ? 'missing-session'
-                  : 'failed',
-              failure?.message ?? 'failed',
-            ];
+          : noRollout(failure, options.resume)
+            ? ['error', 'missing-session', failure.message]
+            : turnFailure(failure, [terminal?.error, result?.error], retry);
   child.pid = provider?.providerPid ?? null;
   child.descendantsReaped = provider?.descendantsReaped ?? null;
   const exitCode =

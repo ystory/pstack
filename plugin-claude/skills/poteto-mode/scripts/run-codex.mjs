@@ -314,6 +314,24 @@ function activityText(item) {
   }
 }
 
+// Orca codex-authentication-failure.ts: only the unauthorized variant, or an HTTP
+// failure carrying 401, proves sign-out. Variants are strings or single-key objects.
+const HTTP_ERROR_KINDS = [
+  'httpConnectionFailed',
+  'responseStreamConnectionFailed',
+  'responseStreamDisconnected',
+  'responseTooManyFailedAttempts',
+];
+function signedOut(error) {
+  const info = error?.codexErrorInfo;
+  const [variant, fields] =
+    typeof info === 'string' ? [info] : (Object.entries(info ?? {})[0] ?? []);
+  return (
+    variant === 'unauthorized' ||
+    (fields?.httpStatusCode === 401 && HTTP_ERROR_KINDS.includes(variant))
+  );
+}
+
 const snakeCase = (value) =>
   value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 
@@ -575,7 +593,13 @@ async function run(options, server) {
         ? ['permission', 'permission-denied', 'denied review']
         : status === 'completed'
           ? ['completed', 'completed', 'completed']
-          : ['error', 'failed', failure?.message ?? 'failed'];
+          : [
+              'error',
+              signedOut(terminal?.error) || signedOut(result?.error)
+                ? 'not-signed-in'
+                : 'failed',
+              failure?.message ?? 'failed',
+            ];
   child.pid = provider?.providerPid ?? null;
   const exitCode =
     signal === 'SIGINT'

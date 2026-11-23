@@ -95,10 +95,10 @@ lines.on('line', (line) => {
     notify('item/autoApprovalReview/completed',review('review-other-thread','denied','other-thread'));
    }
    if (prompt.includes('RETRY')) notify('error',{threadId,turnId,willRetry:true,error:{message:'transient stream retry',codexErrorInfo:{responseStreamDisconnected:{httpStatusCode:502}},additionalDetails:null}});
-   if (prompt.includes('FINAL_ERROR')) notify('error',{threadId,turnId,willRetry:false,error:{message:'final stream failure',codexErrorInfo:'other',additionalDetails:null}});
+   if (prompt.includes('FINAL_ERROR')) notify('error',{threadId,turnId,willRetry:false,error:{message:'final stream failure',codexErrorInfo:JSON.parse(process.env.FAKE_FINAL_ERROR_INFO ?? '"other"'),additionalDetails:null}});
    notify('item/completed',{threadId,turnId,item:{type:'agentMessage',id:'answer',phase:'final_answer',text:'answer for '+threadId}});
    if (prompt.includes('EXIT')) { setTimeout(()=>process.exit(7),40); return; }
-   timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?{message:'actual terminal failure'}:null}}),prompt.includes('FAIL')?450:40);
+   timer = setTimeout(()=>notify('turn/completed',{threadId,turn:{id:turnId,status:prompt.includes('FAIL')?'failed':'completed',error:prompt.includes('FAIL')?{message:'actual terminal failure',codexErrorInfo:JSON.parse(process.env.FAKE_TURN_ERROR_INFO ?? 'null')}:null}}),prompt.includes('FAIL')?450:40);
   };
   if (!process.env.FAKE_HOLD_TURN_RESPONSE) started();
   break;
@@ -860,6 +860,45 @@ test('a retried Codex error stays out of the receipt and a final one is kept', a
   const final = await f.receipt('final');
   assert.equal(final.stop.kind, 'error');
   assert.equal(final.error.message, 'final stream failure');
+});
+
+test('only sign-out evidence stops a failed Codex turn as not-signed-in', async (t) => {
+  const f = await fixture(t);
+  for (const [name, prompt, variable, info, code] of [
+    [
+      'unauthorized',
+      'FAIL',
+      'FAKE_TURN_ERROR_INFO',
+      '"unauthorized"',
+      'not-signed-in',
+    ],
+    [
+      'http-401',
+      'FAIL',
+      'FAKE_TURN_ERROR_INFO',
+      '{"httpConnectionFailed":{"httpStatusCode":401}}',
+      'not-signed-in',
+    ],
+    [
+      'notified',
+      'FINAL_ERROR FAIL',
+      'FAKE_FINAL_ERROR_INFO',
+      '"unauthorized"',
+      'not-signed-in',
+    ],
+    [
+      'http-500',
+      'FAIL',
+      'FAKE_TURN_ERROR_INFO',
+      '{"httpConnectionFailed":{"httpStatusCode":500}}',
+      'failed',
+    ],
+  ] as const) {
+    assert.equal(f.run(name, prompt, [], { [variable]: info }).status, 1);
+    const receipt = await f.receipt(name);
+    assert.equal(receipt.stop.kind, 'error', name);
+    assert.equal(receipt.stop.code, code, name);
+  }
 });
 
 test('parallel workers and interleaved exact continuation retain separate identities and outputs', async (t) => {
